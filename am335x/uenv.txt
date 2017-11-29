@@ -1,0 +1,2 @@
+uenvcmd = "dhcp; bootm"
+

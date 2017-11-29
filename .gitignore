@@ -1,0 +1,10 @@
+docs
+
+*.o
+*.a
+*.out
+*.elf
+*.bin
+*.list
+*.umg
+initcode.c

@@ -1,0 +1,7 @@
+*.o
+*.bo
+*.elf
+*.list
+*.bin
+*.umg
+
