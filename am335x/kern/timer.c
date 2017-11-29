@@ -133,11 +133,14 @@ init_timers(void)
 void
 systick_handler(uint32_t irqn)
 {
+	debug("handle systick\n");
+	
   /* Clear irq status if it is set. */
   timer2->irqstatus = 1<<1;
 
   intc_reset();
   
+  debug("schedule from 0x%h\n", up);
   schedule(nil);
 }
 

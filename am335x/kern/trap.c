@@ -142,6 +142,9 @@ trap(reg_t pc, int type)
 {
   uint32_t fsr;
   reg_t addr;
+  
+  debug("trap for 0x%h\n", up);
+  debug("do handler\n");
 
   switch(type) {
   case ABORT_INTERRUPT:

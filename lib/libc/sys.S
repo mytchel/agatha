@@ -30,18 +30,8 @@
 .global start
 .global raise
 
-.global get_proc_page
-.global get_kernel_page
-
 .global send
 .global recv
-.global reply
-.global reply_recv
-
-.global proc_create
-
-.global addr_offer
-.global addr_accept
 
 start:
 	bl main
@@ -49,20 +39,6 @@ start:
 
 raise:
 	b .
-
-get_proc_page:
-	push {r12, lr}
-	mov r12, #SYSCALL_GET_PROC_PAGE
-	svc 0
-	pop {r12, pc}
-
-
-get_kernel_page:
-	push {r12, lr}
-	mov r12, #SYSCALL_GET_KERNEL_PAGE
-	svc 0
-	pop {r12, pc}
-
 
 send:
 	push {r12, lr}
@@ -77,36 +53,3 @@ recv:
 	svc 0
 	pop {r12, pc}
 	
-	
-reply:
-	push {r12, lr}
-	mov r12, #SYSCALL_REPLY
-	svc 0
-	pop {r12, pc}
-
-
-reply_recv:
-	push {r12, lr}
-	mov r12, #SYSCALL_REPLY_RECV
-	svc 0
-	pop {r12, pc}
-	
-	
-proc_create:
-	push {r12, lr}
-	mov r12, #SYSCALL_PROC_CREATE
-	svc 0
-	pop {r12, pc}
-
-		
-addr_offer:
-	push {r12, lr}
-	mov r12, #SYSCALL_ADDR_OFFER
-	svc 0
-	pop {r12, pc}
-		
-addr_accept:
-	push {r12, lr}
-	mov r12, #SYSCALL_ADDR_ACCEPT
-	svc 0
-	pop {r12, pc}

@@ -32,12 +32,14 @@ extern void *_proc0_text_start;
 extern void *_proc0_text_end;
 extern void *_proc0_data_start;
 extern void *_proc0_data_end;
-
+/*
 static uint8_t proc0_stack[PAGE_SIZE]__attribute__((__aligned__(PAGE_SIZE)));
-
+static uint8_t proc1_stack[PAGE_SIZE]__attribute__((__aligned__(PAGE_SIZE)));
+*/
 static void
 proc0_start(void)
 {
+/*
 	label_t u = {0};
 	
 	debug("starting proc0\n");
@@ -46,6 +48,43 @@ proc0_start(void)
 	u.pc = (reg_t) &_proc0_text_start;
 	
 	drop_to_user(&u, up->kstack, KSTACK_LEN);
+	*/
+	
+	uint8_t m[MESSAGE_LEN];
+	
+	*m = 0;
+	
+	while (true) {
+		debug("%i send/recv %i\n", up->pid, *m);
+		ksend(find_proc(1), m);
+		krecv(m);		
+	}
+}
+
+static void
+proc1_start(void)
+{
+/*
+	label_t u = {0};
+	
+	debug("starting proc1\n");
+	
+	u.sp = (reg_t) proc1_stack + sizeof(proc1_stack);
+	u.pc = (reg_t) &_proc0_text_start;
+	
+	drop_to_user(&u, up->kstack, KSTACK_LEN);
+	*/
+	
+	
+	uint8_t m[MESSAGE_LEN];
+	int p;
+	
+	while (true) {
+		debug("%i send/recv %i\n", up->pid, *m);
+		p = krecv(m);
+		(*m)++;
+		ksend(find_proc(p), m);	
+	}
 }
 
 static proc_t
@@ -60,6 +99,13 @@ init_proc0(void)
 	
 	func_label(&p->label, p->kstack, KSTACK_LEN, &proc0_start);
 	
+	p = proc_new();
+	if (p == nil) {
+		panic("Failed to create proc1!\n");
+	}
+	
+	func_label(&p->label, p->kstack, KSTACK_LEN, &proc1_start);
+		
 	return p;
 }
 

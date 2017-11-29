@@ -27,13 +27,13 @@
 
 #include <head.h>
 
-void add_to_list_back(struct proc **, struct proc *);
+void add_to_list(struct proc **, struct proc *);
 bool remove_from_list(struct proc **, struct proc *);
 
 static uint32_t nextpid = 0;
 
 static struct proc procs[MAX_PROCS] = { 0 };
-proc_t alive = nil;
+static proc_t alive = nil;
 proc_t up = nil;
 
 static struct proc *
@@ -61,7 +61,7 @@ next_proc(void)
 		}
 	} while (p != up);
 	
-	return p != nil && p->state == PROC_ready ? p : nil;
+	return (p != nil && p->state == PROC_ready) ? p : nil;
 }
 
 void
@@ -90,32 +90,16 @@ schedule(proc_t n)
 		goto_label(&up->label);
 		
 	} else {
-		debug("wait for interrupt\n");
-		set_intr(INTR_on);
-		while (true)
-			;
+		debug("NO PROCS TO RUN!!\n");
+		raise();
 	}
 }
 
 void
-add_to_list_back(proc_t *l, proc_t p)
+add_to_list(proc_t *l, proc_t p)
 {
-	proc_t pp;
-
-	p->next = nil;
-  
-	while (true) {
-		for (pp = *l; pp != nil && pp->next != nil; pp = pp->next)
-			;
-
-		if (pp == nil) {
-			if (cas(l, nil, p)) {
-				break;
-			}
-		} else if (cas(&pp->next, nil, p)) {
-			break;
-		}
-	}
+	p->next = *l;
+	*l = p;
 }
 
 bool
@@ -123,22 +107,16 @@ remove_from_list(proc_t *l, proc_t p)
 {
 	proc_t pt;
 
-	while (true) {
-		if (*l == p) {
-			if (cas(l, p, p->next)) {
-				return true;
-			}
-		} else {
-			for (pt = *l; pt != nil && pt->next != p; pt = pt->next)
-				;
-
-			if (pt == nil) {
-				return false;
-			} else if (cas(&pt->next, p, p->next)) {
-				return true;
-			}
-		}
+	if (*l == p) {
+		*l = p->next;
+	} else {
+		for (pt = *l; pt != nil && pt->next != p; pt = pt->next)
+			;
+	
+		pt->next = p->next;
 	}
+	
+	return true;
 }
 	
 static void
@@ -188,7 +166,7 @@ proc_new(void)
 	
 	p->state = PROC_ready;
 	
-	add_to_list_back(&alive, p);
+	add_to_list(&alive, p);
 		
   return p;
 }
