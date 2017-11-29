@@ -25,7 +25,8 @@
  *
  */
 
-#include <c.h>
+#include <types.h>
+#include <err.h>
 #include <stdarg.h>
 #include <string.h>
 

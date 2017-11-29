@@ -25,13 +25,20 @@
  *
  */
 
-#include <c.h>
 #include <sys.h>
-#include <syscalls.h>
+#include <err.h>
+#include <types.h>
+#include <stdarg.h>
 #include <string.h>
 
+typedef struct kframe *kframe_t;
+
+struct kframe {
+	struct frame user;
+	struct kframe *next;
+};
+
 typedef struct proc *proc_t;
-typedef struct proc_list *proc_list_t;
 
 typedef enum {
 	PROC_dead,
@@ -42,8 +49,6 @@ typedef enum {
 	PROC_recv,
 } procstate_t;
 
-#define KSTACK_LEN 512
-
 struct proc {
 	label_t label;
 	
@@ -51,10 +56,15 @@ struct proc {
 	int pid;
 	proc_t next;
 	
-	int m_from, m_ready;
+	int m_from;
 	uint8_t m[MESSAGE_LEN];
 	
 	uint8_t kstack[KSTACK_LEN];
+	
+	size_t frame_count;
+	kframe_t *frames;
+	
+	vspace_t *vspace;
 };
 
 proc_t
@@ -67,10 +77,19 @@ void
 schedule(proc_t next);
 
 int
-ksend(proc_t p, uint8_t *m);
+send(proc_t p, uint8_t *m);
 
 int
-krecv(uint8_t *m);
+recv(uint8_t *m);
+
+kframe_t
+frame_split(kframe_t f, size_t offset);
+
+void
+memcpy(void *dst, const void *src, size_t len);
+
+void
+memset(void *dst, uint8_t v, size_t len);
 
 /* Machine dependant. */
 
@@ -107,7 +126,11 @@ func_label(label_t *l,
            void *stack, 
            size_t stacklen,
            void (*func)(void));
-            
+
+
+bool
+cas(void *addr, void *old, void *new);
+
 /* Variables. */
 
 extern proc_t up;

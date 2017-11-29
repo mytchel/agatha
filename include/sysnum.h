@@ -25,12 +25,9 @@
  *
  */
 
-#ifndef _SYSCALLS_H_
-#define _SYSCALLS_H_
-
 #define SYSCALL_SEND              0
 #define SYSCALL_RECV              1
 
 #define NSYSCALLS                 2
 
-#endif
+#define MESSAGE_LEN 64

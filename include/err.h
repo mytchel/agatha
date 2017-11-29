@@ -25,10 +25,5 @@
  *
  */
 
-#ifndef _ERR_H_
-#define _ERR_H_
-
 #define OK	 	 0
 #define ERR		-1
-
-#endif

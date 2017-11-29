@@ -26,9 +26,10 @@
  */
  
 #include <head.h>
+#include <sysnum.h>
 
 int
-ksend(proc_t p, uint8_t *m)
+send(proc_t p, uint8_t *m)
 {
 	debug("%i ksend to %i\n", up->pid, p->pid);
 	
@@ -51,7 +52,7 @@ ksend(proc_t p, uint8_t *m)
 }
 
 int
-krecv(uint8_t *m)
+recv(uint8_t *m)
 {
 	int pid;
 	
@@ -86,7 +87,7 @@ sys_send(int pid, uint8_t *m)
 		return ERR;
 	}
 
-	return ksend(p, m);
+	return send(p, m);
 }
 
 reg_t
@@ -94,7 +95,7 @@ sys_recv(uint8_t *m)
 {
 	debug("%i recv to 0x%h\n", up->pid, m);
 	
-	return krecv(m);
+	return recv(m);
 }
 
 void *systab[NSYSCALLS] = {

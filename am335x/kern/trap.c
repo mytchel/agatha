@@ -30,7 +30,6 @@
 #include "trap.h"
 
 #define nirq 128
-#define INTC			0x48200000
 
 struct intc {
 	uint32_t revision;
@@ -63,14 +62,16 @@ struct intc {
 	uint32_t ilr[nirq];
 };
 
-struct intc *intc = (struct intc *) INTC;
+struct intc *intc;
 
 static void (*handlers[nirq])(uint32_t) = {nil};
 
 void
-init_intc(void)
+init_intc(void *regs)
 {
   int i;
+  
+  intc = (struct intc *) regs;
 	
   /* enable interface auto idle */
   intc->sysconfig = 1;

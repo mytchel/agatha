@@ -25,9 +25,6 @@
  *
  */
 
-#ifndef _AM335X_MMC_H_
-#define _AM335X_MMC_H_
-
 #define MMC0  0x48060000
 #define MMC1  0x481D8000
 #define MMC2  0x47810000
@@ -73,5 +70,3 @@ struct mmchs_regs {
   uint32_t pad5[39];
   uint32_t rev;
 }; 
-
-#endif

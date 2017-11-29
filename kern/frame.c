@@ -25,23 +25,9 @@
  *
  */
 
-#define MESSAGE_LEN 64
+#include <head.h>
 
-/* For if you are mapping these pages as tables rather than 
-   mappings. */
-#define F_MAP_MMU_TABLE (1<<0)
-#define F_MAP_READ      (1<<1)
-#define F_MAP_WRITE     (1<<2)
+static struct kframe frames[MAX_FRAMES] = {0};
+static int next_free = 0;
 
-typedef struct frame *frame_t;
 
-struct frame {
-	int f_id;
-	
-	int type;
-	size_t pa, len;
-	
-	/* Mapping if mapped. */
-	size_t va;
-	int flags;
-};

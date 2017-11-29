@@ -28,13 +28,6 @@
 #include <head.h>
 #include "fns.h"
 
-#define TIMER2 0x48040000
-#define TINT2 68
-
-#define CM_DPLL	0x44E00500
-
-#define WDT 0x44E35000
-
 struct timer {
 	uint32_t tidr;
 	uint32_t pad1[3];
@@ -98,15 +91,18 @@ struct watchdog {
 	uint32_t wireqenclr;
 };
 
-struct timer *timer2 = (struct timer *) TIMER2;
-struct cm_dpll *cm = (struct cm_dpll *) CM_DPLL; 
-struct watchdog *wdt = (struct watchdog *) WDT;
+static int t_irq;
+static struct timer *timer2;
+static struct cm_dpll *cm; 
+static struct watchdog *wdt;
 
 static void systick_handler(uint32_t);
 
 void
-init_watchdog(void)
+init_watchdog(void *regs)
 {
+ 	wdt = regs;
+ 
   /* Disable watchdog timer. */
   
 	wdt->wspr = 0x0000AAAA;
@@ -119,15 +115,20 @@ init_watchdog(void)
 }
 
 void
-init_timers(void)
+init_timers(void *t_regs, int _t_irq, void *c_regs)
 {
+	timer2 = (struct timer *) t_regs;
+	t_irq = _t_irq;
+	
+	cm = (struct cm_dpll *) c_regs;
+	
   /* Select 32KHz clock for timer 2 */
   cm->timer2_clk = 2;
 
   /* set irq for overflow */
 	timer2->irqenable_set = 1<<1;
 
-  intc_add_handler(TINT2, &systick_handler);
+  intc_add_handler(t_irq, &systick_handler);
 }
 
 void

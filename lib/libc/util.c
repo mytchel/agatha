@@ -25,6 +25,9 @@
  *
  */
 
+#include <types.h>
+#include <err.h>
+#include <sys.h>
 #include <c.h>
 
 void

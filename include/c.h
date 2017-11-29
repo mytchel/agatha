@@ -25,14 +25,12 @@
  *
  */
 
-#ifndef _C_H_
-#define _C_H_
-
-#include <err.h>
-#include <types.h>
-
-/* All messages must be MESSAGE_LEN bytes long. */
-#define MESSAGE_LEN 64
+/* Turns a frame into a process. Frame will need to be large
+   enough to store the process structure and the address space
+   structure. Two pages.
+   */
+int
+proc_new(int f_id);
 
 int
 send(int pid, uint8_t *m);
@@ -40,21 +38,39 @@ send(int pid, uint8_t *m);
 int
 recv(uint8_t *m);
 
+/* Returns f_id of upper frame that was created. */
+int frame_split(int f_id, size_t offset);
+
+/* Must be adjacent frames. */
+int frame_merge(int f1, int f2);
+
+/* Returns f_id of frame in other process. */
+int frame_give(int f_id, int pid);
+
+/* Returns the segment id. */
+
+int frame_map(int pid, int f_id, 
+              void *addr, int flags);
+
+int frame_unmap(int pid, int f_id);
+
+/* What pid is allowed to give frames, segment space, and map
+   to me currently, plus parent? Probably not
+   parent once the process is running.
+ */
+int frame_allow(int pid_allowed_to_map);
+
+/* To look through frames. */
+
+int frame_count(void);
+
+int frame_info(int frame_number, struct frame *f);
+
 bool
 cas(void *addr, void *old, void *new);
-
-#define roundptr(x) (x % sizeof(void *) != 0 ?			 \
-		     x + sizeof(void *) - (x % sizeof(void *)) : \
-		     x)
-
-#define STATIC_ASSERT(COND, MSG) \
-  typedef char static_assertion_##MSG[(COND)?1:-1]
-
 
 void
 memcpy(void *dst, const void *src, size_t len);
 
 void
 memset(void *dst, uint8_t v, size_t len);
-
-#endif

@@ -25,11 +25,6 @@
  *
  */
 
-#ifndef _STRING_H_
-#define _STRING_H_
-
-#include <stdarg.h>
-
 bool
 isspace(char c);
 
@@ -65,6 +60,4 @@ vfscanf(int fd, const char *fmt, va_list ap);
 
 int
 vsscanf(const char *str, const char *fmt, va_list ap);
-
-#endif
 

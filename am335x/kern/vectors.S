@@ -24,7 +24,7 @@
 #
 
 #include "trap.h"
-#include <syscalls.h>
+#include <sysnum.h>
 
 .section .text
 

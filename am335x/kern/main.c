@@ -56,8 +56,8 @@ proc0_start(void)
 	
 	while (true) {
 		debug("%i send/recv %i\n", up->pid, *m);
-		ksend(find_proc(1), m);
-		krecv(m);		
+		send(find_proc(1), m);
+		recv(m);		
 	}
 }
 
@@ -81,9 +81,9 @@ proc1_start(void)
 	
 	while (true) {
 		debug("%i send/recv %i\n", up->pid, *m);
-		p = krecv(m);
+		p = recv(m);
 		(*m)++;
-		ksend(find_proc(p), m);	
+		send(find_proc(p), m);	
 	}
 }
 
@@ -116,10 +116,26 @@ kmain(void)
 	
   debug("OMB Booting...\n");
 
-	init_intc();
-	init_watchdog();
-	init_timers();
 	init_memory();
+	
+	/* TODO: These should be small pages not sections. */
+	
+  /* INTCPS */
+	imap((void *) 0x48200000, (void *) 0x48201000, AP_RW_NO, false); 
+	init_intc((void *) 0x48200000);
+	
+	/* Watchdog */
+  imap((void *) 0x44E35000, (void *) 0x44E36000, AP_RW_NO, false);
+  init_watchdog((void *) 0x44E35000);
+	
+  /* DMTIMER2 for systick. */
+  imap((void *) 0x48040000, (void *) 0x48041000, AP_RW_NO, false); 
+  imap((void *) 0x44E00500, (void *) 0x44E00600, AP_RW_NO, false); 
+  init_timers((void *) 0x48040000, 68, (void *) 0x44E00500);
+	
+	/* UART0 */
+  imap((void *) 0x44E09000, (void *) 0x44E0A000, AP_RW_NO, false);
+  init_uart((void *) 0x44E09000);
 	
 	p0 = init_proc0();
 		

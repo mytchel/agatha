@@ -23,7 +23,7 @@
 #  OTHER DEALINGS IN THE SOFTWARE
 #
 
-#include <syscalls.h>
+#include <sysnum.h>
 
 .section .text
 

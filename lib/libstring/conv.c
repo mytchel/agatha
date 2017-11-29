@@ -25,7 +25,6 @@
  *
  */
 
-#include <c.h>
 #include <types.h>
 #include <stdarg.h>
 #include <string.h>

@@ -25,9 +25,6 @@
  *
  */
 
-#ifndef _AM335X_TYPES_H_
-#define _AM335X_TYPES_H_
-
 typedef	signed char		int8_t;
 typedef	unsigned char		uint8_t;
 typedef	short			int16_t;
@@ -52,5 +49,4 @@ typedef uint8_t	bool;
 #define false 0
 #define true 1
 
-#endif
 

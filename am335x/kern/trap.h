@@ -25,9 +25,6 @@
  *
  */
 
-#ifndef _TRAP_H_
-#define _TRAP_H_
-
 #define MODE_SVC		19
 #define MODE_FIQ		17
 #define MODE_IRQ		18
@@ -43,5 +40,3 @@
 #define ABORT_INSTRUCTION	1
 #define ABORT_PREFETCH		2
 #define ABORT_DATA	 	3
-
-#endif

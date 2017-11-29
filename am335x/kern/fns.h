@@ -25,9 +25,6 @@
  *
  */
 
-#ifndef _FNS_H
-#define _FNS_H
-
 uint32_t
 fsr_status(void);
 
@@ -53,19 +50,27 @@ mmu_disable(void);
 void
 mmu_load_ttb(uint32_t *);
 
-/* Initialisation functions */
+#define AP_NO_NO	0
+#define AP_RW_NO	1
+#define AP_RW_RO	2
+#define AP_RW_RW	3
 
 void
-init_intc(void);
+imap(void *, void *, int, bool);
+
+/* Initialisation functions */
 
 void
 init_memory(void);
 
 void
-init_watchdog(void);
+init_intc(void *regs);
 
 void
-init_timers(void);
+init_watchdog(void *regs);
 
-#endif
+void
+init_timers(void *t_regs, int t_irq, void *c_regs);
 
+void
+init_uart(void *regs);

@@ -28,11 +28,6 @@
 #include <head.h>
 #include "fns.h"
 
-#define AP_NO_NO	0
-#define AP_RW_NO	1
-#define AP_RW_RO	2
-#define AP_RW_RW	3
-
 #define L1X(va)          ((va) >> 20)
 #define L2X(va)          (((va) >> 12) & ((1 << 8) - 1))
 
@@ -47,9 +42,6 @@
 #define L2_LARGE     0b01
 #define L2_SMALL     0b10
 #define L2_TINY      0b11
-
-void
-imap(void *, void *, int, bool);
 
 uint32_t
 ttb[4096]__attribute__((__aligned__(16*1024))) = { L1_FAULT };
@@ -70,12 +62,6 @@ init_memory(void)
 
   imap(&_ram_start, &_ram_end, AP_RW_RW, true);
 
-	/* TODO: These should be small pages not sections. */
-  imap((void *) 0x44E09000, (void *) 0x44E0A000, AP_RW_NO, false); /* UART0 */
-  imap((void *) 0x44E35000, (void *) 0x44E36000, AP_RW_NO, false); /* Watchdog */
-  imap((void *) 0x48040000, (void *) 0x48041000, AP_RW_NO, false); /* DMTIMER2 for systick. */
-  imap((void *) 0x48200000, (void *) 0x48201000, AP_RW_NO, false); /* INTCPS */
-	
   mmu_load_ttb(ttb);
   mmu_enable();
 }

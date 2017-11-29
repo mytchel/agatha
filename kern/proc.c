@@ -123,22 +123,20 @@ static void
 proc_start(void)
 {
 	uint8_t m[MESSAGE_LEN];
-	struct proc_init_req *req = 
-	    (struct proc_init_req *) m;
 	label_t u;
 	int p;
 	
 	debug("proc_start %i\n", up->pid);
 	
-	p = krecv(m);
+	p = recv(m);
 	debug("proc_start for %i got started by %i\n", up->pid, p);
 	if (p < 0) {
 		/* TODO */
 		raise();
 	}
 		
-	u.pc = req->pc;
-	u.sp = req->sp;
+	u.pc = *(((uint32_t *) m));
+	u.sp = *(((uint32_t *) m) + 1);
 	
 	drop_to_user(&u, up->kstack, KSTACK_LEN);
 }

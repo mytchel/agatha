@@ -30,10 +30,17 @@
 #include "trap.h"
 
 #define MAX_PROCS          512
+#define MAX_FRAMES        2048
+#define KSTACK_LEN         512
 
 typedef enum {
   INTR_on  = (uint32_t) 0,
   INTR_off = (uint32_t) MODE_DI,
 } intr_t;
+
+typedef struct vspace vspace_t;
+struct vspace {
+	uint32_t ttb[1024];
+};
 
 #include "../../kern/head.h"
