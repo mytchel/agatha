@@ -87,8 +87,8 @@ proc1_start(void)
 	}
 }
 
-static proc_t
-init_proc0(void)
+static void
+init_procs(void)
 {
 	proc_t p;
 	
@@ -105,41 +105,37 @@ init_proc0(void)
 	}
 	
 	func_label(&p->label, p->kstack, KSTACK_LEN, &proc1_start);
-		
-	return p;
 }
 
 int
 kmain(void)
 {
-	proc_t p0;
-	
-  debug("OMB Booting...\n");
-
-	init_memory();
-	
 	/* TODO: These should be small pages not sections. */
 	
+	imap(0x80000000, 0x20000000, AP_RW_NO, true); 
+	
   /* INTCPS */
-	imap((void *) 0x48200000, (void *) 0x48201000, AP_RW_NO, false); 
+	imap(0x48200000, 0x1000, AP_RW_NO, false); 
 	init_intc((void *) 0x48200000);
 	
 	/* Watchdog */
-  imap((void *) 0x44E35000, (void *) 0x44E36000, AP_RW_NO, false);
+  imap(0x44E35000, 0x1000, AP_RW_NO, false);
   init_watchdog((void *) 0x44E35000);
 	
   /* DMTIMER2 for systick. */
-  imap((void *) 0x48040000, (void *) 0x48041000, AP_RW_NO, false); 
-  imap((void *) 0x44E00500, (void *) 0x44E00600, AP_RW_NO, false); 
+  imap(0x48040000, 0x1000, AP_RW_NO, false); 
+  imap(0x44E00500, 0x100, AP_RW_NO, false); 
   init_timers((void *) 0x48040000, 68, (void *) 0x44E00500);
 	
 	/* UART0 */
-  imap((void *) 0x44E09000, (void *) 0x44E0A000, AP_RW_NO, false);
+  imap(0x44E09000, 0x1000, AP_RW_NO, false);
   init_uart((void *) 0x44E09000);
-	
-	p0 = init_proc0();
+
+	init_mmu();
 		
-	schedule(p0);
+	init_procs();
+			
+	schedule(nil);
   
   /* Never reached */
   return 0;

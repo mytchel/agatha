@@ -56,12 +56,12 @@ mmu_load_ttb(uint32_t *);
 #define AP_RW_RW	3
 
 void
-imap(void *, void *, int, bool);
+imap(size_t pa, size_t len, int ap, bool cachable);
 
 /* Initialisation functions */
 
 void
-init_memory(void);
+init_mmu(void);
 
 void
 init_intc(void *regs);

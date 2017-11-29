@@ -30,4 +30,50 @@
 static struct kframe frames[MAX_FRAMES] = {0};
 static int next_free = 0;
 
+kframe_t
+frame_new(proc_t p, size_t pa, size_t len, int type)
+{
+	kframe_t f;
+	
+	if (next_free == MAX_FRAMES) {
+		return nil;
+	}
+	
+	n = &frames[next_free++];
+	
+	n->u.type = type;
+	n->u.pa = pa;
+	n->u.len = len;
+	n->u.va = 0;
+	n->u.flags = 0;
+	
+	n->next = nil;
+	
+	n->u.f_id = up->frame_next_id++;
+	
+	for (p = up->frames; p->next != nil; p = p->next)
+		;
+	
+	p->next = n;
+	n->next = nil;
+	
+	return n;
+}
+
+kframe_t
+frame_split(kframe_t f, size_t offset)
+{
+	kframe_t n, p;
+	
+	n = frame_new(up, f->pa + offset, f->len - offset, f->type);
+		
+	return n;
+}
+
+int
+frame_merge(kframe_t a, kframe_t b)
+{
+	/* TODO. */
+	return ERR;
+}
 

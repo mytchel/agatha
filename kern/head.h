@@ -34,7 +34,7 @@
 typedef struct kframe *kframe_t;
 
 struct kframe {
-	struct frame user;
+	struct frame u;
 	struct kframe *next;
 };
 
@@ -62,9 +62,8 @@ struct proc {
 	uint8_t kstack[KSTACK_LEN];
 	
 	size_t frame_count;
-	kframe_t *frames;
-	
-	vspace_t *vspace;
+	int frame_next_id;
+	kframe_t frames, base;
 };
 
 proc_t
@@ -83,7 +82,13 @@ int
 recv(uint8_t *m);
 
 kframe_t
+frame_new(proc_t p, size_t pa, size_t len, int type);
+
+kframe_t
 frame_split(kframe_t f, size_t offset);
+
+int
+frame_merge(kframe_t a, kframe_t b);
 
 void
 memcpy(void *dst, const void *src, size_t len);
@@ -127,9 +132,17 @@ func_label(label_t *l,
            size_t stacklen,
            void (*func)(void));
 
-
 bool
 cas(void *addr, void *old, void *new);
+
+int
+frame_map(proc_t p, kframe_t f, size_t va, int flags);
+
+int
+frame_unmap(proc_t p, kframe_t f);
+
+int
+mmuswitch(proc_t p);
 
 /* Variables. */
 

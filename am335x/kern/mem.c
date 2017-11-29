@@ -43,7 +43,7 @@
 #define L2_SMALL     0b10
 #define L2_TINY      0b11
 
-uint32_t
+static uint32_t
 ttb[4096]__attribute__((__aligned__(16*1024))) = { L1_FAULT };
 
 extern uint32_t *_ram_start;
@@ -53,26 +53,19 @@ extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
 
 void
-init_memory(void)
+init_mmu(void)
 {
-  int i;
-
-  for (i = 0; i < 4096; i++)
-    ttb[i] = L1_FAULT;
-
-  imap(&_ram_start, &_ram_end, AP_RW_RW, true);
-
   mmu_load_ttb(ttb);
   mmu_enable();
 }
 
 void
-imap(void *start, void *end, int ap, bool cachable)
+imap(size_t pa, size_t len, int ap, bool cachable)
 {
-  uint32_t x, mask;
+  uint32_t o, mask;
 
-  x = (uint32_t) start & ~((1 << 20) - 1);
-
+	pa = pa & SECTION_MASK;
+	
   mask = (ap << 10) | L1_SECTION;
 
   if (cachable) {
@@ -80,9 +73,188 @@ imap(void *start, void *end, int ap, bool cachable)
   } else {
     mask |= (0 << 12) | (0 << 3) | (1 << 2);
   }
-  
-  while (x < (uint32_t) end) {
-    ttb[L1X(x)] = x | mask;
-    x += 1 << 20;
-  }
+
+	for (o = 0; o < len; o += SECTION_SIZE) {
+		ttb[L1X(pa + o)] = (pa + o) | mask;
+	}
 }
+
+int
+mmuswitch(proc_t p)
+{
+	uint32_t *t;
+	int i;
+	
+	if (p->base == nil) {
+		return ERR;
+	}
+	
+	t = (uint32_t *) p->base->u.pa;
+	
+	/* Limit virtual space for now. */
+	for (i = 0; i < 1000; i++) {
+		ttb[i] = t[i];
+	}
+	
+	mmu_invalidate();
+	
+	return OK;	
+}
+
+static int
+frame_map_base(proc_t p, kframe_t f, size_t va)
+{
+	uint32_t *ttb;
+	int i;
+	
+	if (va != 0 || f->u.len != PAGE_SIZE * 4) {
+		return ERR;
+	}
+	
+	p->base = f;
+	
+	ttb = (uint32_t *) f->u.pa;
+	
+	for (i = 0; i < 4096; i++) {
+		ttb[i] = L1_FAULT;
+	}
+	
+	f->u.va = va;
+	f->u.flags = F_MAP_L1_TABLE;
+	
+	return OK;
+}
+
+static int
+frame_map_l2(uint32_t *ttb, kframe_t f, size_t va)
+{
+	uint32_t *l2;
+	size_t o;
+	int i;
+	
+	for (o = 0; o < f->u.len; o += PAGE_SIZE) {
+		ttb[L1X(va + o)] = (f->u.pa + o) | L1_COARSE;
+			
+		l2 = (uint32_t *) (f->u.pa + o);
+		for (i = 0; i < 256; i++) {
+			l2[i] = L2_FAULT;
+		}
+	}
+	
+	f->u.va = va;
+	f->u.flags = F_MAP_L2_TABLE;
+	return OK;
+}
+
+static int
+frame_map_sections(uint32_t *ttb, kframe_t f, size_t va, int flags)
+{
+	uint32_t ap, tex, c, b;
+	size_t o;
+	
+	if (flags & F_MAP_WRITE) {
+		ap = AP_RW_RW;
+	} else {
+		ap = AP_RW_RO;
+	}
+	
+	tex = 0;
+	c = 0;
+	b = 1;
+	
+	for (o = 0; o < f->u.len; o += SECTION_SIZE) {
+		debug("section 0x%h -> 0x%h\n", f->u.pa + o, va + o);
+		
+		ttb[L1X(va + o)] = (f->u.pa + o) | L1_SECTION | 
+		    tex << 12 | ap << 10 | c << 3 | b << 2;
+	}
+		
+	f->u.va = va;
+	f->u.flags = flags;
+	
+	return OK;
+}
+
+static int
+frame_map_pages(uint32_t *ttb, kframe_t f, size_t va, int flags)
+{
+	uint32_t ap, tex, c, b;
+	uint32_t *l2;
+	size_t o;
+		
+	if (flags & F_MAP_WRITE) {
+		ap = AP_RW_RW;
+	} else {
+		ap = AP_RW_RO;
+	}
+	
+	tex = 0;
+	c = 0;
+	b = 1;
+	
+	for (o = 0; o < f->u.len; o += PAGE_SIZE) {
+		debug("page 0x%h -> 0x%h\n", f->u.pa + o, va + o);
+		
+		/* TODO: is this right? */
+		l2 = (uint32_t *) (ttb[L1X(va + o)] & ~((1 << 10) - 1));
+		
+		if (l2 == nil) {
+			/* TODO: unmap what was mapped. */
+			return ERR;
+		}
+				
+		l2[L2X(va + o)] = (f->u.pa + o) | L2_SMALL | 
+		    tex << 6 | ap << 4 | c << 3 | b << 2;
+	}
+		
+	f->u.va = va;
+	f->u.flags = flags;
+	
+	return OK;
+}
+
+int
+frame_map(proc_t p, kframe_t f, size_t va, int flags)
+{
+	uint32_t *ttb;
+	
+	debug("frame_map for %i from 0x%h to 0x%h\n", p->pid, f->u.pa, va);
+	
+	if (flags & F_MAP_L1_TABLE) {
+		debug("mapping base\n");
+		
+		return frame_map_base(p, f, va);
+				
+	} else if (p->base == nil) {
+		debug("no base\n");
+		
+		return ERR;
+		
+	}
+	
+	ttb = (uint32_t *) p->base->u.pa;
+	
+	if (flags & F_MAP_L2_TABLE) {
+		debug("mapping l1\n");
+		
+		return frame_map_l2(ttb, f, va);
+		
+	} else if ((va & SECTION_MASK) == va && 
+	            (f->u.len & SECTION_MASK) == f->u.len) {
+		debug("mapping sections\n");
+		
+		return frame_map_sections(ttb, f, va, flags);
+	
+	} else {
+		debug("mapping small pages\n");
+		return frame_map_pages(ttb, f, va, flags);		
+	}
+}
+
+int
+frame_unmap(proc_t p, kframe_t f)
+{
+	/* TODO. */
+	return ERR;
+}
+

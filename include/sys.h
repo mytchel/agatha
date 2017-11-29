@@ -29,9 +29,10 @@
 
 /* For if you are mapping these pages as tables rather than 
    mappings. */
-#define F_MAP_MMU_TABLE (1<<0)
-#define F_MAP_READ      (1<<1)
-#define F_MAP_WRITE     (1<<2)
+#define F_MAP_L1_TABLE  (1<<0)
+#define F_MAP_L2_TABLE  (1<<1)
+#define F_MAP_READ      (1<<10)
+#define F_MAP_WRITE     (1<<11)
 
 typedef struct frame *frame_t;
 
