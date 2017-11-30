@@ -39,11 +39,7 @@ frame_new(proc_t p, size_t pa, size_t len, int type)
 		return nil;
 	}
 	
-	debug("get free frame %i\n", next_free);
-	
 	n = &frames[next_free++];
-	
-	debug("set things.\n");
 	
 	n->u.type = type;
 	n->u.pa = pa;

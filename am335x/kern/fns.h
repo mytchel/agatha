@@ -74,9 +74,3 @@ init_timers(void *t_regs, int t_irq, void *c_regs);
 
 void
 init_uart(void *regs);
-
-extern uint32_t *_ram_start;
-extern uint32_t *_ram_end;
-
-extern uint32_t *_kernel_start;
-extern uint32_t *_kernel_end;

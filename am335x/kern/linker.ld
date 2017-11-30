@@ -25,14 +25,11 @@ SECTIONS
 	
 	.proc0 ALIGN(4096) :
 	{
-		_proc0_text_start = .;
+		_proc0_start = .;
 		*(.proc0.text)
-		_proc0_text_end = .;
 		. = ALIGN(4096);
-	
-		_proc0_data_start = .;
 		*(.proc0.data)
-		_proc0_data_end = .;
+		_proc0_end = .;
 	}
 			
 	.bss ALIGN(4096) : 

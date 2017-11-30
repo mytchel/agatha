@@ -86,115 +86,117 @@ r13 = 0x82000010
    
 struct label init_regs = {1};
 
-extern void *_proc0_text_start;
-extern void *_proc0_text_end;
-extern void *_proc0_data_start;
-extern void *_proc0_data_end;
+extern uint32_t *_ram_start;
+extern uint32_t *_ram_end;
+extern uint32_t *_kernel_start;
+extern uint32_t *_kernel_end;
 
-#define PROC0_STACK_TOP  0x8000
-#define PROC0_VA_START   0x8000
+static size_t ram_p = (size_t) &_ram_start;
 
-static uint8_t proc0_stack[PAGE_SIZE * 4]
-	__attribute__((__aligned__(PAGE_SIZE))) = { 0 };
-	
-static uint32_t
-proc0_l1[4096]__attribute__((__aligned__(16*1024))) = { 0 };
+extern void *_proc0_start;
+extern void *_proc0_end;
 
-static uint32_t
-proc0_l2[256]__attribute__((__aligned__(PAGE_SIZE))) = { 0 };
+#define PROC_STACK_TOP  0x8000
+#define PROC_VA_START   0x8000
 
 static void
 proc_nil(void)
 {
-	debug("in proc_nil\n");
-	
 	set_intr(INTR_on);
 	while (true)
 		;
 }
 
+/* These will need to be more sophisticated in future.
+   There are parts of memory other than the kernel that
+   need to be watched out for such as fdt's. */
+   
+static size_t
+get_ram(size_t l)
+{
+	size_t r;
+	
+	l = PAGE_ALIGN(l);
+	
+	if (ram_p < (size_t) &_kernel_start &&
+	    ram_p + l >=  (size_t) &_kernel_start) {
+	
+		ram_p = (size_t) PAGE_ALIGN(&_kernel_end);
+	
+	} else if (ram_p + l >= (size_t) &_ram_end) {
+		return 0;
+	} 
+	
+	r = ram_p;
+	ram_p += l;
+	
+	return r;
+}
+
 static void
-proc0_start(void)
+give_remaining_ram(proc_t p)
+{
+	size_t s, l;
+	
+	s = ram_p;
+	if (s < (size_t) &_kernel_start) {
+		l = (size_t) &_kernel_start - s;
+		frame_new(p, s, l, F_TYPE_MEM);
+		s = (size_t) PAGE_ALIGN(&_kernel_end);
+	}
+	
+	l = (size_t) &_ram_end - s;
+	frame_new(p, s, l, F_TYPE_MEM);	
+}
+
+static void
+proc_start(void)
 {
 	label_t u = {0};
 	
-	debug("starting proc0\n");
-	
-	u.sp = (reg_t) PROC0_STACK_TOP;
-	u.pc = (reg_t) PROC0_VA_START;
+	u.sp = (reg_t) PROC_STACK_TOP;
+	u.pc = (reg_t) PROC_VA_START;
 	
 	drop_to_user(&u, up->kstack, KSTACK_LEN);
 }
 
 static proc_t
-init_procs(void)
+init_proc(size_t start, size_t end)
 {
 	proc_t p;
 	size_t s, l;
 	kframe_t f;
-	
-	p = proc_new();
-	if (p == nil) {
-		panic("Failed to create proc_nil!\n");
-	}
-	
-	func_label(&p->label, p->kstack, KSTACK_LEN, &proc_nil);
-	
-	p = proc_new();
-	if (p == nil) {
-		panic("Failed to create proc0!\n");
-	}
-	
-	func_label(&p->label, p->kstack, KSTACK_LEN, &proc0_start);
-	
-	/* Set up proc0's virtual address space. */
 
-	s = (size_t) proc0_l1;
-	l = sizeof(proc0_l1);
-	debug("give proc0 0x%h -> 0x%h\n", s, l);
-	f = frame_new(p, s, l, F_TYPE_MEM);
+	p = proc_new();
+	if (p == nil) {
+		panic("Failed to create proc!\n");
+	}
 	
-	debug("map proc0 l1\n"); 
+	func_label(&p->label, p->kstack, KSTACK_LEN, &proc_start);
+
+	l = 4096 * 4;
+	s = get_ram(l);
+	if (!s) panic("Failed to get mem for l1 table!\n");
+	f = frame_new(p, s, l, F_TYPE_MEM);
 	frame_map(p, f, 0, F_MAP_L1_TABLE);
 	
-	s = (size_t) proc0_l2;
-	l = sizeof(proc0_l2);
-	debug("give proc0 0x%h -> 0x%h\n", s, l);
+	l = 256 * 4;
+	s = get_ram(l);
+	if (!s) panic("Failed to get mem for l2 table!\n");
 	f = frame_new(p, s, l, F_TYPE_MEM);
-	
-	debug("map proc0 l2\n"); 
 	frame_map(p, f, 0, F_MAP_L2_TABLE);
 	          
-	s = (size_t) &_proc0_text_start;
-	l = (size_t) &_proc0_data_end - s;
-	debug("give proc0 0x%h -> 0x%h\n", s, l);
+	s = start;
+	l = end - start;
 	f = frame_new(p, s, l, F_TYPE_MEM);
+	frame_map(p, f, PROC_VA_START, F_MAP_READ|F_MAP_WRITE);
 	
-	debug("map proc0 text/data to 0x%h\n", PROC0_VA_START); 
-	frame_map(p, f, PROC0_VA_START, F_MAP_READ|F_MAP_WRITE);
-	
-	s = (size_t) proc0_stack;
-	l = sizeof(proc0_stack);
-	debug("give proc0 0x%h -> 0x%h\n", s, l);
-	f = frame_new(p, s, l, F_TYPE_MEM);
-	
-	debug("map proc0 stack to 0x%h\n", PROC0_STACK_TOP - sizeof(proc0_stack)); 
-	frame_map(p, f, PROC0_STACK_TOP - sizeof(proc0_stack),
+	l = PAGE_SIZE * 4;
+	s = get_ram(l);
+	if (!s) panic("Failed to get mem for stack!\n");
+	f = frame_new(p, s, l, F_TYPE_MEM); 
+	frame_map(p, f, PROC_STACK_TOP - l,
 	          F_MAP_READ|F_MAP_WRITE);
-		
-	/* Give proc0 all remaining memory. */
-	
-	s = (size_t) &_ram_start;
-	l = SECTION_ALIGN_DN((size_t) &_kernel_start) - s;
-	debug("give proc0 0x%h -> 0x%h\n", s, l);
-	frame_new(p, s, l, F_TYPE_MEM);
-	
-	s = SECTION_ALIGN((size_t) &_kernel_end);
-	l = (size_t) &_ram_end - s;
-	debug("give proc0 0x%h -> 0x%h\n", s, l);
-	frame_new(p, s, l, F_TYPE_MEM);
-	
-	/* TODO: add io register maps. */
 	
 	return p;
 }
@@ -202,9 +204,13 @@ init_procs(void)
 int
 kmain(void)
 {
-	proc_t p;
+	proc_t p0, p;
 		
-	/* TODO: These should be small pages not sections. */
+	/* TODO: These should be small pages not sections.
+	     Well, the kernel needs its own virtual address
+	     space for it's io and memory.
+	     
+	     Giving the kernel will not work in the future. */
 	
 	imap(0x80000000, 0x20000000, AP_RW_NO, true); 
 	
@@ -227,9 +233,22 @@ kmain(void)
 
 	init_mmu();
 	
-	p = init_procs();
-			
-	schedule(p);
+	p0 = init_proc((size_t) &_proc0_start, (size_t) &_proc0_end);
+	
+	p = proc_new();
+	if (p == nil) {
+		panic("Failed to create proc_nil!\n");
+	}
+	
+	func_label(&p->label, p->kstack, KSTACK_LEN, &proc_nil);
+	
+	/* Create bundled proc's. */
+	
+	
+	
+	give_remaining_ram(p0);
+	
+	schedule(p0);
   
   /* Never reached */
   return 0;

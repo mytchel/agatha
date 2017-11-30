@@ -75,13 +75,12 @@ CLEAN += proc0.list am335x.list am335x.umg
 .elf.bo:
 	$(OBJCOPY) --rename-section .text=.$*.text \
 	           --rename-section .data=.$*.data \
-	           --rename-section .bss=.$*.bss \
 	           -x -X -S \
 	            $< $@
 
 P0_SRC := \
         ../lib/libc/sys.S         \
-				proc0/main.c              \
+	proc0/main.c              \
         ../lib/libc/util.c
 				
 
