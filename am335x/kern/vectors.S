@@ -31,6 +31,10 @@
 .global _kstart
 
 _kstart:
+	ldr lr, =init_regs
+	add lr, lr, #(4*3)
+	stmia lr!, {r0 - r12, pc}
+
 	ldr r0, = _kernel_bss_start
 	ldr r1, = _kernel_bss_end
 	mov r2, #0

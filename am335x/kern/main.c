@@ -28,6 +28,64 @@
 #include "head.h"
 #include "fns.h"
 
+/*
+
+Example with device tree blob
+
+pc = 0x82000010
+lr = 0x0
+r0 = 0x0
+r1 = 0xe05
+r2 = 0x8fff4000
+r3 = 0x8b80
+r4 = 0x0
+r5 = 0x9ffb32d8
+r6 = 0x82000000
+r7 = 0x0
+r8 = 0x9ff4efe5
+r9 = 0x9df2ded8
+r10 = 0x82000040
+r11 = 0x0
+r12 = 0x9df2edaa
+r13 = 0x82000010
+
+Example without device tree blob
+
+pc = 0x82000010
+lr = 0x0
+r0 = 0x0
+r1 = 0xe05
+r2 = 0x80000100
+r3 = 0x9df2dfb0
+r4 = 0x0
+r5 = 0x9ffb32d8
+r6 = 0x82000000
+r7 = 0x0
+r8 = 0x9ff4efe5
+r9 = 0x9df2ded8
+r10 = 0x82000040
+r11 = 0x0
+r12 = 0x9df2edaa
+r13 = 0x82000010
+
+	 Register's as they were set by u-boot before loading.
+   Set to 1 so it doesn't end up in bss. 
+   
+   From experimenting it would seem that:
+   
+   r2 = device tree blob address.
+   r3 = device tree blob size. Consistant strange number if no 
+   	blob was given.
+   r6 = kernel address.
+   
+   I have no idea what any of the other registers are set
+   for. r1, r5, r9, r12 seem to stay consistant regardless of the
+   presense of a device tree. r9 changes.
+   
+   */
+   
+struct label init_regs = {1};
+
 extern void *_proc0_text_start;
 extern void *_proc0_text_end;
 extern void *_proc0_data_start;
@@ -89,16 +147,8 @@ init_procs(void)
 	
 	func_label(&p->label, p->kstack, KSTACK_LEN, &proc0_start);
 	
-	s = (size_t) &_ram_start;
-	l = SECTION_ALIGN_DN((size_t) &_kernel_start) - s;
-	debug("give proc0 0x%h -> 0x%h\n", s, l);
-	frame_new(p, s, l, F_TYPE_MEM);
-	
-	s = SECTION_ALIGN((size_t) &_kernel_end);
-	l = (size_t) &_ram_end - s;
-	debug("give proc0 0x%h -> 0x%h\n", s, l);
-	frame_new(p, s, l, F_TYPE_MEM);
-	
+	/* Set up proc0's virtual address space. */
+
 	s = (size_t) proc0_l1;
 	l = sizeof(proc0_l1);
 	debug("give proc0 0x%h -> 0x%h\n", s, l);
@@ -131,6 +181,18 @@ init_procs(void)
 	debug("map proc0 stack to 0x%h\n", PROC0_STACK_TOP - sizeof(proc0_stack)); 
 	frame_map(p, f, PROC0_STACK_TOP - sizeof(proc0_stack),
 	          F_MAP_READ|F_MAP_WRITE);
+		
+	/* Give proc0 all remaining memory. */
+	
+	s = (size_t) &_ram_start;
+	l = SECTION_ALIGN_DN((size_t) &_kernel_start) - s;
+	debug("give proc0 0x%h -> 0x%h\n", s, l);
+	frame_new(p, s, l, F_TYPE_MEM);
+	
+	s = SECTION_ALIGN((size_t) &_kernel_end);
+	l = (size_t) &_ram_end - s;
+	debug("give proc0 0x%h -> 0x%h\n", s, l);
+	frame_new(p, s, l, F_TYPE_MEM);
 	
 	/* TODO: add io register maps. */
 	
@@ -141,7 +203,7 @@ int
 kmain(void)
 {
 	proc_t p;
-	
+		
 	/* TODO: These should be small pages not sections. */
 	
 	imap(0x80000000, 0x20000000, AP_RW_NO, true); 
@@ -164,7 +226,7 @@ kmain(void)
   init_uart((void *) 0x44E09000);
 
 	init_mmu();
-		
+	
 	p = init_procs();
 			
 	schedule(p);
