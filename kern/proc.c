@@ -83,16 +83,15 @@ schedule(proc_t n)
 		up = next_proc();
 	}
 		
-	set_systick(1000);
-
 	if (up != nil) {
+		mmu_switch(up);
 		up->state = PROC_oncpu;
+  	set_systick(1000);
 		goto_label(&up->label);
-		
-	} else {
-		debug("NO PROCS TO RUN!!\n");
-		raise();
 	}
+	
+	debug("NO PROCS TO RUN!!\n");
+	raise();
 }
 
 void

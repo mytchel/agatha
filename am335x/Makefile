@@ -111,6 +111,7 @@ KSRC := \
         kern/uart.c               \
         ../kern/proc.c            \
         ../kern/sys.c             \
+        ../kern/frame.c           \
         ../lib/libstring/conv.c   \
         ../lib/libstring/scanf.c  \
         ../lib/libstring/string.c \

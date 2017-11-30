@@ -98,8 +98,91 @@ sys_recv(uint8_t *m)
 	return recv(m);
 }
 
+reg_t
+sys_proc_new(int f_id)
+{
+	debug("%i called sys proc_new with %i\n", up->pid, f_id);
+	
+	return ERR;
+}
+
+reg_t
+sys_frame_split(int f_id, size_t offset)
+{
+	debug("%i called sys frame_split with %i, 0x%h\n", up->pid, f_id, offset);
+	
+	return ERR;
+}
+
+reg_t
+sys_frame_merge(int f1, int f2)
+{
+	debug("%i called sys frame_merge with %i, %i\n", up->pid, f1, f2);
+	
+	return ERR;
+}
+
+reg_t
+sys_frame_give(int f_id, int pid)
+{
+	debug("%i called sys frame_give with %i, %i\n", up->pid, f_id, pid);
+	
+	return ERR;
+}
+
+reg_t
+sys_frame_map(int pid, int f_id, 
+          void *addr, int flags)
+{
+	debug("%i called sys frame_map with %i, %i, 0x%h, %i\n", 
+		up->pid, pid, f_id, addr, flags);
+	
+	return ERR;
+}
+
+reg_t
+sys_frame_unmap(int pid, int f_id)
+{
+	debug("%i called sys frame_unmap with %i, %i\n", up->pid, pid, f_id);
+	
+	return ERR;
+}
+
+reg_t
+sys_frame_allow(int pid_allowed_to_map)
+{
+	debug("%i called sys frame_allow with %i\n", up->pid, pid_allowed_to_map);
+	
+	return ERR;
+}
+
+reg_t
+sys_frame_count(void)
+{
+	debug("%i called sys frame_count\n", up->pid);
+	
+	return ERR;
+}
+
+reg_t
+sys_frame_info(int frame_number, struct frame *f)
+{
+	debug("%i called sys frame_info with %i, 0x%h\n", up->pid, frame_number, f);
+	
+	return ERR;
+}
+
 void *systab[NSYSCALLS] = {
 	[SYSCALL_SEND]             = (void *) &sys_send,
 	[SYSCALL_RECV]             = (void *) &sys_recv,
+	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
+	[SYSCALL_FRAME_SPLIT]      = (void *) &sys_frame_split,
+	[SYSCALL_FRAME_MERGE]      = (void *) &sys_frame_merge,
+	[SYSCALL_FRAME_GIVE]       = (void *) &sys_frame_give,
+	[SYSCALL_FRAME_MAP]        = (void *) &sys_frame_map,
+	[SYSCALL_FRAME_UNMAP]      = (void *) &sys_frame_unmap,
+	[SYSCALL_FRAME_ALLOW]      = (void *) &sys_frame_allow,
+	[SYSCALL_FRAME_COUNT]      = (void *) &sys_frame_count,
+	[SYSCALL_FRAME_INFO]       = (void *) &sys_frame_info,
 };
 	

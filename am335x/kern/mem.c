@@ -46,12 +46,6 @@
 static uint32_t
 ttb[4096]__attribute__((__aligned__(16*1024))) = { L1_FAULT };
 
-extern uint32_t *_ram_start;
-extern uint32_t *_ram_end;
-
-extern uint32_t *_kernel_start;
-extern uint32_t *_kernel_end;
-
 void
 init_mmu(void)
 {
@@ -80,7 +74,7 @@ imap(size_t pa, size_t len, int ap, bool cachable)
 }
 
 int
-mmuswitch(proc_t p)
+mmu_switch(proc_t p)
 {
 	uint32_t *t;
 	int i;
@@ -218,7 +212,13 @@ frame_map(proc_t p, kframe_t f, size_t va, int flags)
 {
 	uint32_t *ttb;
 	
-	debug("frame_map for %i from 0x%h to 0x%h\n", p->pid, f->u.pa, va);
+	debug("frame_map for %i from 0x%h to 0x%h with %i\n",
+		    p->pid, f->u.pa, va, flags);
+	
+	if (va >= 1000 * SECTION_SIZE) {
+		debug("No mappings past 0x%h\n", 1000 * SECTION_SIZE);
+		return ERR;
+	}
 	
 	if (flags & F_MAP_L1_TABLE) {
 		debug("mapping base\n");
@@ -235,7 +235,7 @@ frame_map(proc_t p, kframe_t f, size_t va, int flags)
 	ttb = (uint32_t *) p->base->u.pa;
 	
 	if (flags & F_MAP_L2_TABLE) {
-		debug("mapping l1\n");
+		debug("mapping l2\n");
 		
 		return frame_map_l2(ttb, f, va);
 		

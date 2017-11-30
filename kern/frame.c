@@ -33,13 +33,17 @@ static int next_free = 0;
 kframe_t
 frame_new(proc_t p, size_t pa, size_t len, int type)
 {
-	kframe_t f;
+	kframe_t n, *f;
 	
 	if (next_free == MAX_FRAMES) {
 		return nil;
 	}
 	
+	debug("get free frame %i\n", next_free);
+	
 	n = &frames[next_free++];
+	
+	debug("set things.\n");
 	
 	n->u.type = type;
 	n->u.pa = pa;
@@ -49,13 +53,14 @@ frame_new(proc_t p, size_t pa, size_t len, int type)
 	
 	n->next = nil;
 	
-	n->u.f_id = up->frame_next_id++;
+	n->u.f_id = p->frame_next_id++;
+		
+	n->next = nil;
 	
-	for (p = up->frames; p->next != nil; p = p->next)
+	for (f = &p->frames; *f != nil; f = &(*f)->next)
 		;
 	
-	p->next = n;
-	n->next = nil;
+	*f = n;
 	
 	return n;
 }
@@ -63,10 +68,13 @@ frame_new(proc_t p, size_t pa, size_t len, int type)
 kframe_t
 frame_split(kframe_t f, size_t offset)
 {
-	kframe_t n, p;
+	kframe_t n;
 	
-	n = frame_new(up, f->pa + offset, f->len - offset, f->type);
-		
+	n = frame_new(up, f->u.pa + offset, f->u.len - offset, f->u.type);
+	
+	f->u.len = offset;
+	n->u.flags = f->u.flags;
+	n->u.va = f->u.va + offset;
 	return n;
 }
 

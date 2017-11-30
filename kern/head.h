@@ -142,7 +142,7 @@ int
 frame_unmap(proc_t p, kframe_t f);
 
 int
-mmuswitch(proc_t p);
+mmu_switch(proc_t p);
 
 /* Variables. */
 

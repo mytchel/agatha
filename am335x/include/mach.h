@@ -39,6 +39,12 @@
 #define SECTION_SIZE (1UL << SECTION_SHIFT)
 #define SECTION_MASK (~(SECTION_SIZE - 1))
 
+#define SECTION_ALIGN(x)    ((((reg_t) x) + SECTION_SIZE - 1) & SECTION_MASK)
+#define SECTION_ALIGN_DN(x) ((((reg_t) x) - SECTION_SIZE + 1) & SECTION_MASK)
+
+#define F_TYPE_IO    1
+#define F_TYPE_MEM   2
+
 typedef struct label label_t;
 
 struct label {
