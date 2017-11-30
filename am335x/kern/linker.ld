@@ -23,15 +23,11 @@ SECTIONS
 		*(.data.*)
 	}
 	
-	.proc0 ALIGN(4096) :
+	.bundled ALIGN(4096) :
 	{
-		_proc0_start = .;
-		*(.proc0.text)
-		. = ALIGN(4096);
-		*(.proc0.data)
-		_proc0_end = .;
+		*(.bundled)
 	}
-			
+	
 	.bss ALIGN(4096) : 
 	{
 		_kernel_bss_start = .;

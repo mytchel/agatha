@@ -71,17 +71,21 @@ CLEAN += proc0.list am335x.list am335x.umg
 .elf.list:
 	$(OBJDUMP) -S $< > $@
 
+bundled.bo: bundled.bin
+	$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
+	    --rename-section .data=.bundled \
+	    $< $@
 
-.elf.bo:
-	$(OBJCOPY) --rename-section .text=.$*.text \
-	           --rename-section .data=.$*.data \
-	           -x -X -S \
-	            $< $@
+
+CLEAN += bundled.bin bundled.list bundled.bo
+bundled.bin bundled.h: proc0.bin
+	sh bundle.sh bundled.bin bundled.list $^
+	
 
 P0_SRC := \
-        ../lib/libc/sys.S         \
+   ../lib/libc/sys.S        \
 	proc0/main.c              \
-        ../lib/libc/util.c
+  ../lib/libc/util.c
 				
 
 P0_OBJECTS_C := \
@@ -90,7 +94,7 @@ P0_OBJECTS := \
 	$(P0_OBJECTS_C:%.S=%.o)
 
 CLEAN += $(P0_OBJECTS)
-CLEAN += proc0.elf proc0.bo 
+CLEAN += proc0.elf proc0.bin 
 
 proc0.elf: proc0/linker.ld $(P0_OBJECTS)
 	$(LD) $(LDFLAGS) \
@@ -98,6 +102,8 @@ proc0.elf: proc0/linker.ld $(P0_OBJECTS)
 		-o $@ $(P0_OBJECTS) \
 		-lgcc
 		
+
+	
 
 KSRC := \
         kern/vectors.S            \
@@ -117,6 +123,8 @@ KSRC := \
         ../lib/libc/util.c
 
 
+kern/main.o: bundled.list
+
 KOBJECTS_C := \
 	$(KSRC:%.c=%.o)
 KOBJECTS := \
@@ -125,10 +133,11 @@ KOBJECTS := \
 CLEAN += $(KOBJECTS)
 CLEAN += $(TARGET).elf $(TARGET).bin $(TARGET).list proc0.bo
 
-am335x.elf: kern/linker.ld proc0.bo $(KOBJECTS)
+	
+am335x.elf: kern/linker.ld bundled.bo $(KOBJECTS)
 	$(LD) $(LDFLAGS) \
 		-T kern/linker.ld -Ttext $(loadaddr) \
-		-o $@ $(KOBJECTS) proc0.bo \
+		-o $@ $(KOBJECTS) bundled.bo \
 		-lgcc
 
 am335x.umg: am335x.bin

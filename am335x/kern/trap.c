@@ -145,7 +145,8 @@ trap(reg_t pc, int type)
   reg_t addr;
   
   debug("trap for 0x%h\n", up);
-  debug("do handler\n");
+  if (up != nil)
+  	debug("trap for pid %i\n", up->pid);
 
   switch(type) {
   case ABORT_INTERRUPT:

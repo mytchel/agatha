@@ -28,6 +28,15 @@
 #include "head.h"
 #include "fns.h"
 
+struct bundled_proc {
+	uint8_t name[256];
+	size_t len;
+};
+
+struct bundled_proc bundled[] = {
+#include "../bundled.list"
+};
+
 /*
 
 Example with device tree blob
@@ -86,6 +95,7 @@ r13 = 0x82000010
    
 struct label init_regs = {1};
 
+extern uint32_t *_binary_bundled_bin_start;
 extern uint32_t *_ram_start;
 extern uint32_t *_ram_end;
 extern uint32_t *_kernel_start;
@@ -161,11 +171,11 @@ proc_start(void)
 }
 
 static proc_t
-init_proc(size_t start, size_t end)
+init_proc(size_t start, size_t len)
 {
-	proc_t p;
 	size_t s, l;
 	kframe_t f;
+	proc_t p;
 
 	p = proc_new();
 	if (p == nil) {
@@ -187,7 +197,7 @@ init_proc(size_t start, size_t end)
 	frame_map(p, f, 0, F_MAP_L2_TABLE);
 	          
 	s = start;
-	l = end - start;
+	l = len;
 	f = frame_new(p, s, l, F_TYPE_MEM);
 	frame_map(p, f, PROC_VA_START, F_MAP_READ|F_MAP_WRITE);
 	
@@ -205,6 +215,8 @@ int
 kmain(void)
 {
 	proc_t p0, p;
+	size_t off;
+	int i;
 		
 	/* TODO: These should be small pages not sections.
 	     Well, the kernel needs its own virtual address
@@ -233,8 +245,14 @@ kmain(void)
 
 	init_mmu();
 	
-	p0 = init_proc((size_t) &_proc0_start, (size_t) &_proc0_end);
+	off = (size_t) &_binary_bundled_bin_start;
 	
+	/* Create proc0. */
+	
+	p0 = init_proc(off, bundled[0].len);
+	off += bundled[0].len;
+	
+	/* Create nil proc. */
 	p = proc_new();
 	if (p == nil) {
 		panic("Failed to create proc_nil!\n");
@@ -242,9 +260,19 @@ kmain(void)
 	
 	func_label(&p->label, p->kstack, KSTACK_LEN, &proc_nil);
 	
-	/* Create bundled proc's. */
+	/* Create remaining bundled proc's. */
 	
-	
+	for (i = 1; 
+	     i < sizeof(bundled)/sizeof(bundled[0]);
+	     i++) {
+		
+		p = init_proc(off, bundled[i].len);
+		if (p == nil) {
+			panic("Failed to create proc %s!\n", bundled[i].name);
+		}
+		
+		off += bundled[i].len;
+	}
 	
 	give_remaining_ram(p0);
 	
