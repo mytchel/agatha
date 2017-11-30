@@ -23,11 +23,6 @@ SECTIONS
 		*(.data.*)
 	}
 	
-	.bundled ALIGN(4096) :
-	{
-		*(.bundled)
-	}
-	
 	.bss ALIGN(4096) : 
 	{
 		_kernel_bss_start = .;
@@ -37,12 +32,16 @@ SECTIONS
 	}
 	. = ALIGN(4096);
 
-	. = . + 0x100;
-	. = ALIGN(4096);
+	. = . + 4096;
 	
 	_ex_stack_top = .;
 	_kernel_end = .;
-
+	
+	.bundled ALIGN(4096) :
+	{
+		*(.bundled)
+	}
+	
 	. = 0xa0000000;
 	_ram_end = .;
 }

@@ -146,14 +146,10 @@ proc_new(void)
   int pid, npid;
   proc_t p;
   
-	do {
-		pid = nextpid;
-		npid = (pid + 1) % MAX_PROCS;
-	} while (!cas(&nextpid, 
-	              (void *) pid, 
-	              (void *) npid));
+  pid = nextpid++;
 	
   p = &procs[pid];
+  
 	memset(p, 0, sizeof(struct proc));
   
   p->pid = pid;

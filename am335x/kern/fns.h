@@ -42,7 +42,7 @@ void
 mmu_invalidate(void);
 
 void
-mmu_enable(void);
+mmu_enable(size_t vsp, size_t vpc);
 
 void
 mmu_disable(void);
@@ -50,18 +50,23 @@ mmu_disable(void);
 void
 mmu_load_ttb(uint32_t *);
 
+int
+map_l2(uint32_t *ttb, size_t pa, size_t va);
+
 #define AP_NO_NO	0
 #define AP_RW_NO	1
 #define AP_RW_RO	2
 #define AP_RW_RW	3
 
-void
-imap(size_t pa, size_t len, int ap, bool cachable);
+int
+map_pages(uint32_t *ttb, size_t pa, size_t va, 
+          size_t len, int ap, bool cache);
+
+int
+map_sections(uint32_t *ttb, size_t pa, size_t va, 
+             size_t len, int ap, bool cache);
 
 /* Initialisation functions */
-
-void
-init_mmu(void);
 
 void
 init_intc(void *regs);
@@ -74,3 +79,5 @@ init_timers(void *t_regs, int t_irq, void *c_regs);
 
 void
 init_uart(void *regs);
+
+extern uint32_t ttb[];

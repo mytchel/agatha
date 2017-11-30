@@ -30,12 +30,12 @@
 #include <stdarg.h>
 #include <am335x/uart.h>
 
-static uart_regs_t uart = (uart_regs_t) 0x44E09000;
+static uart_regs_t uart;
 
 void
 init_uart(void *regs)
 {
-/*	uart = (uart_regs_t) regs;*/
+	uart = (uart_regs_t) regs;
 }
 
 void

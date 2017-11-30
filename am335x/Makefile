@@ -40,7 +40,7 @@ OBJDUMP = $(CROSS)objdump
 MKIMAGE = /home/mytch/src/u-boot/tools/mkimage
 
 CFLAGS = -std=c89 \
-	-Wall -Werror \
+	-Wall \
 	-mcpu=cortex-a8 \
 	-nostdinc -ffreestanding \
 	-fpic -fpie \
