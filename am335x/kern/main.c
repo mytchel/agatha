@@ -215,10 +215,11 @@ init_proc(size_t start, size_t len)
 
 static void *intc, *wd, *t1, *t2, *uart;
 
-int
+void
+__attribute__((noreturn))
 vmain(void)
 {
-	size_t off;
+	size_t off, s, l;
 	proc_t p0, p;
 	int i;
 	
@@ -228,6 +229,15 @@ vmain(void)
 	init_intc(intc);
   init_watchdog(wd);
   init_timers(t1, 68, t2);
+  
+	/* Remove temporary platform. */
+
+	s = (size_t) &_kernel_start;
+	l = (size_t) PAGE_ALIGN(&_kernel_end) - s;
+
+	unmap_sections(ttb, 
+	               SECTION_ALIGN(s), 
+	               SECTION_ALIGN(l)); 
 	
 	off = (size_t) &_binary_bundled_bin_start;
 	
@@ -263,12 +273,10 @@ vmain(void)
 	debug("schedule!\n");
 	
 	schedule(p0);
-  
-  /* Never reached */
-  return 0;
 }
 
 void
+__attribute__((noreturn))
 kmain(void)
 {
 	size_t s, l, vpc, vsp;
@@ -277,10 +285,7 @@ kmain(void)
   init_uart((void *) 0x44E09000);
 	
 	debug("set up ttb at 0x%h\n", ttb);
-	
-	map_sections(ttb, 0x80000000, 0x80000000, 0x20000000, AP_RW_NO, true); 
-
-	
+		
 	s = get_ram(PAGE_SIZE);
 	map_l2(ttb, s, 0xf0000000);
 	s = get_ram(PAGE_SIZE);
@@ -288,11 +293,18 @@ kmain(void)
 	
 	s = (size_t) &_kernel_start;
 	l = (size_t) PAGE_ALIGN(&_kernel_end) - s;
+	             
+	/* Temporary platform. */
+	map_sections(ttb, 
+	             SECTION_ALIGN(s), 
+	             SECTION_ALIGN(s), 
+	             SECTION_ALIGN(l),
+	             AP_RW_NO, true); 
+	
 	map_pages(ttb, s, KERNAL_VA, l, AP_RW_NO, true);
 	s = KERNAL_VA + l;
 	
   /* INTCPS */
-  debug("put intc at 0x%h\n", s);
   intc = (void *) s;
 	l = 0x1000;
 	map_pages(ttb, 0x48200000, s, l, AP_RW_NO, false);
@@ -301,7 +313,6 @@ kmain(void)
 	/* Watchdog */
 	wd = (void *) s;
 	l = 0x1000;
-	debug("watch dog at 0x%h\n", s);
 	map_pages(ttb, 0x44E35000, s, l, AP_RW_NO, false);
   s += l;
 	
@@ -309,27 +320,20 @@ kmain(void)
   t1 = (void *) s;
   t2 = (void *) (s + l + 0x500);
   l = 0x1000;
-  debug("timer at 0x%h\n", s);
 	map_pages(ttb, 0x48040000, s, l, AP_RW_NO, false);
-  debug("other thing at 0x%h\n", s + l);
 	map_pages(ttb, 0x44E00000, s + l, l, AP_RW_NO, false);
   s += l * 2;
 	
 	/* UART0 */
 	uart = (void *) s;
-	debug("uart at 0x%h\n", s);
 	l = 0x1000;
 	map_pages(ttb, 0x44E09000, s, l, AP_RW_NO, false);
 
 	vsp = KERNAL_VA + (size_t) &_ex_stack_top - (size_t) &_kernel_start;
 	vpc = KERNAL_VA + (size_t) &vmain - (size_t) &_kernel_start;
 	
-	debug("enable mmu and jump to 0x%h with stack 0x%h\n", vpc, vsp);
-
   mmu_load_ttb(ttb);
   mmu_enable(vsp, vpc);
-  
-  panic("mmu_enable returned!\n");
 }
 
 

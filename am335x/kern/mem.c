@@ -115,6 +115,28 @@ map_pages(uint32_t *ttb, size_t pa, size_t va,
 }
 
 int
+unmap_pages(uint32_t *ttb, size_t va, size_t len)
+{
+	uint32_t *l2, o;
+	
+	for (o = 0; o < len; o += PAGE_SIZE) {
+		debug("unmap page 0x%h\n", va + o);
+		
+		/* TODO: is this right? */
+		l2 = (uint32_t *) (ttb[L1X(va + o)] & ~((1 << 10) - 1));
+		
+		if (l2 == nil) {
+			/* Should something else happen here? */
+			return ERR;
+		}
+		
+		l2[L2X(va + o)] = L2_FAULT;
+	}
+	
+	return OK;
+}
+
+int
 map_sections(uint32_t *ttb, size_t pa, size_t va, 
              size_t len, int ap, bool cache)
 {
@@ -129,6 +151,20 @@ map_sections(uint32_t *ttb, size_t pa, size_t va,
 		
 		ttb[L1X(va + o)] = (pa + o) | L1_SECTION | 
 		    tex << 12 | ap << 10 | c << 3 | b << 2;
+	}
+	
+	return OK;
+}
+
+int
+unmap_sections(uint32_t *ttb, size_t va, size_t len)
+{
+	uint32_t o;
+	
+	for (o = 0; o < len; o += SECTION_SIZE) {
+		debug("unmap section 0x%h\n", va + o);
+		
+		ttb[L1X(va + o)] = L1_FAULT;
 	}
 	
 	return OK;

@@ -14,7 +14,7 @@ SECTIONS
 	. = ALIGN(4096);
 	_text_end = .;
 	
-		_data_start = .;
+	_data_start = .;
 	.data :
 	{
 		*(.data)
@@ -26,6 +26,4 @@ SECTIONS
 	
 	. = ALIGN(4096);
 	_data_end = .;
-  
-  _self_end = .;
 }

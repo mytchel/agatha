@@ -63,8 +63,14 @@ map_pages(uint32_t *ttb, size_t pa, size_t va,
           size_t len, int ap, bool cache);
 
 int
+unmap_pages(uint32_t *ttb, size_t va, size_t len);
+
+int
 map_sections(uint32_t *ttb, size_t pa, size_t va, 
              size_t len, int ap, bool cache);
+
+int
+unmap_sections(uint32_t *ttb, size_t va, size_t len);
 
 /* Initialisation functions */
 
