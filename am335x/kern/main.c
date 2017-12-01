@@ -92,24 +92,19 @@ r13 = 0x82000010
    presense of a device tree. r9 changes.
    
    */
-   
-struct label init_regs = {1};
 
-extern uint32_t *_binary_bundled_bin_start;
 extern uint32_t *_ram_start;
 extern uint32_t *_ram_end;
 extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
 extern uint32_t *_ex_stack_top;
+extern uint32_t *_binary_bundled_bin_start;
+extern uint32_t *_binary_bundled_bin_end;
 
 static size_t ram_p = (size_t) &_ram_start;
 
-extern void *_proc0_start;
-extern void *_proc0_end;
-
 #define PROC_STACK_TOP  0x8000
 #define PROC_VA_START   0x8000
-#define KERNAL_VA   0xf0000000
 
 static void
 proc_nil(void)
@@ -118,27 +113,17 @@ proc_nil(void)
 	while (true)
 		;
 }
-
-/* These will need to be more sophisticated in future.
-   There are parts of memory other than the kernel that
-   need to be watched out for such as fdt's. */
    
 static size_t
 get_ram(size_t l)
 {
 	size_t r;
 	
+	/* TODO: make this skip kernel, dtb, whatever else needs
+	   to be kept. */
+	
 	l = PAGE_ALIGN(l);
-	
-	if (ram_p < (size_t) &_kernel_start &&
-	    ram_p + l >=  (size_t) &_kernel_start) {
-	
-		ram_p = (size_t) PAGE_ALIGN(&_kernel_end);
-	
-	} else if (ram_p + l >= (size_t) &_ram_end) {
-		return 0;
-	} 
-	
+		
 	r = ram_p;
 	ram_p += l;
 	
@@ -148,8 +133,8 @@ get_ram(size_t l)
 static void
 give_remaining_ram(proc_t p)
 {
+	/*
 	size_t s, l;
-	
 	s = ram_p;
 	if (s < (size_t) &_kernel_start) {
 		l = (size_t) &_kernel_start - s;
@@ -159,6 +144,7 @@ give_remaining_ram(proc_t p)
 	
 	l = (size_t) &_ram_end - s;
 	frame_new(p, s, l, F_TYPE_MEM);	
+	*/
 }
 
 static void
@@ -172,10 +158,22 @@ proc_start(void)
 	drop_to_user(&u, up->kstack, KSTACK_LEN);
 }
 
+void
+dump_ttb(uint32_t *ttb, size_t len)
+{
+	int i;
+	
+	debug("table at 0x%h of len 0x%h:\n", ttb, len);
+	for (i = 0; i < len; i++)
+		debug("0x%h -> 0x%h\n", i * 4, ttb[i]);
+}
+
 static proc_t
 init_proc(size_t start, size_t len)
 {
+	vspace_t v_vspace;
 	size_t s, l;
+	uint32_t *l2;
 	kframe_t f;
 	proc_t p;
 
@@ -184,62 +182,82 @@ init_proc(size_t start, size_t len)
 		panic("Failed to create proc!\n");
 	}
 	
-	func_label(&p->label, p->kstack, KSTACK_LEN, &proc_start);
-
-	l = 4096 * 4;
-	s = get_ram(l);
-	if (!s) panic("Failed to get mem for l1 table!\n");
-	f = frame_new(p, s, l, F_TYPE_MEM);
-	frame_map(p, f, 0, F_MAP_L1_TABLE);
+	debug("set proc up to jump to 0x%h, 0x%h\n", &proc_start, p->kstack);
 	
-	l = 256 * 4;
+	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
+	           (size_t) &proc_start);
+
+	l = PAGE_ALIGN(sizeof(struct vspace)) + PAGE_SIZE;
+	debug("getting 0x%h bytes for vspace and l1\n", l);
 	s = get_ram(l);
-	if (!s) panic("Failed to get mem for l2 table!\n");
-	f = frame_new(p, s, l, F_TYPE_MEM);
-	frame_map(p, f, 0, F_MAP_L2_TABLE);
-	          
+	if (!s) 
+		panic("Failed to get mem for bundled proc's vspace!\n");
+
+	map_sections(ttb, s, KERNEL_VA - SECTION_SIZE,
+	             SECTION_SIZE, AP_RW_NO, false);
+	
+	f = frame_new(s, sizeof(struct vspace), F_TYPE_MEM);
+	frame_add(p, f);
+	
+	p->vspace = vspace_init(s, KERNEL_VA - SECTION_SIZE);
+	v_vspace = (vspace_t) KERNEL_VA - SECTION_SIZE;
+	
+	debug("vspace at 0x%h\n", p->vspace);
+
+	s += PAGE_ALIGN(sizeof(struct vspace));
+
+	f = frame_new(s, PAGE_SIZE, F_TYPE_MEM);
+	frame_add(p, f);
+	
+	s = KERNEL_VA - SECTION_SIZE 
+	    + PAGE_ALIGN(sizeof(struct vspace));
+	
+	l2 = (uint32_t *) s;
+	
+	debug("l2 table va at 0x%h\n", l2);
+	
+	frame_table(v_vspace->l2, f,
+	            s, F_TABLE_L2);
+	
+	debug("mapping l2 table at 0x%h\n",  
+	          0);
+	                     
+	frame_map(v_vspace->l1, f, 
+	          0, 
+	          F_MAP_TYPE_TABLE);
+	
 	s = start;
 	l = len;
-	f = frame_new(p, s, l, F_TYPE_MEM);
-	frame_map(p, f, PROC_VA_START, F_MAP_READ|F_MAP_WRITE);
+	f = frame_new(s, l, F_TYPE_MEM);
+	frame_add(p, f);
+	frame_map(l2, f, PROC_VA_START, 
+	          F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 	
 	l = PAGE_SIZE * 4;
 	s = get_ram(l);
-	if (!s) panic("Failed to get mem for stack!\n");
-	f = frame_new(p, s, l, F_TYPE_MEM); 
-	frame_map(p, f, PROC_STACK_TOP - l,
-	          F_MAP_READ|F_MAP_WRITE);
+	if (!s) 
+		panic("Failed to get mem for stack!\n");
+		
+	f = frame_new(s, l, F_TYPE_MEM);
+	frame_add(p, f);
+	frame_map(l2, f, PROC_STACK_TOP - l,
+	          F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
+	
+	unmap_sections(ttb, KERNEL_VA - SECTION_SIZE, SECTION_SIZE);
 	
 	return p;
 }
 
-static void *intc, *wd, *t1, *t2, *uart;
-
-void
-__attribute__((noreturn))
-vmain(void)
+proc_t
+init_procs(void)
 {
-	size_t off, s, l;
-	proc_t p0, p;
+	proc_t p, p0;
+	size_t off;
 	int i;
 	
-	init_uart(uart);
-  debug("in kernel virtual memory!\n");
+  off = (size_t) &_binary_bundled_bin_start;
   
-	init_intc(intc);
-  init_watchdog(wd);
-  init_timers(t1, 68, t2);
-  
-	/* Remove temporary platform. */
-
-	s = (size_t) &_kernel_start;
-	l = (size_t) PAGE_ALIGN(&_kernel_end) - s;
-
-	unmap_sections(ttb, 
-	               SECTION_ALIGN(s), 
-	               SECTION_ALIGN(l)); 
-	
-	off = (size_t) &_binary_bundled_bin_start;
+  debug("bundled start at 0x%h\n", off);
 	
 	/* Create proc0. */
 	
@@ -252,7 +270,8 @@ vmain(void)
 		panic("Failed to create proc_nil!\n");
 	}
 	
-	func_label(&p->label, p->kstack, KSTACK_LEN, &proc_nil);
+	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
+	          (size_t) &proc_nil);
 	
 	/* Create remaining bundled proc's. */
 	
@@ -270,70 +289,102 @@ vmain(void)
 	
 	give_remaining_ram(p0);
 	
-	debug("schedule!\n");
+	return p0;
+}
+
+static void *uart_regs, *intc_regs, *wd_regs, *t_regs, *tc_regs;
+
+size_t
+map_devs(uint32_t *l2, size_t va)
+{
+	size_t l;
 	
-	schedule(p0);
+	/* UART0 */
+	l = 0x1000;
+	map_pages(l2, 0x44E09000, va, l, AP_RW_NO, false);
+	uart_regs = (void *) va;
+	va += l;
+	
+  /* INTCPS */
+	l = 0x1000;
+	map_pages(l2, 0x48200000, va, l, AP_RW_NO, false);
+	intc_regs = (void *) va;
+	va += l;
+	 
+	/* Watchdog */
+	l = 0x1000;
+	map_pages(l2, 0x44E35000, va, l, AP_RW_NO, false);
+	wd_regs = (void *) va;
+  va += l;
+	
+  /* DMTIMER2 for systick. */
+  l = 0x1000;
+	map_pages(l2, 0x48040000, va, l, AP_RW_NO, false);
+	t_regs = (void *) va;
+	va += l;
+	
+	map_pages(l2, 0x44E00000, va, l, AP_RW_NO, false);
+	tc_regs = (void *) (va + 0x500);
+	va += l;
+	
+	return va;
 }
 
 void
-__attribute__((noreturn))
-kmain(void)
+init_devs(void)
 {
-	size_t s, l, vpc, vsp;
+	init_uart(uart_regs);
+  debug("in kernel virtual memory!\n");
+  
+	init_intc(intc_regs);
+	init_watchdog(wd_regs);
+	init_timers(t_regs, 68, tc_regs);
+}
+
+void
+kmain(size_t kernel_start, 
+      size_t dtb_start, 
+      size_t dtb_len)
+{
+	uint32_t *l2;
+	size_t s, l;
+	proc_t p;
 	
 	/* Early uart. */
   init_uart((void *) 0x44E09000);
-	
-	debug("set up ttb at 0x%h\n", ttb);
-		
+  
+  debug("kernel_start = 0x%h\n", kernel_start);
+  debug("dtb = 0x%h, 0x%h\n", dtb_start, dtb_len);
+  
+  debug("ttb = 0x%h\n", ttb);
+  
 	s = get_ram(PAGE_SIZE);
-	map_l2(ttb, s, 0xf0000000);
-	s = get_ram(PAGE_SIZE);
-	map_l2(ttb, s, 0xf0010000);
+	l2 = (uint32_t *) s;
+	memset(l2, 0, PAGE_SIZE);
 	
-	s = (size_t) &_kernel_start;
-	l = (size_t) PAGE_ALIGN(&_kernel_end) - s;
-	             
-	/* Temporary platform. */
-	map_sections(ttb, 
-	             SECTION_ALIGN(s), 
-	             SECTION_ALIGN(s), 
-	             SECTION_ALIGN(l),
-	             AP_RW_NO, true); 
+	map_l2(ttb, s, KERNEL_VA);
 	
-	map_pages(ttb, s, KERNAL_VA, l, AP_RW_NO, true);
-	s = KERNAL_VA + l;
+	s = kernel_start;
+	l = PAGE_ALIGN((size_t) &_kernel_end - (size_t) &_kernel_start);
 	
-  /* INTCPS */
-  intc = (void *) s;
-	l = 0x1000;
-	map_pages(ttb, 0x48200000, s, l, AP_RW_NO, false);
-	s += l;
-	
-	/* Watchdog */
-	wd = (void *) s;
-	l = 0x1000;
-	map_pages(ttb, 0x44E35000, s, l, AP_RW_NO, false);
-  s += l;
-	
-  /* DMTIMER2 for systick. */
-  t1 = (void *) s;
-  t2 = (void *) (s + l + 0x500);
-  l = 0x1000;
-	map_pages(ttb, 0x48040000, s, l, AP_RW_NO, false);
-	map_pages(ttb, 0x44E00000, s + l, l, AP_RW_NO, false);
-  s += l * 2;
-	
-	/* UART0 */
-	uart = (void *) s;
-	l = 0x1000;
-	map_pages(ttb, 0x44E09000, s, l, AP_RW_NO, false);
+	debug("kernel at 0x%h, 0x%h\n", s, l);
 
-	vsp = KERNAL_VA + (size_t) &_ex_stack_top - (size_t) &_kernel_start;
-	vpc = KERNAL_VA + (size_t) &vmain - (size_t) &_kernel_start;
+	map_pages(l2, s, KERNEL_VA, l, AP_RW_NO, true);
+	
+  map_devs(l2, KERNEL_VA + l);
+  
+	debug("load and enable mmu\n");
 	
   mmu_load_ttb(ttb);
-  mmu_enable(vsp, vpc);
+  mmu_enable();
+  
+  init_devs();
+  
+  debug("init procs\n");
+  
+  p = init_procs();
+  
+  schedule(p);
 }
 
 

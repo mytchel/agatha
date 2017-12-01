@@ -31,9 +31,9 @@
 .global _kstart
 
 _kstart:
-	ldr lr, =init_regs
-	add lr, lr, #(4*3)
-	stmia lr!, {r0 - r12, pc}
+	mov r7, r6
+	mov r8, r2
+	mov r9, r3
 
 	ldr r0, = _kernel_bss_start
 	ldr r1, = _kernel_bss_end
@@ -62,6 +62,9 @@ _kstart:
 	
 	bl vector_table_init
 
+	mov r0, r7
+	mov r1, r8
+	mov r2, r9
 	b kmain
 
 

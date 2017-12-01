@@ -32,39 +32,21 @@
 int
 proc_new(int f_id);
 
+/* Create a page table and put it at m_addr for reading by
+   user space and editing by the kernel.
+   You will need to frame_map the f_id again to put it 
+   in the ttb at an address for use. */
+int
+frame_table(int f_id, void *m_addr, int type);
+
+int
+frame_map(int f_id, void *va, int flags);
+
 int
 send(int pid, uint8_t *m);
 
 int
 recv(uint8_t *m);
-
-/* Returns f_id of upper frame that was created. */
-int frame_split(int f_id, size_t offset);
-
-/* Must be adjacent frames. */
-int frame_merge(int f1, int f2);
-
-/* Returns f_id of frame in other process. */
-int frame_give(int f_id, int pid);
-
-/* Returns the segment id. */
-
-int frame_map(int pid, int f_id, 
-              void *addr, int flags);
-
-int frame_unmap(int pid, int f_id);
-
-/* What pid is allowed to give frames, segment space, and map
-   to me currently, plus parent? Probably not
-   parent once the process is running.
- */
-int frame_allow(int pid_allowed_to_map);
-
-/* To look through frames. */
-
-int frame_count(void);
-
-int frame_info(int frame_number, struct frame *f);
 
 bool
 cas(void *addr, void *old, void *new);

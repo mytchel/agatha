@@ -43,70 +43,90 @@
 #define L2_SMALL     0b10
 #define L2_TINY      0b11
 
+extern uint32_t *_kernel_start;
+extern uint32_t *_kernel_end;
+
 uint32_t
 ttb[4096]__attribute__((__aligned__(16*1024))) = { L1_FAULT };
 
-int
-mmu_switch(proc_t p)
+vspace_t
+vspace_init(size_t pa, size_t va)
 {
-	uint32_t *t;
+	vspace_t s = (vspace_t) va;
+	size_t l1_off, l2_off;
 	int i;
 	
-	if (p->base == nil) {
-		return ERR;
+	l1_off = (size_t) s->l1 - (size_t) s;
+	l2_off = (size_t) s->l2 - (size_t) s;
+	
+	debug("vspace init at 0x%h, l1_off = 0x%h, l2_off = 0x%h\n", 
+		pa, l1_off, l2_off);
+	
+	for (i = 0; i < 4096; i++) {
+		s->l1[i] = L1_FAULT;
 	}
 	
-	t = (uint32_t *) p->base->u.pa;
-	
-	/* Limit virtual space for now. */
-	for (i = 0; i < 1000; i++) {
-		ttb[i] = t[i];
+	for (i = SECTION_ALIGN_DN(&_kernel_start)/SECTION_SIZE;
+	     i < SECTION_ALIGN(&_kernel_end)/SECTION_SIZE; 
+	     i++) {
+		s->l1[i] = ttb[i];
+	}
+		
+	for (i = 0; i < 256; i++) {
+		s->l2[i] = L2_FAULT;
 	}
 	
+	map_l2(s->l1, pa + l2_off, KERNEL_VA - SECTION_SIZE);
+	map_pages(s->l2, pa, 
+	          KERNEL_VA - SECTION_SIZE, 
+	          sizeof(struct vspace), 
+	          AP_RW_RO, true);
+	          
+	return (vspace_t) pa;
+}
+
+int
+mmu_switch(vspace_t s)
+{
+	debug("switching to vspace 0x%h\n", s);
+	
+	mmu_load_ttb((uint32_t *) s);
 	mmu_invalidate();
+	
+	debug("ok\n");
 	
 	return OK;	
 }
 
 int
-map_l2(uint32_t *ttb, size_t pa, size_t va)
+map_l2(uint32_t *l1, size_t pa, size_t va)
 {
-	uint32_t *l2;
-	int i;
-	
 	debug("map l2 0x%h -> 0x%h\n", pa, va);
 	
-	ttb[L1X(va)] = pa | L1_COARSE;
-	
-	l2 = (uint32_t *) (pa);
-	for (i = 0; i < 256; i++) {
-		l2[i] = L2_FAULT;
-	}
+	l1[L1X(va)] = pa | L1_COARSE;
 	
 	return OK;
 }
 
 int
-map_pages(uint32_t *ttb, size_t pa, size_t va, 
+map_pages(uint32_t *l2, size_t pa, size_t va, 
           size_t len, int ap, bool cache)
 {
-	uint32_t *l2, tex, c, b, o;
+	uint32_t tex, c, b, o;
 	
-	tex = 0;
-	c = 0;
-	b = 1;
+	if (cache) {
+		tex = 7;
+		c = 1;
+		b = 0;
+	} else {
+		tex = 0;
+		c = 0;
+		b = 1;
+	}
 	
 	for (o = 0; o < len; o += PAGE_SIZE) {
 		debug("page 0x%h -> 0x%h\n", pa + o, va + o);
 		
-		/* TODO: is this right? */
-		l2 = (uint32_t *) (ttb[L1X(va + o)] & ~((1 << 10) - 1));
-		
-		if (l2 == nil) {
-			/* TODO: unmap what was mapped. */
-			return ERR;
-		}
-				
 		l2[L2X(va + o)] = (pa + o) | L2_SMALL | 
 		    tex << 6 | ap << 4 | c << 3 | b << 2;
 	}
@@ -115,21 +135,13 @@ map_pages(uint32_t *ttb, size_t pa, size_t va,
 }
 
 int
-unmap_pages(uint32_t *ttb, size_t va, size_t len)
+unmap_pages(uint32_t *l2, size_t va, size_t len)
 {
-	uint32_t *l2, o;
+	uint32_t o;
 	
 	for (o = 0; o < len; o += PAGE_SIZE) {
-		debug("unmap page 0x%h\n", va + o);
-		
-		/* TODO: is this right? */
-		l2 = (uint32_t *) (ttb[L1X(va + o)] & ~((1 << 10) - 1));
-		
-		if (l2 == nil) {
-			/* Should something else happen here? */
-			return ERR;
-		}
-		
+		debug("unmap page 0x%h\n", va + o);	
+			
 		l2[L2X(va + o)] = L2_FAULT;
 	}
 	
@@ -137,19 +149,23 @@ unmap_pages(uint32_t *ttb, size_t va, size_t len)
 }
 
 int
-map_sections(uint32_t *ttb, size_t pa, size_t va, 
+map_sections(uint32_t *l1, size_t pa, size_t va, 
              size_t len, int ap, bool cache)
 {
 	uint32_t tex, c, b, o;
 	
-	tex = 0;
-	c = 0;
-	b = 1;
+	if (cache) {
+		tex = 7;
+		c = 1;
+		b = 0;
+	} else {
+		tex = 0;
+		c = 0;
+		b = 1;
+	}
 	
 	for (o = 0; o < len; o += SECTION_SIZE) {
-		debug("section 0x%h -> 0x%h\n", pa + o, va + o);
-		
-		ttb[L1X(va + o)] = (pa + o) | L1_SECTION | 
+		l1[L1X(va + o)] = (pa + o) | L1_SECTION | 
 		    tex << 12 | ap << 10 | c << 3 | b << 2;
 	}
 	
@@ -157,59 +173,35 @@ map_sections(uint32_t *ttb, size_t pa, size_t va,
 }
 
 int
-unmap_sections(uint32_t *ttb, size_t va, size_t len)
+unmap_sections(uint32_t *l1, size_t va, size_t len)
 {
 	uint32_t o;
 	
 	for (o = 0; o < len; o += SECTION_SIZE) {
 		debug("unmap section 0x%h\n", va + o);
 		
-		ttb[L1X(va + o)] = L1_FAULT;
+		l1[L1X(va + o)] = L1_FAULT;
 	}
 	
 	return OK;
 }
 
 static int
-frame_map_base(proc_t p, kframe_t f, size_t va)
-{
-	uint32_t *ttb;
-	int i;
-	
-	if (va != 0 || f->u.len != PAGE_SIZE * 4) {
-		return ERR;
-	}
-	
-	p->base = f;
-	
-	ttb = (uint32_t *) f->u.pa;
-	
-	for (i = 0; i < 4096; i++) {
-		ttb[i] = L1_FAULT;
-	}
-	
-	f->u.va = va;
-	f->u.flags = F_MAP_L1_TABLE;
-	
-	return OK;
-}
-
-static int
-frame_map_l2(uint32_t *ttb, kframe_t f, size_t va)
+frame_map_l2(uint32_t *l1, kframe_t f, size_t va)
 {
 	size_t o;
 	
 	for (o = 0; o < f->u.len; o += PAGE_SIZE) {
-		map_l2(ttb, f->u.pa + o, va + o);
+		map_l2(l1, f->u.pa + o, va + o);
 	}
 	
 	f->u.va = va;
-	f->u.flags = F_MAP_L2_TABLE;
+	f->u.flags = F_MAP_TYPE_TABLE;
 	return OK;
 }
 
 static int
-frame_map_sections(uint32_t *ttb, kframe_t f, size_t va, int flags)
+frame_map_sections(uint32_t *l1, kframe_t f, size_t va, int flags)
 {
 	uint32_t ap;
 	
@@ -219,7 +211,7 @@ frame_map_sections(uint32_t *ttb, kframe_t f, size_t va, int flags)
 		ap = AP_RW_RO;
 	}
 	
-	map_sections(ttb, f->u.pa, va, f->u.len, ap, false);
+	map_sections(l1, f->u.pa, va, f->u.len, ap, false);
 	
 	f->u.va = va;
 	f->u.flags = flags;
@@ -228,7 +220,7 @@ frame_map_sections(uint32_t *ttb, kframe_t f, size_t va, int flags)
 }
 
 static int
-frame_map_pages(uint32_t *ttb, kframe_t f, size_t va, int flags)
+frame_map_pages(uint32_t *l2, kframe_t f, size_t va, int flags)
 {
 	uint32_t ap;
 	int r;
@@ -239,7 +231,7 @@ frame_map_pages(uint32_t *ttb, kframe_t f, size_t va, int flags)
 		ap = AP_RW_RO;
 	}
 	
-	r = map_pages(ttb, f->u.pa, va, f->u.len, ap, false);
+	r = map_pages(l2, f->u.pa, va, f->u.len, ap, false);
 	if (r != OK) {
 		return r;
 	}
@@ -250,54 +242,44 @@ frame_map_pages(uint32_t *ttb, kframe_t f, size_t va, int flags)
 	return OK;
 }
 
+/* TODO: need another data field to store m_addr 
+   as well as where it is in the page tables. */
 int
-frame_map(proc_t p, kframe_t f, size_t va, int flags)
+frame_table(void *tb, kframe_t f, 
+            size_t m_addr, int type)
 {
-	uint32_t *ttb;
+	int r;
 	
-	debug("frame_map for %i from 0x%h to 0x%h with %i\n",
-		    p->pid, f->u.pa, va, flags);
-	
-	if (va >= 1000 * SECTION_SIZE) {
-		debug("No mappings past 0x%h\n", 1000 * SECTION_SIZE);
-		return ERR;
+	r = frame_map(tb, f, m_addr, 
+	              F_MAP_TYPE_PAGE|F_MAP_READ);
+	if (r != OK) {
+		return r;
 	}
 	
-	if (flags & F_MAP_L1_TABLE) {
-		debug("mapping base\n");
-		
-		return frame_map_base(p, f, va);
-				
-	} else if (p->base == nil) {
-		debug("no base\n");
-		
-		return ERR;
-		
-	}
+	memset((void *) m_addr, f->u.len, 0);
 	
-	ttb = (uint32_t *) p->base->u.pa;
-	
-	if (flags & F_MAP_L2_TABLE) {
-		debug("mapping l2\n");
-		
-		return frame_map_l2(ttb, f, va);
-		
-	} else if ((va & SECTION_MASK) == va && 
-	            (f->u.len & SECTION_MASK) == f->u.len) {
-		debug("mapping sections\n");
-		
-		return frame_map_sections(ttb, f, va, flags);
-	
-	} else {
-		debug("mapping small pages\n");
-		return frame_map_pages(ttb, f, va, flags);		
-	}
+	return OK;
 }
 
 int
-frame_unmap(proc_t p, kframe_t f)
+frame_map(void *tb, kframe_t f, size_t va, int flags)
 {
-	/* TODO. */
-	return ERR;
-}
+	int r;
+	
+	debug("frame map to table 0x%h from 0x%h to 0x%h with flags %i\n",
+		tb, f->u.pa, va, flags);
 
+	switch (flags & F_MAP_TYPE_MASK) {
+	default:
+	case F_MAP_TYPE_PAGE:
+		r = frame_map_pages(tb, f, va, flags);
+		return r;
+		
+	case F_MAP_TYPE_SECTION:
+		r = frame_map_sections(tb, f, va, flags);
+		return r;
+		
+	case F_MAP_TYPE_TABLE:
+		return frame_map_l2(tb, f, va);
+	}
+}

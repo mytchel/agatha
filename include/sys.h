@@ -27,12 +27,12 @@
 
 #define MESSAGE_LEN 64
 
-/* For if you are mapping these pages as tables rather than 
-   mappings. */
-#define F_MAP_L1_TABLE  (1<<0)
-#define F_MAP_L2_TABLE  (1<<1)
-#define F_MAP_READ      (1<<10)
-#define F_MAP_WRITE     (1<<11)
+/* Permitions.
+   Or with architecture depended map type. */
+   
+#define F_MAP_READ         (1<<0)
+#define F_MAP_WRITE        (1<<1)
+#define F_MAP_TYPE_SHIFT       2
 
 typedef struct frame *frame_t;
 

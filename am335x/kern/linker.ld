@@ -2,8 +2,8 @@ ENTRY(_kstart);
 
 SECTIONS
 {
-	. = 0x80000000;
-	_ram_start = .;
+	_ram_start = 0x80000000;
+	_ram_end   = 0xa0000000;
 
 	.text ALIGN(4096) :
 	{
@@ -41,7 +41,5 @@ SECTIONS
 	{
 		*(.bundled)
 	}
-	
-	. = 0xa0000000;
-	_ram_end = .;
 }
+

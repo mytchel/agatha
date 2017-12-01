@@ -63,8 +63,12 @@ struct proc {
 	
 	size_t frame_count;
 	int frame_next_id;
-	kframe_t frames, base;
+	
+	kframe_t frames;
+	vspace_t vspace;
 };
+
+/* vspace should be the barest possible. */
 
 proc_t
 proc_new(void);
@@ -82,7 +86,10 @@ int
 recv(uint8_t *m);
 
 kframe_t
-frame_new(proc_t p, size_t pa, size_t len, int type);
+frame_new(size_t pa, size_t len, int type);
+
+void
+frame_add(proc_t p, kframe_t f);
 
 kframe_t
 frame_split(kframe_t f, size_t offset);
@@ -128,21 +135,26 @@ __attribute__((noreturn));
 
 void
 func_label(label_t *l, 
-           void *stack, 
+           size_t stack, 
            size_t stacklen,
-           void (*func)(void));
+           size_t pc);
 
 bool
 cas(void *addr, void *old, void *new);
 
 int
-frame_map(proc_t p, kframe_t f, size_t va, int flags);
+frame_table(void *ttb, kframe_t f, size_t m_addr, int flags);
 
 int
-frame_unmap(proc_t p, kframe_t f);
+frame_map(void *ttb, kframe_t f, size_t va, int flags);
+
+/* Turn sizeof(struct vspace) bytes at pa into a vspace.
+   va is the address where pa is currently mapped to. */
+vspace_t
+vspace_init(size_t pa, size_t va);
 
 int
-mmu_switch(proc_t p);
+mmu_switch(vspace_t s);
 
 /* Variables. */
 

@@ -84,9 +84,13 @@ schedule(proc_t n)
 	}
 		
 	if (up != nil) {
-		mmu_switch(up);
-		up->state = PROC_oncpu;
+		if (up->vspace != nil) {
+			mmu_switch(up->vspace);
+		}
+		
   	set_systick(1000);
+  	
+		up->state = PROC_oncpu;
 		goto_label(&up->label);
 	}
 	
@@ -143,7 +147,7 @@ proc_start(void)
 proc_t
 proc_new(void)
 {
-  int pid, npid;
+  int pid;
   proc_t p;
   
   pid = nextpid++;
@@ -155,7 +159,10 @@ proc_new(void)
   p->pid = pid;
   p->m_from = -1;
   
-	func_label(&p->label, p->kstack, KSTACK_LEN, &proc_start);
+	func_label(&p->label, 
+	           (size_t) p->kstack, 
+	           KSTACK_LEN, 
+	           (size_t) &proc_start);
 	
 	p->state = PROC_ready;
 	

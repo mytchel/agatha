@@ -200,3 +200,35 @@ int frame_count(void);
 int frame_info(int frame_number, struct frame *f);
 
 ```
+
+Ok. Now we are getting somewhere. But with this arangement 
+the kernel needs access to the complete address space of
+ram so that it can edit the page tables.
+
+How about we force the user to map them somewhere as read
+only. Then the kernel has a way to access them. Something like:
+
+```
+
+/* Create a table
+
+#define F_TABLE_L1   1
+#define F_TABLE_L2   2
+
+int frame_table(int f_id, void *m_addr, int type);
+
+/* Permitions. */
+#define F_MAP_READ      (1<<0)
+#define F_MAP_WRITE     (1<<1)
+
+/* Kind of mapping. */
+#define F_MAP_TABLE     (0<<2)
+#define F_MAP_PAGE      (1<<2)
+#define F_MAP_SECTION   (2<<2)
+
+int frame_map(int f_id, void *va, int flags);
+
+```
+
+How processes can set up other processes mappings can be figured
+out later on.

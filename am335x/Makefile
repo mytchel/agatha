@@ -26,8 +26,9 @@
 .SUFFIXES:
 .SUFFIXES: .c .S .h .o .a .elf .bin .list .umg .bo
 
-loadaddr=0x82000000
 TARGET = am335x
+
+loadaddr=0x82000000
 
 CROSS = arm-linux-gnueabihf-
 
@@ -43,8 +44,8 @@ CFLAGS = -std=c89 \
 	-Wall \
 	-mcpu=cortex-a8 \
 	-nostdinc -ffreestanding \
-	-fpic -fpie \
 	-fno-stack-protector \
+	-DKERNEL_VA=$(loadaddr) \
 	-Iinclude -I../include -Ikern/
 
 LDFLAGS = -nostdlib -nodefaultlibs -static \
@@ -52,7 +53,7 @@ LDFLAGS = -nostdlib -nodefaultlibs -static \
 
 
 .PHONY: all
-all: proc0.list am335x.list am335x.umg
+all: am335x.umg
 
 CLEAN += proc0.list am335x.list am335x.umg 
 
@@ -102,9 +103,6 @@ proc0.elf: proc0/linker.ld $(P0_OBJECTS)
 		-o $@ $(P0_OBJECTS) \
 		-lgcc
 		
-
-	
-
 KSRC := \
         kern/vectors.S            \
         kern/asm.S                \
@@ -131,12 +129,11 @@ KOBJECTS := \
 	$(KOBJECTS_C:%.S=%.o)
 
 CLEAN += $(KOBJECTS)
-CLEAN += $(TARGET).elf $(TARGET).bin $(TARGET).list proc0.bo
-
+CLEAN += *.elf *.bin *.list *.umg *.bo
 	
 am335x.elf: kern/linker.ld bundled.bo $(KOBJECTS)
 	$(LD) $(LDFLAGS) \
-		-T kern/linker.ld -Ttext $(loadaddr) \
+		-T kern/linker.ld -Ttext $(loadaddr)\
 		-o $@ $(KOBJECTS) bundled.bo \
 		-lgcc
 
