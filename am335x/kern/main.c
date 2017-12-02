@@ -151,28 +151,6 @@ proc_start(void)
 	drop_to_user(&u, up->kstack, KSTACK_LEN);
 }
 
-	void
-diff_ttb(uint32_t *a, uint32_t *b, size_t len)
-{
-	int i;
-
-	debug("diff tables at 0x%h and 0x%h of len 0x%h:\n", a, b, len);
-	for (i = 0; i < len; i++) {
-		if (a[i] != b[i])
-			debug("0x%h diff 0x%h vs 0x%h\n", i * 4, a[i], b[i]);
-	}
-}
-
-	void
-dump_ttb(uint32_t *ttb, size_t len)
-{
-	int i;
-
-	debug("table at 0x%h of len 0x%h:\n", ttb, len);
-	for (i = 0; i < len; i++)
-		debug("0x%h -> 0x%h\n", i * 4, ttb[i]);
-}
-
 	static proc_t
 init_proc(size_t start, size_t len)
 {
@@ -265,8 +243,7 @@ init_proc(size_t start, size_t len)
 	frame_map(l2, f, USER_ADDR - l,
 			F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
-	diff_ttb(ttb, va, 0x1000);
-
+	unmap_sections((void *) va, KERNEL_ADDR - SECTION_SIZE, SECTION_SIZE);
 	unmap_sections(ttb, KERNEL_ADDR - SECTION_SIZE, SECTION_SIZE);
 	
 	return p;
