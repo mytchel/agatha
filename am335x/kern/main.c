@@ -152,6 +152,18 @@ proc_start(void)
 }
 
 	void
+diff_ttb(uint32_t *a, uint32_t *b, size_t len)
+{
+	int i;
+
+	debug("diff tables at 0x%h and 0x%h of len 0x%h:\n", a, b, len);
+	for (i = 0; i < len; i++) {
+		if (a[i] != b[i])
+			debug("0x%h diff 0x%h vs 0x%h\n", i * 4, a[i], b[i]);
+	}
+}
+
+	void
 dump_ttb(uint32_t *ttb, size_t len)
 {
 	int i;
@@ -209,24 +221,24 @@ init_proc(size_t start, size_t len)
 			(SECTION_ALIGN(&_kernel_end) - KERNEL_ADDR)/SECTION_SIZE * 4);
 
 
-	memcpy((void *) va + KERNEL_ADDR/SECTION_SIZE, 
-			&ttb[KERNEL_ADDR/SECTION_SIZE], 
-			(SECTION_ALIGN(&_kernel_end) - KERNEL_ADDR)/SECTION_SIZE * 4);
+	memcpy((void *) va, 
+			ttb, 
+			0x4000);
 
 	fl1 = frame_new(pa, 0x4000, F_TYPE_MEM);
 	frame_add(p, fl1);
 
 	p->vspace = (void *) pa;
 
-	l2 = (uint32_t *) (va + PAGE_SIZE * 4);
+	l2 = (uint32_t *) (va + 0x4000);
 
 	debug("l2 table va at 0x%h\n", l2);
 
 	fl2 = frame_new(pa + PAGE_SIZE * 4, PAGE_SIZE, F_TYPE_MEM);
 	frame_add(p, fl2);
 
-	map_l2((void *) va, pa + PAGE_SIZE * 4, 0);
-	map_pages(l2, pa, 0x1000, PAGE_SIZE * 5, AP_RW_RO, true);
+	map_l2((void *) va, pa + 0x4000, 0);
+	map_pages(l2, pa, 0x1000, 0x5000, AP_RW_RO, true);
 
 	fl1->u.flags = F_MAP_TYPE_TABLE_L1|F_MAP_READ;
 	fl1->u.t_va = 0;
@@ -252,6 +264,8 @@ init_proc(size_t start, size_t len)
 	frame_add(p, f);
 	frame_map(l2, f, USER_ADDR - l,
 			F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
+
+	diff_ttb(ttb, va, 0x1000);
 
 	unmap_sections(ttb, KERNEL_ADDR - SECTION_SIZE, SECTION_SIZE);
 	

@@ -52,6 +52,8 @@ mmu_switch(void *v)
 	debug("load ttb 0x%h\n", v);
 	mmu_load_ttb((uint32_t *) v);
 
+	debug("invalidate\n");
+	mmu_invalidate();
 	debug("ok\n");
 	
 	return OK;	
