@@ -139,6 +139,7 @@ mmu_load_ttb:
 	
 
 mmu_invalidate:
+	mov r0, #0
 	mcr p15, 0, r0, c8, c7, 0
 	mov pc, lr
 	

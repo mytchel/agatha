@@ -46,53 +46,12 @@
 extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
 
-uint32_t
-ttb[4096]__attribute__((__aligned__(16*1024))) = { L1_FAULT };
-
-vspace_t
-vspace_init(size_t pa, size_t va)
-{
-	vspace_t s = (vspace_t) va;
-	size_t l1_off, l2_off;
-	int i;
-	
-	l1_off = (size_t) s->l1 - (size_t) s;
-	l2_off = (size_t) s->l2 - (size_t) s;
-	
-	debug("vspace init at 0x%h, l1_off = 0x%h, l2_off = 0x%h\n", 
-		pa, l1_off, l2_off);
-	
-	for (i = 0; i < 4096; i++) {
-		s->l1[i] = L1_FAULT;
-	}
-	
-	for (i = SECTION_ALIGN_DN(&_kernel_start)/SECTION_SIZE;
-	     i < SECTION_ALIGN(&_kernel_end)/SECTION_SIZE; 
-	     i++) {
-		s->l1[i] = ttb[i];
-	}
-		
-	for (i = 0; i < 256; i++) {
-		s->l2[i] = L2_FAULT;
-	}
-	
-	map_l2(s->l1, pa + l2_off, KERNEL_VA - SECTION_SIZE);
-	map_pages(s->l2, pa, 
-	          KERNEL_VA - SECTION_SIZE, 
-	          sizeof(struct vspace), 
-	          AP_RW_RO, true);
-	          
-	return (vspace_t) pa;
-}
-
 int
-mmu_switch(vspace_t s)
+mmu_switch(void *v)
 {
-	debug("switching to vspace 0x%h\n", s);
-	
-	mmu_load_ttb((uint32_t *) s);
-	mmu_invalidate();
-	
+	debug("load ttb 0x%h\n", v);
+	mmu_load_ttb((uint32_t *) v);
+
 	debug("ok\n");
 	
 	return OK;	
@@ -190,13 +149,23 @@ static int
 frame_map_l2(uint32_t *l1, kframe_t f, size_t va)
 {
 	size_t o;
-	
+
+	/* Must already be mapped somewhere as read only. */
+	if (f->u.flags & F_MAP_WRITE) {
+		return ERR;
+	} else if (!(f->u.flags & F_MAP_READ)) {
+		return ERR;
+	} else {
+		memset((void *) f->u.va, 0, f->u.len);
+	}
+
 	for (o = 0; o < f->u.len; o += PAGE_SIZE) {
 		map_l2(l1, f->u.pa + o, va + o);
 	}
 	
-	f->u.va = va;
-	f->u.flags = F_MAP_TYPE_TABLE;
+	f->u.t_va = va;
+	f->u.flags = F_MAP_TYPE_TABLE_L2|F_MAP_READ;
+
 	return OK;
 }
 
@@ -242,25 +211,6 @@ frame_map_pages(uint32_t *l2, kframe_t f, size_t va, int flags)
 	return OK;
 }
 
-/* TODO: need another data field to store m_addr 
-   as well as where it is in the page tables. */
-int
-frame_table(void *tb, kframe_t f, 
-            size_t m_addr, int type)
-{
-	int r;
-	
-	r = frame_map(tb, f, m_addr, 
-	              F_MAP_TYPE_PAGE|F_MAP_READ);
-	if (r != OK) {
-		return r;
-	}
-	
-	memset((void *) m_addr, f->u.len, 0);
-	
-	return OK;
-}
-
 int
 frame_map(void *tb, kframe_t f, size_t va, int flags)
 {
@@ -278,8 +228,12 @@ frame_map(void *tb, kframe_t f, size_t va, int flags)
 	case F_MAP_TYPE_SECTION:
 		r = frame_map_sections(tb, f, va, flags);
 		return r;
-		
-	case F_MAP_TYPE_TABLE:
+	
+	case F_MAP_TYPE_TABLE_L1:
+		return ERR;
+	
+	case F_MAP_TYPE_TABLE_L2:
 		return frame_map_l2(tb, f, va);
 	}
 }
+

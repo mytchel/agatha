@@ -47,8 +47,10 @@ _kstart:
 	bl cache_disable
 	bl mmu_disable
 
+	mov r0, #0
 	mrc p15, 0, r0, c1, c0, 0
-	orr r0, r0, #(1<<1) @ enable branch prediction
+	#orr r0, r0, #(1<<1) @ enable branch prediction
+	bic r0, r0, #(1<<1) @ disable branch prediction
 	mcr p15, 0, r0, c1, c0, 0
 	
 	cps #MODE_IRQ

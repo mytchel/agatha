@@ -32,13 +32,6 @@
 int
 proc_new(int f_id);
 
-/* Create a page table and put it at m_addr for reading by
-   user space and editing by the kernel.
-   You will need to frame_map the f_id again to put it 
-   in the ttb at an address for use. */
-int
-frame_table(int f_id, void *m_addr, int type);
-
 int
 frame_map(int f_id, void *va, int flags);
 

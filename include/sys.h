@@ -42,7 +42,11 @@ struct frame {
 	int type;
 	size_t pa, len;
 	
-	/* Mapping if mapped. */
+	/* Mapping as a page/section/something at. */
 	size_t va;
+	/* Mapped as a table at. */
+	size_t t_va;
+	/* Mapping flags. */	
 	int flags;
 };
+

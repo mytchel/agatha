@@ -25,34 +25,29 @@
  *
  */
 
-#ifndef _AM335X_MACH_H_
-#define _AM335X_MACH_H_
-
 #define PAGE_SHIFT 	 12
 #define PAGE_SIZE	 (1UL << PAGE_SHIFT)
 #define PAGE_MASK	 (~(PAGE_SIZE - 1))
 
 #define PAGE_ALIGN(x)    ((((reg_t) x) + PAGE_SIZE - 1) & PAGE_MASK)
-#define PAGE_ALIGN_DN(x) ((((reg_t) x) - PAGE_SIZE + 1) & PAGE_MASK)
+#define PAGE_ALIGN_DN(x) ((((reg_t) x)) & PAGE_MASK)
 
 #define SECTION_SHIFT  20
 #define SECTION_SIZE (1UL << SECTION_SHIFT)
 #define SECTION_MASK (~(SECTION_SIZE - 1))
 
 #define SECTION_ALIGN(x)    ((((reg_t) x) + SECTION_SIZE - 1) & SECTION_MASK)
-#define SECTION_ALIGN_DN(x) ((((reg_t) x) - SECTION_SIZE + 1) & SECTION_MASK)
+#define SECTION_ALIGN_DN(x) ((((reg_t) x)) & SECTION_MASK)
 
 #define F_TYPE_IO    1
 #define F_TYPE_MEM   2
 
 /* Kind of mapping. */
-#define F_MAP_TYPE_MASK      (3<<F_MAP_TYPE_SHIFT)
-#define F_MAP_TYPE_TABLE     (0<<F_MAP_TYPE_SHIFT)
-#define F_MAP_TYPE_PAGE      (1<<F_MAP_TYPE_SHIFT)
-#define F_MAP_TYPE_SECTION   (2<<F_MAP_TYPE_SHIFT)
-
-#define F_TABLE_L1   1
-#define F_TABLE_L2   2
+#define F_MAP_TYPE_MASK      (0xf<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_TABLE_L1  (0<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_TABLE_L2  (1<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_PAGE      (2<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_SECTION   (3<<F_MAP_TYPE_SHIFT)
 
 typedef struct label label_t;
 
@@ -61,6 +56,4 @@ struct label {
   uint32_t regs[13];
   uint32_t pc;
 } __attribute__((__packed__));
-
-#endif
 

@@ -65,7 +65,9 @@ struct proc {
 	int frame_next_id;
 	
 	kframe_t frames;
-	vspace_t vspace;
+
+	/* Physical address of current virtual space. */
+	void *vspace;
 };
 
 /* vspace should be the barest possible. */
@@ -143,19 +145,15 @@ bool
 cas(void *addr, void *old, void *new);
 
 int
-frame_table(void *ttb, kframe_t f, size_t m_addr, int flags);
+frame_table(void *tb, kframe_t f, size_t m_addr, int flags);
 
 int
-frame_map(void *ttb, kframe_t f, size_t va, int flags);
-
-/* Turn sizeof(struct vspace) bytes at pa into a vspace.
-   va is the address where pa is currently mapped to. */
-vspace_t
-vspace_init(size_t pa, size_t va);
+frame_map(void *tb, kframe_t f, size_t va, int flags);
 
 int
-mmu_switch(vspace_t s);
+mmu_switch(void *v);
 
 /* Variables. */
 
 extern proc_t up;
+

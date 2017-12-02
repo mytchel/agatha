@@ -28,7 +28,8 @@
 
 TARGET = am335x
 
-loadaddr=0x82000000
+KERNADDR=0x82000000
+USERADDR=0x00010000
 
 CROSS = arm-linux-gnueabihf-
 
@@ -45,11 +46,12 @@ CFLAGS = -std=c89 \
 	-mcpu=cortex-a8 \
 	-nostdinc -ffreestanding \
 	-fno-stack-protector \
-	-DKERNEL_VA=$(loadaddr) \
+	-DKERNEL_ADDR=$(KERNADDR) \
+	-DUSER_ADDR=$(USERADDR) \
 	-Iinclude -I../include -Ikern/
 
 LDFLAGS = -nostdlib -nodefaultlibs -static \
-	-L/usr/lib/gcc/arm-linux-gnueabi/7.2.0/ 
+	-L/usr/lib/gcc/arm-linux-gnueabihf/7.2.0/ 
 
 
 .PHONY: all
@@ -79,7 +81,7 @@ bundled.bo: bundled.bin
 
 
 CLEAN += bundled.bin bundled.list bundled.bo
-bundled.bin bundled.h: proc0.bin
+bundled.bin bundled.h: proc0.bin proc1.bin
 	sh bundle.sh bundled.bin bundled.list $^
 	
 
@@ -99,8 +101,28 @@ CLEAN += proc0.elf proc0.bin
 
 proc0.elf: proc0/linker.ld $(P0_OBJECTS)
 	$(LD) $(LDFLAGS) \
-		-T proc0/linker.ld \
+		-T proc0/linker.ld -Ttext $(USERADDR) \
 		-o $@ $(P0_OBJECTS) \
+		-lgcc
+
+P1_SRC := \
+   ../lib/libc/sys.S        \
+	proc1/main.c              \
+  ../lib/libc/util.c
+				
+
+P1_OBJECTS_C := \
+	$(P1_SRC:%.c=%.o)
+P1_OBJECTS := \
+	$(P1_OBJECTS_C:%.S=%.o)
+
+CLEAN += $(P1_OBJECTS)
+CLEAN += proc1.elf proc1.bin 
+
+proc1.elf: proc1/linker.ld $(P1_OBJECTS)
+	$(LD) $(LDFLAGS) \
+		-T proc1/linker.ld -Ttext $(USERADDR) \
+		-o $@ $(P1_OBJECTS) \
 		-lgcc
 		
 KSRC := \
@@ -133,12 +155,12 @@ CLEAN += *.elf *.bin *.list *.umg *.bo
 	
 am335x.elf: kern/linker.ld bundled.bo $(KOBJECTS)
 	$(LD) $(LDFLAGS) \
-		-T kern/linker.ld -Ttext $(loadaddr)\
+		-T kern/linker.ld -Ttext $(KERNADDR)\
 		-o $@ $(KOBJECTS) bundled.bo \
 		-lgcc
 
 am335x.umg: am335x.bin
-	$(MKIMAGE) -T kernel -A arm -C none -a $(loadaddr) -d $< $@
+	$(MKIMAGE) -T kernel -A arm -C none -a $(KERNADDR) -d $< $@
 
 .PHONY: clean 
 clean: 

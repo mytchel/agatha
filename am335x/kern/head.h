@@ -38,11 +38,5 @@ typedef enum {
   INTR_off = (uint32_t) MODE_DI,
 } intr_t;
 
-typedef struct vspace *vspace_t;
-struct vspace {
-	uint32_t l1[4096]__attribute__((__aligned__(16*1024)));
-	/* Initial l2 table mapped at 0. */
-	uint32_t l2[256]__attribute__((__aligned__(4096)));
-};
-
 #include "../../kern/head.h"
+
