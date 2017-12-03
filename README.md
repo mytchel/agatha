@@ -250,7 +250,6 @@ page table. Then you full them out by calling map to that table.
 #define F_MAP_TYPE_PAGE      (2<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_SECTION   (3<<F_MAP_TYPE_SHIFT)
 
-
 int
 frame_map(void *table, int f_id, void *va, int flags);
 
@@ -263,3 +262,40 @@ to that table. Probably a different syscall that can
 also give the table to another process. May also have 
 some other information for a frame list and make frames
 per address space rather than per proc?
+
+```
+
+/* Turns an already mapped frame into a L1 page table.
+   Must be mapped read only. */
+
+int
+vspace_create(void *table, int f_id);
+
+/* Set the vspace frame as the current vspace for pid which
+   may be your own. */
+int
+vspace_swap(int pid, int f_id);
+
+```
+
+However, if frames are associated with a vspace then 
+a process would not be able to have frames that are not
+mapped to a vspace / it's current vspace. It would not
+be able to swap vspaces. Frames should probably have a
+vspace field which stores what vspace they are mapped to.
+Then when vspace's are swapped between processes all the
+frames mapped to that vspace are transfered with it. In
+which case `frame_map` needs a vspace parameter.
+
+How should frame_unmapping work? Have an unmap type?
+How will it deal with L1 and L2 tables? You want to be
+able to unmap them as pages but leave them as tables.
+
+My way of handling kernel virtual space will not work
+with multiple cores. My putting the kernel space into 
+the virtual space map it ... well ... I could just 
+give each core a L2 page and that is all it is allowed?
+Or a set number of L2 pages. And unmap / map when 
+shifted. Ok.
+
+

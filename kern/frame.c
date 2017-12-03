@@ -59,6 +59,7 @@ frame_add(proc_t p, kframe_t f)
 {
 	kframe_t *b;
 	
+	p->frame_count++;
 	f->u.f_id = p->frame_next_id++;
 		
 	f->next = nil;
@@ -67,6 +68,19 @@ frame_add(proc_t p, kframe_t f)
 		;
 	
 	*b = f;
+}
+
+void
+frame_remove(proc_t p, kframe_t f)
+{
+	kframe_t *b;
+	
+	p->frame_count--;
+	
+	for (b = &p->frames; *b != f; b = &(*b)->next)
+		;
+	
+	*b = f->next;
 }
 
 kframe_t

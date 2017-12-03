@@ -65,9 +65,7 @@ struct proc {
 	int frame_next_id;
 	
 	kframe_t frames;
-
-	/* Physical address of current virtual space. */
-	void *vspace;
+	kframe_t vspace;
 };
 
 /* vspace should be the barest possible. */
@@ -92,6 +90,9 @@ frame_new(size_t pa, size_t len, int type);
 
 void
 frame_add(proc_t p, kframe_t f);
+
+void
+frame_remove(proc_t p, kframe_t f);
 
 kframe_t
 frame_split(kframe_t f, size_t offset);
@@ -151,7 +152,13 @@ int
 frame_map(void *tb, kframe_t f, size_t va, int flags);
 
 int
-mmu_switch(void *v);
+vspace_create(void *tb, kframe_t f);
+
+int
+vspace_swap(proc_t from, proc_t to, kframe_t f);
+
+int
+mmu_switch(kframe_t f);
 
 /* Variables. */
 

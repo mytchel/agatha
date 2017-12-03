@@ -43,6 +43,8 @@ struct frame {
 	int type;
 	size_t pa, len;
 	
+	/* f_id of vspace if mapped to one. */
+	int v_id;
 	/* Mapping as a page/section/something at. */
 	size_t va;
 	/* Mapped as a table at. */
