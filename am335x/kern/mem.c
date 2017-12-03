@@ -1,30 +1,3 @@
-/*
- *
- * Copyright (c) 2017 Mytchel Hammond <mytch@lackname.org>
- * 
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following
- * conditions:
- * 
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- *
- */
-
 #include <head.h>
 #include "fns.h"
 
@@ -58,7 +31,7 @@ vspace_create(void *tb, kframe_t f)
 	} else {
 		memcpy((void *) f->u.va, ttb, 0x4000);
 
-		f->u.flags = F_MAP_TYPE_TABLE_L1 | F_MAP_READ;
+		f->u.flags |= F_MAP_TYPE_TABLE_L1;
 
 		return OK;
 	}
@@ -192,21 +165,29 @@ unmap_sections(uint32_t *l1, size_t va, size_t len)
 }
 
 	static int
-frame_map_l2(uint32_t *l1, kframe_t f, size_t va)
+frame_map_l2(kframe_t v, uint32_t *l1, kframe_t f, size_t va)
 {
 	size_t o;
+
+	if (f->u.flags & F_MAP_WRITE) {
+		return ERR;
+	} else if (!(f->u.flags & F_MAP_READ)) {
+		return ERR;
+	}
 
 	for (o = 0; o < f->u.len; o += PAGE_SIZE) {
 		map_l2(l1, f->u.pa + o, va + o);
 	}
 
+	f->u.v_id = v->u.f_id;
 	f->u.t_va = va;
 	f->u.flags |= F_MAP_TYPE_TABLE_L2;
+	
 	return OK;
 }
 
 	static int
-frame_map_sections(uint32_t *l1, kframe_t f, size_t va, int flags)
+frame_map_sections(kframe_t v, uint32_t *l1, kframe_t f, size_t va, int flags)
 {
 	uint32_t ap;
 	int fl, r;
@@ -224,19 +205,20 @@ frame_map_sections(uint32_t *l1, kframe_t f, size_t va, int flags)
 		return r;
 	}
 
+	f->u.v_id = v->u.f_id;
 	f->u.va = va;
 	f->u.flags |= fl;
 
 	return OK;
 }
 
-	static int
-frame_map_pages(uint32_t *l2, kframe_t f, size_t va, int flags)
+static int
+frame_map_pages(kframe_t v, uint32_t *l2, kframe_t f, size_t va, int flags)
 {
 	uint32_t ap;
 	int fl, r;
 
-	fl = F_MAP_TYPE_SECTION | F_MAP_READ;
+	fl = F_MAP_TYPE_PAGE | F_MAP_READ;
 	if (flags & F_MAP_WRITE) {
 		fl |= F_MAP_WRITE;
 		ap = AP_RW_RW;
@@ -249,31 +231,38 @@ frame_map_pages(uint32_t *l2, kframe_t f, size_t va, int flags)
 		return r;
 	}
 
+	f->u.v_id = v->u.f_id;
 	f->u.va = va;
 	f->u.flags |= fl;
 
 	return OK;
 }
 
+/* Should l2 be given to frame_map or l1? And l2 found from l1?
+ * That would be slower but would ensure consistancy.
+ * I might change it to that later on. 
+ *
+ * Otherwise need to check if the given v matches tb for both
+ * l1 and l2 cases. */
+	
 	int
-frame_map(void *tb, kframe_t f, size_t va, int flags)
+frame_map(kframe_t v, void *tb, kframe_t f, size_t va, int flags)
 {
-	int r;
-
 	debug("frame map to table 0x%h from 0x%h to 0x%h with flags %i\n",
 			tb, f->u.pa, va, flags);
 
 	switch (flags & F_MAP_TYPE_MASK) {
 		default:
 		case F_MAP_TYPE_PAGE:
-			r = frame_map_pages(tb, f, va, flags);
-			return r;
+			return frame_map_pages(v, tb, f, va, flags);
 
 		case F_MAP_TYPE_SECTION:
-			r = frame_map_sections(tb, f, va, flags);
-			return r;
+			return frame_map_sections(v, tb, f, va, flags);
 
 		case F_MAP_TYPE_TABLE_L2:
-			return frame_map_l2(tb, f, va);
+			return frame_map_l2(v, tb, f, va);
+
+		case F_MAP_TYPE_TABLE_L1:
+			return ERR;
 	}
 }

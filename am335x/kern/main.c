@@ -1,30 +1,3 @@
-/*
- *
- * Copyright (c) 2017 Mytchel Hammond <mytch@lackname.org>
- * 
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following
- * conditions:
- * 
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- *
- */
-
 #include "head.h"
 #include "fns.h"
 
@@ -191,20 +164,14 @@ init_proc(size_t start, size_t len)
 	va = KERNEL_ADDR - SECTION_SIZE + pa - SECTION_ALIGN_DN(s);
 	debug("va 0x%h\n", va);
 
-	memset((void *) va, 0, 0x4000);
-	memset((void *) (va + 0x4000), 0, 0x1000);
-
-	debug("copy to 0x%h from 0x%h len 0x%h\n", va + KERNEL_ADDR/SECTION_SIZE, 
-			&ttb[KERNEL_ADDR/SECTION_SIZE], 
-			(SECTION_ALIGN(&_kernel_end) - KERNEL_ADDR)/SECTION_SIZE * 4);
-
-
 	memcpy((void *) va, 
 			ttb, 
 			0x4000);
 
 	fl1 = frame_new(pa, 0x4000, F_TYPE_MEM);
 	frame_add(p, fl1);
+	
+	memset((void *) (va + 0x4000), 0, 0x1000);
 
 	l2 = (uint32_t *) (va + 0x4000);
 
@@ -232,7 +199,7 @@ init_proc(size_t start, size_t len)
 	l = len;
 	f = frame_new(s, l, F_TYPE_MEM);
 	frame_add(p, f);
-	frame_map(l2, f, USER_ADDR, 
+	frame_map(fl1, l2, f, USER_ADDR, 
 			F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
 	l = PAGE_SIZE * 4;
@@ -242,7 +209,7 @@ init_proc(size_t start, size_t len)
 
 	f = frame_new(s, l, F_TYPE_MEM);
 	frame_add(p, f);
-	frame_map(l2, f, USER_ADDR - l,
+	frame_map(fl1, l2, f, USER_ADDR - l,
 			F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
 	unmap_sections((void *) va, KERNEL_ADDR - SECTION_SIZE, SECTION_SIZE);

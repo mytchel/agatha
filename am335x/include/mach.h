@@ -45,9 +45,10 @@
 /* Kind of mapping. */
 #define F_MAP_TYPE_PAGE          (0<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_SECTION       (1<<F_MAP_TYPE_SHIFT)
-#define F_MAP_TYPE_TABLE_SHIFT   (F_MAP_TYPE_SHIFT+1)
-#define F_MAP_TYPE_TABLE_L1      (0<<F_MAP_TYPE_TABLE_SHIFT)
-#define F_MAP_TYPE_TABLE_L2      (1<<F_MAP_TYPE_TABLE_SHIFT)
+#define F_MAP_TYPE_TABLE         (3<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_TABLE_SHIFT   (F_MAP_TYPE_SHIFT+2)
+#define F_MAP_TYPE_TABLE_L1      ((0<<F_MAP_TYPE_TABLE_SHIFT)|F_MAP_TYPE_TABLE)
+#define F_MAP_TYPE_TABLE_L2      ((1<<F_MAP_TYPE_TABLE_SHIFT)|F_MAP_TYPE_TABLE)
 
 typedef struct label label_t;
 
