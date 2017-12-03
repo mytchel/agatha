@@ -33,6 +33,7 @@
 #define F_MAP_READ         (1<<0)
 #define F_MAP_WRITE        (1<<1)
 #define F_MAP_TYPE_SHIFT       2
+#define F_MAP_TYPE_MASK      (0xf<<F_MAP_TYPE_SHIFT)
 
 typedef struct frame *frame_t;
 

@@ -232,3 +232,34 @@ int frame_map(int f_id, void *va, int flags);
 
 How processes can set up other processes mappings can be figured
 out later on.
+
+A modified version which I think will remain is now in place.
+
+You first map a frame somewhere as read only pages, then map
+them as a F_MAP_TABLE_L2 somewhere else to add them to the L1
+page table. Then you full them out by calling map to that table.
+
+```
+
+#define F_MAP_READ         (1<<0)
+#define F_MAP_WRITE        (1<<1)
+#define F_MAP_TYPE_SHIFT       2
+#define F_MAP_TYPE_MASK      (0xf<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_TABLE_L1  (0<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_TABLE_L2  (1<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_PAGE      (2<<F_MAP_TYPE_SHIFT)
+#define F_MAP_TYPE_SECTION   (3<<F_MAP_TYPE_SHIFT)
+
+
+int
+frame_map(void *table, int f_id, void *va, int flags);
+
+```
+
+I have not yet figured out a way to create or map L1
+tables. I think using map in the same way as for L2
+tables but having a different syscall or flags to swap
+to that table. Probably a different syscall that can
+also give the table to another process. May also have 
+some other information for a frame list and make frames
+per address space rather than per proc?

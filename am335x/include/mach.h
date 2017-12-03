@@ -43,7 +43,6 @@
 #define F_TYPE_MEM   2
 
 /* Kind of mapping. */
-#define F_MAP_TYPE_MASK      (0xf<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_TABLE_L1  (0<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_TABLE_L2  (1<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_PAGE      (2<<F_MAP_TYPE_SHIFT)
