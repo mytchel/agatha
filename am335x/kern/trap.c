@@ -117,9 +117,11 @@ trap(reg_t pc, int type)
   uint32_t fsr;
   reg_t addr;
   
-  debug("trap for 0x%h\n", up);
-  if (up != nil)
-  	debug("trap for pid %i\n", up->pid);
+  if (up == nil) {
+    debug("trap with no proc on cpu!\n");
+  } else {
+    debug("trap for pid %i\n", up->pid);
+  }
 
   switch(type) {
   case ABORT_INTERRUPT:
@@ -166,13 +168,14 @@ trap(reg_t pc, int type)
     break;
   }
 
-	debug("trap doesn't know what to do");
-	if (up != nil)
-		debug(" with proc %i!\n", up->pid);
-	else
-		debug("!\n");
-		
-	while (true)
-		;
+  if (up == nil) {
+    panic("trap with no proc on cpu!!!\n");
+  }
+ 
+  debug("stopping proc %i\n", up->pid);
+
+  up->state = PROC_dead;
+
+  schedule(nil);
 }
 
