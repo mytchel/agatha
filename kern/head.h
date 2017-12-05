@@ -68,6 +68,12 @@ void
 frame_remove(proc_t p, kframe_t f);
 
 kframe_t
+frame_find_fid(proc_t p, int f_id);
+
+kframe_t
+frame_find_ind(proc_t p, int ind);
+
+kframe_t
 frame_split(kframe_t f, size_t offset);
 
 int
@@ -115,11 +121,15 @@ func_label(label_t *l,
            size_t stacklen,
            size_t pc);
 
+void
+proc_start(void)
+  __attribute__((noreturn));
+
 bool
 cas(void *addr, void *old, void *new);
 
 int
-frame_map(kframe_t v, void *tb, kframe_t f, size_t va, int flags);
+frame_map(kframe_t t, kframe_t f, size_t va, int flags);
 
 int
 vspace_create(void *tb, kframe_t f);

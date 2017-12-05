@@ -298,4 +298,19 @@ give each core a L2 page and that is all it is allowed?
 Or a set number of L2 pages. And unmap / map when 
 shifted. Ok.
 
+Some changes. Rather than vspace_create, use frame_map
+with F_MAP_TYPE_TABLE_L1 to keep things consistant.
+Also all frame_map calls need f_id's for the table
+they are mapping into. And all mappings set a field in
+the frame mapped to the id of the table mapped into.
+So we have a kind of tree of mappings. 
+
+Need to redo the flags. They are a mess. Also need to
+figure out how to handle mapping frames into multiple
+spaces. I probably won't allow it but there does need
+to be some way to map a table as a table into another
+space and as pages into the current space.
+
+
+
 

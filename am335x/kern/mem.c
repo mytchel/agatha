@@ -16,45 +16,50 @@
 #define L2_SMALL     0b10
 #define L2_TINY      0b11
 
-extern uint32_t *_kernel_start;
-extern uint32_t *_kernel_end;
-
 	int
-vspace_create(void *tb, kframe_t f)
+frames_swap(proc_t from, proc_t to, int o_id, int n_id)
 {
-	if (f->u.len != 0x4000) {
-		return ERR;
-	} else if ((f->u.flags & F_MAP_WRITE)) {
-		return ERR;
-	} else if (!(f->u.flags & F_MAP_READ)) {
-		return ERR;
-	} else {
-		memcpy((void *) f->u.va, ttb, 0x4000);
+	kframe_t n, nn;
+	int t_id;
 
-		f->u.flags |= F_MAP_TYPE_TABLE_L1;
+	n = from->frames;
+	while (n != nil) {
+		nn = n->next;
 
-		return OK;
+    /* TODO: unmap from from if mapped as table in to. */
+		if (n->u.t_id == o_id) {
+			t_id = n->u.f_id;
+
+			frame_remove(from, n);
+			frame_add(to, n);
+			n->u.t_id = n_id;	
+
+			if (((n->u.flags >> F_MAP_TYPE_TABLE_SHIFT) == F_MAP_TYPE_TABLE_L1) ||
+					((n->u.flags >> F_MAP_TYPE_TABLE_SHIFT) == F_MAP_TYPE_TABLE_L2)) {
+				frames_swap(from, to, t_id, n->u.f_id);
+			}
+		}
+
+		n = nn;
 	}
+
+	return OK;
 }
 
 	int
 vspace_swap(proc_t from, proc_t to, kframe_t f)
 {
-	kframe_t n, nn;
+	int o_id;
 
 	if (!(f->u.flags & F_MAP_TYPE_TABLE_L1)) {
 		return ERR;
 	} else {
-		n = from->frames;
-		while (n != nil) {
-			nn = n->next;
+		if (from != to) {
+			o_id = f->u.f_id;
+			frame_remove(from, f);
+			frame_add(to, f);
 
-			if (n->u.v_id == f->u.f_id) {
-				frame_remove(from, n);
-				frame_add(to, n);
-			}
-
-			n = nn;
+			frames_swap(from, to, o_id, f->u.f_id);
 		}
 
 		to->vspace = (void *) f->u.pa;
@@ -165,8 +170,33 @@ unmap_sections(uint32_t *l1, size_t va, size_t len)
 }
 
 	static int
-frame_map_l2(kframe_t v, uint32_t *l1, kframe_t f, size_t va)
+frame_map_l1(kframe_t t, kframe_t f)
 {
+  if ((f->u.pa & ~(0x4000 - 1)) != f->u.pa) {
+    return ERR;
+  } else if (f->u.len != 0x4000) {
+    return ERR;
+  } else if (f->u.flags & F_MAP_WRITE) {
+		return ERR;
+	} else if (!(f->u.flags & F_MAP_READ)) {
+		return ERR;
+	}
+
+  memcpy((uint32_t *) f->u.va,
+         ttb,
+         0x4000);
+
+  f->u.t_id = t->u.f_id;
+	f->u.t_va = 0;
+	f->u.flags |= F_MAP_TYPE_TABLE_L1;
+
+	return OK;
+}
+
+	static int
+frame_map_l2(kframe_t t, kframe_t f, size_t va)
+{
+	uint32_t *l1;
 	size_t o;
 
 	if (f->u.flags & F_MAP_WRITE) {
@@ -175,20 +205,23 @@ frame_map_l2(kframe_t v, uint32_t *l1, kframe_t f, size_t va)
 		return ERR;
 	}
 
+	l1 = (uint32_t *) t->u.va;
+
 	for (o = 0; o < f->u.len; o += PAGE_SIZE) {
 		map_l2(l1, f->u.pa + o, va + o);
 	}
 
-	f->u.v_id = v->u.f_id;
+	f->u.t_id = t->u.f_id;
 	f->u.t_va = va;
 	f->u.flags |= F_MAP_TYPE_TABLE_L2;
-	
+
 	return OK;
 }
 
 	static int
-frame_map_sections(kframe_t v, uint32_t *l1, kframe_t f, size_t va, int flags)
+frame_map_sections(kframe_t t, kframe_t f, size_t va, int flags)
 {
+	uint32_t *l1;
 	uint32_t ap;
 	int fl, r;
 
@@ -200,21 +233,23 @@ frame_map_sections(kframe_t v, uint32_t *l1, kframe_t f, size_t va, int flags)
 		ap = AP_RW_RO;
 	}
 
+	l1 = (uint32_t *) t->u.va;
 	r = map_sections(l1, f->u.pa, va, f->u.len, ap, false);
 	if (r != OK) {
 		return r;
 	}
 
-	f->u.v_id = v->u.f_id;
+	f->u.t_id = t->u.f_id;
 	f->u.va = va;
 	f->u.flags |= fl;
 
 	return OK;
 }
 
-static int
-frame_map_pages(kframe_t v, uint32_t *l2, kframe_t f, size_t va, int flags)
+	static int
+frame_map_pages(kframe_t t, kframe_t f, size_t va, int flags)
 {
+	uint32_t *l2;
 	uint32_t ap;
 	int fl, r;
 
@@ -226,43 +261,54 @@ frame_map_pages(kframe_t v, uint32_t *l2, kframe_t f, size_t va, int flags)
 		ap = AP_RW_RO;
 	}
 
+	l2 = (uint32_t *) t->u.va;
 	r = map_pages(l2, f->u.pa, va, f->u.len, ap, false);
 	if (r != OK) {
 		return r;
 	}
 
-	f->u.v_id = v->u.f_id;
+	f->u.t_id = t->u.f_id;
 	f->u.va = va;
 	f->u.flags |= fl;
 
 	return OK;
 }
 
-/* Should l2 be given to frame_map or l1? And l2 found from l1?
- * That would be slower but would ensure consistancy.
- * I might change it to that later on. 
- *
- * Otherwise need to check if the given v matches tb for both
- * l1 and l2 cases. */
-	
 	int
-frame_map(kframe_t v, void *tb, kframe_t f, size_t va, int flags)
+frame_map(kframe_t t, kframe_t f, size_t va, int flags)
 {
-	debug("frame map to table 0x%h from 0x%h to 0x%h with flags %i\n",
-			tb, f->u.pa, va, flags);
+	int type;
+
+	debug("frame map to table %i currently at 0x%h from 0x%h to 0x%h with flags %i\n",
+			t->u.f_id, t->u.va, f->u.pa, va, flags);
+
+	if (!(t->u.flags & F_MAP_READ)) {
+		return ERR;
+	} else {
+		/* TODO: fix type flags. */
+		type = (t->u.flags & F_MAP_TYPE_MASK);
+		if ((type != (F_MAP_TYPE_TABLE_L1)) 
+				&& (type != (F_MAP_TYPE_TABLE_L2))) {
+			return ERR;
+		}
+	}
+
+	/* TODO: check that f can be mapped as flags
+     requests. */
 
 	switch (flags & F_MAP_TYPE_MASK) {
 		default:
 		case F_MAP_TYPE_PAGE:
-			return frame_map_pages(v, tb, f, va, flags);
+			return frame_map_pages(t, f, va, flags);
 
 		case F_MAP_TYPE_SECTION:
-			return frame_map_sections(v, tb, f, va, flags);
+			return frame_map_sections(t, f, va, flags);
 
 		case F_MAP_TYPE_TABLE_L2:
-			return frame_map_l2(v, tb, f, va);
+			return frame_map_l2(t, f, va);
 
 		case F_MAP_TYPE_TABLE_L1:
-			return ERR;
+			return frame_map_l1(t, f);
 	}
 }
+

@@ -5,7 +5,10 @@ int
 frame_map(int f_id, void *va, int flags);
 
 int
-vspace_create(void *table, int f_id);
+frame_count(void);
+
+int
+frame_info(int i, struct frame *f);
 
 int
 vspace_swap(int pid, int f_id);
@@ -15,6 +18,10 @@ send(int pid, uint8_t *m);
 
 int
 recv(uint8_t *m);
+
+void
+raise(void)
+  __attribute__((noreturn));
 
 bool
 cas(void *addr, void *old, void *new);

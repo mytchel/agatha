@@ -17,8 +17,11 @@ frame_new(size_t pa, size_t len, int type)
 	n->u.type = type;
 	n->u.pa = pa;
 	n->u.len = len;
-	n->u.va = 0;
 	n->u.flags = 0;
+
+	n->u.va = 0;
+	n->u.t_id = 0;
+	n->u.t_va = 0;
 	
 	n->next = nil;
 	
@@ -49,11 +52,39 @@ frame_remove(proc_t p, kframe_t f)
 	kframe_t *b;
 	
 	p->frame_count--;
-	
+
 	for (b = &p->frames; *b != f; b = &(*b)->next)
 		;
 	
 	*b = f->next;
+}
+
+kframe_t
+frame_find_fid(proc_t p, int f_id)
+{
+  kframe_t f;
+
+  for (f = p->frames; f != nil; f = f->next) {
+    if (f->u.f_id == f_id) {
+      return f;
+    }
+  }
+
+  return nil;
+}
+
+kframe_t
+frame_find_ind(proc_t p, int ind)
+{
+  kframe_t f;
+
+  f = p->frames; 
+  while (f != nil && ind > 0) {
+    f = f->next;
+    ind--;
+  }
+
+  return f;
 }
 
 kframe_t

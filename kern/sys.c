@@ -74,9 +74,19 @@ sys_recv(uint8_t *m)
 reg_t
 sys_proc_new(int f_id)
 {
+  proc_t p;
+
 	debug("%i called sys proc_new with %i\n", up->pid, f_id);
-	
-	return ERR;
+
+  p = proc_new();
+  if (p == nil) {
+    return ERR;
+  }
+
+  func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
+        (size_t) &proc_start);
+
+	return p->pid;
 }
 
 reg_t
@@ -134,15 +144,24 @@ sys_frame_count(void)
 {
 	debug("%i called sys frame_count\n", up->pid);
 	
-	return ERR;
+	return up->frame_count;
 }
 
 reg_t
-sys_frame_info(int frame_number, struct frame *f)
+sys_frame_info(int ind, struct frame *f)
 {
-	debug("%i called sys frame_info with %i, 0x%h\n", up->pid, frame_number, f);
-	
-	return ERR;
+  kframe_t k;
+
+	debug("%i called sys frame_info with %i, 0x%h\n", up->pid, ind, f);
+
+  k = frame_find_ind(up, ind);
+  if (k == nil) {
+    return ERR;
+  }
+
+  memcpy(f, &k->u, sizeof(*f));
+
+	return OK;
 }
 
 void *systab[NSYSCALLS] = {

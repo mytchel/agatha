@@ -103,17 +103,19 @@ give_remaining_ram(proc_t p)
 
 	s = ram_p;
 	l = (size_t) &_kernel_start - s;
+	debug("give p0 from 0x%h to 0x%h\n", s, s + l);
 	f = frame_new(s, l, F_TYPE_MEM);
 	frame_add(p, f);
 	
 	s = (size_t) PAGE_ALIGN(&_kernel_end);
 	l = (size_t) &_ram_end - s;
+	debug("give p0 from 0x%h to 0x%h\n", s, s + l);
 	frame_new(s, l, F_TYPE_MEM);	
 	frame_add(p, f);
 }
 
 	static void
-proc_start(void)
+bundled_proc_start(void)
 {
 	label_t u = {0};
 
@@ -129,7 +131,6 @@ init_proc(size_t start, size_t len)
 {
 	size_t s, l, pa, va;
 	kframe_t f, fl1, fl2;
-	uint32_t *l2;
 	proc_t p;
 
 	p = proc_new();
@@ -140,7 +141,7 @@ init_proc(size_t start, size_t len)
 	debug("set proc up to jump to 0x%h, 0x%h\n", &proc_start, p->kstack);
 
 	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
-			(size_t) &proc_start);
+			(size_t) &bundled_proc_start);
 
 	l = 0x9000;
 	debug("getting 0x%h bytes for initial l1 and l2\n", l);
@@ -173,33 +174,33 @@ init_proc(size_t start, size_t len)
 	
 	memset((void *) (va + 0x4000), 0, 0x1000);
 
-	l2 = (uint32_t *) (va + 0x4000);
-
-	debug("l2 table va at 0x%h\n", l2);
-
 	fl2 = frame_new(pa + PAGE_SIZE * 4, PAGE_SIZE, F_TYPE_MEM);
 	frame_add(p, fl2);
 
 	map_l2((void *) va, pa + 0x4000, 0);
-	map_pages(l2, pa, 0x1000, 0x5000, AP_RW_RO, true);
+	map_pages((void *) (va + 0x4000), pa, 0x1000, 0x5000, AP_RW_RO, true);
 
 	p->vspace = fl1;
 
 	fl1->u.flags = F_MAP_TYPE_TABLE_L1|F_MAP_READ;
 	fl1->u.t_va = 0;
-	fl1->u.va = 0x1000;
-	fl1->u.v_id = fl1->u.f_id;
+	fl1->u.t_id = fl1->u.f_id;
 
 	fl2->u.flags = F_MAP_TYPE_TABLE_L2|F_MAP_READ;
 	fl2->u.t_va = 0;
-	fl2->u.va = 0x5000;
-	fl2->u.v_id = fl1->u.f_id;
+	fl2->u.t_id = fl1->u.f_id;
+
+	/* Temporary mappings. */	
+	fl1->u.va = va;
+	fl2->u.va = va + 0x4000;
+
+	debug("temp map l1 at 0x%h, l2 at 0x%h\n", fl1->u.va, fl2->u.va);
 
 	s = start;
 	l = len;
 	f = frame_new(s, l, F_TYPE_MEM);
 	frame_add(p, f);
-	frame_map(fl1, l2, f, USER_ADDR, 
+	frame_map(fl2, f, USER_ADDR, 
 			F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
 	l = PAGE_SIZE * 4;
@@ -209,11 +210,15 @@ init_proc(size_t start, size_t len)
 
 	f = frame_new(s, l, F_TYPE_MEM);
 	frame_add(p, f);
-	frame_map(fl1, l2, f, USER_ADDR - l,
+	frame_map(fl2, f, USER_ADDR - l,
 			F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
 	unmap_sections((void *) va, KERNEL_ADDR - SECTION_SIZE, SECTION_SIZE);
 	unmap_sections(ttb, KERNEL_ADDR - SECTION_SIZE, SECTION_SIZE);
+
+	/* Fix mappings. */	
+	fl1->u.va = 0x1000;
+	fl2->u.va = 0x1000 + 0x4000;
 	
 	return p;
 }
