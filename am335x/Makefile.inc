@@ -1,7 +1,5 @@
 .SUFFIXES: .c .S .h .o .a .elf .bin .list .umg .bo
 
-USERADDR=0x00010000
-
 CROSS = arm-linux-gnueabihf-
 
 CC = $(CROSS)gcc

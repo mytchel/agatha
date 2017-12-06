@@ -30,6 +30,63 @@
 
 .global _kstart
 
+/*
+
+   Example with device tree blob
+
+   pc = 0x82000010
+   lr = 0x0
+   r0 = 0x0
+   r1 = 0xe05
+   r2 = 0x8fff4000
+   r3 = 0x8b80
+   r4 = 0x0
+   r5 = 0x9ffb32d8
+   r6 = 0x82000000
+   r7 = 0x0
+   r8 = 0x9ff4efe5
+   r9 = 0x9df2ded8
+   r10 = 0x82000040
+   r11 = 0x0
+   r12 = 0x9df2edaa
+   r13 = 0x82000010
+
+   Example without device tree blob
+
+   pc = 0x82000010
+   lr = 0x0
+   r0 = 0x0
+   r1 = 0xe05
+   r2 = 0x80000100
+   r3 = 0x9df2dfb0
+   r4 = 0x0
+   r5 = 0x9ffb32d8
+   r6 = 0x82000000
+   r7 = 0x0
+   r8 = 0x9ff4efe5
+   r9 = 0x9df2ded8
+   r10 = 0x82000040
+   r11 = 0x0
+   r12 = 0x9df2edaa
+   r13 = 0x82000010
+
+   Register's as they were set by u-boot before loading.
+   Set to 1 so it doesn't end up in bss. 
+
+   From experimenting it would seem that:
+
+   r2 = device tree blob address.
+   r3 = device tree blob size. Consistant strange number if no 
+   blob was given.
+   r6 = kernel address.
+
+   I have no idea what any of the other registers are set
+   for. r1, r5, r9, r12 seem to stay consistant regardless of the
+   presense of a device tree. r9 changes.
+
+ */
+
+
 _kstart:
 	mov r7, r6
 	mov r8, r2
@@ -67,6 +124,9 @@ _kstart:
 	mov r0, r7
 	mov r1, r8
 	mov r2, r9
+
+# void kmain(kernel_start, fdt_start, fdt_len);
+
 	b kmain
 
 

@@ -1,5 +1,6 @@
 
 KERNADDR=0x82000000
+USERADDR=0x00010000
 
 .PHONY: all
 all: am335x.umg am335x.list
@@ -24,14 +25,16 @@ CLEAN += bundled.bin bundled.list bundled.bo
 bundled.bin bundled.h:
 	for d in $(BUNDLED); \
 	do \
-		$(MAKE) -C $$d; \
+		$(MAKE) -C $$d USERADDR=$(USERADDR); \
 	done 
 	sh bundle.sh bundled.bin bundled.list $(foreach b,$(BUNDLED),$b/$b.elf)
 	
 
-KSRC := \
+SRC_A := \
         kern/vectors.S            \
-        kern/asm.S                \
+        kern/asm.S
+
+SRC_C := \
         kern/main.c               \
         kern/trap.c               \
         kern/timer.c              \
@@ -49,18 +52,15 @@ KSRC := \
 
 kern/main.o: bundled.list
 
-KOBJECTS_C := \
-	$(KSRC:%.c=%.o)
-KOBJECTS := \
-	$(KOBJECTS_C:%.S=%.o)
+OBJECTS := $(SRC_A:%.S=%.o) $(SRC_C:%.c=%.o) 
 
-CLEAN += $(KOBJECTS)
+CLEAN += $(OBJECTS)
 CLEAN += *.elf *.bin *.list *.umg *.bo
 	
-am335x.elf: kern/linker.ld bundled.bo $(KOBJECTS)
+am335x.elf: kern/linker.ld bundled.bo $(OBJECTS)
 	$(LD) $(LDFLAGS) \
 		-T kern/linker.ld -Ttext $(KERNADDR)\
-		-o $@ $(KOBJECTS) bundled.bo \
+		-o $@ $(OBJECTS) bundled.bo \
 		-lgcc
 
 

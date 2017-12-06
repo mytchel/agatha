@@ -1,5 +1,6 @@
 #include "head.h"
 #include "fns.h"
+#include <fdt.h>
 
 uint32_t
 ttb[4096]__attribute__((__aligned__(16*1024))) = { 0 };
@@ -12,62 +13,6 @@ struct bundled_proc {
 struct bundled_proc bundled[] = {
 #include "../bundled.list"
 };
-
-/*
-
-   Example with device tree blob
-
-   pc = 0x82000010
-   lr = 0x0
-   r0 = 0x0
-   r1 = 0xe05
-   r2 = 0x8fff4000
-   r3 = 0x8b80
-   r4 = 0x0
-   r5 = 0x9ffb32d8
-   r6 = 0x82000000
-   r7 = 0x0
-   r8 = 0x9ff4efe5
-   r9 = 0x9df2ded8
-   r10 = 0x82000040
-   r11 = 0x0
-   r12 = 0x9df2edaa
-   r13 = 0x82000010
-
-   Example without device tree blob
-
-   pc = 0x82000010
-   lr = 0x0
-   r0 = 0x0
-   r1 = 0xe05
-   r2 = 0x80000100
-   r3 = 0x9df2dfb0
-   r4 = 0x0
-   r5 = 0x9ffb32d8
-   r6 = 0x82000000
-   r7 = 0x0
-   r8 = 0x9ff4efe5
-   r9 = 0x9df2ded8
-   r10 = 0x82000040
-   r11 = 0x0
-   r12 = 0x9df2edaa
-   r13 = 0x82000010
-
-   Register's as they were set by u-boot before loading.
-   Set to 1 so it doesn't end up in bss. 
-
-   From experimenting it would seem that:
-
-   r2 = device tree blob address.
-   r3 = device tree blob size. Consistant strange number if no 
-   blob was given.
-   r6 = kernel address.
-
-   I have no idea what any of the other registers are set
-   for. r1, r5, r9, r12 seem to stay consistant regardless of the
-   presense of a device tree. r9 changes.
-
- */
 
 extern uint32_t *_ram_start;
 extern uint32_t *_ram_end;
@@ -119,8 +64,8 @@ bundled_proc_start(void)
 {
   label_t u = {0};
 
-  u.sp = (reg_t) USER_ADDR;
-  u.pc = (reg_t) USER_ADDR;
+  u.sp = (size_t) USER_ADDR;
+  u.pc = (size_t) USER_ADDR;
 
   debug("proc %i drop to user at 0x%h 0x%h!\n", up->pid, u.pc, u.sp);
   drop_to_user(&u, up->kstack, KSTACK_LEN);
@@ -294,9 +239,149 @@ init_devs(void)
   init_timers(t_regs, 68, tc_regs);
 }
 
+#define big_to_little16(X) \
+  ((((X)>>8) & 0x00ff) | (((X)<<8) & 0xff00))
+
+#define big_to_little32(X) \
+    (big_to_little16((X)>>16) | \
+     (big_to_little16((X) & 0xffff) << 16))
+
+#define big_to_little64(X) \
+    (big_to_little32((X)>>32) | \
+     (big_to_little32((X) & 0xffffffff) << 32))
+
+void
+fdt_process_reserved_entries(struct fdt_reserve_entry *e)
+{
+  while (e->address != 0 && e->size != 0) {
+    debug("have reserved entry for 0x%h 0x%h\n", 
+        (uint32_t) big_to_little64(e->address), 
+        (uint32_t) big_to_little64(e->size));
+    e++;
+  }
+}
+
+uint32_t *
+fdt_process_node(void *dtb, 
+    struct fdt_header *head, 
+    uint32_t *pr,
+    char *name,
+    size_t oname, 
+    size_t lname)
+{
+  struct fdt_prop prop;
+  uint32_t p;
+  char *pc;
+  size_t i, l;
+
+  pc = (char *) pr;
+  for (i = 0; oname + 1 + i < lname && pc[i] != 0; i++)
+    name[oname + 1 + i] = pc[i];
+
+  name[oname] = '/';
+  name[oname + 1 + i] = 0;
+
+  debug("node '%s'\n", name);
+
+  l = ((i+1) + 3) & ~3;
+  pr = (uint32_t *) ((size_t) pr + l);
+
+  while (true) {
+    p = *pr++;
+    p = big_to_little32(p);
+
+    switch (p) {
+      default:  
+        return nil;
+
+      case FDT_END_NODE:
+        return pr;
+
+      case FDT_BEGIN_NODE:
+        pr = fdt_process_node(dtb, head, pr, 
+            name, oname + i, lname);
+
+        if (pr == nil) {
+          return nil;
+        } else {
+          break;
+        }
+
+      case FDT_NOP:
+        break;
+
+      case FDT_PROP:
+        p = *pr++;
+        prop.len = big_to_little32(p);
+
+        p = *pr++;
+        prop.nameoff = big_to_little32(p);
+
+        debug("prop 0x%h '%s'\n", prop.len, (char *) ((size_t) dtb + head->off_dt_strings + prop.nameoff));
+
+        l = ((prop.len) + 3) & ~3;
+        pr = (uint32_t *) ((size_t) pr + l);
+
+        break;
+    }
+  }
+
+  return pr;
+}
+
+int
+fdt_check(void *dtb, struct fdt_header *head)
+{
+  uint32_t *pr, *ph;
+  size_t i;
+
+  pr = (uint32_t *) dtb;
+  ph = (uint32_t *) head;
+  for (i = 0; 
+      i < sizeof(struct fdt_header) / sizeof(uint32_t); 
+      i++) {
+
+    ph[i] = big_to_little32(pr[i]);
+  }
+
+  if (head->magic != FDT_MAGIC) {
+    debug("fdt magic 0x%h != constant 0x%h\n", 
+        head->magic, FDT_MAGIC);
+
+    return ERR;
+
+  } else if (head->version != 17) {
+    debug("fdt version %i is not 17 and so is not supported!\n",
+        head->version);
+
+    return ERR;
+
+  } else {
+    return OK;
+  }
+}
+
+  void
+fdt_process(void *dtb)
+{
+  struct fdt_header head;
+  char name[256];
+
+  if (fdt_check(dtb, &head) != OK) {
+    panic("error processing fdt!\n");
+  }
+
+  fdt_process_reserved_entries((struct fdt_reserve_entry *) 
+      ((size_t) dtb + head.off_mem_rsvmap));
+
+  fdt_process_node(dtb, &head, 
+      (uint32_t *) ((size_t) dtb + head.off_dt_struct + sizeof(uint32_t)),
+      name, 0, sizeof(name));
+}
+
   void
 kmain(size_t kernel_start, 
-    size_t dtb_start, 
+    size_t dtb, 
     size_t dtb_len)
 {
   uint32_t *l2;
@@ -307,7 +392,8 @@ kmain(size_t kernel_start,
   init_uart((void *) 0x44E09000);
 
   debug("kernel_start = 0x%h\n", kernel_start);
-  debug("dtb = 0x%h, 0x%h\n", dtb_start, dtb_len);
+
+  fdt_process((void *) dtb);
 
   s = get_ram(PAGE_SIZE);
   l2 = (uint32_t *) s;

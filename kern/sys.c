@@ -47,7 +47,7 @@ recv(uint8_t *m)
 	}
 }
 
-reg_t
+size_t
 sys_send(int pid, uint8_t *m)
 {
 	proc_t p;
@@ -63,7 +63,7 @@ sys_send(int pid, uint8_t *m)
 	return send(p, m);
 }
 
-reg_t
+size_t
 sys_recv(uint8_t *m)
 {
 	debug("%i recv to 0x%h\n", up->pid, m);
@@ -71,7 +71,7 @@ sys_recv(uint8_t *m)
 	return recv(m);
 }
 
-reg_t
+size_t
 sys_proc_new(int f_id)
 {
   proc_t p;
@@ -89,7 +89,7 @@ sys_proc_new(int f_id)
 	return p->pid;
 }
 
-reg_t
+size_t
 sys_frame_split(int f_id, size_t offset)
 {
 	debug("%i called sys frame_split with %i, 0x%h\n", up->pid, f_id, offset);
@@ -97,7 +97,7 @@ sys_frame_split(int f_id, size_t offset)
 	return ERR;
 }
 
-reg_t
+size_t
 sys_frame_merge(int f1, int f2)
 {
 	debug("%i called sys frame_merge with %i, %i\n", up->pid, f1, f2);
@@ -105,7 +105,7 @@ sys_frame_merge(int f1, int f2)
 	return ERR;
 }
 
-reg_t
+size_t
 sys_frame_give(int f_id, int pid)
 {
 	debug("%i called sys frame_give with %i, %i\n", up->pid, f_id, pid);
@@ -113,7 +113,7 @@ sys_frame_give(int f_id, int pid)
 	return ERR;
 }
 
-reg_t
+size_t
 sys_frame_map(int pid, int f_id, 
           void *addr, int flags)
 {
@@ -123,7 +123,7 @@ sys_frame_map(int pid, int f_id,
 	return ERR;
 }
 
-reg_t
+size_t
 sys_frame_unmap(int pid, int f_id)
 {
 	debug("%i called sys frame_unmap with %i, %i\n", up->pid, pid, f_id);
@@ -131,7 +131,7 @@ sys_frame_unmap(int pid, int f_id)
 	return ERR;
 }
 
-reg_t
+size_t
 sys_frame_allow(int pid_allowed_to_map)
 {
 	debug("%i called sys frame_allow with %i\n", up->pid, pid_allowed_to_map);
@@ -139,7 +139,7 @@ sys_frame_allow(int pid_allowed_to_map)
 	return ERR;
 }
 
-reg_t
+size_t
 sys_frame_count(void)
 {
 	debug("%i called sys frame_count\n", up->pid);
@@ -147,7 +147,7 @@ sys_frame_count(void)
 	return up->frame_count;
 }
 
-reg_t
+size_t
 sys_frame_info(int ind, struct frame *f)
 {
   kframe_t k;

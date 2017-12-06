@@ -1,7 +1,7 @@
 uint32_t
 fsr_status(void);
 
-reg_t
+size_t
 fault_addr(void);
 
 void

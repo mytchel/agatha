@@ -4,20 +4,20 @@
 #include <stdarg.h>
 #include <string.h>
 
-bool
+  bool
 isspace(char c)
 {
-	switch (c) {
-	case ' ':
-	case '\n':
-	case '\t':
-		return true;
-	default:
-		return false;
-	}
+  switch (c) {
+    case ' ':
+    case '\n':
+    case '\t':
+      return true;
+    default:
+      return false;
+  }
 }
 
-bool
+  bool
 strncmp(const char *s1, const char *s2, size_t len)
 {
   while (len-- > 0) {
@@ -31,7 +31,7 @@ strncmp(const char *s1, const char *s2, size_t len)
   return true;
 }
 
-bool
+  bool
 strcmp(const char *s1, const char *s2)
 {
   size_t l1, l2;
@@ -46,22 +46,22 @@ strcmp(const char *s1, const char *s2)
   }
 }
 
-size_t
+  size_t
 strlen(const char *s)
 {
   size_t len = 0;
-	
+
   while (*s++)
     len++;
-	
+
   return len;
 }
 
-size_t
+  size_t
 strlcpy(char *dest, const char *src, size_t max)
 {
   size_t i;
-  
+
   for (i = 0; i < max - 1 && src[i] != 0; i++) {
     dest[i] = src[i];
   }
@@ -70,13 +70,13 @@ strlcpy(char *dest, const char *src, size_t max)
   return i + 1;
 }
 
-static size_t
-printint(char *str, size_t max, unsigned int i, unsigned int base)
+  static size_t
+printint(char *str, size_t max, uint64_t i, unsigned int base)
 {
-  unsigned int d;
-  unsigned char s[32];
+  unsigned char s[64];
+  uint64_t d;
   int c = 0;
-	
+
   do {
     d = i / base;
     i = i % base;
@@ -89,72 +89,77 @@ printint(char *str, size_t max, unsigned int i, unsigned int base)
   while (c > 0 && d < max) {
     str[d++] = s[--c];
   }
-	
+
   return d;
 }
 
-size_t
+  size_t
 vsnprintf(char *str, size_t max, const char *fmt, va_list ap)
 {
-  int i;
-  unsigned int ind, u;
+  uint64_t ind, u;
   char *s;
-	
+  int i;
+
   ind = 0;
   while (*fmt != 0 && ind < max) {
     if (*fmt != '%') {
       str[ind++] = *fmt++;
       continue;
     }
-		
+
     fmt++;
     switch (*fmt) {
-    case '%':
-      str[ind++] = '%';
-      break;
-    case 'i':
-      i = va_arg(ap, int);
-      if (i < 0) {
-	str[ind++] = '-';
-	i = -i;
-      }
+      case '%':
+        str[ind++] = '%';
+        break;
+      case 'i':
+        i = va_arg(ap, int32_t);
+        if (i < 0) {
+          str[ind++] = '-';
+          i = -i;
+        }
 
-      if (ind >= max)
-	break;
+        if (ind >= max)
+          break;
 
-      ind += printint(str + ind, max - ind,
-		      (unsigned int) i, 10);		
-      break;
-    case 'u':
-      u = va_arg(ap, unsigned int);
-      ind += printint(str + ind, max - ind,
-		      u, 10);
-      break;
-    case 'h':
-      u = va_arg(ap, unsigned int);
-      ind += printint(str + ind, max - ind, 
-		      u, 16);
-      break;
-    case 'b':
-      u = va_arg(ap, unsigned int);
-      ind += printint(str + ind, max - ind, 
-		      u, 2);
-      break;
-    case 'c':
-      i = va_arg(ap, int);
-      str[ind++] = i;
-      break;
-    case 's':
-      s = va_arg(ap, char *);
-      if (s == nil) {
-	s = "(null)";
-      }
-			
-      for (i = 0; ind < max && s[i]; i++)
-	str[ind++] = s[i];
-      break;
+        ind += printint(str + ind, max - ind,
+            i, 10);		
+        break;
+      case 'u':
+        u = va_arg(ap, uint32_t);
+        ind += printint(str + ind, max - ind,
+            u, 10);
+        break;
+      case 'h':
+        u = va_arg(ap, uint32_t);
+        ind += printint(str + ind, max - ind, 
+            u, 16);
+        break;
+      case 'x':
+        u = va_arg(ap, uint64_t);
+        ind += printint(str + ind, max - ind, 
+            u, 16);
+        break;
+      case 'b':
+        u = va_arg(ap, uint32_t);
+        ind += printint(str + ind, max - ind, 
+            u, 2);
+        break;
+      case 'c':
+        i = va_arg(ap, char);
+        str[ind++] = i;
+        break;
+      case 's':
+        s = va_arg(ap, char *);
+        if (s == nil) {
+          s = "(null)";
+        }
+
+        for (i = 0; ind < max && s[i]; i++)
+          str[ind++] = s[i];
+        break;
     }
-		
+
     fmt++;
   }
 
@@ -162,19 +167,19 @@ vsnprintf(char *str, size_t max, const char *fmt, va_list ap)
   return ind;
 }
 
-size_t
+  size_t
 snprintf(char *str, size_t max, const char *fmt, ...)
 {
   int i;
   va_list ap;
-	
+
   va_start(ap, fmt);
   i = vsnprintf(str, max, fmt, ap);
   va_end(ap);
   return i;
 }
 
-char *
+  char *
 strtok(char *nstr, const char *sep)
 {
   static char *str;
@@ -185,10 +190,10 @@ strtok(char *nstr, const char *sep)
   } else if (str == nil) {
     return nil;
   }
-  
+
   nstr = str;
   seplen = strlen(sep);
-  
+
   i = 0;
   while (str[i]) {
     if (strncmp(&str[i], sep, seplen)) {
@@ -202,12 +207,12 @@ strtok(char *nstr, const char *sep)
     str[i++] = 0;
     while (str[i]) {
       if (!strncmp(&str[i], sep, seplen)) {
-	break;
+        break;
       } else {
-	i += seplen;
+        i += seplen;
       }
     }
- 
+
     str = &str[i];
   } else {
     str = nil;

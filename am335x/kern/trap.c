@@ -112,10 +112,10 @@ irq_handler(void)
 }
 
 void
-trap(reg_t pc, int type)
+trap(size_t pc, int type)
 {
   uint32_t fsr;
-  reg_t addr;
+  size_t addr;
   
   if (up == nil) {
     debug("trap with no proc on cpu!\n");
