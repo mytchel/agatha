@@ -91,10 +91,8 @@ int
 debug(const char *fmt, ...);
 
 void
+__attribute__((__noreturn__))
 panic(const char *fmt, ...);
-
-void
-set_systick(uint32_t ms);
 
 intr_t
 set_intr(intr_t i);

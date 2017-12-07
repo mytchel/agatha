@@ -1,42 +1,3 @@
-/*
- *
- * Copyright (c) 2017 Mytchel Hammond <mytch@lackname.org>
- * 
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following
- * conditions:
- * 
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- *
- */
-
-#ifndef _AM335X_I2C_H_
-#define _AM335X_I2C_H_
-
-#define I2C0  0x44e0b000
-#define I2C1  0x4802a000
-#define I2C2  0x4819c000
-
-#define I2C0_intr 70
-#define I2C1_intr 71
-#define I2C2_intr 30
-
-typedef struct i2c_regs *i2c_regs_t;
 
 struct i2c_regs {
 	uint32_t revnb_lo;
@@ -74,4 +35,3 @@ struct i2c_regs {
 	uint32_t sblock;
 };
 
-struct 

@@ -14,49 +14,68 @@ struct bundled_proc bundled[] = {
 #include "../bundled.list"
 };
 
-extern uint32_t *_ram_start;
-extern uint32_t *_ram_end;
-extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
-extern uint32_t *_ex_stack_top;
 extern uint32_t *_binary_bundled_bin_start;
 extern uint32_t *_binary_bundled_bin_end;
 
-static size_t ram_p = (size_t) &_ram_start;
+static kframe_t mem_frames = nil;
+
+static uint32_t *kernel_l2;
+static size_t kernel_va_slot;
 
   static size_t
-get_ram(size_t l)
+get_ram(size_t size, size_t align)
 {
-  size_t r;
+  kframe_t *h, f, n;
+  size_t pa;
 
-  /* TODO: make this skip kernel, dtb, whatever else needs
-     to be kept. */
+  for (h = &mem_frames; *h != nil; h = &(*h)->next) {
+    f = *h;
 
-  l = PAGE_ALIGN(l);
+    pa = (f->u.pa + align - 1) & ~(align - 1);
+    if (pa - f->u.pa + f->u.len >= size) {
 
-  r = ram_p;
-  ram_p += l;
+     if (pa != f->u.pa) {
+        /* split off the front and put in in the list. */
+        n = frame_split(f, pa - f->u.pa);
+        f = n;
+      } else {
+        *h = f->next;
+      }
 
-  return r;
+      if (f->u.len > size) {
+        /* split of rest. */
+        n = frame_split(f, size);
+        n->next = mem_frames;
+        mem_frames = n;
+      }
+
+      pa = f->u.pa;
+      
+      /* TODO: make frame structure as unused. */
+
+      return pa;
+    }
+  }
+
+  panic("failed to get memory of size 0x%h, aligned to 0x%h\n",
+      size, align);
 }
 
   static void
 give_remaining_ram(proc_t p)
 {
-  size_t s, l;
-  kframe_t f;
+  kframe_t f, fn;
 
-  s = ram_p;
-  l = (size_t) &_kernel_start - s;
-  debug("give p0 from 0x%h to 0x%h\n", s, s + l);
-  f = frame_new(s, l, F_TYPE_MEM);
-  frame_add(p, f);
+  f = mem_frames;
+  while (f != nil) {
+    fn = f->next;
 
-  s = (size_t) PAGE_ALIGN(&_kernel_end);
-  l = (size_t) &_ram_end - s;
-  debug("give p0 from 0x%h to 0x%h\n", s, s + l);
-  frame_new(s, l, F_TYPE_MEM);	
-  frame_add(p, f);
+    debug("give p0 from 0x%h to 0x%h\n", f->u.pa, f->u.len);
+    frame_add(p, f);
+
+    f = fn;
+  }
 }
 
   static void
@@ -87,11 +106,7 @@ init_proc(size_t start, size_t len)
       (size_t) &bundled_proc_start);
 
   /* Oversized to get alignement right. */
-  l = 0x9000;
-  s = get_ram(l);
-  if (!s) 
-    panic("Failed to get mem for bundled proc's address space!\n");
-
+  s = get_ram(0x5000, 0x4000);
   map_sections(ttb, SECTION_ALIGN_DN(s), KERNEL_ADDR - SECTION_SIZE,
       SECTION_SIZE, AP_RW_NO, false);
 
@@ -138,10 +153,7 @@ init_proc(size_t start, size_t len)
       F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
   l = PAGE_SIZE * 4;
-  s = get_ram(l);
-  if (!s) 
-    panic("Failed to get ram for stack!\n");
-
+  s = get_ram(l, PAGE_SIZE);
   f = frame_new(s, l, F_TYPE_MEM);
   frame_add(p, f);
   frame_map(fl2, f, USER_ADDR - l,
@@ -192,42 +204,51 @@ init_procs(void)
   return p0;
 }
 
-static void *uart_regs, *intc_regs, *wd_regs, *t_regs, *tc_regs;
+static void *uart_regs, *intc_regs;
 
-  size_t
-map_devs(uint32_t *l2, size_t va)
+void
+map_devs(void *dtb)
 {
-  size_t l;
+  uint32_t *data, intc_handle;
+  size_t addr, size;
+  void *node, *root;
+  int len;
 
-  /* UART0 */
-  l = 0x1000;
-  map_pages(l2, 0x44E09000, va, l, AP_RW_NO, false);
-  uart_regs = (void *) va;
-  va += l;
+  root = fdt_root_node(dtb);
+  if (root == nil) {
+    panic("failed to find root node in fdt!\n");
+  }
 
-  /* INTCPS */
-  l = 0x1000;
-  map_pages(l2, 0x48200000, va, l, AP_RW_NO, false);
-  intc_regs = (void *) va;
-  va += l;
+  len = fdt_node_property(dtb, root, "interrupt-parent", (char **) &data);
+  if (len != sizeof(intc_handle)) {
+    panic("failed to get interrupt-parent from root node!\n");
+  }
 
-  /* Watchdog */
-  l = 0x1000;
-  map_pages(l2, 0x44E35000, va, l, AP_RW_NO, false);
-  wd_regs = (void *) va;
-  va += l;
+  intc_handle = beto32(data[0]);
 
-  /* DMTIMER2 for systick. */
-  l = 0x1000;
-  map_pages(l2, 0x48040000, va, l, AP_RW_NO, false);
-  t_regs = (void *) va;
-  va += l;
+  debug("interrupt controller has phandle 0x%h\n", intc_handle);
 
-  map_pages(l2, 0x44E00000, va, l, AP_RW_NO, false);
-  tc_regs = (void *) (va + 0x500);
-  va += l;
+  node = fdt_find_node_phandle(dtb, intc_handle);
+  if (node == nil) {
+    panic("failed to find interrupt controller!\n");
+  } 
 
-  return va;
+  debug("interrupt controller %s\n", fdt_node_name(dtb, node));
+
+  if (!fdt_node_regs(dtb, node, 0, &addr, &size)) {
+    panic("failed to get reg property for interupt controller!\n");
+  }
+
+  debug("intc regs at 0x%h to 0x%h\n", addr, size);
+
+  intc_regs = (void *) kernel_va_slot;
+  map_pages(kernel_l2, addr, kernel_va_slot, size, AP_RW_NO, true);
+  kernel_va_slot += size;
+
+  /* Hardcode uart for now. */
+  uart_regs = (void *) kernel_va_slot;
+  map_pages(kernel_l2, 0x44e09000, kernel_va_slot, 0x2000, AP_RW_NO, true);
+  kernel_va_slot += 0x2000;
 }
 
   void
@@ -235,148 +256,40 @@ init_devs(void)
 {
   init_uart(uart_regs);
   init_intc(intc_regs);
-  init_watchdog(wd_regs);
-  init_timers(t_regs, 68, tc_regs);
 }
 
-#define big_to_little16(X) \
-  ((((X)>>8) & 0x00ff) | (((X)<<8) & 0xff00))
+static bool
+fdt_memory_cb(void *dtb, void *node)
+{
+  size_t addr, size;
+  kframe_t f;
 
-#define big_to_little32(X) \
-    (big_to_little16((X)>>16) | \
-     (big_to_little16((X) & 0xffff) << 16))
+  if (!fdt_node_regs(dtb, node, 0, &addr, &size)) {
+    panic("failed to get memory registers!\n");
+  }
 
-#define big_to_little64(X) \
-    (big_to_little32((X)>>32) | \
-     (big_to_little32((X) & 0xffffffff) << 32))
+  debug("memory at 0x%h, 0x%h\n", addr, size);
+
+  f = frame_new(addr, size, F_TYPE_MEM);
+  if (f == nil) {
+    panic("failed to get frame for memory!\n");
+  }
+
+  f->next = mem_frames;
+  mem_frames = f;
+
+  return true;
+}
 
 void
-fdt_process_reserved_entries(struct fdt_reserve_entry *e)
+fdt_get_memory(void *dtb)
 {
-  while (e->address != 0 && e->size != 0) {
-    debug("have reserved entry for 0x%h 0x%h\n", 
-        (uint32_t) big_to_little64(e->address), 
-        (uint32_t) big_to_little64(e->size));
-    e++;
+  fdt_find_node_device_type(dtb, "memory",
+      &fdt_memory_cb);
+
+  if (mem_frames == nil) {
+    panic("no memory found!\n");
   }
-}
-
-uint32_t *
-fdt_process_node(void *dtb, 
-    struct fdt_header *head, 
-    uint32_t *pr,
-    char *name,
-    size_t oname, 
-    size_t lname)
-{
-  struct fdt_prop prop;
-  uint32_t p;
-  char *pc;
-  size_t i, l;
-
-  pc = (char *) pr;
-  for (i = 0; oname + 1 + i < lname && pc[i] != 0; i++)
-    name[oname + 1 + i] = pc[i];
-
-  name[oname] = '/';
-  name[oname + 1 + i] = 0;
-
-  debug("node '%s'\n", name);
-
-  l = ((i+1) + 3) & ~3;
-  pr = (uint32_t *) ((size_t) pr + l);
-
-  while (true) {
-    p = *pr++;
-    p = big_to_little32(p);
-
-    switch (p) {
-      default:  
-        return nil;
-
-      case FDT_END_NODE:
-        return pr;
-
-      case FDT_BEGIN_NODE:
-        pr = fdt_process_node(dtb, head, pr, 
-            name, oname + i, lname);
-
-        if (pr == nil) {
-          return nil;
-        } else {
-          break;
-        }
-
-      case FDT_NOP:
-        break;
-
-      case FDT_PROP:
-        p = *pr++;
-        prop.len = big_to_little32(p);
-
-        p = *pr++;
-        prop.nameoff = big_to_little32(p);
-
-        debug("prop 0x%h '%s'\n", prop.len, (char *) ((size_t) dtb + head->off_dt_strings + prop.nameoff));
-
-        l = ((prop.len) + 3) & ~3;
-        pr = (uint32_t *) ((size_t) pr + l);
-
-        break;
-    }
-  }
-
-  return pr;
-}
-
-int
-fdt_check(void *dtb, struct fdt_header *head)
-{
-  uint32_t *pr, *ph;
-  size_t i;
-
-  pr = (uint32_t *) dtb;
-  ph = (uint32_t *) head;
-  for (i = 0; 
-      i < sizeof(struct fdt_header) / sizeof(uint32_t); 
-      i++) {
-
-    ph[i] = big_to_little32(pr[i]);
-  }
-
-  if (head->magic != FDT_MAGIC) {
-    debug("fdt magic 0x%h != constant 0x%h\n", 
-        head->magic, FDT_MAGIC);
-
-    return ERR;
-
-  } else if (head->version != 17) {
-    debug("fdt version %i is not 17 and so is not supported!\n",
-        head->version);
-
-    return ERR;
-
-  } else {
-    return OK;
-  }
-}
-
-  void
-fdt_process(void *dtb)
-{
-  struct fdt_header head;
-  char name[256];
-
-  if (fdt_check(dtb, &head) != OK) {
-    panic("error processing fdt!\n");
-  }
-
-  fdt_process_reserved_entries((struct fdt_reserve_entry *) 
-      ((size_t) dtb + head.off_mem_rsvmap));
-
-  fdt_process_node(dtb, &head, 
-      (uint32_t *) ((size_t) dtb + head.off_dt_struct + sizeof(uint32_t)),
-      name, 0, sizeof(name));
 }
 
   void
@@ -384,7 +297,6 @@ kmain(size_t kernel_start,
     size_t dtb, 
     size_t dtb_len)
 {
-  uint32_t *l2;
   size_t s, l;
   proc_t p;
 
@@ -393,20 +305,24 @@ kmain(size_t kernel_start,
 
   debug("kernel_start = 0x%h\n", kernel_start);
 
-  fdt_process((void *) dtb);
+  fdt_get_memory((void *) dtb);
 
-  s = get_ram(PAGE_SIZE);
-  l2 = (uint32_t *) s;
-  memset(l2, 0, PAGE_SIZE);
+  /* TODO: remove kernel and dtb from mem_frames. */
+
+  s = get_ram(PAGE_SIZE, PAGE_SIZE);
+  kernel_l2 = (uint32_t *) s;
+  memset(kernel_l2, 0, PAGE_SIZE);
 
   map_l2(ttb, s, KERNEL_ADDR);
 
   s = kernel_start;
-  l = PAGE_ALIGN((size_t) &_kernel_end - (size_t) &_kernel_start);
+  l = PAGE_ALIGN((size_t) &_kernel_end - (size_t) kernel_start);
 
-  map_pages(l2, s, KERNEL_ADDR, l, AP_RW_NO, true);
+  map_pages(kernel_l2, s, KERNEL_ADDR, l, AP_RW_NO, true);
 
-  map_devs(l2, KERNEL_ADDR + l);
+  kernel_va_slot = KERNEL_ADDR + l;
+
+  map_devs((void *) dtb);
 
   debug("load and enable mmu\n");
 

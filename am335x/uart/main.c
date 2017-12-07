@@ -8,7 +8,7 @@
 #include <am335x/uart.h>
 
 void
-putc(uart_regs_t uart, char c)
+putc(struct uart_regs *uart, char c)
 {
   if (c == '\n')
     putc(uart, '\r');
@@ -20,7 +20,7 @@ putc(uart_regs_t uart, char c)
 }
 
 void
-puts(uart_regs_t uart, const char *c)
+puts(struct uart_regs *uart, const char *c)
 {
   while (*c)
     putc(uart, *c++);
@@ -28,13 +28,14 @@ puts(uart_regs_t uart, const char *c)
 
 
 int
-main(uart_regs_t uart, size_t len)
+main(void)
 {
+  struct uart_regs *uart;
   uint8_t m[MESSAGE_LEN];
   int p;
 
-  snprintf((char *) m, sizeof(m), 
-      "userspace uart at 0x%h, 0x%h\n", uart, len);
+  while (true)
+      ;
 
   puts(uart, (char *) m);
 

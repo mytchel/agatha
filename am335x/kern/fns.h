@@ -51,12 +51,7 @@ void
 init_intc(void *regs);
 
 void
-init_watchdog(void *regs);
-
-void
-init_timers(void *t_regs, int t_irq, void *c_regs);
-
-void
 init_uart(void *regs);
 
 extern uint32_t ttb[];
+

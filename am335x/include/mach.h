@@ -1,3 +1,15 @@
+#define beto16(X) \
+  ((((X)>>8) & 0x00ff) | (((X)<<8) & 0xff00))
+
+#define beto32(X) \
+  (beto16((X)>>16) | \
+   (beto16((X) & 0xffff) << 16))
+
+#define beto64(X) \
+  (beto32((X)>>32) | \
+   (beto32((X) & 0xffffffff) << 32))
+
+
 #define PAGE_SHIFT 	 12
 #define PAGE_SIZE	 (1UL << PAGE_SHIFT)
 #define PAGE_MASK	 (~(PAGE_SIZE - 1))

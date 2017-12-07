@@ -22,7 +22,7 @@ bundled.bo: bundled.bin
 
 
 CLEAN += bundled.bin bundled.list bundled.bo
-bundled.bin bundled.h:
+bundled.bin bundled.list:
 	for d in $(BUNDLED); \
 	do \
 		$(MAKE) -C $$d USERADDR=$(USERADDR); \
@@ -37,7 +37,6 @@ SRC_A := \
 SRC_C := \
         kern/main.c               \
         kern/trap.c               \
-        kern/timer.c              \
         kern/mem.c                \
         kern/proc.c               \
         kern/uart.c               \
@@ -47,6 +46,7 @@ SRC_C := \
         ../lib/libstring/conv.c   \
         ../lib/libstring/scanf.c  \
         ../lib/libstring/string.c \
+        ../lib/libfdt/fdt.c       \
         ../lib/libc/util.c
 
 

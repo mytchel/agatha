@@ -3,12 +3,12 @@
 #include <stdarg.h>
 #include <am335x/uart.h>
 
-static uart_regs_t uart;
+static struct uart_regs *uart;
 
 void
 init_uart(void *regs)
 {
-	uart = (uart_regs_t) regs;
+	uart = (struct uart_regs *) regs;
 }
 
 void
@@ -66,3 +66,4 @@ panic(const char *fmt, ...)
 	while (true)
 		;
 }
+

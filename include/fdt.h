@@ -29,3 +29,36 @@ struct fdt_prop {
 #define FDT_NOP           0x4
 #define FDT_END           0x9
 
+int
+fdt_check(void *dtb, struct fdt_header *head);
+
+int
+fdt_node_property(void *dtb, void *node,
+    char *prop,
+    char **data);
+
+bool
+fdt_node_regs(void *dtb, void *node,
+    int ind,
+    size_t *addr,
+    size_t *size);
+
+void *
+fdt_find_node_phandle(void *dtb, uint32_t handle);
+
+void
+fdt_find_node_compatable(void *dtb,
+    char *compatable,
+    bool (*callback)(void *dtb, void *node));
+
+void
+fdt_find_node_device_type(void *dtb, char *type,
+    bool (*callback)(void *dtb, void *node));
+
+void *
+fdt_root_node(void *dtb);
+
+char *
+fdt_node_name(void *dtb, void *node);
+
+
