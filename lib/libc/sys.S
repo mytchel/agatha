@@ -4,19 +4,28 @@
 
 .global start
 .global raise
+.global panic
 
 .global send
 .global recv
 .global proc_new
 .global frame_count
 .global frame_info
+.global frame_map
+
 
 start:
 	bl main
 	b .
 
+
 raise:
 	b .
+
+
+panic:
+  b . 
+
 
 send:
 	push {r12, lr}
@@ -52,4 +61,11 @@ frame_info:
 	svc 0
 	pop {r12, pc}
 
-	
+
+frame_map:
+	push {r12, lr}
+	mov r12, #SYSCALL_FRAME_MAP
+	svc 0
+	pop {r12, pc}
+
+

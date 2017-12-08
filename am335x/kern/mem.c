@@ -1,21 +1,6 @@
 #include <head.h>
 #include "fns.h"
 
-#define L1X(va)          ((va) >> 20)
-#define L2X(va)          (((va) >> 12) & ((1 << 8) - 1))
-
-#define L1_TYPE      0b11
-#define L1_FAULT     0b00
-#define L1_COARSE    0b01
-#define L1_SECTION   0b10
-#define L1_FINE      0b11
-
-#define L2_TYPE      0b11
-#define L2_FAULT     0b00
-#define L2_LARGE     0b01
-#define L2_SMALL     0b10
-#define L2_TINY      0b11
-
 	int
 frames_swap(proc_t from, proc_t to, int o_id, int n_id)
 {

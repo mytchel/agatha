@@ -1,3 +1,4 @@
+
 #define beto16(X) \
   ((((X)>>8) & 0x00ff) | (((X)<<8) & 0xff00))
 
@@ -8,6 +9,22 @@
 #define beto64(X) \
   (beto32((X)>>32) | \
    (beto32((X) & 0xffffffff) << 32))
+
+
+#define L1X(va)          ((va) >> 20)
+#define L2X(va)          (((va) >> 12) & ((1 << 8) - 1))
+
+#define L1_TYPE      0b11
+#define L1_FAULT     0b00
+#define L1_COARSE    0b01
+#define L1_SECTION   0b10
+#define L1_FINE      0b11
+
+#define L2_TYPE      0b11
+#define L2_FAULT     0b00
+#define L2_LARGE     0b01
+#define L2_SMALL     0b10
+#define L2_TINY      0b11
 
 
 #define PAGE_SHIFT 	 12
@@ -26,8 +43,8 @@
 
 #define F_TYPE_IO    1
 #define F_TYPE_MEM   2
+#define F_TYPE_FDT   3
 
-/* Kind of mapping. */
 #define F_MAP_TYPE_PAGE          (0<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_SECTION       (1<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_TABLE_L1      (2<<F_MAP_TYPE_SHIFT)

@@ -10,7 +10,7 @@ include Makefile.inc
 
 CFLAGS += -Ikern
 
-BUNDLED := proc0 proc1 uart
+BUNDLED := proc0 uart
 
 $(BUNDLED):
 	$(MAKE) -C $@

@@ -2,7 +2,7 @@ int
 proc_new(int f_id);
 
 int
-frame_map(int f_id, void *va, int flags);
+frame_map(int t_id, int f_id, void *va, int flags);
 
 int
 frame_count(void);

@@ -41,12 +41,27 @@ fdt_check(void *dtb, struct fdt_header *head)
 }
 
 void
-fdt_process_reserved_entries(struct fdt_reserve_entry *e)
+fdt_check_reserved(void *dtb, 
+    void (*callback)(size_t start, size_t len))
 {
+  struct fdt_header head;
+  struct fdt_reserve_entry *e;
+
+  if (fdt_check(dtb, &head) != OK) {
+    return;
+  }
+
+  e = (struct fdt_reserve_entry *) 
+    ((size_t) dtb + head.off_mem_rsvmap);
+
   while (e->address != 0 && e->size != 0) {
     debug("have reserved entry for 0x%h 0x%h\n", 
         (uint32_t) beto64(e->address), 
         (uint32_t) beto64(e->size));
+    
+    callback((size_t) beto64(e->address), 
+        (size_t) beto64(e->size));
+
     e++;
   }
 }

@@ -114,11 +114,11 @@ sys_frame_give(int f_id, int pid)
 }
 
 size_t
-sys_frame_map(int pid, int f_id, 
-          void *addr, int flags)
+sys_frame_map(int t_id, int f_id, 
+    void *va, int flags)
 {
 	debug("%i called sys frame_map with %i, %i, 0x%h, %i\n", 
-		up->pid, pid, f_id, addr, flags);
+		up->pid, t_id, f_id, va, flags);
 	
 	return ERR;
 }
