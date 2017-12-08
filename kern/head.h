@@ -1,8 +1,13 @@
+#include <types.h>
+#include <mach.h>
 #include <sys.h>
 #include <err.h>
-#include <types.h>
 #include <stdarg.h>
 #include <string.h>
+
+#define MAX_PROCS     512
+#define MAX_FRAMES   2048
+#define KSTACK_LEN    512
 
 typedef struct kframe *kframe_t;
 
@@ -93,9 +98,6 @@ debug(const char *fmt, ...);
 void
 __attribute__((__noreturn__))
 panic(const char *fmt, ...);
-
-intr_t
-set_intr(intr_t i);
 
 int
 set_label(label_t *l);

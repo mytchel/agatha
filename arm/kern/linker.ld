@@ -1,10 +1,5 @@
-ENTRY(_kstart);
-
 SECTIONS
 {
-	_ram_start = 0x80000000;
-	_ram_end   = 0xa0000000;
-
 	.text ALIGN(4096) :
 	{
 		_kernel_start = .;
@@ -37,9 +32,9 @@ SECTIONS
 	_ex_stack_top = .;
 	_kernel_end = .;
 	
-	.bundled ALIGN(4096) :
+	.bundle ALIGN(4096) :
 	{
-		*(.bundled)
+		*(.bundle)
 	}
 }
 

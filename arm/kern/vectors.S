@@ -28,7 +28,7 @@
 
 .section .text
 
-.global _kstart
+.global _start
 
 /*
 
@@ -87,7 +87,7 @@
  */
 
 
-_kstart:
+_start:
 	mov r7, r6
 	mov r8, r2
 	mov r9, r3
@@ -125,9 +125,9 @@ _kstart:
 	mov r1, r8
 	mov r2, r9
 
-# void kmain(kernel_start, fdt_start, fdt_len);
+# void main(kernel_start, fdt_start, fdt_len);
 
-	b kmain
+	b main
 
 
 vector_table_init:
@@ -145,7 +145,7 @@ vector_table_init:
 
 .balign 32
 vector_table:
-	ldr pc, =_kstart
+	ldr pc, =_start
 	ldr pc, =undefined_instruction
 	ldr pc, =swi_ex
 	ldr pc, =prefetch_abort

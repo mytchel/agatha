@@ -1,4 +1,4 @@
-#include <head.h>
+#include "head.h"
 
 void add_to_list(struct proc **, struct proc *);
 bool remove_from_list(struct proc **, struct proc *);

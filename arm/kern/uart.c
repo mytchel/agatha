@@ -1,4 +1,4 @@
-#include "head.h"
+#include "../../kern/head.h"
 #include "fns.h"
 #include <stdarg.h>
 #include <am335x/uart.h>

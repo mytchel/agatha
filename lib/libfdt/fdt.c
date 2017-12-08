@@ -1,5 +1,8 @@
-#include "head.h"
-#include "fns.h"
+#include <types.h>
+#include <mach.h>
+#include <err.h>
+#include <stdarg.h>
+#include <string.h>
 #include <fdt.h>
 
 /* This is all pretty bad and could go for a lot of reworking. 
@@ -24,15 +27,9 @@ fdt_check(void *dtb, struct fdt_header *head)
   }
 
   if (head->magic != FDT_MAGIC) {
-    debug("fdt magic 0x%h != constant 0x%h\n", 
-        head->magic, FDT_MAGIC);
-
     return ERR;
 
   } else if (head->version != 17) {
-    debug("fdt version %i is not 17 and so is not supported!\n",
-        head->version);
-
     return ERR;
 
   } else {
@@ -55,10 +52,6 @@ fdt_check_reserved(void *dtb,
     ((size_t) dtb + head.off_mem_rsvmap);
 
   while (e->address != 0 && e->size != 0) {
-    debug("have reserved entry for 0x%h 0x%h\n", 
-        (uint32_t) beto64(e->address), 
-        (uint32_t) beto64(e->size));
-    
     callback((size_t) beto64(e->address), 
         (size_t) beto64(e->size));
 

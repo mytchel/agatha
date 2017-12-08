@@ -1,4 +1,4 @@
-#include <head.h>
+#include "head.h"
 #include <sysnum.h>
 	
 	int

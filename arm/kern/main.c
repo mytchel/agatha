@@ -1,22 +1,26 @@
-#include "head.h"
+#include "../../kern/head.h"
 #include "fns.h"
 #include <fdt.h>
 
 uint32_t
 ttb[4096]__attribute__((__aligned__(16*1024))) = { 0 };
 
-struct bundled_proc {
+/* TODO: store this for each proc in bundle_proc list. */
+#define USER_ADDR 0x100000
+
+struct bundle_proc {
   uint8_t name[256];
   size_t len;
 };
 
-struct bundled_proc bundled[] = {
-#include "../bundled.list"
+struct bundle_proc bundle[] = {
+#include "../bundle.list"
 };
 
+extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
-extern uint32_t *_binary_bundled_bin_start;
-extern uint32_t *_binary_bundled_bin_end;
+extern uint32_t *_binary_bundle_bin_start;
+extern uint32_t *_binary_bundle_bin_end;
 
 static kframe_t mem_frames = nil;
 
@@ -108,7 +112,7 @@ give_remaining_ram(proc_t p)
 }
 
   static void
-bundled_proc_start(void)
+bundle_proc_start(void)
 {
   label_t u = {0};
 
@@ -122,8 +126,8 @@ bundled_proc_start(void)
   static proc_t
 init_proc(size_t start, size_t len)
 {
-  size_t s, l, pa, va;
   kframe_t f, fl1, fl2;
+  size_t s, l;
   proc_t p;
 
   p = proc_new();
@@ -132,33 +136,25 @@ init_proc(size_t start, size_t len)
   }
 
   func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
-      (size_t) &bundled_proc_start);
+      (size_t) &bundle_proc_start);
 
-  /* Oversized to get alignement right. */
   s = get_ram(0x5000, 0x4000);
-  map_sections(ttb, SECTION_ALIGN_DN(s), KERNEL_ADDR - SECTION_SIZE,
-      SECTION_SIZE, AP_RW_NO, false);
+  map_pages(kernel_l2, s, kernel_va_slot, 0x5000, AP_RW_NO, false);
 
-  pa = (s + 0x4000 - 1) & ~(0x4000 - 1);
-  va = KERNEL_ADDR - SECTION_SIZE + pa - SECTION_ALIGN_DN(s);
-
-  memcpy((void *) va, 
+  memcpy((void *) kernel_va_slot, 
       ttb, 
       0x4000);
 
-  /* Remove the section mapping from the procs address space. */
-  unmap_sections((void *) va, KERNEL_ADDR - SECTION_SIZE, SECTION_SIZE);
-
-  fl1 = frame_new(pa, 0x4000, F_TYPE_MEM);
+  fl1 = frame_new(s, 0x4000, F_TYPE_MEM);
   frame_add(p, fl1);
 
-  memset((void *) (va + 0x4000), 0, 0x1000);
+  memset((void *) (kernel_va_slot + 0x4000), 0, 0x1000);
 
-  fl2 = frame_new(pa + 0x4000, 0x1000, F_TYPE_MEM);
+  fl2 = frame_new(s + 0x4000, 0x1000, F_TYPE_MEM);
   frame_add(p, fl2);
 
-  map_l2((void *) va, pa + 0x4000, 0);
-  map_pages((void *) (va + 0x4000), pa, 0x1000, 0x5000, AP_RW_RO, true);
+  map_l2((void *) kernel_va_slot, s + 0x4000, 0);
+  map_pages((void *) (kernel_va_slot + 0x4000), s, 0x1000, 0x5000, AP_RW_RO, true);
 
   p->vspace = fl1;
 
@@ -171,8 +167,8 @@ init_proc(size_t start, size_t len)
   fl2->u.t_id = fl1->u.f_id;
 
   /* Temporary mappings. */	
-  fl1->u.va = va;
-  fl2->u.va = va + 0x4000;
+  fl1->u.va = kernel_va_slot;
+  fl2->u.va = kernel_va_slot + 0x4000;
 
   s = start;
   l = len;
@@ -189,7 +185,7 @@ init_proc(size_t start, size_t len)
       F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
   /* Remove the section mapping from the default address space. */
-  unmap_sections(ttb, KERNEL_ADDR - SECTION_SIZE, SECTION_SIZE);
+  unmap_pages(kernel_l2, kernel_va_slot, 0x5000);
 
   /* Fix mappings. */	
   fl1->u.va = 0x1000;
@@ -206,10 +202,10 @@ init_procs(size_t dtb, size_t dtb_len)
   size_t off;
   int i;
 
-  off = (size_t) &_binary_bundled_bin_start;
+  off = (size_t) &_binary_bundle_bin_start;
   i = 0;
 
-  p0 = init_proc(off, bundled[i].len);
+  p0 = init_proc(off, bundle[i].len);
   if (p0 == nil) {
     panic("Failed to create p0!\n");
   }
@@ -217,18 +213,18 @@ init_procs(size_t dtb, size_t dtb_len)
   f = frame_new(dtb, dtb_len, F_TYPE_FDT);
   frame_add(p0, f);
 
-  off += bundled[i].len;
+  off += bundle[i].len;
   i++;
 
   /* Create remaining procs. */
 
-  while(i < sizeof(bundled)/sizeof(bundled[0])) {
-    p = init_proc(off, bundled[i].len);
+  while(i < sizeof(bundle)/sizeof(bundle[0])) {
+    p = init_proc(off, bundle[i].len);
     if (p == nil) {
-      panic("Failed to create proc %s!\n", bundled[i].name);
+      panic("Failed to create proc %s!\n", bundle[i].name);
     }
 
-    off += bundled[i].len;
+    off += bundle[i].len;
     i++;
   }
 
@@ -359,10 +355,11 @@ fdt_remove_reserved(void *dtb)
 }
 
   void
-kmain(size_t kernel_start, 
+main(size_t kernel_start, 
     size_t dtb, 
     size_t dtb_len)
 {
+  size_t kernel_len;
   size_t s, l;
   proc_t p;
 
@@ -373,7 +370,8 @@ kmain(size_t kernel_start,
 
   fdt_get_memory((void *) dtb);
 
-  split_out_mem(kernel_start, (size_t) &_kernel_end - kernel_start);
+  kernel_len = (size_t) &_kernel_end - (size_t) &_kernel_start;
+  split_out_mem(kernel_start, kernel_len);
 
   fdt_remove_reserved((void *) dtb);
 
@@ -383,14 +381,16 @@ kmain(size_t kernel_start,
   kernel_l2 = (uint32_t *) s;
   memset(kernel_l2, 0, PAGE_SIZE);
 
-  map_l2(ttb, s, KERNEL_ADDR);
+  map_l2(ttb, s, kernel_start);
+
+  kernel_va_slot = kernel_start;
 
   s = kernel_start;
   l = PAGE_ALIGN((size_t) &_kernel_end - kernel_start);
 
-  map_pages(kernel_l2, s, KERNEL_ADDR, l, AP_RW_NO, true);
+  map_pages(kernel_l2, s, kernel_va_slot, l, AP_RW_NO, true);
 
-  kernel_va_slot = KERNEL_ADDR + l;
+  kernel_va_slot += l;
 
   map_devs((void *) dtb);
 
