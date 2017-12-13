@@ -16,9 +16,9 @@ PROC0_OBJECTS := \
 
 CLEAN += $(PROC0_OBJECTS)
 
-arm/proc0/proc0.elf: arm/proc0/linker.ld $(PROC0_OBJECTS)
+arm/proc0/proc0.elf: arm/user.ld $(PROC0_OBJECTS)
 	$(LD) $(LDFLAGS) \
-		-T arm/proc0/linker.ld \
+		-T arm/user.ld -Ttext $(USER_ADDR) \
 		-o $@ $(PROC0_OBJECTS) \
 		-lgcc
 

@@ -1,10 +1,10 @@
+ENTRY(_start)
 
 SECTIONS
 {
-	. = ALIGN(4096);
-	_text_start = .;
-	.text :
+	.text ALIGN(4096):
 	{
+    _text_start = .;
 		*(.text)
 		*(.text.*)
 		*(.rodata)
@@ -27,3 +27,4 @@ SECTIONS
 	. = ALIGN(4096);
 	_data_end = .;
 }
+

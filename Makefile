@@ -1,6 +1,7 @@
 .SUFFIXES: .c .S .h .o .a .elf .bin .list .umg .bo
 
 LOAD_ADDR ?= 0x82000000
+USER_ADDR ?= 0x00010000
 ARCH ?= arm
 CROSS ?= arm-linux-gnueabihf-
 
@@ -14,9 +15,9 @@ MKIMAGE = mkimage
 CFLAGS = \
          -std=c89 \
          -Wall \
-         -mcpu=cortex-a8 \
          -nostdinc -ffreestanding \
          -fno-stack-protector \
+         -DUSER_ADDR=$(USER_ADDR) \
          -Iinclude -I$(ARCH)/include 
 
 
@@ -24,13 +25,13 @@ LDFLAGS = -nostdlib -nodefaultlibs -static \
           -L/usr/lib/gcc/arm-linux-gnueabihf/7.2.0/ 
 
 
-all: $(ARCH).umg $(ARCH).list
-CLEAN += $(ARCH).umg $(ARCH).list
+all: $(ARCH)/kern.umg $(ARCH)/kern.list
+CLEAN += $(ARCH)/kern.umg $(ARCH)/kern.list
 
 
 include $(ARCH)/Makefile
 
-BUNDLE = arm/proc0 arm/uart
+BUNDLE = arm/proc0 
 
 include $(foreach b,$(BUNDLE),$b/Makefile)
 
@@ -49,9 +50,9 @@ OBJECTS := $(SRC_A:%.S=%.o) $(SRC_C:%.c=%.o)
 CLEAN += $(OBJECTS) bundle.bo
 CLEAN += $(ARCH).elf 
 
-$(ARCH).elf: $(ARCH)/kern/linker.ld bundle.bo $(OBJECTS)
+$(ARCH)/kern.elf: $(ARCH)/kernel.ld bundle.bo $(OBJECTS)
 	$(LD) $(LDFLAGS) \
-		-T $(ARCH)/kern/linker.ld -Ttext $(LOAD_ADDR) \
+		-T $(ARCH)/kernel.ld -Ttext $(LOAD_ADDR) \
 		-o $@ $(OBJECTS) bundle.bo \
 		-lgcc
 

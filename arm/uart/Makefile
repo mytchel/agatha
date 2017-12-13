@@ -16,9 +16,9 @@ UART_OBJECTS := \
 
 CLEAN += $(UART_OBJECTS)
 
-arm/uart/uart.elf: arm/uart/linker.ld $(UART_OBJECTS)
+arm/uart/uart.elf: arm/user.ld $(UART_OBJECTS)
 	$(LD) $(LDFLAGS) \
-		-T arm/uart/linker.ld \
+		-T arm/user.ld -Ttext $(USER_ADDR) \
 		-o $@ $(UART_OBJECTS) \
 		-lgcc
 

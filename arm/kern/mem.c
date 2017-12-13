@@ -57,14 +57,14 @@ vspace_swap(proc_t from, proc_t to, kframe_t f)
 	int
 mmu_switch(kframe_t vs)
 {
-	debug("switching to vspace 0x%h\n", vs->u.pa);
+  debug("switching to vspace 0x%h\n", vs->u.pa);
 
 	mmu_load_ttb((uint32_t *) vs->u.pa);
 	mmu_invalidate();
 
 	debug("ok\n");
 
-	return OK;
+  return OK;
 }
 
 	int
@@ -80,6 +80,9 @@ map_pages(uint32_t *l2, size_t pa, size_t va,
 		size_t len, int ap, bool cache)
 {
 	uint32_t tex, c, b, o;
+
+  debug("map pages from 0x%h to 0x%h in table at 0x%h\n",
+      pa, va, l2);
 
 	if (cache) {
 		tex = 7;

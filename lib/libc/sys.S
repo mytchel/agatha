@@ -2,7 +2,7 @@
 
 .section .text
 
-.global start
+.global _start
 .global raise
 .global panic
 
@@ -14,7 +14,7 @@
 .global frame_map
 
 
-start:
+_start:
 	bl main
 	b .
 

@@ -20,7 +20,7 @@ do
   ALIGNED=$(echo $SIZE | \
     awk "{print and((\$1 + $ALIGN - 1), compl($ALIGN-1))}")
 
-  echo "{ \"$B\", $ALIGNED },"  >> $LIST
+  echo "{ \"$(basename $D)\", $ALIGNED },"  >> $LIST
 
   dd of=$BIN if=$B obs=$ALIGN seek=$(($P / $ALIGN)) || exit
 

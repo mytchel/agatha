@@ -1,3 +1,5 @@
+CFLAGS += -mcpu=cortex-a8
+
 SRC_A := \
         arm/kern/vectors.S            \
         arm/kern/asm.S
@@ -7,6 +9,7 @@ SRC_C := \
         arm/kern/trap.c               \
         arm/kern/mem.c                \
         arm/kern/proc.c               \
+        arm/kern/dev.c                \
         arm/kern/uart.c               \
         kern/proc.c                   \
         kern/sys.c                    \

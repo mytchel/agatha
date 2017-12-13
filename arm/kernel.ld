@@ -30,11 +30,12 @@ SECTIONS
 	. = . + 4096;
 	
 	_ex_stack_top = .;
-	_kernel_end = .;
 	
 	.bundle ALIGN(4096) :
 	{
 		*(.bundle)
 	}
+	
+  _kernel_end = .;
 }
 
