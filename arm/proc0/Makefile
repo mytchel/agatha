@@ -7,6 +7,10 @@ PROC0_SRC_A := \
 
 PROC0_SRC_C := \
   arm/proc0/main.c              \
+  lib/libfdt/fdt.c              \
+  lib/libstring/conv.c          \
+  lib/libstring/scanf.c         \
+  lib/libstring/string.c        \
   lib/libc/util.c
 				
 

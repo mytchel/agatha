@@ -104,7 +104,7 @@ init_proc0(void)
   f = frame_new(s, l, F_TYPE_MEM);
   frame_add(p, f);
   frame_map(fl2, f, proc0_kernel_info_va, 
-      F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
+      F_MAP_TYPE_PAGE|F_MAP_READ);
 
   s = (size_t) &_binary_arm_proc0_proc0_bin_start;
   l = PAGE_ALIGN(&_binary_arm_proc0_proc0_bin_end)

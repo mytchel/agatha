@@ -1,5 +1,6 @@
 *.o
 *.bo
+*.swp
 *.elf
 *.bin
 *.list

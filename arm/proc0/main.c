@@ -3,6 +3,7 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <fdt.h>
 
 size_t
 find_free(struct frame *f_l2, size_t len)
@@ -32,13 +33,31 @@ too_small:
   return nil;
 }
 
+static bool
+memory_cb(void *dtb, void *node)
+{
+  size_t start, len;
+  int f_id;
+
+  if (!fdt_node_regs(dtb, node, 0, &start, &len)) {
+    return false;
+  }
+
+  f_id = frame_create(start, len, F_TYPE_MEM);
+  if (f_id < 0) {
+    return false;
+  }
+  
+ return true;
+}
+
 void
 main(struct kernel_info *kinfo)
 {
   bool f_l1 = false, f_l2 = false;
 	struct frame f, l1, l2;
 	int i, count, f_id;
-  size_t va;
+  void *va;
 
   count = frame_count();
   for (i = 0; i < count && frame_info_index(&f, i) == OK; i++) {
@@ -67,10 +86,12 @@ main(struct kernel_info *kinfo)
     return;
   }
   
-  va = find_free(&l2, kinfo->dtb_len); 
+  va = (void *) find_free(&l2, kinfo->dtb_len); 
 
-  if (!frame_map(l2.f_id, f_id, (void *) va, F_MAP_TYPE_PAGE|F_MAP_READ))
+  if (frame_map(l2.f_id, f_id, va, F_MAP_TYPE_PAGE|F_MAP_READ) != OK)
     return;
+
+  fdt_find_node_device_type(va, "memory", &memory_cb);
 
   while (true)
     ;

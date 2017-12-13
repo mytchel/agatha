@@ -138,10 +138,19 @@ size_t
 sys_frame_map(int t_id, int f_id, 
     void *va, int flags)
 {
+  kframe_t t, f;
+
 	debug("%i called sys frame_map with %i, %i, 0x%h, %i\n", 
 		up->pid, t_id, f_id, va, flags);
-	
-	return ERR;
+
+  t = frame_find_fid(up, t_id);  
+  f = frame_find_fid(up, f_id);
+
+  if (t == nil || f == nil) {
+    return ERR;
+  }
+
+  return frame_map(t, f, (size_t) va, flags);
 }
 
 size_t
