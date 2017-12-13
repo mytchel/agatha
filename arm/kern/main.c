@@ -8,11 +8,107 @@ ttb[4096]__attribute__((__aligned__(0x4000))) = { 0 };
 uint32_t
 l2[256]__attribute__((__aligned__(0x1000))) = { 0 };
 
+static uint32_t
+proc0_l1[4096]__attribute__((__aligned__(0x4000)));
+
+static uint32_t
+proc0_l2[256]__attribute__((__aligned__(0x1000))) = { 0 };
+
+static uint32_t
+proc0_stack[4096]__attribute__((__aligned__(0x1000))) = { 0 };
+
+extern uint32_t *_binary_arm_proc0_proc0_bin_start;
+extern uint32_t *_binary_arm_proc0_proc0_bin_end;
+
 extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
 
 uint32_t *kernel_l2;
 size_t kernel_va_slot;
+
+  static void
+proc0_start(void)
+{
+  label_t u = {0};
+
+  u.sp = (size_t) USER_ADDR;
+  u.pc = (size_t) USER_ADDR;
+
+  debug("proc %i drop to user at 0x%h 0x%h!\n", up->pid, u.pc, u.sp);
+  drop_to_user(&u, up->kstack, KSTACK_LEN);
+}
+
+  static proc_t
+init_proc0(void)
+{
+  kframe_t f, fl1, fl2;
+  size_t s, l;
+  proc_t p;
+
+  debug("create proc 0\n");
+
+  p = proc_new();
+  if (p == nil) {
+    panic("Failed to create proc!\n");
+  }
+
+  func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
+      (size_t) &proc0_start);
+
+  memcpy(proc0_l1,
+      ttb, 
+      0x4000);
+
+  fl1 = frame_new((size_t) proc0_l1, sizeof(proc0_l1), F_TYPE_MEM);
+  frame_add(p, fl1);
+
+  fl2 = frame_new((size_t) proc0_l2, sizeof(proc0_l2), F_TYPE_MEM);
+  frame_add(p, fl2);
+
+  fl1->u.flags = F_MAP_TYPE_TABLE_L1|F_MAP_READ;
+  fl1->u.t_va = 0;
+  fl1->u.t_id = fl1->u.f_id;
+
+  fl2->u.flags = F_MAP_TYPE_TABLE_L2|F_MAP_READ;
+  fl2->u.t_va = 0;
+  fl2->u.t_id = fl1->u.f_id;
+ 
+  /* Temporary va->pa mappings. */ 
+  fl1->u.va = fl1->u.pa;
+  fl2->u.va = fl2->u.pa;
+
+  map_l2(proc0_l1, (size_t) proc0_l2, 0);
+
+  map_pages(proc0_l2, fl1->u.pa, 0x1000, 
+      fl1->u.len, AP_RW_RO, true);
+
+  map_pages(proc0_l2, fl2->u.pa, 0x1000 + fl1->u.len, 
+      fl2->u.len, AP_RW_RO, true);
+
+  p->vspace = fl1;
+
+  s = (size_t) &_binary_arm_proc0_proc0_bin_start;
+  l = PAGE_ALIGN(&_binary_arm_proc0_proc0_bin_end)
+    - s;
+
+  f = frame_new(s, l, F_TYPE_MEM);
+  frame_add(p, f);
+  frame_map(fl2, f, USER_ADDR, 
+      F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
+
+  s = (size_t) proc0_stack;
+  l = sizeof(proc0_stack);
+
+  f = frame_new(s, l, F_TYPE_MEM);
+  frame_add(p, f);
+  frame_map(fl2, f, USER_ADDR - l,
+      F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
+
+  fl1->u.va = 0x1000;
+  fl2->u.va = 0x1000 + fl1->u.len;
+
+  return p;
+}
 
   void
 main(size_t kernel_start, 
@@ -30,6 +126,7 @@ main(size_t kernel_start,
   fdt_get_memory((void *) dtb);
 
   kernel_len = PAGE_ALIGN((size_t) &_kernel_end - (size_t) &_kernel_start);
+
   split_out_mem(kernel_start, kernel_len);
 
   map_l2(ttb, (size_t) l2, kernel_start);
@@ -50,12 +147,7 @@ main(size_t kernel_start,
 
   init_devs();
 
-  debug("init procs\n");
-
-  p0 = init_procs();
-
-  debug("give proc0 remaining ram\n");
-  give_remaining_ram(p0);
+  p0 = init_proc0();
 
   debug("start!\n");
 

@@ -25,7 +25,8 @@ SECTIONS
 		*(.bss.*)
 		_kernel_bss_end = .;
 	}
-	. = ALIGN(4096);
+
+  . = ALIGN(4096);
 
 	. = . + 4096;
 	
@@ -36,6 +37,7 @@ SECTIONS
 		*(.bundle)
 	}
 	
+  . = ALIGN(4096);
   _kernel_end = .;
 }
 

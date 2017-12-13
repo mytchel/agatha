@@ -20,6 +20,5 @@ SRC_C := \
         lib/libfdt/fdt.c              \
         lib/libc/util.c
 
-
-arm/kern/main.o: bundle.list
+PROC0 = arm/proc0
 

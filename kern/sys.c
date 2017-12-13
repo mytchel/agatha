@@ -142,7 +142,7 @@ sys_frame_allow(int pid_allowed_to_map)
 size_t
 sys_frame_count(void)
 {
-	debug("%i called sys frame_count\n", up->pid);
+	debug("%i called sys frame_count, getting %i\n", up->pid, up->frame_count);
 	
 	return up->frame_count;
 }
