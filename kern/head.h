@@ -144,3 +144,5 @@ mmu_switch(kframe_t f);
 
 extern proc_t up;
 
+extern struct kernel_info kernel_info;
+

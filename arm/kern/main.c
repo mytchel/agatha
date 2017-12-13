@@ -1,18 +1,21 @@
 #include "../../kern/head.h"
 #include "fns.h"
-#include <fdt.h>
+#include "trap.h"
+
+struct kernel_info
+kernel_info __attribute__((__aligned__(0x1000))) = { 0 };
 
 uint32_t
 ttb[4096]__attribute__((__aligned__(0x4000))) = { 0 };
 
 uint32_t
-l2[256]__attribute__((__aligned__(0x1000))) = { 0 };
+l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 
 static uint32_t
 proc0_l1[4096]__attribute__((__aligned__(0x4000)));
 
 static uint32_t
-proc0_l2[256]__attribute__((__aligned__(0x1000))) = { 0 };
+proc0_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 
 static uint32_t
 proc0_stack[4096]__attribute__((__aligned__(0x1000))) = { 0 };
@@ -23,18 +26,22 @@ extern uint32_t *_binary_arm_proc0_proc0_bin_end;
 extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
 
-uint32_t *kernel_l2;
 size_t kernel_va_slot;
+size_t proc0_kernel_info_va;
 
   static void
 proc0_start(void)
 {
   label_t u = {0};
 
-  u.sp = (size_t) USER_ADDR;
-  u.pc = (size_t) USER_ADDR;
+  u.psr = MODE_USR;
+  u.sp = USER_ADDR;
+  u.pc = USER_ADDR;
+  u.regs[0] = proc0_kernel_info_va;
 
-  debug("proc %i drop to user at 0x%h 0x%h!\n", up->pid, u.pc, u.sp);
+  debug("proc %i drop to user at 0x%h 0x%h kernel at 0x%h!\n", 
+      up->pid, u.pc, u.sp, up->kstack + KSTACK_LEN);
+
   drop_to_user(&u, up->kstack, KSTACK_LEN);
 }
 
@@ -82,10 +89,22 @@ init_proc0(void)
   map_pages(proc0_l2, fl1->u.pa, 0x1000, 
       fl1->u.len, AP_RW_RO, true);
 
-  map_pages(proc0_l2, fl2->u.pa, 0x1000 + fl1->u.len, 
+  map_pages(proc0_l2, fl2->u.pa, 
+      0x1000 + fl1->u.len, 
       fl2->u.len, AP_RW_RO, true);
 
   p->vspace = fl1;
+
+  s = (size_t) &kernel_info;
+  l = PAGE_ALIGN(sizeof(kernel_info));
+
+  proc0_kernel_info_va = 
+      0x1000 + fl1->u.len + fl2->u.len, 
+
+  f = frame_new(s, l, F_TYPE_MEM);
+  frame_add(p, f);
+  frame_map(fl2, f, proc0_kernel_info_va, 
+      F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
   s = (size_t) &_binary_arm_proc0_proc0_bin_start;
   l = PAGE_ALIGN(&_binary_arm_proc0_proc0_bin_end)
@@ -123,11 +142,13 @@ main(size_t kernel_start,
 
   debug("kernel_start = 0x%h\n", kernel_start);
 
-  fdt_get_memory((void *) dtb);
+  kernel_len = PAGE_ALIGN(&_kernel_end) - kernel_start;
 
-  kernel_len = PAGE_ALIGN((size_t) &_kernel_end - (size_t) &_kernel_start);
+  kernel_info.kernel_start = kernel_start;
+  kernel_info.kernel_len = kernel_len;
 
-  split_out_mem(kernel_start, kernel_len);
+  kernel_info.dtb_start = dtb;
+  kernel_info.dtb_len = dtb_len;
 
   map_l2(ttb, (size_t) l2, kernel_start);
 

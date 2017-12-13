@@ -30,6 +30,7 @@ proc_start(void)
   }
 
   r = (uint32_t *) m;
+  u.psr = MODE_USR;
   u.pc = r[0];
   u.sp = r[1];
 

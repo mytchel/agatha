@@ -2,13 +2,19 @@ int
 proc_new(int f_id);
 
 int
+frame_create(size_t start, size_t len, int type);
+
+int
 frame_map(int t_id, int f_id, void *va, int flags);
 
 int
 frame_count(void);
 
 int
-frame_info(int i, struct frame *f);
+frame_info_index(struct frame *f, int i);
+
+int
+frame_info(struct frame *f, int f_id);
 
 int
 vspace_swap(int pid, int f_id);

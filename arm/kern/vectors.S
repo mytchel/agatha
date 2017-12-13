@@ -88,9 +88,9 @@
 
 
 _start:
-	mov r7, r6
-	mov r8, r2
-	mov r9, r3
+	mov r9,  r6
+	mov r10, r2
+	mov r11, r3
 
 	ldr r0, = _kernel_bss_start
 	ldr r1, = _kernel_bss_end
@@ -121,9 +121,9 @@ _start:
 	
 	bl vector_table_init
 
-	mov r0, r7
-	mov r1, r8
-	mov r2, r9
+	mov r0, r9
+	mov r1, r10
+	mov r2, r11
 
 # void main(kernel_start, fdt_start, fdt_len);
 
@@ -169,7 +169,7 @@ swi_ex:
 	mov r11, lr
 	
 	cpsid if, #MODE_SVC
-	
+
 	ldr lr, =systab
 	add r12, lr, r12, lsl #2
 	ldr lr, =1f

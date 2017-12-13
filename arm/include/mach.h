@@ -43,7 +43,6 @@
 
 #define F_TYPE_IO    1
 #define F_TYPE_MEM   2
-#define F_TYPE_FDT   3
 
 #define F_MAP_TYPE_PAGE          (0<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_SECTION       (1<<F_MAP_TYPE_SHIFT)
@@ -57,4 +56,16 @@ struct label {
   uint32_t regs[13];
   uint32_t pc;
 } __attribute__((__packed__));
+
+struct kernel_info {
+  size_t kernel_start;
+  size_t kernel_len;
+
+  size_t dtb_start;
+  size_t dtb_len;
+
+  size_t intc_phandle;
+
+  char boot_args[256];
+};
 

@@ -59,15 +59,6 @@ map_devs(void *dtb);
 void
 init_devs(void);
 
-size_t
-get_ram(size_t size, size_t align);
-
-void
-split_out_mem(size_t start, size_t len);
-
-void
-fdt_get_memory(void *dtb);
-
 extern uint32_t ttb[], l2[];
 extern size_t kernel_va_slot;
 

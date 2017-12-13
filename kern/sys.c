@@ -51,8 +51,12 @@ size_t
 sys_send(int pid, uint8_t *m)
 {
 	proc_t p;
+
+  debug("send debug 0x%h, 0x%h\n", pid, m);
+
+  panic("stop\n");
 	
-	debug("%i send to %i\n", up->pid, pid);
+	debug("%i send to 0x%h\n", up->pid, pid);
 	
 	p = find_proc(pid);
 	if (p == nil) {
@@ -87,6 +91,23 @@ sys_proc_new(int f_id)
         (size_t) &proc_start);
 
 	return p->pid;
+}
+
+size_t
+sys_frame_create(size_t start, size_t len, int type)
+{
+  kframe_t f;
+
+	debug("%i called sys frame_create with 0x%h, 0x%h, %i\n", up->pid, start, len, type);
+
+  f = frame_new(start, PAGE_ALIGN(len), type);
+  if (f == nil) {
+    return ERR;
+  }
+
+  frame_add(up, f);
+
+	return f->u.f_id;
 }
 
 size_t
@@ -148,13 +169,30 @@ sys_frame_count(void)
 }
 
 size_t
-sys_frame_info(int ind, struct frame *f)
+sys_frame_info_index(struct frame *f, int ind)
 {
   kframe_t k;
 
-	debug("%i called sys frame_info with %i, 0x%h\n", up->pid, ind, f);
+	debug("%i called sys frame_info_index with %i, 0x%h\n", up->pid, ind, f);
 
   k = frame_find_ind(up, ind);
+  if (k == nil) {
+    return ERR;
+  }
+
+  memcpy(f, &k->u, sizeof(*f));
+
+	return OK;
+}
+
+size_t
+sys_frame_info(struct frame *f, int f_id)
+{
+  kframe_t k;
+
+	debug("%i called sys frame_info with %i, 0x%h\n", up->pid, f_id, f);
+
+  k = frame_find_fid(up, f_id);
   if (k == nil) {
     return ERR;
   }
@@ -168,6 +206,7 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_SEND]             = (void *) &sys_send,
 	[SYSCALL_RECV]             = (void *) &sys_recv,
 	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
+	[SYSCALL_FRAME_CREATE]     = (void *) &sys_frame_create,
 	[SYSCALL_FRAME_SPLIT]      = (void *) &sys_frame_split,
 	[SYSCALL_FRAME_MERGE]      = (void *) &sys_frame_merge,
 	[SYSCALL_FRAME_GIVE]       = (void *) &sys_frame_give,
@@ -175,6 +214,7 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_FRAME_UNMAP]      = (void *) &sys_frame_unmap,
 	[SYSCALL_FRAME_ALLOW]      = (void *) &sys_frame_allow,
 	[SYSCALL_FRAME_COUNT]      = (void *) &sys_frame_count,
+	[SYSCALL_FRAME_INFO_INDEX] = (void *) &sys_frame_info_index,
 	[SYSCALL_FRAME_INFO]       = (void *) &sys_frame_info,
 };
 	

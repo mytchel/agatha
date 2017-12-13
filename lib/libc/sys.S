@@ -9,7 +9,9 @@
 .global send
 .global recv
 .global proc_new
+.global frame_create
 .global frame_count
+.global frame_info_index
 .global frame_info
 .global frame_map
 
@@ -48,6 +50,13 @@ proc_new:
 	pop {r12, pc}
 
 
+frame_create:
+	push {r12, lr}
+	mov r12, #SYSCALL_FRAME_CREATE
+	svc 0
+	pop {r12, pc}
+
+
 frame_count:
 	push {r12, lr}
 	mov r12, #SYSCALL_FRAME_COUNT
@@ -55,6 +64,13 @@ frame_count:
 	pop {r12, pc}
 	
 	
+frame_info_index:
+	push {r12, lr}
+	mov r12, #SYSCALL_FRAME_INFO_INDEX
+	svc 0
+	pop {r12, pc}
+
+
 frame_info:
 	push {r12, lr}
 	mov r12, #SYSCALL_FRAME_INFO
