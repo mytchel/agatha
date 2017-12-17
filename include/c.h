@@ -1,5 +1,5 @@
 int
-proc_new(int f_id);
+proc_new(void);
 
 int
 frame_create(size_t start, size_t len, int type);
@@ -15,6 +15,9 @@ frame_info_index(struct frame *f, int i);
 
 int
 frame_info(struct frame *f, int f_id);
+
+int
+frame_split(int f_id, size_t offset);
 
 int
 vspace_swap(int pid, int f_id);

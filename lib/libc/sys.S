@@ -14,6 +14,7 @@
 .global frame_info_index
 .global frame_info
 .global frame_map
+.global frame_split
 
 
 _start:
@@ -83,5 +84,13 @@ frame_map:
 	mov r12, #SYSCALL_FRAME_MAP
 	svc 0
 	pop {r12, pc}
+
+
+frame_split:
+	push {r12, lr}
+	mov r12, #SYSCALL_FRAME_SPLIT
+	svc 0
+	pop {r12, pc}
+
 
 

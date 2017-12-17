@@ -7,6 +7,8 @@ PROC0_SRC_A := \
 
 PROC0_SRC_C := \
   arm/proc0/main.c              \
+  arm/proc0/mem.c               \
+  arm/proc0/proc.c              \
   lib/libfdt/fdt.c              \
   lib/libstring/conv.c          \
   lib/libstring/scanf.c         \
@@ -20,9 +22,20 @@ PROC0_OBJECTS := \
 
 CLEAN += $(PROC0_OBJECTS)
 
-arm/proc0/proc0.elf: arm/user.ld $(PROC0_OBJECTS)
+BUNDLE = arm/uart
+
+include $(foreach b,$(BUNDLE),$b/Makefile)
+
+arm/proc0/bundle.bin arm/proc0/bundle.list: \
+  $(foreach b,$(BUNDLE),$b/$(notdir $b).elf) \
+  $(foreach b,$(BUNDLE),$b/$(notdir $b).bin)
+	sh bundle.sh arm/proc0/bundle.bin arm/proc0/bundle.list $(BUNDLE)
+
+arm/proc0/bundle.bo: arm/proc0/bundle.bin
+
+arm/proc0/proc0.elf: arm/user.ld arm/proc0/bundle.bo $(PROC0_OBJECTS)
 	$(LD) $(LDFLAGS) \
 		-T arm/user.ld -Ttext $(USER_ADDR) \
-		-o $@ $(PROC0_OBJECTS) \
+		-o $@ $(PROC0_OBJECTS) arm/proc0/bundle.bo \
 		-lgcc
 
