@@ -26,18 +26,19 @@ puts(struct uart_regs *uart, const char *c)
     putc(uart, *c++);
 }
 
-
-int
+void
 main(void)
 {
   struct uart_regs *uart;
   uint8_t m[MESSAGE_LEN];
   int p;
 
-  while (true)
-      ;
+  while (true) {
+    send(0, m);
+    recv(m);
+  }
 
-  puts(uart, (char *) m);
+  puts(uart, "Hello, World!\n");
 
   while (true) {
     p = recv(m);
@@ -47,7 +48,5 @@ main(void)
 
     send(p, m);
   }
-
-  return OK;
 }
 

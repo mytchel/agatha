@@ -37,7 +37,8 @@ CLEAN += $(OBJECTS) $(PROC0)/proc0.bin $(PROC0)/proc0.bo
 CLEAN += $(ARCH)/kern.elf 
 
 $(ARCH)/kern.elf: $(ARCH)/kernel.ld $(PROC0)/proc0.bo $(OBJECTS)
-	$(LD) $(LDFLAGS) \
+	@echo LD $@
+	@$(LD) $(LDFLAGS) \
 		-T $(ARCH)/kernel.ld -Ttext $(LOAD_ADDR) \
 		-o $@ $(OBJECTS) $(PROC0)/proc0.bo \
 		-lgcc
@@ -45,26 +46,33 @@ $(ARCH)/kern.elf: $(ARCH)/kernel.ld $(PROC0)/proc0.bo $(OBJECTS)
 
 .PHONY: clean
 clean:
-	rm -f $(CLEAN)
+	@echo CLEAN
+	@rm -f $(CLEAN)
 
 
 .c.o .S.o:
-	$(CC) $(CFLAGS) -c $< -o $@
+	@echo CC $@
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 .o.a:
-	$(AR) rcs $@ $<
+	@echo AR $@
+	@$(AR) rcs $@ $<
 
 .elf.bin:
-	$(OBJCOPY) -Obinary $< $@
+	@echo OBJCOPY $@
+	@$(OBJCOPY) -Obinary $< $@
 
 .elf.list:
-	$(OBJDUMP) -S $< > $@
+	@echo OBJDUMP $@
+	@$(OBJDUMP) -S $< > $@
 
 .bin.umg: 
-	$(MKIMAGE) -T kernel -A arm -C none -a $(LOAD_ADDR) -d $< $@
+	@echo MKIMAGE $@
+	@$(MKIMAGE) -T kernel -A arm -C none -a $(LOAD_ADDR) -d $< $@
 
 .bin.bo: 
-	$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
+	@echo OBJCOPY $@
+	@$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
 		--rename-section .data=.bundle \
 		$< $@
 

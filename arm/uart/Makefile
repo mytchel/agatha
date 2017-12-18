@@ -17,7 +17,8 @@ UART_OBJECTS := \
 CLEAN += $(UART_OBJECTS)
 
 arm/uart/uart.elf: arm/user.ld $(UART_OBJECTS)
-	$(LD) $(LDFLAGS) \
+	@echo LD $@
+	@$(LD) $(LDFLAGS) \
 		-T arm/user.ld -Ttext $(USER_ADDR) \
 		-o $@ $(UART_OBJECTS) \
 		-lgcc

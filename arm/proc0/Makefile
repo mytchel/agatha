@@ -29,12 +29,14 @@ include $(foreach b,$(BUNDLE),$b/Makefile)
 bundle.bin bundle.list: \
   $(foreach b,$(BUNDLE),$b/$(notdir $b).elf) \
   $(foreach b,$(BUNDLE),$b/$(notdir $b).bin)
-	sh bundle.sh bundle.bin bundle.list $(BUNDLE)
+	@echo Make Bundle
+	@sh bundle.sh bundle.bin bundle.list $(BUNDLE)
 
 bundle.bo: bundle.bin
 
 arm/proc0/proc0.elf: arm/user.ld bundle.bo $(PROC0_OBJECTS)
-	$(LD) $(LDFLAGS) \
+	@echo LD $@
+	@$(LD) $(LDFLAGS) \
 		-T arm/user.ld -Ttext $(USER_ADDR) \
 		-o $@ $(PROC0_OBJECTS) bundle.bo \
 		-lgcc
