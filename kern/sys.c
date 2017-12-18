@@ -5,25 +5,22 @@
 send(proc_t p, uint8_t *m)
 {
 	debug("%i ksend to %i\n", up->pid, p->pid);
-	
-	if (p->state == PROC_dead) {
+
+  if (p->state == PROC_dead) {
 		debug("%i is dead\n", p->pid);
 		return ERR;
 	} else if (p->m_from != -1) {
     debug("proc holding\n");
 		return ERR;
 	} else {
-    debug("copy\n");
 		p->m_from = up->pid;
 		memcpy(p->m, m, MESSAGE_LEN);
 		
 		if (p->state == PROC_recv) {
-      debug("wake\n");
 			p->state = PROC_ready;
 			schedule(p);
 		}
 
-    debug("done\n");    
 		return OK;
 	}
 }
@@ -34,12 +31,13 @@ recv(uint8_t *m)
 	int pid;
 	
 	debug("%i krecv\n", up->pid);
-	
-	while (true) {
+
+  while (true) {
 		pid = up->m_from;
 		if (pid != -1) {
 			memcpy(m, up->m, MESSAGE_LEN);
 			up->m_from = -1;
+
 			return pid;
 			
 		} else {
@@ -150,6 +148,8 @@ sys_frame_split(int f_id, size_t offset)
 sys_frame_merge(int f1, int f2)
 {
   debug("%i called sys frame_merge with %i, %i\n", up->pid, f1, f2);
+
+  schedule(nil);
 
   return ERR;
 }

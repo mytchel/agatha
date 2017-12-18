@@ -44,6 +44,22 @@ too_small:
   return nil;
 }
 
+size_t
+va_to_pa(size_t va)
+{
+  struct frame f;
+  int i, c;
+
+  c = frame_count();
+  for (i = 0; i < c && frame_info_index(&f, i) == OK; i++) {
+    if (f.v_flags != 0 && f.v_va <= va && va < f.v_va + f.len) {
+      return f.pa + va - f.v_va;
+    }
+  } 
+
+  return nil;
+}
+
 void *
 map_frame(int f_id, int flags)
 {

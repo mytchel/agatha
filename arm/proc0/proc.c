@@ -16,15 +16,14 @@ struct bundle_proc bundled_procs[] = {
 #include "bundle.list"
 };
 
-void *_binary_arm_proc0_bundle_start;
+extern void *_binary_bundle_bin_start;
 
 static bool
 init_bundled_proc(char *name,
     size_t start, size_t len)
 {
+  uint32_t m[MESSAGE_LEN/sizeof(uint32_t)] = { 0 };
   int f_l1, f_l2, f_user, f_stack;
-  uint8_t m[MESSAGE_LEN];
-  uint32_t *m_start;
   int pid;
 
   f_l1 = get_mem_frame(0x4000, 0x4000);
@@ -95,15 +94,14 @@ init_bundled_proc(char *name,
     return false;
   }
 
-  m_start = (uint32_t *) m;
-  m_start[0] = 0x10000;
-  m_start[1] = 0x10000;
+  m[0] = 0x10000;
+  m[1] = 0x10000;
 
-  if (send(pid, m) != OK) {
+  if (send(pid, (uint8_t *) m) != OK) {
     return false;
   }
 
-  return false;
+  return true;
 }
 
 bool
@@ -112,7 +110,10 @@ init_procs(void)
   size_t off;
   int i;
 
-  off = (size_t) &_binary_arm_proc0_bundle_start;
+  off = va_to_pa((size_t) &_binary_bundle_bin_start);
+  if (off == nil) {
+    return false;
+  }
 
   for (i = 0; 
       i < sizeof(bundled_procs)/sizeof(bundled_procs[0]);

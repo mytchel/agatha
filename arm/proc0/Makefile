@@ -26,16 +26,16 @@ BUNDLE = arm/uart
 
 include $(foreach b,$(BUNDLE),$b/Makefile)
 
-arm/proc0/bundle.bin arm/proc0/bundle.list: \
+bundle.bin bundle.list: \
   $(foreach b,$(BUNDLE),$b/$(notdir $b).elf) \
   $(foreach b,$(BUNDLE),$b/$(notdir $b).bin)
-	sh bundle.sh arm/proc0/bundle.bin arm/proc0/bundle.list $(BUNDLE)
+	sh bundle.sh bundle.bin bundle.list $(BUNDLE)
 
-arm/proc0/bundle.bo: arm/proc0/bundle.bin
+bundle.bo: bundle.bin
 
-arm/proc0/proc0.elf: arm/user.ld arm/proc0/bundle.bo $(PROC0_OBJECTS)
+arm/proc0/proc0.elf: arm/user.ld bundle.bo $(PROC0_OBJECTS)
 	$(LD) $(LDFLAGS) \
 		-T arm/user.ld -Ttext $(USER_ADDR) \
-		-o $@ $(PROC0_OBJECTS) arm/proc0/bundle.bo \
+		-o $@ $(PROC0_OBJECTS) bundle.bo \
 		-lgcc
 

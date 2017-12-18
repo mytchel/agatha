@@ -11,10 +11,12 @@ frames_swap(proc_t from, proc_t to, int f_id)
 		nn = n->next;
 
 		if (n->u.t_id == f_id || n->u.v_id == f_id) {
+      debug("give frame %i\n", n->u.f_id);
 			frame_remove(from, n);
 			frame_add(to, n);
 
       if (n->u.t_flags != F_TABLE_NO) {
+        debug("frame is table.\n");
         frames_swap(from, to, n->u.f_id);
       }
     }
@@ -35,6 +37,7 @@ vspace_give(proc_t from, proc_t to, kframe_t f)
     return ERR;
   }
 
+  debug("give frame %i\n", f->u.f_id);
   frame_remove(from, f);
   frame_add(to, f);
 
@@ -48,12 +51,8 @@ vspace_give(proc_t from, proc_t to, kframe_t f)
   int
 mmu_switch(kframe_t vs)
 {
-  debug("switching to vspace 0x%h\n", vs->u.pa);
-
   mmu_load_ttb((uint32_t *) vs->u.pa);
   mmu_invalidate();
-
-  debug("ok\n");
 
   return OK;
 }
@@ -217,7 +216,6 @@ frame_map_pages(kframe_t t, kframe_t f, size_t va, int flags)
   l2 = (uint32_t *) t->u.v_va;
   r = map_pages(l2, f->u.pa, va, f->u.len, ap, false);
   if (r != OK) {
-    debug("map_pages failed\n");
     return r;
   }
 
@@ -225,7 +223,6 @@ frame_map_pages(kframe_t t, kframe_t f, size_t va, int flags)
   f->u.v_va = va;
   f->u.v_flags = fl;
 
-  debug("map_pages good\n");
   return OK;
 }
 

@@ -5,9 +5,9 @@
 #include <stdarg.h>
 #include <string.h>
 
-#define MAX_PROCS     512
-#define MAX_FRAMES   2048
-#define KSTACK_LEN    512
+#define MAX_PROCS      16
+#define MAX_FRAMES    512
+#define KSTACK_LEN   1024
 
 typedef struct kframe *kframe_t;
 
@@ -37,12 +37,12 @@ struct proc {
 	int m_from;
 	uint8_t m[MESSAGE_LEN];
 	
-	uint8_t kstack[KSTACK_LEN];
-	
 	size_t frame_count;
 	
 	kframe_t frames;
 	kframe_t vspace;
+	
+  uint8_t kstack[KSTACK_LEN];
 };
 
 /* vspace should be the barest possible. */
