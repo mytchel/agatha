@@ -49,6 +49,10 @@
 #define F_MAP_TYPE_TABLE_L1      (2<<F_MAP_TYPE_SHIFT)
 #define F_MAP_TYPE_TABLE_L2      (3<<F_MAP_TYPE_SHIFT)
 
+#define F_TABLE_NO           (0<<F_TABLE_TYPE_SHIFT)
+#define F_TABLE_L1           (1<<F_TABLE_TYPE_SHIFT)
+#define F_TABLE_L2           (2<<F_TABLE_TYPE_SHIFT) 
+
 typedef struct label label_t;
 
 struct label {

@@ -8,6 +8,10 @@
 #define F_MAP_TYPE_SHIFT       2
 #define F_MAP_TYPE_MASK        (0xf<<F_MAP_TYPE_SHIFT)
 
+#define F_TABLE_MAPPED     1
+#define F_TABLE_TYPE_SHIFT 1
+#define F_TABLE_TYPE_MASK  (0xf<<F_TABLE_TYPE_SHIFT)
+
 typedef struct frame *frame_t;
 
 struct frame {
@@ -16,12 +20,12 @@ struct frame {
 	int type;
 	size_t pa, len;
 	
-	/* f_id of table if mapped to one. */
 	int t_id;
   size_t t_va;
-	size_t va;
-	
-  /* Mapping flags. */	
-	int flags;
+	int t_flags;
+
+	int v_id;
+	size_t v_va;
+	int v_flags;
 };
 

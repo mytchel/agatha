@@ -14,7 +14,9 @@
 .global frame_info_index
 .global frame_info
 .global frame_map
+.global frame_table
 .global frame_split
+.global frame_merge
 
 
 _start:
@@ -86,6 +88,13 @@ frame_map:
 	pop {r12, pc}
 
 
+frame_table:
+	push {r12, lr}
+	mov r12, #SYSCALL_FRAME_TABLE
+	svc 0
+	pop {r12, pc}
+
+
 frame_split:
 	push {r12, lr}
 	mov r12, #SYSCALL_FRAME_SPLIT
@@ -93,4 +102,9 @@ frame_split:
 	pop {r12, pc}
 
 
+frame_merge:
+	push {r12, lr}
+	mov r12, #SYSCALL_FRAME_MERGE
+	svc 0
+	pop {r12, pc}
 

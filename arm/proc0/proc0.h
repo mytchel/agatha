@@ -16,3 +16,5 @@ init_procs(void);
 extern struct kernel_info *k_info;
 extern void *dtb;
 
+extern struct frame l1, l2;
+

@@ -72,28 +72,19 @@ init_proc0(void)
   fl2 = frame_new((size_t) proc0_l2, sizeof(proc0_l2), F_TYPE_MEM);
   frame_add(p, fl2);
 
-  fl1->u.flags = F_MAP_TYPE_TABLE_L1|F_MAP_READ;
+  fl1->u.t_flags = F_TABLE_L1|F_TABLE_MAPPED;
+  fl1->u.v_flags = F_MAP_TYPE_TABLE_L1|F_MAP_READ;
   fl1->u.t_va = 0;
-  fl1->u.t_id = fl1->u.f_id;
+  fl1->u.v_id = fl1->u.f_id;
 
-  fl2->u.flags = F_MAP_TYPE_TABLE_L2|F_MAP_READ;
+  fl2->u.t_flags = F_TABLE_L2|F_TABLE_MAPPED;
+  fl2->u.v_flags = F_MAP_TYPE_TABLE_L2|F_MAP_READ;
   fl2->u.t_va = 0;
-  fl2->u.t_id = fl1->u.f_id;
+  fl2->u.v_id = fl1->u.f_id;
  
   /* Temporary va->pa mappings. */ 
-  fl1->u.va = fl1->u.pa;
-  fl2->u.va = fl2->u.pa;
-
-  map_l2(proc0_l1, (size_t) proc0_l2, 0);
-
-  map_pages(proc0_l2, fl1->u.pa, 0x1000, 
-      fl1->u.len, AP_RW_RO, true);
-
-  map_pages(proc0_l2, fl2->u.pa, 
-      0x1000 + fl1->u.len, 
-      fl2->u.len, AP_RW_RO, true);
-
-  p->vspace = fl1;
+  fl1->u.v_va = fl1->u.pa;
+  fl2->u.v_va = fl2->u.pa;
 
   s = (size_t) &kernel_info;
   l = PAGE_ALIGN(sizeof(kernel_info));
@@ -123,8 +114,19 @@ init_proc0(void)
   frame_map(fl2, f, USER_ADDR - l,
       F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
 
-  fl1->u.va = 0x1000;
-  fl2->u.va = 0x1000 + fl1->u.len;
+  map_l2(proc0_l1, (size_t) proc0_l2, 0);
+
+  map_pages(proc0_l2, fl1->u.pa, 0x1000, 
+      fl1->u.len, AP_RW_RO, true);
+
+  map_pages(proc0_l2, fl2->u.pa, 
+      0x1000 + fl1->u.len, 
+      fl2->u.len, AP_RW_RO, true);
+
+  fl1->u.v_va = 0x1000;
+  fl2->u.v_va = 0x1000 + fl1->u.len;
+  
+  p->vspace = fl1;
 
   return p;
 }

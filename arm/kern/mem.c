@@ -2,301 +2,310 @@
 #include "fns.h"
 
 	int
-frames_swap(proc_t from, proc_t to, int o_id, int n_id)
+frames_swap(proc_t from, proc_t to, int f_id)
 {
 	kframe_t n, nn;
-	int t_id;
 
 	n = from->frames;
 	while (n != nil) {
 		nn = n->next;
 
-		if (n->u.t_id == o_id) {
-      /* TODO: unmap from from if mapped as table in to. */
-			
-      t_id = n->u.f_id;
-
+		if (n->u.t_id == f_id || n->u.v_id == f_id) {
 			frame_remove(from, n);
 			frame_add(to, n);
-			n->u.t_id = n_id;	
 
-			if (((n->u.flags & F_MAP_TYPE_MASK) == F_MAP_TYPE_TABLE_L1) ||
-          ((n->u.flags & F_MAP_TYPE_MASK) == F_MAP_TYPE_TABLE_L2)) {
-				frames_swap(from, to, t_id, n->u.f_id);
-			}
-		}
+      if (n->u.t_flags != F_TABLE_NO) {
+        frames_swap(from, to, n->u.f_id);
+      }
+    }
 
-		n = nn;
-	}
-
-	return OK;
-}
-
-	int
-vspace_swap(proc_t from, proc_t to, kframe_t f)
-{
-	int o_id;
-
-	if ((f->u.flags & F_MAP_TYPE_MASK) != F_MAP_TYPE_TABLE_L1) {
-		return ERR;
-	} else {
-		if (from != to) {
-			o_id = f->u.f_id;
-			frame_remove(from, f);
-			frame_add(to, f);
-
-			frames_swap(from, to, o_id, f->u.f_id);
-		}
-
-		to->vspace = (void *) f->u.pa;
-
-		return OK;
-	}
-}
-
-	int
-mmu_switch(kframe_t vs)
-{
-  debug("switching to vspace 0x%h\n", vs->u.pa);
-
-	mmu_load_ttb((uint32_t *) vs->u.pa);
-	mmu_invalidate();
-
-	debug("ok\n");
+    n = nn;
+  }
 
   return OK;
 }
 
-	int
+  int
+vspace_give(proc_t from, proc_t to, kframe_t f)
+{
+  debug("vspace give from %i to %i frame %i\n", from->pid, to->pid, f->u.f_id);
+
+  if (f->u.t_flags != F_TABLE_L1) {
+    debug("flags bad\n");
+    return ERR;
+  }
+
+  frame_remove(from, f);
+  frame_add(to, f);
+
+  frames_swap(from, to, f->u.f_id);
+
+  to->vspace = f;
+
+  return OK;
+}
+
+  int
+mmu_switch(kframe_t vs)
+{
+  debug("switching to vspace 0x%h\n", vs->u.pa);
+
+  mmu_load_ttb((uint32_t *) vs->u.pa);
+  mmu_invalidate();
+
+  debug("ok\n");
+
+  return OK;
+}
+
+  int
 map_l2(uint32_t *l1, size_t pa, size_t va)
 {
-	l1[L1X(va)] = pa | L1_COARSE;
+  l1[L1X(va)] = pa | L1_COARSE;
 
-	return OK;
+  return OK;
 }
 
-	int
+  int
 map_pages(uint32_t *l2, size_t pa, size_t va, 
-		size_t len, int ap, bool cache)
+    size_t len, int ap, bool cache)
 {
-	uint32_t tex, c, b, o;
+  uint32_t tex, c, b, o;
 
-  debug("map pages from 0x%h to 0x%h in table at 0x%h\n",
-      pa, va, l2);
+  debug("map pages from 0x%h to 0x%h len 0x%h, in table at 0x%h\n",
+      pa, va, len, l2);
 
-	if (cache) {
-		tex = 7;
-		c = 1;
-		b = 0;
-	} else {
-		tex = 0;
-		c = 0;
-		b = 1;
-	}
+  if (cache) {
+    tex = 7;
+    c = 1;
+    b = 0;
+  } else {
+    tex = 0;
+    c = 0;
+    b = 1;
+  }
 
-	for (o = 0; o < len; o += PAGE_SIZE) {
-		l2[L2X(va + o)] = (pa + o) | L2_SMALL | 
-			tex << 6 | ap << 4 | c << 3 | b << 2;
-	}
+  for (o = 0; o < len; o += PAGE_SIZE) {
+    l2[L2X(va + o)] = (pa + o) | L2_SMALL | 
+      tex << 6 | ap << 4 | c << 3 | b << 2;
+  }
 
-	return OK;
+  return OK;
 }
 
-	int
+  int
 unmap_pages(uint32_t *l2, size_t va, size_t len)
 {
-	uint32_t o;
+  uint32_t o;
 
-	for (o = 0; o < len; o += PAGE_SIZE) {
-		l2[L2X(va + o)] = L2_FAULT;
-	}
+  for (o = 0; o < len; o += PAGE_SIZE) {
+    l2[L2X(va + o)] = L2_FAULT;
+  }
 
-	return OK;
+  return OK;
 }
 
-	int
+  int
 map_sections(uint32_t *l1, size_t pa, size_t va, 
-		size_t len, int ap, bool cache)
+    size_t len, int ap, bool cache)
 {
-	uint32_t tex, c, b, o;
+  uint32_t tex, c, b, o;
 
-	if (cache) {
-		tex = 7;
-		c = 1;
-		b = 0;
-	} else {
-		tex = 0;
-		c = 0;
-		b = 1;
-	}
+  if (cache) {
+    tex = 7;
+    c = 1;
+    b = 0;
+  } else {
+    tex = 0;
+    c = 0;
+    b = 1;
+  }
 
-	for (o = 0; o < len; o += SECTION_SIZE) {
-		l1[L1X(va + o)] = (pa + o) | L1_SECTION | 
-			tex << 12 | ap << 10 | c << 3 | b << 2;
-	}
+  for (o = 0; o < len; o += SECTION_SIZE) {
+    l1[L1X(va + o)] = (pa + o) | L1_SECTION | 
+      tex << 12 | ap << 10 | c << 3 | b << 2;
+  }
 
-	return OK;
+  return OK;
 }
 
-	int
+  int
 unmap_sections(uint32_t *l1, size_t va, size_t len)
 {
-	uint32_t o;
+  uint32_t o;
 
-	for (o = 0; o < len; o += SECTION_SIZE) {
-		l1[L1X(va + o)] = L1_FAULT;
-	}
+  for (o = 0; o < len; o += SECTION_SIZE) {
+    l1[L1X(va + o)] = L1_FAULT;
+  }
 
-	return OK;
+  return OK;
 }
 
-	static int
-frame_map_l1(kframe_t t, kframe_t f)
+  static int
+frame_map_l2(kframe_t t, kframe_t f, size_t va)
+{
+  uint32_t *l1;
+  size_t o;
+
+  if (f->u.t_flags != F_TABLE_L2) {
+    return ERR;
+  }
+
+  l1 = (uint32_t *) t->u.v_va;
+
+  for (o = 0; o < f->u.len; o += PAGE_SIZE) {
+    map_l2(l1, f->u.pa + o, va + o);
+  }
+
+  f->u.t_id = t->u.f_id;
+  f->u.t_va = va;
+  f->u.t_flags |= F_TABLE_MAPPED;
+
+  return OK;
+}
+
+  static int
+frame_map_sections(kframe_t t, kframe_t f, size_t va, int flags)
+{
+  uint32_t *l1;
+  uint32_t ap;
+  int fl, r;
+
+  /* TODO: check if mapping tables for modification. */
+
+  fl = F_MAP_TYPE_SECTION | F_MAP_READ;
+  if (f->u.len < SECTION_SIZE) {
+    /* TODO: check alignment. */
+    return ERR;
+  } else if (flags & F_MAP_WRITE) {
+    fl |= F_MAP_WRITE;
+    ap = AP_RW_RW;
+  } else {
+    ap = AP_RW_RO;
+  }
+
+  l1 = (uint32_t *) t->u.v_va;
+  r = map_sections(l1, f->u.pa, va, f->u.len, ap, false);
+  if (r != OK) {
+    return r;
+  }
+
+  f->u.v_id = t->u.f_id;
+  f->u.v_va = va;
+  f->u.v_flags = fl;
+
+  return OK;
+}
+
+  static int
+frame_map_pages(kframe_t t, kframe_t f, size_t va, int flags)
+{
+  uint32_t *l2;
+  uint32_t ap;
+  int fl, r;
+
+  /* TODO: check if mapping tables for modification. */
+
+  fl = F_MAP_TYPE_PAGE | F_MAP_READ;
+  if (flags & F_MAP_WRITE) {
+    fl |= F_MAP_WRITE;
+    ap = AP_RW_RW;
+  } else {
+    ap = AP_RW_RO;
+  }
+
+  l2 = (uint32_t *) t->u.v_va;
+  r = map_pages(l2, f->u.pa, va, f->u.len, ap, false);
+  if (r != OK) {
+    debug("map_pages failed\n");
+    return r;
+  }
+
+  f->u.v_id = t->u.f_id;
+  f->u.v_va = va;
+  f->u.v_flags = fl;
+
+  debug("map_pages good\n");
+  return OK;
+}
+
+  int
+frame_map(kframe_t t, kframe_t f, size_t va, int flags)
+{
+  if (t->u.t_flags == F_TABLE_NO) {
+    return ERR;
+  } else if (!(t->u.v_flags & F_MAP_READ)) {
+    return ERR;
+  }
+
+  /* TODO: check that f can be mapped as flags describes. */
+
+  switch (flags & F_MAP_TYPE_MASK) {
+    default:
+    case F_MAP_TYPE_PAGE:
+      return frame_map_pages(t, f, va, flags);
+
+    case F_MAP_TYPE_SECTION:
+      return frame_map_sections(t, f, va, flags);
+
+    case F_MAP_TYPE_TABLE_L2:
+      return frame_map_l2(t, f, va);
+
+    case F_MAP_TYPE_TABLE_L1:
+      return ERR;
+  }
+}
+
+  static int
+frame_table_l1(kframe_t f, int flags)
 {
   if ((f->u.pa & ~(0x4000 - 1)) != f->u.pa) {
     return ERR;
   } else if (f->u.len != 0x4000) {
     return ERR;
-  } else if (f->u.flags & F_MAP_WRITE) {
-		return ERR;
-	} else if (!(f->u.flags & F_MAP_READ)) {
-		return ERR;
-	}
+  }
 
-  memcpy((uint32_t *) f->u.va,
-         ttb,
-         0x4000);
+  memcpy((uint32_t *) f->u.v_va,
+      ttb,
+      0x4000);
 
-  f->u.t_id = t->u.f_id;
-	f->u.t_va = 0;
-	f->u.flags = F_MAP_TYPE_TABLE_L1 | F_MAP_READ;
+  f->u.t_flags = F_TABLE_L1;
 
-	return OK;
+  return OK;
 }
 
-	static int
-frame_map_l2(kframe_t t, kframe_t f, size_t va)
+  static int
+frame_table_l2(kframe_t f, int flags)
 {
-	uint32_t *l1;
-	size_t o;
-
   if (f->u.len < PAGE_SIZE) {
     return ERR;
-  } else if (f->u.flags & F_MAP_WRITE) {
-		return ERR;
-	} else if (!(f->u.flags & F_MAP_READ)) {
-		return ERR;
-	}
+  }
 
-	l1 = (uint32_t *) t->u.va;
+  memset((uint32_t *) f->u.v_va, 0, f->u.len);
 
-	for (o = 0; o < f->u.len; o += PAGE_SIZE) {
-		map_l2(l1, f->u.pa + o, va + o);
-	}
+  f->u.t_flags = F_TABLE_L2;
 
-	f->u.t_id = t->u.f_id;
-	f->u.t_va = va;
-	f->u.flags = F_MAP_TYPE_TABLE_L2 | F_MAP_READ;
-
-	return OK;
+  return OK;
 }
 
-	static int
-frame_map_sections(kframe_t t, kframe_t f, size_t va, int flags)
+int
+frame_table(kframe_t t, int flags)
 {
-	uint32_t *l1;
-	uint32_t ap;
-	int fl, r;
-
-  /* TODO: check if mapping tables for modification. */
-
-	fl = F_MAP_TYPE_SECTION | F_MAP_READ;
-  if (f->u.len < SECTION_SIZE) {
-    /* TODO: check alignment. */
+  if (t->u.v_flags & F_MAP_WRITE) {
     return ERR;
-  } else if (flags & F_MAP_WRITE) {
-		fl |= F_MAP_WRITE;
-		ap = AP_RW_RW;
-	} else {
-		ap = AP_RW_RO;
-	}
+  } else if (!(t->u.v_flags & F_MAP_READ)) {
+    return ERR;
+  }
 
-	l1 = (uint32_t *) t->u.va;
-	r = map_sections(l1, f->u.pa, va, f->u.len, ap, false);
-	if (r != OK) {
-		return r;
-	}
+  switch (flags) {
+    default:
+      return ERR;
 
-	f->u.t_id = t->u.f_id;
-	f->u.va = va;
-	f->u.flags = fl;
+    case F_TABLE_L1:
+      return frame_table_l1(t, flags);
 
-	return OK;
-}
-
-	static int
-frame_map_pages(kframe_t t, kframe_t f, size_t va, int flags)
-{
-	uint32_t *l2;
-	uint32_t ap;
-	int fl, r;
-
-  /* TODO: check if mapping tables for modification. */
-
-	fl = F_MAP_TYPE_PAGE | F_MAP_READ;
-	if (flags & F_MAP_WRITE) {
-		fl |= F_MAP_WRITE;
-		ap = AP_RW_RW;
-	} else {
-		ap = AP_RW_RO;
-	}
-
-	l2 = (uint32_t *) t->u.va;
-	r = map_pages(l2, f->u.pa, va, f->u.len, ap, false);
-	if (r != OK) {
-		return r;
-	}
-
-	f->u.t_id = t->u.f_id;
-	f->u.va = va;
-	f->u.flags = fl;
-
-	return OK;
-}
-
-	int
-frame_map(kframe_t t, kframe_t f, size_t va, int flags)
-{
-	int type;
-
-	debug("frame map to table %i currently at 0x%h from 0x%h to 0x%h with flags %i\n",
-			t->u.f_id, t->u.va, f->u.pa, va, flags);
-
-	if (!(t->u.flags & F_MAP_READ)) {
-		return ERR;
-	} else {
-		type = (t->u.flags & F_MAP_TYPE_MASK);
-		if ((type != (F_MAP_TYPE_TABLE_L1)) 
-				&& (type != (F_MAP_TYPE_TABLE_L2))) {
-			return ERR;
-		}
-	}
-
-	/* TODO: check that f can be mapped as flags describes. */
-
-	switch (flags & F_MAP_TYPE_MASK) {
-		default:
-		case F_MAP_TYPE_PAGE:
-			return frame_map_pages(t, f, va, flags);
-
-		case F_MAP_TYPE_SECTION:
-			return frame_map_sections(t, f, va, flags);
-
-		case F_MAP_TYPE_TABLE_L2:
-			return frame_map_l2(t, f, va);
-
-		case F_MAP_TYPE_TABLE_L1:
-			return frame_map_l1(t, f);
-	}
+    case F_TABLE_L2:
+      return frame_table_l2(t, flags);
+  }
 }
 

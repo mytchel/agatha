@@ -6,12 +6,13 @@
 #define SYSCALL_FRAME_MERGE       4
 #define SYSCALL_FRAME_GIVE        5
 #define SYSCALL_FRAME_MAP         6
+#define SYSCALL_FRAME_TABLE       13
 #define SYSCALL_FRAME_UNMAP       7
 #define SYSCALL_FRAME_ALLOW       8
 #define SYSCALL_FRAME_COUNT       9
 #define SYSCALL_FRAME_INFO       10
 #define SYSCALL_FRAME_INFO_INDEX 12
 
-#define NSYSCALLS                13
+#define NSYSCALLS                14
 
 #define MESSAGE_LEN 64

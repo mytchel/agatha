@@ -31,13 +31,31 @@ main(struct kernel_info *k)
     return;
   }
 
+  frame_merge(1, 2);
+  frame_merge(1, 2);
+  frame_merge(1, 2);
+
   if (!setup_mem()) {
     return;
   }
 
+  frame_merge(2, 2);
+  frame_merge(3, 2);
+  frame_merge(4, 2);
+  frame_merge(5, 2);
+  frame_merge(6, 2);
+  frame_merge(7, 2);
+
   if (!init_procs()) {
     return;
   }
+
+  frame_merge(0, 2);
+  frame_merge(0, 2);
+  frame_merge(0, 2);
+  frame_merge(1, 2);
+  frame_merge(2, 2);
+  frame_merge(3, 2);
 
   while (true)
     ;

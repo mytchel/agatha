@@ -7,11 +7,14 @@
 
 #include "proc0.h"
 
-static int mf_free_i = 0, mf_used_i = 0;
+static int mf_free_i = 0;
 static int mf_free[256] = { -1 };
+static int mf_used_i = 0;
 static int mf_used[256] = { -1 };
+static int mf_reserved_i = 0;
+static int mf_reserved[256] = { -1 };
 
-static struct frame l1, l2;
+struct frame l1, l2;
 
 static size_t
 find_free_va(struct frame *f_l2, size_t len)
@@ -20,7 +23,7 @@ find_free_va(struct frame *f_l2, size_t len)
   size_t a;
   int i, j;
 
-  l2 = (uint32_t *) f_l2->va;
+  l2 = (uint32_t *) f_l2->v_va;
   for (i = 0; i < 0x1000; i++) {
 too_small:
     if (l2[i] == 0) {
@@ -66,7 +69,39 @@ map_frame(int f_id, int flags)
 int
 get_mem_frame(size_t len, size_t align)
 {
- return nil; 
+  struct frame f;
+  int i, n, id;
+  size_t a;
+
+  for (i = 0; i < mf_free_i; i++) {
+    id = mf_free[i];
+
+    if (frame_info(&f, id) != OK)
+      continue;
+
+    a = (f.pa + align - 1) & ~(align - 1);
+
+    if (len < a - f.pa + f.len) {
+
+      if (f.pa < a) {
+        id = frame_split(id, a - f.pa);
+        if (id < 0) 
+          return id;
+
+        n = frame_split(id, len);
+        mf_free[mf_free_i++] = n;
+      } else {
+        n = frame_split(id, len);
+        mf_free[i] = n;
+      }
+
+      mf_used[mf_used_i++] = id;
+      
+      return id;
+    }
+  }
+
+  return ERR; 
 }
 
   static bool
@@ -114,7 +149,7 @@ reserved_cb(size_t start, size_t len)
       }
 
       mf_free[mf_free_i++] = n;
-      mf_used[mf_used_i++] = id;
+      mf_reserved[mf_reserved_i++] = id;
       
       return;
     }
@@ -143,13 +178,13 @@ find_tables(void)
 
   count = frame_count();
   for (i = 0; i < count && frame_info_index(&f, i) == OK; i++) {
-    switch (f.flags & F_MAP_TYPE_MASK) {
-      case F_MAP_TYPE_TABLE_L1:
+    switch (f.t_flags & F_TABLE_TYPE_MASK) {
+      case F_TABLE_L1:
         memcpy(&l1, &f, sizeof(struct frame));
         f_l1 = true;
         break;
 
-      case F_MAP_TYPE_TABLE_L2:
+      case F_TABLE_L2:
         memcpy(&l2, &f, sizeof(struct frame));
         f_l2 = true;
         break;

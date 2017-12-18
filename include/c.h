@@ -1,8 +1,11 @@
 int
-proc_new(void);
+proc_new(int f_id);
 
 int
 frame_create(size_t start, size_t len, int type);
+
+int
+frame_table(int f_id, int type);
 
 int
 frame_map(int t_id, int f_id, void *va, int flags);
@@ -20,7 +23,7 @@ int
 frame_split(int f_id, size_t offset);
 
 int
-vspace_swap(int pid, int f_id);
+frame_merge(int a_if, int b_id);
 
 int
 send(int pid, uint8_t *m);

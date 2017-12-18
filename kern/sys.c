@@ -10,16 +10,20 @@ send(proc_t p, uint8_t *m)
 		debug("%i is dead\n", p->pid);
 		return ERR;
 	} else if (p->m_from != -1) {
+    debug("proc holding\n");
 		return ERR;
 	} else {
+    debug("copy\n");
 		p->m_from = up->pid;
 		memcpy(p->m, m, MESSAGE_LEN);
 		
 		if (p->state == PROC_recv) {
+      debug("wake\n");
 			p->state = PROC_ready;
 			schedule(p);
 		}
-		
+
+    debug("done\n");    
 		return OK;
 	}
 }
@@ -72,20 +76,34 @@ sys_recv(uint8_t *m)
 }
 
 size_t
-sys_proc_new(void)
+sys_proc_new(int f_id)
 {
+  kframe_t f;
   proc_t p;
 
-	debug("%i called sys proc_new\n", up->pid);
+	debug("%i called sys proc_new with %i\n", up->pid, f_id);
+
+  f = frame_find_fid(up, f_id);
+  if (f == nil) {
+    debug("didint find frame %i\n", f_id);
+    return ERR;
+  }
 
   p = proc_new();
   if (p == nil) {
     return ERR;
   }
 
+  debug("new proc %i\n", p->pid);
+
   func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
         (size_t) &proc_start);
 
+  if (vspace_give(up, p, f) != OK) {
+    debug("failed to swap vspace\n");
+    return ERR;
+  }
+  
 	return p->pid;
 }
 
@@ -164,6 +182,24 @@ sys_frame_map(int t_id, int f_id,
 }
 
   size_t
+sys_frame_table(int f_id, int flags)
+{
+  kframe_t f;
+
+  debug("%i called sys frame_table with %i, %i\n", 
+      up->pid, f_id, flags);
+
+  f = frame_find_fid(up, f_id);
+
+  if (f == nil) {
+    return ERR;
+  }
+
+  return frame_table(f, flags);
+}
+
+
+  size_t
 sys_frame_unmap(int pid, int f_id)
 {
   debug("%i called sys frame_unmap with %i, %i\n", up->pid, pid, f_id);
@@ -230,6 +266,7 @@ void *systab[NSYSCALLS] = {
   [SYSCALL_FRAME_MERGE]      = (void *) &sys_frame_merge,
   [SYSCALL_FRAME_GIVE]       = (void *) &sys_frame_give,
   [SYSCALL_FRAME_MAP]        = (void *) &sys_frame_map,
+  [SYSCALL_FRAME_TABLE]      = (void *) &sys_frame_table,
   [SYSCALL_FRAME_UNMAP]      = (void *) &sys_frame_unmap,
   [SYSCALL_FRAME_ALLOW]      = (void *) &sys_frame_allow,
   [SYSCALL_FRAME_COUNT]      = (void *) &sys_frame_count,

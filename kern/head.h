@@ -40,7 +40,6 @@ struct proc {
 	uint8_t kstack[KSTACK_LEN];
 	
 	size_t frame_count;
-	int frame_next_id;
 	
 	kframe_t frames;
 	kframe_t vspace;
@@ -132,10 +131,13 @@ int
 frame_map(kframe_t t, kframe_t f, size_t va, int flags);
 
 int
+frame_table(kframe_t f, int flags);
+
+int
 vspace_create(void *tb, kframe_t f);
 
 int
-vspace_swap(proc_t from, proc_t to, kframe_t f);
+vspace_give(proc_t from, proc_t to, kframe_t f);
 
 int
 mmu_switch(kframe_t f);
