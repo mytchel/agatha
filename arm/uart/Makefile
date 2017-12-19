@@ -7,7 +7,11 @@ UART_SRC_A := \
 
 UART_SRC_C := \
   arm/uart/main.c              \
-  lib/libc/util.c
+  lib/libc/util.c              \
+  lib/libc/mem.c               \
+  lib/libstring/conv.c         \
+  lib/libstring/scanf.c        \
+  lib/libstring/string.c
 				
 
 UART_OBJECTS := \

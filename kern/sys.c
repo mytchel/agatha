@@ -97,11 +97,13 @@ sys_proc_new(int f_id)
   func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
         (size_t) &proc_start);
 
-  if (vspace_give(up, p, f) != OK) {
+  if (frame_give(up, p, f) != OK) {
     debug("failed to swap vspace\n");
     return ERR;
   }
-  
+
+  p->vspace = f; 
+
 	return p->pid;
 }
 
@@ -149,17 +151,31 @@ sys_frame_merge(int f1, int f2)
 {
   debug("%i called sys frame_merge with %i, %i\n", up->pid, f1, f2);
 
-  schedule(nil);
-
   return ERR;
 }
 
   size_t
-sys_frame_give(int f_id, int pid)
+sys_frame_give(int pid, int f_id)
 {
+  kframe_t f;
+  proc_t to;
+
   debug("%i called sys frame_give with %i, %i\n", up->pid, f_id, pid);
 
-  return ERR;
+  f = frame_find_fid(up, f_id);
+  if (f == nil) {
+    debug("didint find frame %i\n", f_id);
+    return ERR;
+  }
+
+  to = find_proc(pid);
+  if (to == nil) {
+    debug("fained to find proc %i\n", pid);
+    return ERR;
+  }
+
+  debug("giving frame\n");
+  return frame_give(up, to, f);
 }
 
   size_t

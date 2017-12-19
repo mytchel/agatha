@@ -2,48 +2,27 @@
 #include "fns.h"
 
 	int
-frames_swap(proc_t from, proc_t to, int f_id)
+frame_give(proc_t from, proc_t to, kframe_t f)
 {
 	kframe_t n, nn;
+
+  debug("frame_give from %i to %i frame %i\n", from->pid, to->pid, f->u.f_id);
+
+  frame_remove(from, f);
+  frame_add(to, f);
 
 	n = from->frames;
 	while (n != nil) {
 		nn = n->next;
 
-		if (n->u.t_id == f_id || n->u.v_id == f_id) {
-      debug("give frame %i\n", n->u.f_id);
-			frame_remove(from, n);
-			frame_add(to, n);
-
-      if (n->u.t_flags != F_TABLE_NO) {
-        debug("frame is table.\n");
-        frames_swap(from, to, n->u.f_id);
+		if (n->u.t_id == f->u.f_id || n->u.v_id == f->u.f_id) {
+      if (frame_give(from, to, n) != OK) {
+        return ERR;
       }
     }
 
     n = nn;
   }
-
-  return OK;
-}
-
-  int
-vspace_give(proc_t from, proc_t to, kframe_t f)
-{
-  debug("vspace give from %i to %i frame %i\n", from->pid, to->pid, f->u.f_id);
-
-  if (f->u.t_flags != F_TABLE_L1) {
-    debug("flags bad\n");
-    return ERR;
-  }
-
-  debug("give frame %i\n", f->u.f_id);
-  frame_remove(from, f);
-  frame_add(to, f);
-
-  frames_swap(from, to, f->u.f_id);
-
-  to->vspace = f;
 
   return OK;
 }

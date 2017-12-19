@@ -133,11 +133,9 @@ frame_map(kframe_t t, kframe_t f, size_t va, int flags);
 int
 frame_table(kframe_t f, int flags);
 
+/* If f is a table gives frames mapped to the table also. */
 int
-vspace_create(void *tb, kframe_t f);
-
-int
-vspace_give(proc_t from, proc_t to, kframe_t f);
+frame_give(proc_t from, proc_t to, kframe_t f);
 
 int
 mmu_switch(kframe_t f);

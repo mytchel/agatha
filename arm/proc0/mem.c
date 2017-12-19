@@ -24,7 +24,7 @@ find_free_va(struct frame *f_l2, size_t len)
   int i, j;
 
   l2 = (uint32_t *) f_l2->v_va;
-  for (i = 0; i < 0x1000; i++) {
+  for (i = 0; i < f_l2->len / 4; i++) {
 too_small:
     if (l2[i] == 0) {
       a = i * PAGE_SIZE + f_l2->t_va;
@@ -121,7 +121,7 @@ get_mem_frame(size_t len, size_t align)
 }
 
   static bool
-memory_cb(void *dtb, void *node)
+memory_cb(void *dtb, void *node, void *arg)
 {
   size_t start, len;
   int f_id;
@@ -175,7 +175,7 @@ reserved_cb(size_t start, size_t len)
 bool
 setup_mem(void)
 {
-  fdt_find_node_device_type(dtb, "memory", &memory_cb);
+  fdt_find_node_device_type(dtb, "memory", &memory_cb, nil);
   
   fdt_check_reserved(dtb, &reserved_cb);
 

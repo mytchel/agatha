@@ -237,8 +237,9 @@ fdt_node_name(void *dtb, void *node)
 fdt_find_node_compatable_h(void *dtb, 
     struct fdt_header *head, 
     char *compatable,
-    bool (*callback)(void *dtb, void *node),
-    uint32_t *node)
+    bool (*callback)(void *dtb, void *node, void *arg),
+    uint32_t *node,
+    void *arg)
 {
   char *name, *data;
   uint32_t p, *pr;
@@ -263,7 +264,7 @@ fdt_find_node_compatable_h(void *dtb,
       case FDT_BEGIN_NODE:
         pr = fdt_find_node_compatable_h(dtb,
             head, compatable, callback,
-            pr);
+            pr, arg);
 
         if (pr == nil) {
           return nil;
@@ -283,7 +284,7 @@ fdt_find_node_compatable_h(void *dtb,
         if (strcmp("compatible", name)) {
           for (i = 0; i < len; i += l + 1) {
             if (strcmp(compatable, &data[i])) {
-              if (!callback(dtb, node)) {
+              if (!callback(dtb, node, arg)) {
                 return nil;
               }
             }
@@ -303,7 +304,8 @@ fdt_find_node_compatable_h(void *dtb,
 
   void
 fdt_find_node_compatable(void *dtb, char *compatable,
-    bool (*callback)(void *dtb, void *node))
+    bool (*callback)(void *dtb, void *node, void *arg),
+    void *arg)
 {
   struct fdt_header head;
   uint32_t *node;
@@ -315,7 +317,21 @@ fdt_find_node_compatable(void *dtb, char *compatable,
   node = (uint32_t *) ((size_t) dtb + head.off_dt_struct);
 
   fdt_find_node_compatable_h(dtb,
-      &head, compatable, callback, node);
+      &head, compatable, callback, node, arg);
+}
+
+uint32_t
+fdt_node_phandle(void *dtb, void *node)
+{
+  char *data;
+  int len;
+
+  len = fdt_node_property(dtb, node, "phandle", &data);
+  if (len <= 0) {
+    return 0;
+  }
+
+  return beto32(*((uint32_t *) data));
 }
 
   static uint32_t *
@@ -414,8 +430,9 @@ fdt_find_node_phandle(void *dtb, uint32_t handle)
 fdt_find_node_device_type_h(void *dtb, 
     struct fdt_header *head, 
     char *type,
-    bool (*callback)(void *dtb, void *node),
-    uint32_t *node)
+    bool (*callback)(void *dtb, void *node, void *arg),
+    uint32_t *node,
+    void *arg)
 {
   char *name, *data;
   uint32_t p, *pr;
@@ -440,7 +457,7 @@ fdt_find_node_device_type_h(void *dtb,
       case FDT_BEGIN_NODE:
         pr = fdt_find_node_device_type_h(dtb,
             head, type, callback,
-            pr);
+            pr, arg);
 
         if (pr == nil) {
           return nil;
@@ -459,7 +476,7 @@ fdt_find_node_device_type_h(void *dtb,
 
         if (strcmp("device_type", name) && 
             strcmp(type, data) &&
-            !callback(dtb, node)) {
+            !callback(dtb, node, arg)) {
             return nil;
         }
 
@@ -472,7 +489,8 @@ fdt_find_node_device_type_h(void *dtb,
 
   void
 fdt_find_node_device_type(void *dtb, char *type, 
-    bool (*callback)(void *dtb, void *node))
+    bool (*callback)(void *dtb, void *node, void *arg),
+    void *arg)
 {
   struct fdt_header head;
   uint32_t *node;
@@ -484,7 +502,7 @@ fdt_find_node_device_type(void *dtb, char *type,
   node = (uint32_t *) ((size_t) dtb + head.off_dt_struct);
 
   fdt_find_node_device_type_h(dtb,
-      &head, type, callback, node);
+      &head, type, callback, node, arg);
 }
 
   void *

@@ -17,6 +17,7 @@
 .global frame_table
 .global frame_split
 .global frame_merge
+.global frame_give
 
 
 _start:
@@ -105,6 +106,13 @@ frame_split:
 frame_merge:
 	push {r12, lr}
 	mov r12, #SYSCALL_FRAME_MERGE
+	svc 0
+	pop {r12, pc}
+
+
+frame_give:
+	push {r12, lr}
+	mov r12, #SYSCALL_FRAME_GIVE
 	svc 0
 	pop {r12, pc}
 

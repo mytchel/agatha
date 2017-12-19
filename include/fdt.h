@@ -46,14 +46,19 @@ fdt_node_regs(void *dtb, void *node,
 void *
 fdt_find_node_phandle(void *dtb, uint32_t handle);
 
+uint32_t
+fdt_node_phandle(void *dtb, void *node);
+
 void
 fdt_find_node_compatable(void *dtb,
     char *compatable,
-    bool (*callback)(void *dtb, void *node));
+    bool (*callback)(void *dtb, void *node, void *arg),
+    void *arg);
 
 void
 fdt_find_node_device_type(void *dtb, char *type,
-    bool (*callback)(void *dtb, void *node));
+    bool (*callback)(void *dtb, void *node, void *arg),
+    void *arg);
 
 void *
 fdt_root_node(void *dtb);
