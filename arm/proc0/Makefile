@@ -37,7 +37,7 @@ CLEAN += arm/proc0/bundle.bin arm/proc0/bundle.list arm/proc0/bundle.bo
 arm/proc0/proc0.elf: arm/user.ld arm/proc0/bundle.bo $(PROC0_OBJECTS)
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
-		-T arm/user.ld -Ttext $(USER_ADDR) \
+		-T arm/proc0/linker.ld -Ttext $(USER_ADDR) \
 		-o $@ $(PROC0_OBJECTS) arm/proc0/bundle.bo \
 		-lgcc
 

@@ -31,16 +31,17 @@ CLEAN += $(ARCH)/kern.umg $(ARCH)/kern.list
 include $(ARCH)/Makefile
 include $(PROC0)/Makefile
 
-OBJECTS := $(SRC_A:%.S=%.o) $(SRC_C:%.c=%.o) 
+KERNEL_OBJECTS := $(KERNEL_SRC_A:%.S=%.o) $(KERNEL_SRC_C:%.c=%.o) 
 
-CLEAN += $(OBJECTS) $(PROC0)/proc0.bin $(PROC0)/proc0.bo
+CLEAN += $(KERNEL_OBJECTS) 
+CLEAN += $(PROC0)/proc0.bin $(PROC0)/proc0.bo
 CLEAN += $(ARCH)/kern.elf 
 
-$(ARCH)/kern.elf: $(ARCH)/kernel.ld $(PROC0)/proc0.bo $(OBJECTS)
+$(ARCH)/kern.elf: $(ARCH)/kernel.ld $(KERNEL_OBJECTS) $(PROC0)/proc0.bo 
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T $(ARCH)/kernel.ld -Ttext $(LOAD_ADDR) \
-		-o $@ $(OBJECTS) $(PROC0)/proc0.bo \
+		-o $@ $(KERNEL_OBJECTS) $(PROC0)/proc0.bo \
 		-lgcc
 
 

@@ -12,45 +12,74 @@ struct kernel_info *k_info;
 void *dtb;
 
 static bool
-compatable_cb(void *dtb, void *node, void *arg)
+handle_dev_node(struct proc0_dev_resp *o, void *dtb, void *node)
 {
-  struct proc0_dev_compatability_resp *o = arg;
   size_t addr, size;
   int f;
- 
+
   if (!fdt_node_regs(dtb, node, 0, &addr, &size)) {
-    memset(o, 0, MESSAGE_LEN);
     return false;
   }
 
   f = frame_create(addr, size, F_TYPE_IO);
   if (f < 0) {
-    memset(o, 0, MESSAGE_LEN);
     return false;
   }
 
   o->frames[o->nframes] = f;
   o->nframes++;
+
+  return true; 
+}
+
+static bool
+compatable_cb(void *dtb, void *node, void *arg)
+{
+  struct proc0_dev_resp *o = arg;
+
+  handle_dev_node(o, dtb, node);
   
   /* Stop. */
   return false;
 }
 
 static void
-handle_dev_compatability(int pid, 
-    struct proc0_dev_compatability_req *i,
-    struct proc0_dev_compatability_resp *o)
+handle_dev(int pid, 
+    struct proc0_dev_req *i,
+    struct proc0_dev_resp *o)
 {
+  void *node;
+  int f;
+
   memset(o, 0, MESSAGE_LEN);
-  o->type = proc0_type_dev_compatability;
+  o->type = proc0_type_dev;
 
-  fdt_find_node_compatable(dtb,
-      i->compatability,
-      &compatable_cb,
-      o);
+  switch (i->method) {
+    case proc0_dev_req_method_phandle:
+       node = fdt_find_node_phandle(dtb, i->kind.phandle);
+       if (node != nil) {
+         handle_dev_node(o, dtb, node);
+       }
 
-  if (frame_give(pid, o->frames[0]) != OK) {
-    memset(o, 0, MESSAGE_LEN);
+     break;
+
+    case proc0_dev_req_method_compat:
+      fdt_find_node_compatable(dtb,
+          i->kind.compatability,
+          &compatable_cb,
+          o);
+
+      break;
+
+    case proc0_dev_req_method_path:
+    default:
+      break;
+  }
+
+  for (f = 0; f < o->nframes; f++) {
+    if (frame_give(pid, o->frames[f]) != OK) {
+      memset(o, 0, MESSAGE_LEN);
+    }
   }
 }
 
@@ -60,10 +89,10 @@ handle(int pid, struct proc0_message *i)
   uint8_t o[MESSAGE_LEN];
 
   switch (i->type) {
-    case proc0_type_dev_compatability:
-      handle_dev_compatability(pid, 
-          (struct proc0_dev_compatability_req *) i,
-          (struct proc0_dev_compatability_resp *) o);
+    case proc0_type_dev:
+      handle_dev(pid, 
+          (struct proc0_dev_req *) i,
+          (struct proc0_dev_resp *) o);
       break;
 
     default:

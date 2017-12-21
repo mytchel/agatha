@@ -17,5 +17,10 @@ SECTIONS
 		*(.bss)
 		*(.bss.*)
 	}
+
+  .bundle ALIGN(4096) :
+  {
+    *(.bundle)
+  }
 }
 

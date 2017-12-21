@@ -1,10 +1,10 @@
 CFLAGS += -mcpu=cortex-a8
 
-SRC_A := \
+KERNEL_SRC_A := \
         arm/kern/vectors.S            \
         arm/kern/asm.S
 
-SRC_C := \
+KERNEL_SRC_C := \
         arm/kern/main.c               \
         arm/kern/trap.c               \
         arm/kern/mem.c                \
@@ -14,11 +14,11 @@ SRC_C := \
         kern/proc.c                   \
         kern/sys.c                    \
         kern/frame.c                  \
+        kern/util.c                   \
         lib/libstring/conv.c          \
         lib/libstring/scanf.c         \
         lib/libstring/string.c        \
-        lib/libfdt/fdt.c              \
-        lib/libc/util.c
+        lib/libfdt/fdt.c
 
 PROC0 = arm/proc0
 
