@@ -140,6 +140,9 @@ frame_give(proc_t from, proc_t to, kframe_t f);
 int
 mmu_switch(kframe_t f);
 
+int
+register_irq(proc_t p, size_t irq);
+
 /* Variables. */
 
 extern proc_t up;

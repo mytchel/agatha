@@ -1,12 +1,12 @@
-CLEAN += arm/uart/uart.elf \
-         arm/uart/uart.bin \
-         arm/uart/uart.list
+CLEAN += drivers/uart/uart.elf \
+         drivers/uart/uart.bin \
+         drivers/uart/uart.list
 
 UART_SRC_A := \
    lib/libc/sys.S
 
 UART_SRC_C := \
-  arm/uart/main.c              \
+  drivers/uart/main.c              \
   lib/libc/util.c              \
   lib/libc/mem.c               \
   lib/libstring/conv.c         \
@@ -20,10 +20,10 @@ UART_OBJECTS := \
 
 CLEAN += $(UART_OBJECTS)
 
-arm/uart/uart.elf: arm/user.ld $(UART_OBJECTS)
+drivers/uart/uart.elf: $(USER.LD) $(UART_OBJECTS)
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
-		-T arm/user.ld -Ttext $(USER_ADDR) \
+		-T $(USER.LD) -Ttext $(USER_ADDR) \
 		-o $@ $(UART_OBJECTS) \
 		-lgcc
 

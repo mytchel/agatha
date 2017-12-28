@@ -22,3 +22,5 @@ KERNEL_SRC_C := \
 
 PROC0 = arm/proc0
 
+USER.LD = arm/user.ld
+

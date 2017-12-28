@@ -32,6 +32,9 @@ int
 frame_give(int pid, int f_id);
 
 int
+yield(void);
+
+int
 send(int pid, uint8_t *m);
 
 int

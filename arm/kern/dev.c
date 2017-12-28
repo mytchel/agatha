@@ -5,18 +5,13 @@
 static void *uart_regs, *intc_regs;
 
 void
-fdt_get_intc(void *dtb)
+fdt_get_intc(void *dtb, void *root)
 {
   uint32_t intc_handle;
   size_t addr, size;
-  void *node, *root;
   int len, l, i;
   char *data;
-
-  root = fdt_root_node(dtb);
-  if (root == nil) {
-    panic("failed to find root node in fdt!\n");
-  }
+  void *node;
 
   len = fdt_node_property(dtb, root, "interrupt-parent", &data);
   if (len != sizeof(intc_handle)) {
@@ -62,7 +57,14 @@ fdt_get_intc(void *dtb)
   void
 map_devs(void *dtb)
 {
-  fdt_get_intc(dtb);
+  void *root;
+
+  root = fdt_root_node(dtb);
+  if (root == nil) {
+    panic("failed to find root node in fdt!\n");
+  }
+
+  fdt_get_intc(dtb, root);
 
   /* Hardcode uart for now. */
   uart_regs = (void *) kernel_va_slot;

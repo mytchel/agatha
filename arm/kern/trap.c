@@ -91,6 +91,12 @@ intc_add_handler(uint32_t irqn, void (*func)(uint32_t))
   unmask_intr(irqn);
 }
 
+int
+register_irq(proc_t p, size_t irq)
+{
+  unmask_intr(irq);
+}
+
 void
 intc_reset(void)
 {
@@ -107,7 +113,8 @@ irq_handler(void)
   if (handlers[irq]) {
     handlers[irq](irq);
   } else {
-    debug("no handler\n");
+    mask_intr(irq);
+    
   }
 }
 
@@ -146,7 +153,6 @@ trap(size_t pc, int type)
     switch (fsr) {
     case 0x5: /* section translation */
     case 0x7: /* page translation */
-
     case 0x0: /* vector */
     case 0x1: /* alignment */
     case 0x3: /* also alignment */
@@ -172,10 +178,12 @@ trap(size_t pc, int type)
     panic("trap with no proc on cpu!!!\n");
   }
  
-  debug("stopping proc %i\n", up->pid);
+  debug("killing proc %i\n", up->pid);
 
   up->state = PROC_dead;
 
   schedule(nil);
+
+  /* Never reached */
 }
 

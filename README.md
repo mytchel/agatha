@@ -117,4 +117,3 @@ They communicate with proc0 to find registers and
 interrupts described in the device tree blob given
 to Agatha by U-Boot. 
 
-

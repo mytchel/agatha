@@ -22,7 +22,7 @@ PROC0_OBJECTS := \
 
 CLEAN += $(PROC0_OBJECTS)
 
-BUNDLE = arm/uart
+BUNDLE = drivers/uart drivers/spi drivers/test
 
 arm/proc0/bundle.bin arm/proc0/bundle.list: \
   $(foreach b,$(BUNDLE),$b/$(notdir $b).elf) \

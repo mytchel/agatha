@@ -49,6 +49,14 @@ recv(uint8_t *m)
 	}
 }
 
+  size_t
+sys_yield(void)
+{
+  schedule(nil);
+
+  return OK;
+}
+
 size_t
 sys_send(int pid, uint8_t *m)
 {
@@ -224,14 +232,6 @@ sys_frame_unmap(int pid, int f_id)
 }
 
   size_t
-sys_frame_allow(int pid_allowed_to_map)
-{
-  debug("%i called sys frame_allow with %i\n", up->pid, pid_allowed_to_map);
-
-  return ERR;
-}
-
-  size_t
 sys_frame_count(void)
 {
   debug("%i called sys frame_count, getting %i\n", up->pid, up->frame_count);
@@ -274,6 +274,7 @@ sys_frame_info(struct frame *f, int f_id)
 }
 
 void *systab[NSYSCALLS] = {
+  [SYSCALL_YIELD]            = (void *) &sys_yield,
   [SYSCALL_SEND]             = (void *) &sys_send,
   [SYSCALL_RECV]             = (void *) &sys_recv,
   [SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
@@ -284,7 +285,6 @@ void *systab[NSYSCALLS] = {
   [SYSCALL_FRAME_MAP]        = (void *) &sys_frame_map,
   [SYSCALL_FRAME_TABLE]      = (void *) &sys_frame_table,
   [SYSCALL_FRAME_UNMAP]      = (void *) &sys_frame_unmap,
-  [SYSCALL_FRAME_ALLOW]      = (void *) &sys_frame_allow,
   [SYSCALL_FRAME_COUNT]      = (void *) &sys_frame_count,
   [SYSCALL_FRAME_INFO_INDEX] = (void *) &sys_frame_info_index,
   [SYSCALL_FRAME_INFO]       = (void *) &sys_frame_info,

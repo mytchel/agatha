@@ -6,6 +6,7 @@
 .global raise
 .global panic
 
+.global yield
 .global send
 .global recv
 .global proc_new
@@ -33,6 +34,13 @@ panic:
   b . 
 
 
+yield:
+	push {r12, lr}
+	mov r12, #SYSCALL_YIELD
+	svc 0
+	pop {r12, pc}
+
+	
 send:
 	push {r12, lr}
 	mov r12, #SYSCALL_SEND
