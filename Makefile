@@ -1,6 +1,6 @@
 .SUFFIXES: .c .S .h .o .a .elf .bin .list .umg .bo
 
-LOAD_ADDR ?= 0x82000000
+LOAD_ADDR ?= 0x20000000
 USER_ADDR ?= 0x00010000
 ARCH ?= arm
 CROSS ?= arm-linux-gnueabihf-

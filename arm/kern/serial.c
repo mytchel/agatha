@@ -1,33 +1,11 @@
 #include "../../kern/head.h"
 #include "fns.h"
 #include <stdarg.h>
-#include <am335x/uart.h>
 
-static struct uart_regs *uart;
-
-void
-init_uart(void *regs)
-{
-	uart = (struct uart_regs *) regs;
-}
-
-void
-putc(char c)
-{
-  if (c == '\n')
-    putc('\r');
-	
-	while ((uart->lsr & (1 << 5)) == 0)
-		;
-	
-	uart->hr = c;
-}
-
-void
+static void
 puts(const char *c)
 {
-  while (*c)
-    putc(*c++);
+
 }
 
 int

@@ -269,10 +269,5 @@ _user:  @ user mode interrupted
 
 @ Not used. But just in case kick and scream.
 fiq_ex:
-	ldr r0, =fiq_msg
-	bl puts
 	b .
 
-
-.section .rodata
-fiq_msg: .asciz "fiq!\nHanging\n"

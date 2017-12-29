@@ -48,10 +48,16 @@ unmap_sections(uint32_t *l1, size_t va, size_t len);
 /* Initialisation functions */
 
 void
-init_intc(void *regs);
+map_ti_am33xx_intc(void *dtb);
 
 void
-init_uart(void *regs);
+init_ti_am33xx_intc(void);
+
+void
+map_ti_am335x_uart(void *dtb);
+
+void
+init_ti_am335x_uart(void);
 
 void
 map_devs(void *dtb);
@@ -59,6 +65,6 @@ map_devs(void *dtb);
 void
 init_devs(void);
 
-extern uint32_t ttb[], l2[];
+extern uint32_t kernel_ttb[], kernel_l2[];
 extern size_t kernel_va_slot;
 

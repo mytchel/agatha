@@ -242,7 +242,7 @@ frame_table_l1(kframe_t f, int flags)
   }
 
   memcpy((uint32_t *) f->u.v_va,
-      ttb,
+      kernel_ttb,
       0x4000);
 
   f->u.t_flags = F_TABLE_L1;

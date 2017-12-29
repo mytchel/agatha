@@ -47,6 +47,7 @@
 
 
 raise:
+  mov pc, #0xf0000000
 	b . 
 	
 	

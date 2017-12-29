@@ -1,6 +1,7 @@
-#include "../../kern/head.h"
-#include "fns.h"
-#include "trap.h"
+#include "../../../kern/head.h"
+#include "../fns.h"
+#include "../trap.h"
+#include <fdt.h>
 
 #define nirq 128
 
@@ -35,17 +36,65 @@ struct intc {
 	uint32_t ilr[nirq];
 };
 
-struct intc *intc;
+static struct intc *intc;
 
 static void (*handlers[nirq])(uint32_t) = {nil};
 
 void
-init_intc(void *regs)
+map_ti_am33xx_intc(void *dtb)
+{
+  uint32_t intc_handle;
+  size_t addr, size;
+  void *root, *node;
+  int len, l, i;
+  char *data;
+
+  root = fdt_root_node(dtb);
+  if (root == nil) {
+    return;
+  }
+
+  len = fdt_node_property(dtb, root, "interrupt-parent", &data);
+  if (len != sizeof(intc_handle)) {
+    return;
+  }
+
+  intc_handle = beto32(((uint32_t *) data)[0]);
+
+  node = fdt_find_node_phandle(dtb, intc_handle);
+  if (node == nil) {
+    return;
+  } 
+
+  len = fdt_node_property(dtb, node, "compatible", &data);
+  if (len <= 0) {
+    return;
+  }
+
+  for (i = 0; i < len; i += l + 1) {
+    l = strlen(&data[i]);
+    if (strcmp(&data[i], "ti,am33xx-intc")) {
+      goto good;
+    }
+  }
+
+  return;
+good:
+
+  if (!fdt_node_regs(dtb, node, 0, &addr, &size)) {
+    return;
+  }
+
+  intc = (struct intc *) kernel_va_slot;
+  map_pages(kernel_l2, addr, kernel_va_slot, size, AP_RW_NO, false);
+  kernel_va_slot += size;
+}
+
+void
+init_ti_am33xx_intc(void)
 {
   int i;
   
-  intc = (struct intc *) regs;
-	
   /* enable interface auto idle */
   intc->sysconfig = 1;
 
@@ -95,6 +144,7 @@ int
 register_irq(proc_t p, size_t irq)
 {
   unmask_intr(irq);
+  return OK;
 }
 
 void
@@ -114,7 +164,6 @@ irq_handler(void)
     handlers[irq](irq);
   } else {
     mask_intr(irq);
-    
   }
 }
 

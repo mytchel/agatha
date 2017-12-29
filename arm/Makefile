@@ -6,11 +6,13 @@ KERNEL_SRC_A := \
 
 KERNEL_SRC_C := \
         arm/kern/main.c               \
-        arm/kern/trap.c               \
         arm/kern/mem.c                \
         arm/kern/proc.c               \
         arm/kern/dev.c                \
-        arm/kern/uart.c               \
+        arm/kern/serial.c             \
+        arm/kern/am335x/trap.c        \
+        arm/kern/am335x/uart.c        \
+        arm/kern/bcm283x/aux.c        \
         kern/proc.c                   \
         kern/sys.c                    \
         kern/frame.c                  \

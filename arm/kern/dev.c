@@ -2,80 +2,57 @@
 #include "fns.h"
 #include <fdt.h>
 
-static void *uart_regs, *intc_regs;
+struct driver {
+  void (*map)(void *dtb);
+  void (*init)(void);
+};
 
 void
-fdt_get_intc(void *dtb, void *root)
-{
-  uint32_t intc_handle;
-  size_t addr, size;
-  int len, l, i;
-  char *data;
-  void *node;
+map_ti_am33xx_intc(void *dtb);
 
-  len = fdt_node_property(dtb, root, "interrupt-parent", &data);
-  if (len != sizeof(intc_handle)) {
-    panic("failed to get interrupt-parent from root node!\n");
-  }
+void
+init_ti_am33xx_intc(void);
 
-  intc_handle = beto32(((uint32_t *) data)[0]);
+void
+map_ti_am335x_uart(void *dtb);
 
-  debug("interrupt controller has phandle 0x%h\n", intc_handle);
+void
+init_ti_am335x_uart(void);
 
-  node = fdt_find_node_phandle(dtb, intc_handle);
-  if (node == nil) {
-    panic("failed to find interrupt controller!\n");
-  } 
+void
+map_bcm2835_aux(void *dtb);
 
-  debug("interrupt controller %s\n", fdt_node_name(dtb, node));
+void
+init_bcm2835_aux(void);
 
-  /* TODO: find compatable interrupt controller and use that
-     rather than only supporting ti,am33xx-intc as is currently
-     done. */
 
-  len = fdt_node_property(dtb, node, "compatible", &data);
-  if (len <= 0) {
-    panic("failed to get interrupt controller compatbility list!\n");
-  }
+static struct driver drivers[] = {
+  { map_ti_am33xx_intc,
+    init_ti_am33xx_intc },
+  { map_ti_am335x_uart,
+    init_ti_am335x_uart },
 
-  for (i = 0; i < len; i += l + 1) {
-    l = strlen(&data[i]);
-    debug("have compatable string %i: '%s'\n", l, &data[i]);
-  }
-
-  if (!fdt_node_regs(dtb, node, 0, &addr, &size)) {
-    panic("failed to get reg property for interupt controller!\n");
-  }
-
-  debug("intc regs at 0x%h to 0x%h\n", addr, size);
-
-  intc_regs = (void *) kernel_va_slot;
-  map_pages(l2, addr, kernel_va_slot, size, AP_RW_NO, true);
-  kernel_va_slot += size;
-}
+  { map_bcm2835_aux,
+    init_bcm2835_aux },
+};
 
   void
 map_devs(void *dtb)
 {
-  void *root;
+  int i;
 
-  root = fdt_root_node(dtb);
-  if (root == nil) {
-    panic("failed to find root node in fdt!\n");
+  for (i = 0; i < sizeof(drivers)/sizeof(drivers[0]); i++) {
+    drivers[i].map(dtb);
   }
-
-  fdt_get_intc(dtb, root);
-
-  /* Hardcode uart for now. */
-  uart_regs = (void *) kernel_va_slot;
-  map_pages(l2, 0x44e09000, kernel_va_slot, 0x2000, AP_RW_NO, true);
-  kernel_va_slot += 0x2000;
 }
 
   void
 init_devs(void)
 {
-  init_uart(uart_regs);
-  init_intc(intc_regs);
+  int i;
+
+  for (i = 0; i < sizeof(drivers)/sizeof(drivers[0]); i++) {
+    drivers[i].init();
+  }
 }
 

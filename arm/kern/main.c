@@ -6,10 +6,10 @@ struct kernel_info
 kernel_info __attribute__((__aligned__(0x1000))) = { 0 };
 
 uint32_t
-ttb[4096]__attribute__((__aligned__(0x4000))) = { 0 };
+kernel_ttb[4096]__attribute__((__aligned__(0x4000))) = { 0 };
 
 uint32_t
-l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
+kernel_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 
 static uint32_t
 proc0_l1[4096]__attribute__((__aligned__(0x4000)));
@@ -63,7 +63,7 @@ init_proc0(void)
       (size_t) &proc0_start);
 
   memcpy(proc0_l1,
-      ttb, 
+      kernel_ttb, 
       0x4000);
 
   fl1 = frame_new((size_t) proc0_l1, sizeof(proc0_l1), F_TYPE_MEM);
@@ -139,11 +139,6 @@ main(size_t kernel_start,
   size_t kernel_len;
   proc_t p0;
 
-  /* Early uart. */
-  init_uart((void *) 0x44E09000);
-
-  debug("kernel_start = 0x%h\n", kernel_start);
-
   kernel_len = PAGE_ALIGN(&_kernel_end) - kernel_start;
 
   kernel_info.kernel_start = kernel_start;
@@ -152,20 +147,19 @@ main(size_t kernel_start,
   kernel_info.dtb_start = dtb;
   kernel_info.dtb_len = dtb_len;
 
-  map_l2(ttb, (size_t) l2, kernel_start);
+  map_l2(kernel_ttb, (size_t) kernel_l2, kernel_start);
 
   kernel_va_slot = kernel_start;
 
-  map_pages(l2, kernel_start, kernel_va_slot, 
+  map_pages(kernel_l2, kernel_start, kernel_va_slot, 
       kernel_len, AP_RW_NO, true);
 
   kernel_va_slot += kernel_len;
 
   map_devs((void *) dtb);
 
-  debug("load and enable mmu\n");
-
-  mmu_load_ttb(ttb);
+  raise();
+  mmu_load_ttb(kernel_ttb);
   mmu_enable();
 
   init_devs();
