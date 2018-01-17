@@ -36,7 +36,7 @@ struct intc {
 	uint32_t ilr[nirq];
 };
 
-static struct intc *intc;
+static struct intc *intc = nil;
 
 static void (*handlers[nirq])(uint32_t) = {nil};
 
@@ -94,6 +94,10 @@ void
 init_ti_am33xx_intc(void)
 {
   int i;
+
+  if (intc == nil) {
+    return;
+  }
   
   /* enable interface auto idle */
   intc->sysconfig = 1;

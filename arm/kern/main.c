@@ -158,9 +158,7 @@ main(size_t kernel_start,
 
   map_devs((void *) dtb);
 
-  raise();
   mmu_load_ttb(kernel_ttb);
-  mmu_enable();
 
   init_devs();
 

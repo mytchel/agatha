@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <am335x/uart.h>
 
-static struct uart_regs *uart;
+static struct uart_regs *uart = nil;
 
   static void
 putc(char c)
@@ -29,6 +29,8 @@ map_ti_am335x_uart(void *dtb)
 {
   size_t pa_regs, len;
 
+  return;
+
   pa_regs = 0x44e09000;
   len = 0x2000;
 
@@ -40,6 +42,10 @@ map_ti_am335x_uart(void *dtb)
 void
 init_ti_am335x_uart(void)
 {
+  if (uart == nil) {
+    return;
+  }
+
   puts("kernel am335x uart ready!\n");
 }
 

@@ -33,7 +33,7 @@ struct aux_regs {
   } spi[2];
 };
 
-static struct aux_regs *aux;
+static struct aux_regs *aux = nil;
 
 static void
 putc(char c)
@@ -41,6 +41,7 @@ putc(char c)
   while ((aux->mu.stat & (1<<1)) == 0)
     ;
 
+  raise();
   aux->mu.io = c;
 }
 
@@ -67,6 +68,10 @@ map_bcm2835_aux(void *dtb)
   void
 init_bcm2835_aux(void)
 {
+  if (aux == nil) {
+    return;
+  }
+
   puts("kernel bcm uart ready!\n");
 }
 

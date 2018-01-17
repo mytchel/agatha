@@ -1,6 +1,5 @@
 /dts-v1/;
 
-/memreserve/	0x0000000000000000 0x0000000000001000;
 / {
 	compatible = "raspberrypi,2-model-b", "brcm,bcm2836";
 	model = "Raspberry Pi 2 Model B";

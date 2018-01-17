@@ -3,14 +3,14 @@
 LOAD_ADDR ?= 0x20000000
 USER_ADDR ?= 0x00010000
 ARCH ?= arm
-CROSS ?= arm-linux-gnueabihf-
+CROSS ?= arm-none-eabi
 
-CC = $(CROSS)gcc
-LD = $(CROSS)ld
-AR = $(CROSS)ar
-OBJCOPY = $(CROSS)objcopy
-OBJDUMP = $(CROSS)objdump
-MKIMAGE = mkimage
+CC = $(CROSS)-gcc
+LD = $(CROSS)-ld
+AR = $(CROSS)-ar
+OBJCOPY = $(CROSS)-objcopy
+OBJDUMP = $(CROSS)-objdump
+MKUBOOT = mkuboot
 
 CFLAGS = \
          -std=c89 \
@@ -22,7 +22,7 @@ CFLAGS = \
 
 
 LDFLAGS = -nostdlib -nodefaultlibs -static \
-          -L/usr/lib/gcc/arm-linux-gnueabihf/7.2.0/ 
+          -L/usr/local/lib/gcc/$(CROSS)/6.3.1
 
 
 all: $(ARCH)/kern.umg $(ARCH)/kern.list
@@ -37,7 +37,7 @@ CLEAN += $(KERNEL_OBJECTS)
 CLEAN += $(PROC0)/proc0.bin $(PROC0)/proc0.bo
 CLEAN += $(ARCH)/kern.elf 
 
-$(ARCH)/kern.elf: $(ARCH)/kernel.ld $(KERNEL_OBJECTS) $(PROC0)/proc0.bo 
+$(ARCH)/kern.elf: $(ARCH)/kernel.ld $(PROC0)/proc0.bo $(KERNEL_OBJECTS) 
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T $(ARCH)/kernel.ld -Ttext $(LOAD_ADDR) \
@@ -68,8 +68,10 @@ clean:
 	@$(OBJDUMP) -S $< > $@
 
 .bin.umg: 
-	@echo MKIMAGE $@
-	@$(MKIMAGE) -T kernel -A arm -C none -a $(LOAD_ADDR) -d $< $@
+	@echo MKUBOOT $@
+	@$(MKUBOOT)  -a arm \
+			-e $(LOAD_ADDR) -l $(LOAD_ADDR) \
+				-o linux -t kernel $< $@
 
 .bin.bo: 
 	@echo OBJCOPY $@
