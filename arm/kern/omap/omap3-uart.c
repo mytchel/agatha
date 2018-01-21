@@ -3,7 +3,8 @@
 #include <stdarg.h>
 #include <am335x/uart.h>
 
-static struct uart_regs *uart;
+static struct uart_regs *regs;
+static size_t regs_pa, regs_len;
 
   static void
 putc(char c)
@@ -11,14 +12,14 @@ putc(char c)
   if (c == '\n')
     putc('\r');
 	
-	while ((uart->lsr & (1 << 5)) == 0)
+	while ((regs->lsr & (1 << 5)) == 0)
 		;
 	
-	uart->hr = c;
+	regs->hr = c;
 }
 
-void
-serial_puts(const char *c)
+static void
+omap_puts(const char *c)
 {
   while (*c)
     putc(*c++);
@@ -27,25 +28,29 @@ serial_puts(const char *c)
 void
 map_omap3_uart(void *dtb)
 {
-  size_t pa_regs, len;
+	if (kernel_devices.debug != nil) {
+		return;
+	}
 
 	/* TODO: Grap registers for all uart devices. */
 
-  pa_regs = 0x44e09000;
-  len = 0x2000;
+  regs_pa = 0x44e09000;
+  regs_len = 0x2000;
 
-  uart = (struct uart_regs *) kernel_va_slot;
-  map_pages(kernel_l2, pa_regs, kernel_va_slot, len, AP_RW_NO, false);
-  kernel_va_slot += len;
+  regs = (struct uart_regs *) kernel_va_slot;
+  map_pages(kernel_l2, regs_pa, kernel_va_slot, regs_len, AP_RW_NO, false);
+  kernel_va_slot += PAGE_ALIGN(regs_len);
+
+	kernel_devices.debug = &omap_puts;
 }
 
 void
 init_omap3_uart(void)
 {
-	if (uart == nil) {
+	if (regs == nil) {
 		return;
 	}
   
-	serial_puts("kernel omap3-uart ready.\n");
+	debug("kernel omap3-uart ready at 0x%h -> 0x%h\n", regs_pa, regs);
 }
 

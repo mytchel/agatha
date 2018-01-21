@@ -8,13 +8,17 @@ debug(const char *fmt, ...)
 	char str[128];
 	va_list ap;
 	size_t i;
+
+	if (kernel_devices.debug == nil) {
+		return ERR;
+	}
 	
 	va_start(ap, fmt);
 	i = vsnprintf(str, sizeof(str), fmt, ap);
 	va_end(ap);
 	
 	if (i > 0) {
-		serial_puts(str);
+		kernel_devices.debug(str);
 	}
 	
 	return i;
@@ -27,15 +31,18 @@ panic(const char *fmt, ...)
 	va_list ap;
 	size_t i;
 	
+	if (kernel_devices.debug == nil) {
+		raise();
+	}
+
 	va_start(ap, fmt);
 	i = vsnprintf(str, sizeof(str), fmt, ap);
 	va_end(ap);
 	
 	if (i > 0) {
-		serial_puts(str);
+		kernel_devices.debug(str);
 	}
-	
-	while (true)
-		;
+
+	raise();	
 }
 

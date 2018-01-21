@@ -1,3 +1,13 @@
+struct kernel_devices {
+	void (*trap)(size_t pc, int type);
+	int (*add_kernel_irq)(size_t irqn, void (*func)(size_t));
+	int (*add_user_irq)(size_t irqn, proc_t p);
+
+	void (*timer)(size_t ms);
+
+	void (*debug)(const char *str);
+};
+
 uint32_t
 fsr_status(void);
 
@@ -56,4 +66,6 @@ init_devs(void);
 
 extern uint32_t kernel_ttb[], kernel_l2[];
 extern size_t kernel_va_slot;
+
+extern struct kernel_devices kernel_devices;
 

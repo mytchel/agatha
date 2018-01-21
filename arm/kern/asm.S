@@ -146,12 +146,10 @@ mmu_invalidate:
 	
 
 mmu_enable:
-	push {lr}
-	bl mmu_invalidate
 	mrc p15, 0, r0, c1, c0, 0
 	orr r0, r0, #1
 	mcr p15, 0, r0, c1, c0, 0
-	pop {pc}
+	mov pc, lr
 	
 
 mmu_disable:

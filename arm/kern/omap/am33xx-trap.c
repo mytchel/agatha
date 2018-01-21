@@ -38,7 +38,130 @@ struct intc {
 
 static struct intc *intc = nil;
 
-static void (*handlers[nirq])(uint32_t) = {nil};
+static void (*handlers[nirq])(size_t) = {nil};
+
+	static void
+mask_intr(uint32_t irqn)
+{
+  uint32_t mask, mfield;
+
+  mfield = irqn / 32;
+  mask = 1 << (irqn % 32);
+
+	intc->set[mfield].mir_set = mask;
+}
+
+static void
+unmask_intr(uint32_t irqn)
+{
+  uint32_t mask, mfield;
+
+  mfield = irqn / 32;
+  mask = 1 << (irqn % 32);
+
+	intc->set[mfield].mir_clear = mask;
+}
+
+static int
+am33xx_add_kernel_irq(size_t irqn, void (*func)(size_t))
+{
+  handlers[irqn] = func;
+  unmask_intr(irqn);
+
+	return OK;
+}
+
+static int
+am33xx_add_user_irq(size_t irqn, proc_t p)
+{
+	if (handlers[irqn] != nil) {
+		return ERR;
+	}
+
+  unmask_intr(irqn);
+
+  return OK;
+}
+
+static void
+irq_handler(void)
+{
+  uint32_t irq;
+	
+  irq = intc->sir_irq;
+  
+  if (handlers[irq]) {
+    handlers[irq](irq);
+  } else {
+    mask_intr(irq);
+		/* TODO: send message to registered interrupt. */
+  }
+}
+
+static void
+am33xx_trap(size_t pc, int type)
+{
+  uint32_t fsr;
+  size_t addr;
+
+	debug("trap at 0x%h, type %i\n", pc, type);
+
+  switch(type) {
+  case ABORT_INTERRUPT:
+    irq_handler();
+
+    return; /* Note the return. */
+
+  case ABORT_INSTRUCTION:
+		debug("abort instruction at 0x%h\n", pc);
+    break;
+
+  case ABORT_PREFETCH:
+		debug("prefetch instruction at 0x%h\n", pc);
+    break;
+
+  case ABORT_DATA:
+    addr = fault_addr();
+    fsr = fsr_status() & 0xf;
+
+		debug("data abort at 0x%h for 0x%h type 0x%h\n", pc, addr, fsr);
+
+    switch (fsr) {
+    case 0x5: /* section translation */
+    case 0x7: /* page translation */
+    case 0x0: /* vector */
+    case 0x1: /* alignment */
+    case 0x3: /* also alignment */
+    case 0x2: /* terminal */
+    case 0x4: /* external linefetch section */
+    case 0x6: /* external linefetch page */
+    case 0x8: /* external non linefetch section */
+    case 0xa: /* external non linefetch page */
+    case 0x9: /* domain section */
+    case 0xb: /* domain page */
+    case 0xc: /* external translation l1 */
+    case 0xe: /* external translation l2 */
+    case 0xd: /* section permission */
+    case 0xf: /* page permission */
+    default:
+      break;
+    }
+
+    break;
+  }
+
+  if (up == nil) {
+    panic("trap with no proc on cpu!!!\n");
+  }
+ 
+  debug("killing proc %i\n", up->pid);
+
+  up->state = PROC_dead;
+
+  schedule(nil);
+
+  /* Never reached */
+}
 
 void
 map_ti_am33xx_intc(void *dtb)
@@ -48,6 +171,10 @@ map_ti_am33xx_intc(void *dtb)
   void *root, *node;
   int len, l, i;
   char *data;
+
+	if (kernel_devices.trap != nil) {
+		return;
+	}
 
   root = fdt_root_node(dtb);
   if (root == nil) {
@@ -87,7 +214,11 @@ good:
 
   intc = (struct intc *) kernel_va_slot;
   map_pages(kernel_l2, addr, kernel_va_slot, size, AP_RW_NO, false);
-  kernel_va_slot += size;
+  kernel_va_slot += PAGE_ALIGN(size);
+
+	kernel_devices.trap = &am33xx_trap;
+	kernel_devices.add_kernel_irq = &am33xx_add_kernel_irq;
+	kernel_devices.add_user_irq = &am33xx_add_user_irq;
 }
 
 void
@@ -98,6 +229,8 @@ init_ti_am33xx_intc(void)
   if (intc == nil) {
     return;
   }
+	
+	intc->control = 1;
   
   /* enable interface auto idle */
   intc->sysconfig = 1;
@@ -115,122 +248,4 @@ init_ti_am33xx_intc(void)
 	intc->control = 1;
 }
 
-void
-mask_intr(uint32_t irqn)
-{
-  uint32_t mask, mfield;
-
-  mfield = irqn / 32;
-  mask = 1 << (irqn % 32);
-
-	intc->set[mfield].mir_set = mask;
-}
-
-void
-unmask_intr(uint32_t irqn)
-{
-  uint32_t mask, mfield;
-
-  mfield = irqn / 32;
-  mask = 1 << (irqn % 32);
-
-	intc->set[mfield].mir_clear = mask;
-}
-
-void
-intc_add_handler(uint32_t irqn, void (*func)(uint32_t))
-{
-  handlers[irqn] = func;
-  unmask_intr(irqn);
-}
-
-int
-register_irq(proc_t p, size_t irq)
-{
-  unmask_intr(irq);
-  return OK;
-}
-
-void
-intc_reset(void)
-{
-	intc->control = 1;
-}
-
-static void
-irq_handler(void)
-{
-  uint32_t irq;
-	
-  irq = intc->sir_irq;
-  
-  if (handlers[irq]) {
-    handlers[irq](irq);
-  } else {
-    mask_intr(irq);
-  }
-}
-
-void
-trap(size_t pc, int type)
-{
-  uint32_t fsr;
-  size_t addr;
-  
-  switch(type) {
-  case ABORT_INTERRUPT:
-    irq_handler();
-
-    return; /* Note the return. */
-
-  case ABORT_INSTRUCTION:
-		debug("abort instruction at 0x%h\n", pc);
-    break;
-
-  case ABORT_PREFETCH:
-		debug("prefetch instruction at 0x%h\n", pc);
-    break;
-
-  case ABORT_DATA:
-    addr = fault_addr();
-    fsr = fsr_status() & 0xf;
-
-		debug("data abort at 0x%h for 0x%h tyep 0x%h\n", pc, addr, fsr);
-
-    switch (fsr) {
-    case 0x5: /* section translation */
-    case 0x7: /* page translation */
-    case 0x0: /* vector */
-    case 0x1: /* alignment */
-    case 0x3: /* also alignment */
-    case 0x2: /* terminal */
-    case 0x4: /* external linefetch section */
-    case 0x6: /* external linefetch page */
-    case 0x8: /* external non linefetch section */
-    case 0xa: /* external non linefetch page */
-    case 0x9: /* domain section */
-    case 0xb: /* domain page */
-    case 0xc: /* external translation l1 */
-    case 0xe: /* external translation l2 */
-    case 0xd: /* section permission */
-    case 0xf: /* page permission */
-    default:
-      break;
-    }
-
-    break;
-  }
-
-  if (up == nil) {
-    panic("trap with no proc on cpu!!!\n");
-  }
- 
-  debug("killing proc %i\n", up->pid);
-
-  up->state = PROC_dead;
-
-  schedule(nil);
-
-  /* Never reached */
-}
 

@@ -12,7 +12,7 @@ KERNEL_SRC_C := \
         arm/kern/debug.c              \
         arm/kern/omap/am33xx-trap.c   \
         arm/kern/omap/omap3-uart.c    \
-        arm/kern/omap/am335x-timer-1ms.c \
+        arm/kern/omap/am335x-timer.c  \
         kern/proc.c                   \
         kern/sys.c                    \
         kern/frame.c                  \
