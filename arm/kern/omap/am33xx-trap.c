@@ -65,7 +65,10 @@ unmask_intr(uint32_t irqn)
 static int
 am33xx_add_kernel_irq(size_t irqn, void (*func)(size_t))
 {
+	debug("add handler to handlers 0x%h for irq %i\n", handlers, irqn);
   handlers[irqn] = func;
+
+	debug("unmaks\n");
   unmask_intr(irqn);
 
 	return OK;
@@ -87,8 +90,10 @@ static void
 irq_handler(void)
 {
   uint32_t irq;
-	
+
   irq = intc->sir_irq;
+	
+	debug("irq %i\n", irq);	
   
   if (handlers[irq]) {
     handlers[irq](irq);
@@ -96,6 +101,9 @@ irq_handler(void)
     mask_intr(irq);
 		/* TODO: send message to registered interrupt. */
   }
+
+	/* Allow new interrupts. */
+	intc->control = 1;
 }
 
 static void
@@ -164,6 +172,33 @@ am33xx_trap(size_t pc, int type)
 }
 
 void
+init_am33xx_intc(void)
+{
+  int i;
+
+  if (intc == nil) {
+    return;
+  }
+	
+	intc->control = 1;
+  
+  /* enable interface auto idle */
+  intc->sysconfig = 1;
+
+  /* mask all interrupts. */
+  for (i = 0; i < 4; i++) {
+  	intc->set[i].mir = 0xffffffff;
+  }
+	
+  /* Set all interrupts to lowest priority. */
+  for (i = 0; i < nirq; i++) {
+  	intc->ilr[i] = 63 << 2;
+  }
+	
+	intc->control = 1;
+}
+
+void
 map_ti_am33xx_intc(void *dtb)
 {
   uint32_t intc_handle;
@@ -216,36 +251,9 @@ good:
   map_pages(kernel_l2, addr, kernel_va_slot, size, AP_RW_NO, false);
   kernel_va_slot += PAGE_ALIGN(size);
 
+	kernel_devices.init_intc = &init_am33xx_intc;
 	kernel_devices.trap = &am33xx_trap;
 	kernel_devices.add_kernel_irq = &am33xx_add_kernel_irq;
 	kernel_devices.add_user_irq = &am33xx_add_user_irq;
 }
-
-void
-init_ti_am33xx_intc(void)
-{
-  int i;
-
-  if (intc == nil) {
-    return;
-  }
-	
-	intc->control = 1;
-  
-  /* enable interface auto idle */
-  intc->sysconfig = 1;
-
-  /* mask all interrupts. */
-  for (i = 0; i < 4; i++) {
-  	intc->set[i].mir = 0xffffffff;
-  }
-	
-  /* Set all interrupts to lowest priority. */
-  for (i = 0; i < nirq; i++) {
-  	intc->ilr[i] = 63 << 2;
-  }
-	
-	intc->control = 1;
-}
-
 

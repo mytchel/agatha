@@ -11,27 +11,15 @@ void
 map_ti_am33xx_intc(void *dtb);
 
 void
-init_ti_am33xx_intc(void);
-
-void
 map_omap3_uart(void *dtb);
-
-void
-init_omap3_uart(void);
 
 void
 map_am335x_timer(void *dtb);
 
-void
-init_am335x_timer(void);
-
 static struct driver drivers[] = {
-	{ map_omap3_uart,
-		init_omap3_uart },
-	{ map_ti_am33xx_intc,
-		init_ti_am33xx_intc },
-	{ map_am335x_timer,
-		init_am335x_timer },
+	{ map_omap3_uart },
+	{ map_ti_am33xx_intc },
+	{ map_am335x_timer },
 };
 
 struct kernel_devices kernel_devices = { nil };
@@ -43,16 +31,6 @@ map_devs(void *dtb)
 
 	for (i = 0; i < sizeof(drivers)/sizeof(drivers[0]); i++) {
 		drivers[i].map(dtb);
-	}
-}
-
-	void
-init_devs(void)
-{
-	int i;
-
-	for (i = 0; i < sizeof(drivers)/sizeof(drivers[0]); i++) {
-		drivers[i].init();
 	}
 
 	if ( kernel_devices.trap == nil ||
@@ -66,9 +44,24 @@ init_devs(void)
 	}
 }
 
+	void
+init_devs(void)
+{
+	kernel_devices.init_debug();
+	kernel_devices.init_intc();
+	kernel_devices.init_timer();
+}
+
 void
 trap(size_t pc, int type)
 {
+	debug("trap\n");
 	kernel_devices.trap(pc, type);
+}
+
+void
+systick(size_t ms)
+{
+	kernel_devices.timer(ms);
 }
 

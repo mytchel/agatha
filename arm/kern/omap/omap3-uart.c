@@ -25,6 +25,12 @@ omap_puts(const char *c)
     putc(*c++);
 }
 
+	void
+init_omap3_uart(void)
+{
+	debug("kernel omap3-uart ready at 0x%h -> 0x%h\n", regs_pa, regs);
+}
+
 void
 map_omap3_uart(void *dtb)
 {
@@ -42,15 +48,7 @@ map_omap3_uart(void *dtb)
   kernel_va_slot += PAGE_ALIGN(regs_len);
 
 	kernel_devices.debug = &omap_puts;
+	kernel_devices.init_debug = &init_omap3_uart;
 }
 
-void
-init_omap3_uart(void)
-{
-	if (regs == nil) {
-		return;
-	}
-  
-	debug("kernel omap3-uart ready at 0x%h -> 0x%h\n", regs_pa, regs);
-}
 
