@@ -14,26 +14,24 @@ void
 init_ti_am33xx_intc(void);
 
 void
-map_ti_am335x_uart(void *dtb);
+map_omap3_uart(void *dtb);
 
 void
-init_ti_am335x_uart(void);
+init_omap3_uart(void);
 
 void
-map_bcm2835_aux(void *dtb);
+map_am335x_timer_1ms(void *dtb);
 
 void
-init_bcm2835_aux(void);
-
+init_am335x_timer_1ms(void);
 
 static struct driver drivers[] = {
   { map_ti_am33xx_intc,
     init_ti_am33xx_intc },
-  { map_ti_am335x_uart,
-    init_ti_am335x_uart },
-
-  { map_bcm2835_aux,
-    init_bcm2835_aux },
+  { map_omap3_uart,
+    init_omap3_uart },
+  { map_am335x_timer_1ms,
+    init_am335x_timer_1ms},
 };
 
   void

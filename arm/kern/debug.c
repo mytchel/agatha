@@ -2,12 +2,6 @@
 #include "fns.h"
 #include <stdarg.h>
 
-static void
-puts(const char *c)
-{
-
-}
-
 int
 debug(const char *fmt, ...)
 {
@@ -20,7 +14,7 @@ debug(const char *fmt, ...)
 	va_end(ap);
 	
 	if (i > 0) {
-		puts(str);
+		serial_puts(str);
 	}
 	
 	return i;
@@ -38,7 +32,7 @@ panic(const char *fmt, ...)
 	va_end(ap);
 	
 	if (i > 0) {
-		puts(str);
+		serial_puts(str);
 	}
 	
 	while (true)

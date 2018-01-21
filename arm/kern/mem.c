@@ -6,8 +6,6 @@ frame_give(proc_t from, proc_t to, kframe_t f)
 {
 	kframe_t n, nn;
 
-  debug("frame_give from %i to %i frame %i\n", from->pid, to->pid, f->u.f_id);
-
   frame_remove(from, f);
   frame_add(to, f);
 
@@ -49,9 +47,6 @@ map_pages(uint32_t *l2, size_t pa, size_t va,
     size_t len, int ap, bool cache)
 {
   uint32_t tex, c, b, o;
-
-  debug("map pages from 0x%h to 0x%h len 0x%h, in table at 0x%h\n",
-      pa, va, len, l2);
 
   if (cache) {
     tex = 7;

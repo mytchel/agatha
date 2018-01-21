@@ -177,12 +177,6 @@ trap(size_t pc, int type)
   uint32_t fsr;
   size_t addr;
   
-  if (up == nil) {
-    debug("trap with no proc on cpu!\n");
-  } else {
-    debug("trap for pid %i\n", up->pid);
-  }
-
   switch(type) {
   case ABORT_INTERRUPT:
     irq_handler();
@@ -190,19 +184,19 @@ trap(size_t pc, int type)
     return; /* Note the return. */
 
   case ABORT_INSTRUCTION:
-    debug("bad instruction at 0x%h\n", pc);
+		debug("abort instruction at 0x%h\n", pc);
     break;
 
   case ABORT_PREFETCH:
-    debug("prefetch abort at 0x%h\n", pc);
+		debug("prefetch instruction at 0x%h\n", pc);
     break;
 
   case ABORT_DATA:
     addr = fault_addr();
     fsr = fsr_status() & 0xf;
 
-    debug("data abort at 0x%h for 0x%h type 0x%h\n", pc, addr, fsr);
-    
+		debug("data abort at 0x%h for 0x%h tyep 0x%h\n", pc, addr, fsr);
+
     switch (fsr) {
     case 0x5: /* section translation */
     case 0x7: /* page translation */

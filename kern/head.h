@@ -95,7 +95,6 @@ int
 debug(const char *fmt, ...);
 
 void
-__attribute__((__noreturn__))
 panic(const char *fmt, ...);
 
 int

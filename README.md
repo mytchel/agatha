@@ -27,6 +27,26 @@ virtual machine/hardware or a odroid. I am trying to make
 the kernel as portable as possible by using linux flattened
 device tree's to find devices. The same for drivers.
 
+## Trying it out
+
+You will need:
+	- an arm cross compiler. I'm using arm-none-eabi
+	6.3.1 on OpenBSD. 
+	- GNU Make
+
+Then it should be as simple as typing `make`/`gmake`.
+You will need to edit `Makefile` if you are using a 
+different compiler.
+
+Now the kernel should be built and bundled for U-Boot
+at `arm/kern.umg`. Copy that across to your device
+somehow along with a device tree blob such as 
+`arm/boot/bbb.dtb` for the beagle bone black and use
+U-Boot to load the kernel.
+
+Currently all it does it write "Hello 1", "Hello 2", etc
+to UART.
+
 ## Booting
 
 U-Boot is used to load the kernel and device tree blob.

@@ -39,9 +39,6 @@ proc0_start(void)
   u.pc = USER_ADDR;
   u.regs[0] = proc0_kernel_info_va;
 
-  debug("proc %i drop to user at 0x%h 0x%h kernel at 0x%h!\n", 
-      up->pid, u.pc, u.sp, up->kstack + KSTACK_LEN);
-
   drop_to_user(&u, up->kstack, KSTACK_LEN);
 }
 
@@ -52,11 +49,9 @@ init_proc0(void)
   size_t s, l;
   proc_t p;
 
-  debug("create proc 0\n");
-
   p = proc_new();
   if (p == nil) {
-    panic("Failed to create proc!\n");
+    panic("Failed to create proc0 entry!\n");
   }
 
   func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
@@ -159,12 +154,11 @@ main(size_t kernel_start,
   map_devs((void *) dtb);
 
   mmu_load_ttb(kernel_ttb);
+	mmu_enable();
 
   init_devs();
 
   p0 = init_proc0();
-
-  debug("start!\n");
 
   schedule(p0);
 }

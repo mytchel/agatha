@@ -10,12 +10,15 @@ void
 main(void)
 {
   uint8_t m[MESSAGE_LEN];
-  int i;
+  int i, pid;
+
+	/* Pid of uart driver. */
+	pid = 1;
 
   i = 0;
   while (true) {
     snprintf((char *) m, MESSAGE_LEN, "Hello. %i\n", i++);
-    send(1, m);
+    send(pid, m);
     yield();
   }
 }

@@ -14,7 +14,7 @@ do
   B=$D/$(basename $D).bin
   E=$D/$(basename $D).elf
 
-  SIZE=$(du -b $B)
+  SIZE=$(ls -l $B | cut -d ' ' -f 8)
   test $? || exit 1
 
   ALIGNED=$(echo $SIZE | \

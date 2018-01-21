@@ -9,10 +9,10 @@ KERNEL_SRC_C := \
         arm/kern/mem.c                \
         arm/kern/proc.c               \
         arm/kern/dev.c                \
-        arm/kern/serial.c             \
-        arm/kern/am335x/trap.c        \
-        arm/kern/am335x/uart.c        \
-        arm/kern/bcm283x/aux.c        \
+        arm/kern/debug.c              \
+        arm/kern/omap/am33xx-trap.c   \
+        arm/kern/omap/omap3-uart.c    \
+        arm/kern/omap/am335x-timer-1ms.c \
         kern/proc.c                   \
         kern/sys.c                    \
         kern/frame.c                  \

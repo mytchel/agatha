@@ -45,19 +45,8 @@ map_sections(uint32_t *l1, size_t pa, size_t va,
 int
 unmap_sections(uint32_t *l1, size_t va, size_t len);
 
-/* Initialisation functions */
-
 void
-map_ti_am33xx_intc(void *dtb);
-
-void
-init_ti_am33xx_intc(void);
-
-void
-map_ti_am335x_uart(void *dtb);
-
-void
-init_ti_am335x_uart(void);
+serial_puts(const char *c);
 
 void
 map_devs(void *dtb);
