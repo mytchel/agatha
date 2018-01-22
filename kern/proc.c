@@ -40,8 +40,6 @@ next_proc(void)
 	void
 schedule(proc_t n)
 {
-  debug("schedule\n");
-
 	if (up != nil) {
 		if (up->state == PROC_oncpu) {
 			up->state = PROC_ready;
@@ -59,19 +57,17 @@ schedule(proc_t n)
 	}
 
 	if (up != nil) {
-    debug("go\n");
 		if (up->vspace != nil) {
 			mmu_switch(up->vspace);
 		}
 
-		systick(1000);
+		set_systick(100);
 
 		up->state = PROC_oncpu;
 		goto_label(&up->label);
 	}
 
-	debug("NO PROCS TO RUN!!\n");
-	raise();
+	panic("NO PROCS TO RUN!!\n");
 }
 
 	void

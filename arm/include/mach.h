@@ -68,7 +68,9 @@ struct kernel_info {
   size_t dtb_start;
   size_t dtb_len;
 
-  size_t intc_phandle;
+  char intc_fdt_path[128];
+	char systick_fdt_path[128];
+	char debug_fdt_path[128];
 
   char boot_args[256];
 };

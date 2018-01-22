@@ -164,4 +164,3 @@ main(size_t kernel_start,
   schedule(p0);
 }
 
-

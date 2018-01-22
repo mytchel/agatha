@@ -140,7 +140,7 @@ int
 mmu_switch(kframe_t f);
 
 void
-systick(size_t ms);
+set_systick(size_t ms);
 
 int
 register_irq(proc_t p, size_t irq);

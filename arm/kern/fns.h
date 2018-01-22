@@ -1,13 +1,16 @@
 struct kernel_devices {
+	char intc_fdt_path[128];
 	void (*init_intc)(void);
 
 	void (*trap)(size_t pc, int type);
 	int (*add_kernel_irq)(size_t irqn, void (*func)(size_t));
 	int (*add_user_irq)(size_t irqn, proc_t p);
 
+	char systick_fdt_path[128];
 	void (*init_timer)(void);
 	void (*timer)(size_t ms);
 
+	char debug_fdt_path[128];
 	void (*init_debug)(void);
 	void (*debug)(const char *str);
 };

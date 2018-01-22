@@ -65,10 +65,8 @@ unmask_intr(uint32_t irqn)
 static int
 am33xx_add_kernel_irq(size_t irqn, void (*func)(size_t))
 {
-	debug("add handler to handlers 0x%h for irq %i\n", handlers, irqn);
   handlers[irqn] = func;
 
-	debug("unmaks\n");
   unmask_intr(irqn);
 
 	return OK;
@@ -93,8 +91,6 @@ irq_handler(void)
 
   irq = intc->sir_irq;
 	
-	debug("irq %i\n", irq);	
-  
   if (handlers[irq]) {
     handlers[irq](irq);
   } else {
@@ -250,6 +246,10 @@ good:
   intc = (struct intc *) kernel_va_slot;
   map_pages(kernel_l2, addr, kernel_va_slot, size, AP_RW_NO, false);
   kernel_va_slot += PAGE_ALIGN(size);
+
+	fdt_node_path(dtb, node, 
+			(char **) &kernel_devices.intc_fdt_path,
+			sizeof(kernel_devices.intc_fdt_path));
 
 	kernel_devices.init_intc = &init_am33xx_intc;
 	kernel_devices.trap = &am33xx_trap;

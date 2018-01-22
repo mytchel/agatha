@@ -66,6 +66,9 @@ fdt_root_node(void *dtb);
 char *
 fdt_node_name(void *dtb, void *node);
 
+int
+fdt_node_path(void *dtb, void *node, char **path, size_t max);
+
 void
 fdt_check_reserved(void *dtb, 
     void (*callback)(size_t start, size_t len));

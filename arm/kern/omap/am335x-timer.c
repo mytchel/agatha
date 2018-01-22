@@ -63,9 +63,6 @@ init_am335x_timer(void)
 	regs->irqenable_set = (1<<1);
 
 	kernel_devices.add_kernel_irq(irqn, &am335x_systick);
-
-	debug("am335x-timer-1ms ready at 0x%h -> 0x%h : irq %i\n", 
-			regs_pa, regs, irqn);
 }
 
 static bool
@@ -89,6 +86,10 @@ cb(void *dtb, void *node, void *arg)
   map_pages(kernel_l2, regs_pa, kernel_va_slot, regs_len, AP_RW_NO, false);
   kernel_va_slot += PAGE_ALIGN(regs_len);
 
+	fdt_node_path(dtb, node, 
+			(char **) &kernel_devices.systick_fdt_path, 
+			sizeof(kernel_devices.systick_fdt_path));
+
 	kernel_devices.init_timer = &init_am335x_timer;
 	kernel_devices.timer = &am335x_timer;
 
@@ -96,7 +97,7 @@ cb(void *dtb, void *node, void *arg)
 	return false;
 }
 
-void
+	void
 map_am335x_timer(void *dtb)
 {
 	if (kernel_devices.timer != nil) {

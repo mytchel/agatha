@@ -233,6 +233,12 @@ fdt_node_name(void *dtb, void *node)
   return ((char *) node) + sizeof(uint32_t);
 }
 
+int
+fdt_node_path(void *dtb, void *node, char **path, size_t max)
+{
+	return -1;
+}
+
   static uint32_t *
 fdt_find_node_compatable_h(void *dtb, 
     struct fdt_header *head, 

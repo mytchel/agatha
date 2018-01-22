@@ -33,7 +33,7 @@ map_devs(void *dtb)
 		drivers[i].map(dtb);
 	}
 
-	if ( kernel_devices.trap == nil ||
+	if (kernel_devices.trap == nil ||
 			kernel_devices.add_kernel_irq == nil ||
 			kernel_devices.add_user_irq == nil ||
 			kernel_devices.timer == nil ||
@@ -42,6 +42,19 @@ map_devs(void *dtb)
 		/* We have a problem! */
 		raise();
 	}
+
+	memcpy(kernel_info.intc_fdt_path,
+			kernel_devices.intc_fdt_path,
+			sizeof(kernel_info.intc_fdt_path));
+
+	memcpy(kernel_info.systick_fdt_path,
+			kernel_devices.systick_fdt_path,
+			sizeof(kernel_info.systick_fdt_path));
+
+	memcpy(kernel_info.debug_fdt_path,
+			kernel_devices.debug_fdt_path,
+			sizeof(kernel_info.debug_fdt_path));
+
 }
 
 	void
@@ -52,15 +65,15 @@ init_devs(void)
 	kernel_devices.init_timer();
 }
 
-void
+	void
 trap(size_t pc, int type)
 {
 	debug("trap\n");
 	kernel_devices.trap(pc, type);
 }
 
-void
-systick(size_t ms)
+	void
+set_systick(size_t ms)
 {
 	kernel_devices.timer(ms);
 }

@@ -11,7 +11,6 @@ main(void)
 {
   uint8_t m[MESSAGE_LEN];
   int i, pid;
-	uint32_t j;
 
 	/* Pid of uart driver. */
 	pid = 1;
@@ -20,12 +19,6 @@ main(void)
   while (true) {
     snprintf((char *) m, MESSAGE_LEN, "Hello. %i\n", i++);
     send(pid, m);
-    yield();
-
-		if (i % 10 == 0) {
-			for (j = 0; j < 0xffffff; j++)
-				;
-		}
   }
 }
 
