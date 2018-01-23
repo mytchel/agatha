@@ -4,7 +4,7 @@ struct kernel_devices {
 
 	void (*trap)(size_t pc, int type);
 	int (*add_kernel_irq)(size_t irqn, void (*func)(size_t));
-	int (*add_user_irq)(size_t irqn, proc_t p);
+	int (*add_user_irq)(size_t irqn, proc_t p, int flags);
 
 	char systick_fdt_path[128];
 	void (*init_timer)(void);

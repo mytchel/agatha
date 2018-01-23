@@ -38,7 +38,7 @@ struct intc {
 
 static struct intc *intc = nil;
 
-static void (*handlers[nirq])(size_t) = {nil};
+static void (*kernel_handlers[nirq])(size_t) = {nil};
 
 	static void
 mask_intr(uint32_t irqn)
@@ -65,7 +65,7 @@ unmask_intr(uint32_t irqn)
 static int
 am33xx_add_kernel_irq(size_t irqn, void (*func)(size_t))
 {
-  handlers[irqn] = func;
+  kernel_handlers[irqn] = func;
 
   unmask_intr(irqn);
 
@@ -73,29 +73,25 @@ am33xx_add_kernel_irq(size_t irqn, void (*func)(size_t))
 }
 
 static int
-am33xx_add_user_irq(size_t irqn, proc_t p)
+am33xx_add_user_irq(size_t irqn, proc_t p, int flags)
 {
-	if (handlers[irqn] != nil) {
-		return ERR;
-	}
-
-  unmask_intr(irqn);
-
-  return OK;
+	return ERR;
 }
 
-static void
+	static void
 irq_handler(void)
 {
   uint32_t irq;
 
   irq = intc->sir_irq;
 	
-  if (handlers[irq]) {
-    handlers[irq](irq);
-  } else {
-    mask_intr(irq);
-		/* TODO: send message to registered interrupt. */
+	debug("interrupt %i\n", irq);
+	
+  if (kernel_handlers[irq]) {
+    kernel_handlers[irq](irq);
+
+	} else {
+		mask_intr(irq);
   }
 
 	/* Allow new interrupts. */

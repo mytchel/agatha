@@ -137,3 +137,21 @@ They communicate with proc0 to find registers and
 interrupts described in the device tree blob given
 to Agatha by U-Boot. 
 
+## IPC
+
+Currently processes can send unstructued messages
+of 64 bytes to any other processs with its process
+id as:
+
+```
+
+int
+send(int pid, uint8_t *m);
+
+int
+recv(uint8_t *m);
+
+```
+
+However this is only temporary. 
+

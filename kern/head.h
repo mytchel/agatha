@@ -142,9 +142,6 @@ mmu_switch(kframe_t f);
 void
 set_systick(size_t ms);
 
-int
-register_irq(proc_t p, size_t irq);
-
 /* Variables. */
 
 extern proc_t up;

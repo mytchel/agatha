@@ -10,7 +10,7 @@ func_label(label_t *l,
 {
 	memset(l, 0, sizeof(struct label));
 
-	l->psr = MODE_SVC;
+	l->psr = MODE_SVC | MODE_DI | MODE_DF;
 	l->sp = (uint32_t) stack + stacklen;
 	l->pc = (uint32_t) func;
 }
