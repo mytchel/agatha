@@ -24,7 +24,7 @@ init_bundled_proc(char *name,
 {
   uint32_t m[MESSAGE_LEN/sizeof(uint32_t)] = { 0 };
   int f_l1, f_l2, f_user, f_stack;
-  int pid;
+  int pid, i;
 
   f_l1 = get_mem_frame(0x4000, 0x4000);
   if (f_l1 < 0) {
@@ -97,11 +97,15 @@ init_bundled_proc(char *name,
   m[0] = 0x10000;
   m[1] = 0x10000;
 
-  if (send(pid, (uint8_t *) m) != OK) {
-    return false;
+  for (i = 0; i < 100; i++) {
+	 	if (send(pid, (uint8_t *) m) == OK) {
+			return true;
+		} else {
+			yield();
+		}
   }
 
-  return true;
+  return false;
 }
 
 bool

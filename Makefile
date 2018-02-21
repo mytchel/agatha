@@ -48,7 +48,7 @@ $(ARCH)/kern.elf: $(ARCH)/kernel.ld $(PROC0)/proc0.bo $(KERNEL_OBJECTS)
 .PHONY: clean
 clean:
 	@echo CLEAN
-	@rm -f $(CLEAN)
+	rm -f $(CLEAN)
 
 
 .c.o .S.o:

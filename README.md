@@ -153,5 +153,11 @@ recv(uint8_t *m);
 
 ```
 
-However this is only temporary. 
+The process will block on send until the process
+it has sent to receivces the message and wake it.
+
+The process will block on recv is there are no
+processes waiting to send to it.
+
+
 

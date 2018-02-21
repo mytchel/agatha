@@ -1,12 +1,8 @@
-CLEAN += drivers/uart/uart.elf \
-         drivers/uart/uart.bin \
-         drivers/uart/uart.list
-
 UART_SRC_A := \
    lib/libc/sys.S
 
 UART_SRC_C := \
-  drivers/uart/main.c              \
+  drivers/omap/uart/main.c     \
   lib/libc/util.c              \
   lib/libc/mem.c               \
   lib/libstring/conv.c         \
@@ -20,7 +16,11 @@ UART_OBJECTS := \
 
 CLEAN += $(UART_OBJECTS)
 
-drivers/uart/uart.elf: $(USER.LD) $(UART_OBJECTS)
+CLEAN += drivers/omap/uart/uart.elf \
+         drivers/omap/uart/uart.bin \
+         drivers/omap/uart/uart.list
+
+drivers/omap/uart/uart.elf: $(USER.LD) $(UART_OBJECTS)
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T $(USER.LD) -Ttext $(USER_ADDR) \

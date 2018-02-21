@@ -86,7 +86,7 @@ irq_handler(void)
   irq = intc->sir_irq;
 	
 	debug("interrupt %i\n", irq);
-	
+
   if (kernel_handlers[irq]) {
     kernel_handlers[irq](irq);
 

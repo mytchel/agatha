@@ -4,42 +4,51 @@
 	int
 send(proc_t p, uint8_t *m)
 {
+	proc_t *n;
+
 	debug("%i ksend to %i\n", up->pid, p->pid);
 
-  if (p->state == PROC_dead) {
-		debug("%i is dead\n", p->pid);
-		return ERR;
-	} else if (p->m_from != -1) {
-    debug("proc holding\n");
-		return ERR;
-	} else {
-		p->m_from = up->pid;
-		memcpy(p->m, m, MESSAGE_LEN);
-		
-		if (p->state == PROC_recv) {
-			p->state = PROC_ready;
-			schedule(p);
-		}
+	memcpy(up->m, m, MESSAGE_LEN);
 
-		return OK;
+	up->wnext = nil;
+
+	debug("add to wait list\n");
+
+	for (n = &p->waiting; *n != nil; n = &(*n)->wnext)
+		;
+
+	*n = up;
+
+	debug("sleep\n");
+	up->state = PROC_send;
+	if (p->state == PROC_recv) {
+		debug("wake %i\n", p->pid);
+		schedule(p);
+	} else {
+		schedule(nil);
 	}
+	
+	return OK;
 }
 
 int
 recv(uint8_t *m)
 {
-	int pid;
+	proc_t f;
 	
 	debug("%i krecv\n", up->pid);
 
   while (true) {
-		pid = up->m_from;
-		if (pid != -1) {
-			memcpy(m, up->m, MESSAGE_LEN);
-			up->m_from = -1;
+		f = up->waiting;
+		if (f != nil) {
+			debug("got message from %i\n", f->pid);
+			up->waiting = f->wnext;
 
-			return pid;
-			
+			memcpy(m, f->m, MESSAGE_LEN);
+
+			f->state = PROC_ready;
+			return f->pid;
+
 		} else {
 			debug("going to sleep\n");
 			up->state = PROC_recv;

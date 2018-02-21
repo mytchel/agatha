@@ -69,7 +69,6 @@ main(void)
 {
   struct uart_regs *uart;
   uint8_t m[MESSAGE_LEN];
-  int p;
 
   uart = get_uart();
   if (uart == nil) {
@@ -79,12 +78,10 @@ main(void)
   puts(uart, "Hello, World!\n");
 
   while (true) {
-    p = recv(m);
+    recv(m);
 
     m[MESSAGE_LEN-1] = 0;
     puts(uart, (const char *) m);
-
-    send(p, m);
   }
 }
 

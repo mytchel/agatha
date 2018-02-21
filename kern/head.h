@@ -34,18 +34,18 @@ struct proc {
 	int pid;
 	proc_t next;
 	
-	int m_from;
+  uint8_t kstack[KSTACK_LEN];
+
 	uint8_t m[MESSAGE_LEN];
+	proc_t waiting;
+	
+	proc_t wnext;
 	
 	size_t frame_count;
 	
 	kframe_t frames;
 	kframe_t vspace;
-	
-  uint8_t kstack[KSTACK_LEN];
 };
-
-/* vspace should be the barest possible. */
 
 proc_t
 proc_new(void);

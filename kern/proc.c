@@ -61,7 +61,7 @@ schedule(proc_t n)
 			mmu_switch(up->vspace);
 		}
 
-		set_systick(100);
+		set_systick(1000);
 
 		up->state = PROC_oncpu;
 		goto_label(&up->label);
@@ -107,7 +107,6 @@ proc_new(void)
 	memset(p, 0, sizeof(struct proc));
 
 	p->pid = pid;
-	p->m_from = -1;
 
 	p->state = PROC_ready;
 

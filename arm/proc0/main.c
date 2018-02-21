@@ -100,7 +100,7 @@ handle(int pid, struct proc0_message *i)
       break;
   }
 
-  send(pid, o);  
+  send(pid, o);
 }
 
   void
@@ -135,7 +135,9 @@ main(struct kernel_info *k)
 
   while (true) {
     p = recv(m);
-    handle(p, (struct proc0_message *) m);
+		if (p > 0) {
+			handle(p, (struct proc0_message *) m);
+		}
   }
 }
 
