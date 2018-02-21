@@ -9,13 +9,11 @@ A micro kernel.
 	- Minix
 	- Plan9
 
-
 ### Features
 	
   - No shared memory.
-  - Asynchronous message passing (for now synchronous).
+  - Synchronous message passing.
   - User level control over virtual memory.
-  - Eventually multi core.
 
 ## Supported Hardware
 
@@ -139,7 +137,7 @@ to Agatha by U-Boot.
 
 ## IPC
 
-Currently processes can send unstructued messages
+Processes can send unstructued messages
 of 64 bytes to any other processs with its process
 id as:
 

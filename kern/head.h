@@ -37,9 +37,8 @@ struct proc {
   uint8_t kstack[KSTACK_LEN];
 
 	uint8_t m[MESSAGE_LEN];
+	proc_t waiting_on, wnext;
 	proc_t waiting;
-	
-	proc_t wnext;
 	
 	size_t frame_count;
 	

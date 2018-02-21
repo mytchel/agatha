@@ -1,7 +1,7 @@
-UART_SRC_A := \
+OMAP_UART_SRC_A := \
    lib/libc/sys.S
 
-UART_SRC_C := \
+OMAP_UART_SRC_C := \
   drivers/omap/uart/main.c     \
   lib/libc/util.c              \
   lib/libc/mem.c               \
@@ -10,20 +10,20 @@ UART_SRC_C := \
   lib/libstring/string.c
 				
 
-UART_OBJECTS := \
-  $(UART_SRC_A:%.S=%.o) \
-  $(UART_SRC_C:%.c=%.o)
+OMAP_UART_OBJECTS := \
+  $(OMAP_UART_SRC_A:%.S=%.o) \
+  $(OMAP_UART_SRC_C:%.c=%.o)
 
-CLEAN += $(UART_OBJECTS)
+CLEAN += $(OMAP_UART_OBJECTS)
 
 CLEAN += drivers/omap/uart/uart.elf \
          drivers/omap/uart/uart.bin \
          drivers/omap/uart/uart.list
 
-drivers/omap/uart/uart.elf: $(USER.LD) $(UART_OBJECTS)
+drivers/omap/uart/uart.elf: $(USER.LD) $(OMAP_UART_OBJECTS)
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T $(USER.LD) -Ttext $(USER_ADDR) \
-		-o $@ $(UART_OBJECTS) \
+		-o $@ $(OMAP_UART_OBJECTS) \
 		-lgcc
 

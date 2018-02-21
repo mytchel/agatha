@@ -14,22 +14,41 @@ next_proc(void)
 {
 	proc_t p;
 
+	debug("find next proc in list: ");
+
+	for (p = alive; p != nil; p = p->next)
+		debug("%i[%i] ", p->pid, p->state);
+ debug("\n");	
+
 	if (alive == nil) {
+		debug("none\n");
 		return nil;
 	} else if (up != nil) {
+		debug("one after %i\n", up->pid);
 		p = up->next;
 	} else {
+		debug("start with alive %i\n", alive->pid);
 		p = alive;
 	}
 
 	do {
 		if (p == nil) {
+			debug("loop\n");
 			p = alive;
 
 		} else if (p->state == PROC_ready) {
+			debug("found %i\n", p->pid);
 			return p;
 
 		} else {
+			debug("skip blocked %i %i\n", p->pid, p->state);
+			if (p->state == PROC_send)
+				debug("waiting on %i\n", p->waiting_on->pid);
+			else if (p->state == PROC_recv)
+				debug("waiting for message\n");
+			else
+				debug("waiting for what?\n");	
+				
 			p = p->next;
 		}
 	} while (p != up);
@@ -40,6 +59,9 @@ next_proc(void)
 	void
 schedule(proc_t n)
 {
+	/* Until a better scheduler is created */
+	n = nil;
+
 	if (up != nil) {
 		if (up->state == PROC_oncpu) {
 			up->state = PROC_ready;
@@ -56,7 +78,9 @@ schedule(proc_t n)
 		up = next_proc();
 	}
 
+
 	if (up != nil) {
+		debug("SWITCH to %i\n", up->pid);
 		if (up->vspace != nil) {
 			mmu_switch(up->vspace);
 		}

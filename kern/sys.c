@@ -10,6 +10,7 @@ send(proc_t p, uint8_t *m)
 
 	memcpy(up->m, m, MESSAGE_LEN);
 
+	up->waiting_on = p;
 	up->wnext = nil;
 
 	debug("add to wait list\n");
@@ -23,11 +24,14 @@ send(proc_t p, uint8_t *m)
 	up->state = PROC_send;
 	if (p->state == PROC_recv) {
 		debug("wake %i\n", p->pid);
+		p->state = PROC_ready;
 		schedule(p);
 	} else {
 		schedule(nil);
 	}
-	
+
+  up->waiting_on = nil;	
+
 	return OK;
 }
 
@@ -43,6 +47,7 @@ recv(uint8_t *m)
 		if (f != nil) {
 			debug("got message from %i\n", f->pid);
 			up->waiting = f->wnext;
+			f->wnext = nil;
 
 			memcpy(m, f->m, MESSAGE_LEN);
 

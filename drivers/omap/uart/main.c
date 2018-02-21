@@ -28,7 +28,7 @@ puts(struct uart_regs *uart, const char *c)
 }
 
 static struct uart_regs *
-get_uart(void)
+get_regs(void)
 {
   struct proc0_dev_req *req;
   struct proc0_dev_resp *resp;
@@ -70,7 +70,7 @@ main(void)
   struct uart_regs *uart;
   uint8_t m[MESSAGE_LEN];
 
-  uart = get_uart();
+  uart = get_regs();
   if (uart == nil) {
     return;
   }
