@@ -103,6 +103,11 @@ sys_proc_new(int f_id)
 
 	debug("%i called sys proc_new with %i\n", up->pid, f_id);
 
+	if (up->pid != 0) {
+		debug("proc %i is not proc0!\n", up->pid);
+		return ERR;
+	}
+
   f = frame_find_fid(up, f_id);
   if (f == nil) {
     debug("didint find frame %i\n", f_id);
@@ -136,7 +141,12 @@ sys_frame_create(size_t start, size_t len, int type)
 
 	debug("%i called sys frame_create with 0x%h, 0x%h, %i\n", up->pid, start, len, type);
 
-  f = frame_new(start, PAGE_ALIGN(len), type);
+	if (up->pid != 0) {
+		debug("proc %i is not proc0!\n", up->pid);
+		return ERR;
+	}
+
+	f = frame_new(start, PAGE_ALIGN(len), type);
   if (f == nil) {
     return ERR;
   }

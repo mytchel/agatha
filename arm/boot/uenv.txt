@@ -1,2 +1,0 @@
-uenvcmd=dhcp 0x82000000 am335x.umg; dhcp 0x80000100 dev.dtb; bootm 0x82000000 - 0x80000100;
-

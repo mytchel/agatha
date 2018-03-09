@@ -4,6 +4,7 @@
 
 .global _start
 .global raise
+.global jump
 .global panic
 
 .global yield
@@ -29,6 +30,8 @@ _start:
 raise:
 	b .
 
+jump:
+	mov pc, r0	
 
 panic:
   b . 

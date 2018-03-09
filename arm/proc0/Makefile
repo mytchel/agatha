@@ -3,17 +3,17 @@ CLEAN += arm/proc0/proc0.elf \
          arm/proc0/proc0.list
 
 PROC0_SRC_A := \
-   lib/libc/sys.S
+	lib/libc/sys.S
 
 PROC0_SRC_C := \
-  arm/proc0/main.c              \
-  arm/proc0/mem.c               \
-  arm/proc0/proc.c              \
-  lib/libfdt/fdt.c              \
-  lib/libstring/conv.c          \
-  lib/libstring/scanf.c         \
-  lib/libstring/string.c        \
-  lib/libc/util.c
+	arm/proc0/main.c              \
+	arm/proc0/mem.c               \
+	arm/proc0/proc.c              \
+	lib/libfdt/fdt.c              \
+	lib/libstring/conv.c          \
+	lib/libstring/scanf.c         \
+	lib/libstring/string.c        \
+	lib/libc/util.c
 				
 
 PROC0_OBJECTS := \

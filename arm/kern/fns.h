@@ -1,29 +1,8 @@
-struct kernel_devices {
-	char intc_fdt_path[128];
-	void (*init_intc)(void);
-
-	void (*trap)(size_t pc, int type);
-	int (*add_kernel_irq)(size_t irqn, void (*func)(size_t));
-	int (*add_user_irq)(size_t irqn, proc_t p, int flags);
-
-	char systick_fdt_path[128];
-	void (*init_timer)(void);
-	void (*timer)(size_t ms);
-
-	char debug_fdt_path[128];
-	void (*init_debug)(void);
-	void (*debug)(const char *str);
-};
-
 uint32_t
 fsr_status(void);
 
 size_t
 fault_addr(void);
-
-void
-intc_add_handler(uint32_t irq,
-                 void (*func)(uint32_t));
 
 void
 intc_reset(void);
@@ -63,10 +42,7 @@ int
 unmap_sections(uint32_t *l1, size_t va, size_t len);
 
 void
-serial_puts(const char *c);
-
-void
-map_devs(void *dtb);
+map_devs(void);
 
 void
 init_devs(void);

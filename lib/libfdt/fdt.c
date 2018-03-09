@@ -14,6 +14,8 @@ dealing with reg parameters.
   int
 fdt_check(void *dtb, struct fdt_header *head)
 {
+	return -1;
+
   uint32_t *pr, *ph;
   size_t i;
 
@@ -35,6 +37,19 @@ fdt_check(void *dtb, struct fdt_header *head)
   } else {
     return OK;
   }
+}
+
+size_t
+fdt_size(void *dtb)
+{
+	struct fdt_header head;
+
+  if (fdt_check(dtb, &head) != OK) {
+    return 0;
+  
+	} else {
+		return head.totalsize;	
+	}
 }
 
 void

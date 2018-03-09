@@ -29,6 +29,7 @@
 .section .text
 
 .global raise
+.global jump
 .global set_intr
 .global set_label
 .global func_label
@@ -47,7 +48,11 @@
 
 
 raise:
-	mov pc, #0x11000000
+	mov pc, r0
+	b . 
+	
+jump:
+	mov pc, r0
 	b . 
 	
 	

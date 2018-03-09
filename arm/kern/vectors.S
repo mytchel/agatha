@@ -1,28 +1,3 @@
-#
-#  Copyright (c) 2017 Mytchel Hammond <mytch@lackname.org>
-#  
-#  Permission is hereby granted, free of charge, to any person
-#  obtaining a copy of this software and associated documentation
-#  files (the "Software"), to deal in the Software without
-#  restriction, including without limitation the rights to use,
-#  copy, modify, merge, publish, distribute, sublicense, and/or
-#  sell copies of the Software, and to permit persons to whom the
-#  Software is furnished to do so, subject to the following
-#  conditions:
-#  
-#  The above copyright notice and this permission notice shall be
-#  included in all copies or substantial portions of the Software.
-#  
-#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-#  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-#  OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-#  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-#  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-#  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-#  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-#  OTHER DEALINGS IN THE SOFTWARE
-#
-
 #include "trap.h"
 #include <sysnum.h>
 
@@ -31,50 +6,7 @@
 .global _start
 
 /*
-
-   Example with device tree blob
-
-   pc = 0x82000010
-   lr = 0x0
-   r0 = 0x0
-   r1 = 0xe05
-   r2 = 0x8fff4000
-   r3 = 0x8b80
-   r4 = 0x0
-   r5 = 0x9ffb32d8
-   r6 = 0x82000000
-   r7 = 0x0
-   r8 = 0x9ff4efe5
-   r9 = 0x9df2ded8
-   r10 = 0x82000040
-   r11 = 0x0
-   r12 = 0x9df2edaa
-   r13 = 0x82000010
-
-   Example without device tree blob
-
-   pc = 0x82000010
-   lr = 0x0
-   r0 = 0x0
-   r1 = 0xe05
-   r2 = 0x80000100
-   r3 = 0x9df2dfb0
-   r4 = 0x0
-   r5 = 0x9ffb32d8
-   r6 = 0x82000000
-   r7 = 0x0
-   r8 = 0x9ff4efe5
-   r9 = 0x9df2ded8
-   r10 = 0x82000040
-   r11 = 0x0
-   r12 = 0x9df2edaa
-   r13 = 0x82000010
-
-   Register's as they were set by u-boot before loading.
-   Set to 1 so it doesn't end up in bss. 
-
-   From experimenting it would seem that:
-
+   From U-Boot:
    r2 = device tree blob address.
    r3 = device tree blob size. Consistant strange number if no 
    blob was given.
@@ -90,7 +22,6 @@
 _start:
 	mov r9,  r6
 	mov r10, r2
-	mov r11, r3
 
 	ldr r0, = _kernel_bss_start
 	ldr r1, = _kernel_bss_end
@@ -123,9 +54,8 @@ _start:
 
 	mov r0, r9
 	mov r1, r10
-	mov r2, r11
 
-# void main(kernel_start, fdt_start, fdt_len);
+# void main(kernel_start, dtb_start);
 
 	b main
 

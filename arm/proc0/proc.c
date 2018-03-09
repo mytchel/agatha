@@ -24,7 +24,7 @@ init_bundled_proc(char *name,
 {
   uint32_t m[MESSAGE_LEN/sizeof(uint32_t)] = { 0 };
   int f_l1, f_l2, f_user, f_stack;
-  int pid, i;
+  int pid;
 
   f_l1 = get_mem_frame(0x4000, 0x4000);
   if (f_l1 < 0) {
@@ -77,9 +77,8 @@ init_bundled_proc(char *name,
     return false;
   }
 
-  /* Map tables into new vspace for other procs editing. */
-
-  /* TODO: unmap from this vspace. */
+  /* Map tables into new vspace for other procs editing. 
+     TODO: unmap from this our vspace. */
 
   if (frame_map(f_l2, f_l1, (void *) 0x1000, F_MAP_TYPE_PAGE|F_MAP_READ) != OK) {
     return false;
@@ -97,15 +96,11 @@ init_bundled_proc(char *name,
   m[0] = 0x10000;
   m[1] = 0x10000;
 
-  for (i = 0; i < 100; i++) {
-	 	if (send(pid, (uint8_t *) m) == OK) {
-			return true;
-		} else {
-			yield();
-		}
-  }
-
-  return false;
+	if (send(pid, (uint8_t *) m) == OK) {
+		return true;
+  } else {
+		return false;
+	}
 }
 
 bool

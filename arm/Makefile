@@ -1,18 +1,22 @@
-CFLAGS += -mcpu=cortex-a8
+USER.LD = arm/user.ld
+USER_ADDR = 0x00010000
 
-KERNEL_SRC_A := \
+CFLAGS += \
+	-fno-stack-protector \
+	-mcpu=cortex-a8 \
+	-Iarm/include
+
+LDFLAGS +=
+
+ARM_KERNEL_SRC_A := \
         arm/kern/vectors.S            \
         arm/kern/asm.S
 
-KERNEL_SRC_C := \
+ARM_KERNEL_SRC_C := \
         arm/kern/main.c               \
         arm/kern/mem.c                \
         arm/kern/proc.c               \
-        arm/kern/dev.c                \
-        arm/kern/debug.c              \
-        arm/kern/omap/am33xx-trap.c   \
-        arm/kern/omap/omap3-uart.c    \
-        arm/kern/omap/am335x-timer.c  \
+        kern/debug.c                  \
         kern/proc.c                   \
         kern/sys.c                    \
         kern/frame.c                  \
@@ -24,5 +28,9 @@ KERNEL_SRC_C := \
 
 PROC0 = arm/proc0
 
-USER.LD = arm/user.ld
+include $(PROC0)/Makefile
+CLEAN += $(PROC0)/proc0.bin $(PROC0)/proc0.bo
+
+include arm/bbb/Makefile
+include arm/virt/Makefile
 

@@ -22,7 +22,7 @@ struct fdt_prop {
   uint32_t nameoff;
 };
 
-#define FDT_MAGIC       0xd00dfeed
+#define FDT_MAGIC         0xd00dfeed
 #define FDT_BEGIN_NODE    0x1
 #define FDT_END_NODE      0x2
 #define FDT_PROP          0x3
@@ -31,6 +31,9 @@ struct fdt_prop {
 
 int
 fdt_check(void *dtb, struct fdt_header *head);
+
+size_t
+fdt_size(void *dtb);
 
 int
 fdt_node_property(void *dtb, void *node,

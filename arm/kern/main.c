@@ -1,6 +1,7 @@
 #include "../../kern/head.h"
 #include "fns.h"
 #include "trap.h"
+#include <fdt.h>
 
 struct kernel_info
 kernel_info __attribute__((__aligned__(0x1000))) = { 0 };
@@ -76,7 +77,7 @@ init_proc0(void)
   fl2->u.v_flags = F_MAP_TYPE_TABLE_L2|F_MAP_READ;
   fl2->u.t_va = 0;
   fl2->u.v_id = fl1->u.f_id;
- 
+
   /* Temporary va->pa mappings. */ 
   fl1->u.v_va = fl1->u.pa;
   fl2->u.v_va = fl2->u.pa;
@@ -85,9 +86,9 @@ init_proc0(void)
   l = PAGE_ALIGN(sizeof(kernel_info));
 
   proc0_kernel_info_va = 
-      0x1000 + fl1->u.len + fl2->u.len, 
+    0x1000 + fl1->u.len + fl2->u.len, 
 
-  f = frame_new(s, l, F_TYPE_MEM);
+	   f = frame_new(s, l, F_TYPE_MEM);
   frame_add(p, f);
   frame_map(fl2, f, proc0_kernel_info_va, 
       F_MAP_TYPE_PAGE|F_MAP_READ);
@@ -120,16 +121,14 @@ init_proc0(void)
 
   fl1->u.v_va = 0x1000;
   fl2->u.v_va = 0x1000 + fl1->u.len;
-  
+
   p->vspace = fl1;
 
   return p;
 }
 
   void
-main(size_t kernel_start, 
-    size_t dtb, 
-    size_t dtb_len)
+main(size_t kernel_start, size_t dtb_start, size_t dtb_len)
 {
   size_t kernel_len;
   proc_t p0;
@@ -138,8 +137,7 @@ main(size_t kernel_start,
 
   kernel_info.kernel_start = kernel_start;
   kernel_info.kernel_len = kernel_len;
-
-  kernel_info.dtb_start = dtb;
+  kernel_info.dtb_start = dtb_start;
   kernel_info.dtb_len = dtb_len;
 
   map_l2(kernel_ttb, (size_t) kernel_l2, kernel_start);
@@ -150,12 +148,12 @@ main(size_t kernel_start,
       kernel_len, AP_RW_NO, true);
 
   kernel_va_slot += kernel_len;
-
-  map_devs((void *) dtb);
+  
+  map_devs();
 
   mmu_load_ttb(kernel_ttb);
-	mmu_invalidate();
-	mmu_enable();
+  mmu_invalidate();
+  mmu_enable();
 
   init_devs();
 

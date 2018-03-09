@@ -1,7 +1,7 @@
 .SUFFIXES: .c .S .h .o .a .elf .bin .list .umg .bo
 
-LOAD_ADDR ?= 0x82000000
-USER_ADDR ?= 0x00010000
+all: arm/virt/kern.umg
+
 ARCH ?= arm
 CROSS ?= arm-none-eabi
 
@@ -16,34 +16,14 @@ CFLAGS = \
          -std=c89 \
          -Wall \
          -nostdinc -ffreestanding \
-         -fno-stack-protector \
          -DUSER_ADDR=$(USER_ADDR) \
-         -Iinclude -I$(ARCH)/include 
+	 -Iinclude
 
 
 LDFLAGS = -nostdlib -nodefaultlibs -static \
           -L/usr/local/lib/gcc/$(CROSS)/6.3.1
 
-
-all: $(ARCH)/kern.umg $(ARCH)/kern.list
-CLEAN += $(ARCH)/kern.umg $(ARCH)/kern.list
-
 include $(ARCH)/Makefile
-include $(PROC0)/Makefile
-
-KERNEL_OBJECTS := $(KERNEL_SRC_A:%.S=%.o) $(KERNEL_SRC_C:%.c=%.o) 
-
-CLEAN += $(KERNEL_OBJECTS) 
-CLEAN += $(PROC0)/proc0.bin $(PROC0)/proc0.bo
-CLEAN += $(ARCH)/kern.elf 
-
-$(ARCH)/kern.elf: $(ARCH)/kernel.ld $(PROC0)/proc0.bo $(KERNEL_OBJECTS) 
-	@echo LD $@
-	@$(LD) $(LDFLAGS) \
-		-T $(ARCH)/kernel.ld -Ttext $(LOAD_ADDR) \
-		-o $@ $(KERNEL_OBJECTS) $(PROC0)/proc0.bo \
-		-lgcc
-
 
 .PHONY: clean
 clean:
@@ -80,5 +60,4 @@ clean:
 	@$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
 		--rename-section .data=.bundle \
 		$< $@
-
 

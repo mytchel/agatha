@@ -5,7 +5,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#define MAX_PROCS      16
+#define MAX_PROCS       4
 #define MAX_FRAMES    512
 #define KSTACK_LEN   1024
 
@@ -112,6 +112,11 @@ void
 raise(void)
 __attribute__((noreturn));
 
+	void
+jump(size_t)
+__attribute__((noreturn));
+
+
 void
 func_label(label_t *l, 
            size_t stack, 
@@ -140,6 +145,12 @@ mmu_switch(kframe_t f);
 
 void
 set_systick(size_t ms);
+
+int
+add_kernel_irq(size_t irqn, void (*func)(size_t));
+
+void
+puts(const char *);
 
 /* Variables. */
 
