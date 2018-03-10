@@ -1,6 +1,6 @@
 .SUFFIXES: .c .S .h .o .a .elf .bin .list .umg .bo
 
-all: arm/virt/kern.umg
+all: arm/bbb/kern.umg
 
 ARCH ?= arm
 CROSS ?= arm-none-eabi
@@ -13,15 +13,16 @@ OBJDUMP = $(CROSS)-objdump
 MKUBOOT = mkuboot
 
 CFLAGS = \
-         -std=c89 \
-         -Wall \
-         -nostdinc -ffreestanding \
-         -DUSER_ADDR=$(USER_ADDR) \
-	 -Iinclude
+				 -std=c89 \
+				 -Wall \
+				 -nostdinc -ffreestanding \
+				 -DUSER_ADDR=$(USER_ADDR) \
+				 -DLOAD_ADDR=$(LOAD_ADDR) \
+				 -Iinclude
 
 
 LDFLAGS = -nostdlib -nodefaultlibs -static \
-          -L/usr/local/lib/gcc/$(CROSS)/6.3.1
+					-L/usr/local/lib/gcc/$(CROSS)/6.3.1
 
 include $(ARCH)/Makefile
 
@@ -51,9 +52,9 @@ clean:
 	@make -C tools/mkuboot
 	@echo MKUBOOT $@
 	@tools/mkuboot/mkuboot \
-			-a arm -o linux -t kernel \
-			-e $(LOAD_ADDR) -l $(LOAD_ADDR) \
-				 $< $@
+		-a arm -o linux -t kernel \
+		-e $(LOAD_ADDR) -l $(LOAD_ADDR) \
+		$< $@
 
 .bin.bo: 
 	@echo OBJCOPY $@

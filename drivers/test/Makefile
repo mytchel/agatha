@@ -6,9 +6,8 @@ TEST_SRC_A := \
    lib/libc/sys.S
 
 TEST_SRC_C := \
-  drivers/test/main.c              \
+  drivers/test/main.c          \
   lib/libc/util.c              \
-  lib/libc/mem.c               \
   lib/libstring/conv.c         \
   lib/libstring/scanf.c        \
   lib/libstring/string.c

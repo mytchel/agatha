@@ -13,7 +13,7 @@ main(void)
   int i, pid;
 
 	/* Pid of uart driver. */
-	pid = 1;
+	pid = 2;
 
   i = 0;
   while (true) {

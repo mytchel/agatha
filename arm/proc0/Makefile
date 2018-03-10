@@ -7,8 +7,8 @@ PROC0_SRC_A := \
 
 PROC0_SRC_C := \
 	arm/proc0/main.c              \
-	arm/proc0/mem.c               \
 	arm/proc0/proc.c              \
+	arm/proc0/mem.c               \
 	lib/libfdt/fdt.c              \
 	lib/libstring/conv.c          \
 	lib/libstring/scanf.c         \
@@ -22,7 +22,8 @@ PROC0_OBJECTS := \
 
 CLEAN += $(PROC0_OBJECTS)
 
-BUNDLE = drivers/omap/uart drivers/omap/mmc drivers/test
+BUNDLE = drivers/test
+#drivers/omap/uart drivers/omap/mmc drivers/test
 
 arm/proc0/bundle.bin arm/proc0/bundle.list: \
   $(foreach b,$(BUNDLE),$b/$(notdir $b).elf) \

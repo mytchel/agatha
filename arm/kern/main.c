@@ -46,7 +46,6 @@ proc0_start(void)
   static proc_t
 init_proc0(void)
 {
-  kframe_t f, fl1, fl2;
   size_t s, l;
   proc_t p;
 
@@ -62,67 +61,33 @@ init_proc0(void)
       kernel_ttb, 
       0x4000);
 
-  fl1 = frame_new((size_t) proc0_l1, sizeof(proc0_l1), F_TYPE_MEM);
-  frame_add(p, fl1);
+	map_l2(proc0_l1, (size_t) proc0_l2, 0);
 
-  fl2 = frame_new((size_t) proc0_l2, sizeof(proc0_l2), F_TYPE_MEM);
-  frame_add(p, fl2);
+	map_pages(proc0_l2, (size_t) proc0_l1, 0x1000, 
+			sizeof(proc0_l1),
+			AP_RW_RW, true);
 
-  fl1->u.t_flags = F_TABLE_L1|F_TABLE_MAPPED;
-  fl1->u.v_flags = F_MAP_TYPE_TABLE_L1|F_MAP_READ;
-  fl1->u.t_va = 0;
-  fl1->u.v_id = fl1->u.f_id;
+	map_pages(proc0_l2, (size_t) proc0_l2, 0x1000 + sizeof(proc0_l1),
+			sizeof(proc0_l2), 
+			AP_RW_RW, true);
 
-  fl2->u.t_flags = F_TABLE_L2|F_TABLE_MAPPED;
-  fl2->u.v_flags = F_MAP_TYPE_TABLE_L2|F_MAP_READ;
-  fl2->u.t_va = 0;
-  fl2->u.v_id = fl1->u.f_id;
+	s = (size_t) &_binary_arm_proc0_proc0_bin_start;
+  l = PAGE_ALIGN(&_binary_arm_proc0_proc0_bin_end) - s;
 
-  /* Temporary va->pa mappings. */ 
-  fl1->u.v_va = fl1->u.pa;
-  fl2->u.v_va = fl2->u.pa;
-
-  s = (size_t) &kernel_info;
-  l = PAGE_ALIGN(sizeof(kernel_info));
-
-  proc0_kernel_info_va = 
-    0x1000 + fl1->u.len + fl2->u.len, 
-
-	   f = frame_new(s, l, F_TYPE_MEM);
-  frame_add(p, f);
-  frame_map(fl2, f, proc0_kernel_info_va, 
-      F_MAP_TYPE_PAGE|F_MAP_READ);
-
-  s = (size_t) &_binary_arm_proc0_proc0_bin_start;
-  l = PAGE_ALIGN(&_binary_arm_proc0_proc0_bin_end)
-    - s;
-
-  f = frame_new(s, l, F_TYPE_MEM);
-  frame_add(p, f);
-  frame_map(fl2, f, USER_ADDR, 
-      F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
+	map_pages(proc0_l2, 
+			s, 
+			USER_ADDR,
+			l, 
+			AP_RW_RW, true);
 
   s = (size_t) proc0_stack;
   l = sizeof(proc0_stack);
 
-  f = frame_new(s, l, F_TYPE_MEM);
-  frame_add(p, f);
-  frame_map(fl2, f, USER_ADDR - l,
-      F_MAP_TYPE_PAGE|F_MAP_READ|F_MAP_WRITE);
+	map_pages(proc0_l2, s, USER_ADDR - l,
+			l, 
+			AP_RW_RW, true);
 
-  map_l2(proc0_l1, (size_t) proc0_l2, 0);
-
-  map_pages(proc0_l2, fl1->u.pa, 0x1000, 
-      fl1->u.len, AP_RW_RO, true);
-
-  map_pages(proc0_l2, fl2->u.pa, 
-      0x1000 + fl1->u.len, 
-      fl2->u.len, AP_RW_RO, true);
-
-  fl1->u.v_va = 0x1000;
-  fl2->u.v_va = 0x1000 + fl1->u.len;
-
-  p->vspace = fl1;
+  p->vspace = (size_t) proc0_l1;
 
   return p;
 }

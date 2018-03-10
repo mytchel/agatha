@@ -6,6 +6,7 @@
 #include <fdt.h>
 
 #include "proc0.h"
+#include "../kern/mem.h"
 
 struct bundle_proc {
   char name[256];
@@ -23,109 +24,94 @@ init_bundled_proc(char *name,
     size_t start, size_t len)
 {
   uint32_t m[MESSAGE_LEN/sizeof(uint32_t)] = { 0 };
-  int f_l1, f_l2, f_user, f_stack;
+	size_t stack_p, stack_v, slen;
+	size_t l1_p, l1_v, l2_p, l2_v;
   int pid;
 
-  f_l1 = get_mem_frame(0x4000, 0x4000);
-  if (f_l1 < 0) {
-    return false;
-  }
+	stack_p = 0x80000000;
+	slen        = 0x1000;
 
-  f_l2 = get_mem_frame(0x1000, 0x1000);
-  if (f_l2 < 0) {
-    /* TODO: free f_l1. */
-    return false;
-  }
+	l1_p    = 0x80010000;
+	l2_p    = 0x80015000;
 
-  if (map_frame(f_l1, F_MAP_TYPE_PAGE|F_MAP_READ) == nil) {
-    return false;
-  }
+	stack_v    = 0x14000;
+	l1_v       = 0x15000;
+	l2_v       = 0x19000;
 
-  if (frame_table(f_l1, F_TABLE_L1) != OK) {
-    return false;
-  }
+	map_pages((uint32_t *) 0x5000, stack_p, stack_v, slen,
+			AP_RW_RW, true);
 
-  if (map_frame(f_l2, F_MAP_TYPE_PAGE|F_MAP_READ) == nil) {
-    return false;
-  }
+	map_pages((uint32_t *) 0x5000, l1_p, l1_v, 0x4000,
+			AP_RW_RW, true);
 
-  if (frame_table(f_l2, F_TABLE_L2) != OK) {
-    return false;
-  }
+	map_pages((uint32_t *) 0x5000, l2_p, l2_v, 0x1000,
+			AP_RW_RW, true);
 
-  if (frame_map(f_l1, f_l2, 0, F_MAP_TYPE_TABLE_L2) != OK) {
-    return false;
-  }
+	yield();
 
-  f_user = frame_create(start, len, F_TYPE_MEM);
-  if (f_user < 0) {
-    return false;
-  }
+	/* Hard copy l1 address for now */
+	memcpy((uint32_t *) l1_v, (uint32_t *) 0x1000, 0x4000);
 
-  f_stack = get_mem_frame(0x4000, 0x1000);
-  if (f_stack < 0) {
-    return false;
-  }
+	memset((uint32_t *) l2_v, 0, 0x1000);
+	memset((uint32_t *) stack_v, 0, slen);
 
-  if (frame_map(f_l2, f_user, (void *) 0x10000, 
-        F_MAP_TYPE_PAGE|F_MAP_WRITE|F_MAP_READ) != OK) {
-    return false;
-  }
+	map_l2((uint32_t *) l1_v, l2_p, 0);
 
-  if (frame_map(f_l2, f_stack, (void *) (0x10000 - 0x4000), 
-        F_MAP_TYPE_PAGE|F_MAP_WRITE|F_MAP_READ) != OK) {
-    return false;
-  }
+	map_pages((uint32_t *) l2_v, start, USER_ADDR, len,
+			AP_RW_RW, true);
 
-  /* Map tables into new vspace for other procs editing. 
-     TODO: unmap from this our vspace. */
+	map_pages((uint32_t *) l2_v, stack_p, USER_ADDR - slen, slen,
+			AP_RW_RW, true);
 
-  if (frame_map(f_l2, f_l1, (void *) 0x1000, F_MAP_TYPE_PAGE|F_MAP_READ) != OK) {
-    return false;
-  }
+	unmap_pages((uint32_t *) 0x5000, stack_v, slen);
+	unmap_pages((uint32_t *) 0x5000, l1_v, 0x4000);
+	unmap_pages((uint32_t *) 0x5000, l2_v, 0x1000);
 
-  if (frame_map(f_l2, f_l2, (void *) 0x5000, F_MAP_TYPE_PAGE|F_MAP_READ) != OK) {
-    return false;
-  }
+	pid = proc_new();
+	if (pid < 0) {
+		return false;
+	}
 
-  pid = proc_new(f_l1);
-  if (pid < 0) {
-    return false;
-  }
+	if (va_table(pid, l1_p) != OK) {
+		return false;
+	}
 
-  m[0] = 0x10000;
-  m[1] = 0x10000;
+	m[0] = USER_ADDR;
+	m[1] = USER_ADDR;
 
 	if (send(pid, (uint8_t *) m) == OK) {
 		return true;
-  } else {
+	} else {
 		return false;
 	}
 }
 
-bool
+	bool
 init_procs(void)
 {
-  size_t off;
-  int i;
+	size_t off;
+	int i;
 
-  off = va_to_pa((size_t) &_binary_arm_proc0_bundle_bin_start);
-  if (off == nil) {
-    return false;
-  }
+	off = ((size_t) &_binary_arm_proc0_bundle_bin_start)
+		- USER_ADDR + 0x82020000;
+	if (off == nil) {
+		return false;
+	}
 
-  for (i = 0; 
-      i < sizeof(bundled_procs)/sizeof(bundled_procs[0]);
-      i++) {
+	va_table(10, off);
 
-    if (!init_bundled_proc(bundled_procs[i].name, 
-          off, bundled_procs[i].len)) {
-      return false;
-    }
+	for (i = 0; 
+			i < sizeof(bundled_procs)/sizeof(bundled_procs[0]);
+			i++) {
 
-    off += bundled_procs[i].len;
-  }
+		if (!init_bundled_proc(bundled_procs[i].name, 
+					off, bundled_procs[i].len)) {
+			return false;
+		}
 
-  return true;
+		off += bundled_procs[i].len;
+	}
+
+	return true;
 }
 

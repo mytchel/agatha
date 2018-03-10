@@ -62,7 +62,7 @@ unmask_intr(uint32_t irqn)
   intc->set[mfield].mir_clear = mask;
 }
 
-  int
+	int
 add_kernel_irq(size_t irqn, void (*func)(size_t))
 {
   kernel_handlers[irqn] = func;

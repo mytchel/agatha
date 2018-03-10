@@ -1,4 +1,4 @@
-BBB_LOAD_ADDR ?= 0x82000000
+LOAD_ADDR ?= 0x82000000
 
 CFLAGS += -I arm/bbb/include
 LDFLAGS +=
@@ -21,7 +21,7 @@ CLEAN += arm/bbb/kern.elf arm/bbb/kern.bin arm/bbb/kern.umg
 arm/bbb/kern.elf: arm/kernel.ld $(PROC0)/proc0.bo $(BBB_KERNEL_OBJECTS)
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
-		-T arm/kernel.ld -Ttext $(BBB_LOAD_ADDR) \
+		-T arm/kernel.ld -Ttext $(LOAD_ADDR) \
 		-o $@ $(BBB_KERNEL_OBJECTS) $(PROC0)/proc0.bo \
 		-lgcc
 

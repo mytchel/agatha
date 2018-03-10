@@ -48,7 +48,6 @@
 
 
 raise:
-	mov pc, r0
 	b . 
 	
 jump:

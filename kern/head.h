@@ -6,15 +6,7 @@
 #include <string.h>
 
 #define MAX_PROCS       4
-#define MAX_FRAMES    512
 #define KSTACK_LEN   1024
-
-typedef struct kframe *kframe_t;
-
-struct kframe {
-	struct frame u;
-	struct kframe *next;
-};
 
 typedef struct proc *proc_t;
 
@@ -37,13 +29,11 @@ struct proc {
   uint8_t kstack[KSTACK_LEN];
 
 	uint8_t m[MESSAGE_LEN];
+	size_t intr;
 	proc_t waiting_on, wnext;
 	proc_t waiting;
 	
-	size_t frame_count;
-	
-	kframe_t frames;
-	kframe_t vspace;
+	size_t vspace;
 };
 
 proc_t
@@ -61,26 +51,8 @@ send(proc_t p, uint8_t *m);
 int
 recv(uint8_t *m);
 
-kframe_t
-frame_new(size_t pa, size_t len, int type);
-
-void
-frame_add(proc_t p, kframe_t f);
-
-void
-frame_remove(proc_t p, kframe_t f);
-
-kframe_t
-frame_find_fid(proc_t p, int f_id);
-
-kframe_t
-frame_find_ind(proc_t p, int ind);
-
-kframe_t
-frame_split(kframe_t f, size_t offset);
-
 int
-frame_merge(kframe_t a, kframe_t b);
+send_intr(proc_t p, size_t intr);
 
 void
 memcpy(void *dst, const void *src, size_t len);
@@ -131,23 +103,16 @@ bool
 cas(void *addr, void *old, void *new);
 
 int
-frame_map(kframe_t t, kframe_t f, size_t va, int flags);
-
-int
-frame_table(kframe_t f, int flags);
-
-/* If f is a table gives frames mapped to the table also. */
-int
-frame_give(proc_t from, proc_t to, kframe_t f);
-
-int
-mmu_switch(kframe_t f);
+mmu_switch(size_t va_pa);
 
 void
 set_systick(size_t ms);
 
 int
 add_kernel_irq(size_t irqn, void (*func)(size_t));
+
+void
+fill_intr_m(uint8_t *, size_t irqn);
 
 void
 puts(const char *);

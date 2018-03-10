@@ -16,10 +16,10 @@ ARM_KERNEL_SRC_C := \
         arm/kern/main.c               \
         arm/kern/mem.c                \
         arm/kern/proc.c               \
+        arm/kern/intr.c               \
         kern/debug.c                  \
         kern/proc.c                   \
         kern/sys.c                    \
-        kern/frame.c                  \
         kern/util.c                   \
         lib/libstring/conv.c          \
         lib/libstring/scanf.c         \
