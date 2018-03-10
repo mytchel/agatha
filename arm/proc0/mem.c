@@ -5,85 +5,187 @@
 #include <c.h>
 
 #include "proc0.h"
-#include "../kern/mem.h"
 
-	int
-map_l2(uint32_t *l1, size_t pa, size_t va)
+struct frame {
+	size_t pa;
+	size_t len;
+
+	int pid;
+	size_t va;
+
+	struct frame *next;
+};
+
+struct frame *free = nil;
+
+/* TODO: Get the kernel to give this information
+	 somehow. Also have a list of l2 pages. */
+uint32_t *l1 = (uint32_t *) 0x1000;
+uint32_t *l2 = (uint32_t *) 0x5000;
+
+struct frame *
+get_frame(void)
 {
-	l1[L1X(va)] = pa | L1_COARSE;
+	static struct frame init_frames[32] = { 0 };
+	static int next_frame = 0;
+	static int nframes = 32;
 
-	return OK;
+	struct frame *f;
+
+	f = &init_frames[next_frame++];
+
+	if (next_frame == nframes) {
+		/* TODO */
+		raise();
+	}
+
+	return f;
 }
 
-	int
-map_pages(uint32_t *l2, size_t pa, size_t va, 
-		size_t len, int ap, bool cache)
+void
+init_mem(void)
 {
-	uint32_t tex, c, b, o;
+	struct frame *f;
 
-	if (cache) {
-		tex = 7;
-		c = 1;
-		b = 0;
-	} else {
-		tex = 0;
-		c = 0;
-		b = 1;
-	}
+	f = get_frame();
+	f->pa  = 0x80000000;
+	f->len =  0x2000000;
+	f->pid = -1;
+	f->va = 0;
+	f->next = free;
+	free = f;
 
-	for (o = 0; o < len; o += PAGE_SIZE) {
-		l2[L2X(va + o)] = (pa + o) | L2_SMALL | 
-			tex << 6 | ap << 4 | c << 3 | b << 2;
-	}
-
-	return OK;
+	f = get_frame();
+	f->pa  = 0x83000000;
+	f->len = 0x1d000000;
+	f->pid = -1;
+	f->va = 0;
+	f->next = free;
+	free = f;
 }
 
-	int
-unmap_pages(uint32_t *l2, size_t va, size_t len)
+	struct frame *
+frame_split(struct frame *f, size_t off)
 {
-	uint32_t o;
+	struct frame *n;
 
-	for (o = 0; o < len; o += PAGE_SIZE) {
-		l2[L2X(va + o)] = L2_FAULT;
+	n = get_frame();
+	if (n == nil) {
+		return nil;
 	}
 
-	return OK;
+	n->pa = f->pa + off;
+	n->len = f->len - off;
+
+	n->va = 0;
+	n->pid = -1;
+	n->next = nil;
+
+	f->len = off;
+
+	return n;
 }
 
-	int
-map_sections(uint32_t *l1, size_t pa, size_t va, 
-		size_t len, int ap, bool cache)
+	struct frame *
+get_mem_frame(size_t len, size_t align)
 {
-	uint32_t tex, c, b, o;
+	struct frame *f, *n;
+	size_t a;
 
-	if (cache) {
-		tex = 7;
-		c = 1;
-		b = 0;
-	} else {
-		tex = 0;
-		c = 0;
-		b = 1;
+	for (f = free; f != nil; f = f->next) {
+		a = (f->pa + align - 1) & ~(align - 1);
+
+		if (len < a - f->pa + f->len) {
+			if (f->pa < a) {
+				f = frame_split(f, a - f->pa);
+				if (f == nil) 
+					return nil;
+			}
+
+			n = frame_split(f, len);
+
+			n->next = free;
+			free = n;
+
+			return f;
+		}
 	}
 
-	for (o = 0; o < len; o += SECTION_SIZE) {
-		l1[L1X(va + o)] = (pa + o) | L1_SECTION | 
-			tex << 12 | ap << 10 | c << 3 | b << 2;
-	}
-
-	return OK;
+	return nil; 
 }
 
-	int
-unmap_sections(uint32_t *l1, size_t va, size_t len)
+	static size_t
+find_free_off(uint32_t *l2, size_t tlen, size_t len)
 {
-	uint32_t o;
+	int i, j;
 
-	for (o = 0; o < len; o += SECTION_SIZE) {
-		l1[L1X(va + o)] = L1_FAULT;
+	/* TODO: should be able to find first page but don't
+		 want it to do that if l2 is at 0. */
+	for (i = 1; i < tlen / sizeof(uint32_t); i++) {
+too_small:
+		if (l2[i] == 0) {
+			for (j = 1; j * PAGE_SIZE < len; j++) {
+				if (l2[i+j] != 0) {
+					i += j;
+					goto too_small;
+				}
+			}
+
+			return i;
+		}
 	}
 
-	return OK;
+	return 0;
+}
+
+
+	size_t
+get_mem(size_t l, size_t align)
+{
+	struct frame *f;
+
+	f = get_mem_frame(l, align);
+	if (f == nil) {
+		return 0;
+	}
+
+	return f->pa;
+}
+
+	void
+free_mem(size_t a, size_t l)
+{
+	/* TODO */
+}
+
+/* TODO: just improve this. */
+
+	void *
+map_free(size_t pa, size_t len, int ap, bool cache)
+{
+	size_t i;
+
+	i = find_free_off(l2, 0x1000, len);
+	if (i == 0) {
+		return nil;
+	}
+
+	map_pages(l2, pa, i * PAGE_SIZE, len, ap, cache);
+
+	return (void *) (i * PAGE_SIZE);
+}
+
+	void
+unmap(void *va, size_t len)
+{
+	unmap_pages(l2, (size_t) va, len);
+}
+
+	void
+init_l1(uint32_t *t)
+{
+	memset(&t[0],     0, 0x800 * sizeof(uint32_t));
+	memcpy(&t[0x800], &l1[0x800], 0x100 * sizeof(uint32_t)); 
+	memset(&t[0x900], 0, 0x700 * sizeof(uint32_t));
 }
 

@@ -9,6 +9,7 @@ PROC0_SRC_C := \
 	arm/proc0/main.c              \
 	arm/proc0/proc.c              \
 	arm/proc0/mem.c               \
+	arm/proc0/mmu.c               \
 	lib/libfdt/fdt.c              \
 	lib/libstring/conv.c          \
 	lib/libstring/scanf.c         \

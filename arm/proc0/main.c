@@ -12,6 +12,7 @@ main(struct kernel_info *k)
 {
   uint8_t m[MESSAGE_LEN];
 
+	init_mem();
 	init_procs();
 
   while (true) {
