@@ -1,5 +1,15 @@
 #include "mmu.h"
 
+struct frame {
+	size_t pa;
+	size_t len;
+
+	int pid;
+	size_t va;
+
+	struct frame *next;
+};
+
 void
 init_procs(void);
 
@@ -22,4 +32,6 @@ unmap(void *va, size_t len);
 void
 init_l1(uint32_t *t);
 
+struct frame *
+get_frame(void);
 

@@ -6,22 +6,12 @@
 
 #include "proc0.h"
 
-struct frame {
-	size_t pa;
-	size_t len;
-
-	int pid;
-	size_t va;
-
-	struct frame *next;
-};
-
-struct frame *free = nil;
+static struct frame *free = nil;
 
 /* TODO: Get the kernel to give this information
 	 somehow. Also have a list of l2 pages. */
-uint32_t *l1 = (uint32_t *) 0x1000;
-uint32_t *l2 = (uint32_t *) 0x5000;
+static uint32_t *l1 = (uint32_t *) 0x1000;
+static uint32_t *l2 = (uint32_t *) 0x5000;
 
 struct frame *
 get_frame(void)
@@ -114,31 +104,6 @@ get_mem_frame(size_t len, size_t align)
 	return nil; 
 }
 
-	static size_t
-find_free_off(uint32_t *l2, size_t tlen, size_t len)
-{
-	int i, j;
-
-	/* TODO: should be able to find first page but don't
-		 want it to do that if l2 is at 0. */
-	for (i = 1; i < tlen / sizeof(uint32_t); i++) {
-too_small:
-		if (l2[i] == 0) {
-			for (j = 1; j * PAGE_SIZE < len; j++) {
-				if (l2[i+j] != 0) {
-					i += j;
-					goto too_small;
-				}
-			}
-
-			return i;
-		}
-	}
-
-	return 0;
-}
-
-
 	size_t
 get_mem(size_t l, size_t align)
 {
@@ -163,11 +128,33 @@ free_mem(size_t a, size_t l)
 	void *
 map_free(size_t pa, size_t len, int ap, bool cache)
 {
-	size_t i;
+	size_t i, j;
 
-	i = find_free_off(l2, 0x1000, len);
-	if (i == 0) {
-		return nil;
+	/* TODO: should be able to find first page but don't
+		 want it to do that if l2 is at 0. */
+
+	i = 1; 
+	while (true) {
+		if (i == 0x1000 / sizeof(uint32_t)) {
+			return nil;
+		}
+
+		if (l2[i] == 0) {
+			for (j = 1; j * PAGE_SIZE < len; j++) {
+				if (i + j == 0x1000 / sizeof(uint32_t)) {
+					return nil;
+
+				} else if (l2[i+j] != 0) {
+					i += j;
+					goto too_small;
+				}
+			}
+
+			break;
+		}
+
+too_small:
+		i++;
 	}
 
 	map_pages(l2, pa, i * PAGE_SIZE, len, ap, cache);

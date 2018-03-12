@@ -1,27 +1,37 @@
-VIRT_LOAD_ADDR ?= 0x80000
+all: kern.elf kern.list
 
-CFLAGS += -I arm/virt/include
+BASE = ../..
+
+.include "../Makefile"
+
+LOAD_ADDR = 0x20000000
+
+CFLAGS += -I include
 LDFLAGS +=
 
-VIRT_KERNEL_SRC_A = $(ARM_KERNEL_SRC_A) 
+KERNEL_SRC_A += 
 
-VIRT_KERNEL_SRC_C = $(ARM_KERNEL_SRC_C) \
-	arm/virt/dev.c     \
-	arm/virt/serial.c  \
-	arm/virt/timer.c   \
-	arm/virt/trap.c
+KERNEL_SRC_C += \
+	kern/dev.c           \
+	kern/trap.c   \
+	kern/serial.c    \
+	kern/timer.c
 
-VIRT_KERNEL_OBJECTS := \
-  $(VIRT_KERNEL_SRC_A:%.S=%.o) \
-  $(VIRT_KERNEL_SRC_C:%.c=%.o)
+KERNEL_OBJECTS := \
+  $(KERNEL_SRC_A:%.S=%.o) \
+  $(KERNEL_SRC_C:%.c=%.o)
 
-CLEAN += $(VIRT_KERNEL_OBJECTS)
-CLEAN += arm/virt/kern.elf arm/virt/kern.bin arm/virt/kern.umg
+CLEAN += $(KERNEL_OBJECTS)
+CLEAN += kern.elf kern.bin kern.umg kern.list
 
-arm/virt/kern.elf: arm/kernel.ld $(PROC0)/proc0.bo $(VIRT_KERNEL_OBJECTS)
+proc0.bin: $(PROC0)/proc0.elf
+proc0.bo: proc0.bin
+CLEAN += proc0.bo proc0.bin
+
+kern.elf: ../kernel.ld proc0.bo $(KERNEL_OBJECTS)
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
-		-T arm/kernel.ld -Ttext $(VIRT_LOAD_ADDR) \
-		-o $@ $(VIRT_KERNEL_OBJECTS) $(PROC0)/proc0.bo \
+		-T ../kernel.ld -Ttext $(LOAD_ADDR) \
+		-o $@ $(KERNEL_OBJECTS) proc0.bo \
 		-lgcc
 

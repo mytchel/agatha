@@ -1,36 +1,18 @@
 .SUFFIXES: .c .S .h .o .a .elf .bin .list .umg .bo
 
-all: arm/bbb/kern.umg
-
-ARCH ?= arm
-CROSS ?= arm-none-eabi
-
-CC = $(CROSS)-gcc
-LD = $(CROSS)-ld
-AR = $(CROSS)-ar
-OBJCOPY = $(CROSS)-objcopy
-OBJDUMP = $(CROSS)-objdump
-MKUBOOT = mkuboot
-
 CFLAGS = \
-				 -std=c89 \
-				 -Wall \
-				 -nostdinc -ffreestanding \
-				 -DUSER_ADDR=$(USER_ADDR) \
-				 -DLOAD_ADDR=$(LOAD_ADDR) \
-				 -Iinclude
-
+	-std=c89 \
+	-Wall \
+	-nostdinc -ffreestanding \
+	-I$(BASE)/include
 
 LDFLAGS = -nostdlib -nodefaultlibs -static \
-					-L/usr/local/lib/gcc/$(CROSS)/6.3.1
-
-include $(ARCH)/Makefile
+	-L/usr/local/lib/gcc/$(CROSS)/6.3.1
 
 .PHONY: clean
 clean:
 	@echo CLEAN
 	rm -f $(CLEAN)
-
 
 .c.o .S.o:
 	@echo CC $@
@@ -49,9 +31,9 @@ clean:
 	@$(OBJDUMP) -S $< > $@
 
 .bin.umg: 
-	@make -C tools/mkuboot
+	@make -C $(BASE)/tools/mkuboot
 	@echo MKUBOOT $@
-	@tools/mkuboot/mkuboot \
+	@$(BASE)/tools/mkuboot/mkuboot \
 		-a arm -o linux -t kernel \
 		-e $(LOAD_ADDR) -l $(LOAD_ADDR) \
 		$< $@

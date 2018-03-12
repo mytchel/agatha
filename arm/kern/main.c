@@ -21,8 +21,8 @@ proc0_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 static uint32_t
 proc0_stack[4096]__attribute__((__aligned__(0x1000))) = { 0 };
 
-extern uint32_t *_binary_arm_proc0_proc0_bin_start;
-extern uint32_t *_binary_arm_proc0_proc0_bin_end;
+extern uint32_t *_binary_proc0_bin_start;
+extern uint32_t *_binary_proc0_bin_end;
 
 extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
@@ -71,8 +71,8 @@ init_proc0(void)
 			sizeof(proc0_l2), 
 			AP_RW_RW, true);
 
-	s = (size_t) &_binary_arm_proc0_proc0_bin_start;
-  l = PAGE_ALIGN(&_binary_arm_proc0_proc0_bin_end) - s;
+	s = (size_t) &_binary_proc0_bin_start;
+  l = PAGE_ALIGN(&_binary_proc0_bin_end) - s;
 
 	map_pages(proc0_l2, 
 			s, 

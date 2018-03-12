@@ -16,7 +16,7 @@ struct bundle_proc bundled_procs[] = {
 #include "bundle.list"
 };
 
-extern void *_binary_arm_proc0_bundle_bin_start;
+extern void *_binary_bundle_bin_start;
 
 static bool
 init_bundled_proc(char *name,
@@ -101,7 +101,7 @@ init_procs(void)
 	size_t off;
 	int i;
 
-	off = ((size_t) &_binary_arm_proc0_bundle_bin_start)
+	off = ((size_t) &_binary_bundle_bin_start)
 		- USER_ADDR + 0x82020000;
 	if (off == nil) {
 		raise();

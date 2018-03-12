@@ -1,25 +1,28 @@
-CLEAN += drivers/test/test.elf \
-         drivers/test/test.bin \
-         drivers/test/test.list
+CLEAN += \
+	$(BASE)/drivers/test/test.elf \
+	$(BASE)/drivers/test/test.bin \
+	$(BASE)/drivers/test/test.list
 
 TEST_SRC_A := \
-   lib/libc/sys.S
+	$(BASE)/lib/libc/sys.S
 
 TEST_SRC_C := \
-  drivers/test/main.c          \
-  lib/libc/util.c              \
-  lib/libstring/conv.c         \
-  lib/libstring/scanf.c        \
-  lib/libstring/string.c
-				
+	$(BASE)/drivers/test/main.c          \
+	$(BASE)/lib/libc/util.c              \
+	$(BASE)/lib/libstring/conv.c         \
+	$(BASE)/lib/libstring/scanf.c        \
+	$(BASE)/lib/libstring/string.c
+
 
 TEST_OBJECTS := \
-  $(TEST_SRC_A:%.S=%.o) \
-  $(TEST_SRC_C:%.c=%.o)
+	$(TEST_SRC_A:%.S=%.o) \
+	$(TEST_SRC_C:%.c=%.o)
 
 CLEAN += $(TEST_OBJECTS)
+CLEAN += $(BASE)/drivers/test/test.elf
+CLEAN += $(BASE)/drivers/test/test.bin
 
-drivers/test/test.elf: $(USER.LD) $(TEST_OBJECTS)
+$(BASE)/drivers/test/test.elf: $(USER.LD) $(TEST_OBJECTS)
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T $(USER.LD) -Ttext $(USER_ADDR) \

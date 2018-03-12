@@ -1,10 +1,11 @@
-
 ALIGN=4096
 
 BIN=$1
 shift
 LIST=$1
 shift
+
+echo BUNDLING $@ INTO $BIN $LIST
 
 echo -n > $LIST
 
@@ -22,7 +23,7 @@ do
 
   echo "{ \"$(basename $D)\", $ALIGNED },"  >> $LIST
 
-  dd of=$BIN if=$B obs=$ALIGN seek=$(($P / $ALIGN)) || exit
+  dd of=$BIN if=$B obs=$ALIGN seek=$(($P / $ALIGN)) || exit 1
 
   P=$(($P + $ALIGNED))
 done

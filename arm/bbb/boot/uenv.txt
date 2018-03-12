@@ -1,2 +1,0 @@
-uenvcmd=dhcp 0x82000000 kern.umg; tftp 0x80000100 bbb.dtb; bootm 0x82000000 - 0x80000100;
-
