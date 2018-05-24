@@ -3,10 +3,10 @@ CLEAN += \
 	$(BASE)/drivers/test/test.bin \
 	$(BASE)/drivers/test/test.list
 
-TEST_SRC_A := \
+TEST_SRC_A = \
 	$(BASE)/lib/libc/sys.S
 
-TEST_SRC_C := \
+TEST_SRC_C = \
 	$(BASE)/drivers/test/main.c          \
 	$(BASE)/lib/libc/util.c              \
 	$(BASE)/lib/libstring/conv.c         \
@@ -14,7 +14,7 @@ TEST_SRC_C := \
 	$(BASE)/lib/libstring/string.c
 
 
-TEST_OBJECTS := \
+TEST_OBJECTS = \
 	$(TEST_SRC_A:%.S=%.o) \
 	$(TEST_SRC_C:%.c=%.o)
 

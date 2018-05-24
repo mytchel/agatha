@@ -31,9 +31,8 @@ map_devs(void)
   void
 init_devs(void)
 {
-  init_intc();
   init_serial();
+  init_intc();
   init_timer();
-  jump(0x12340000);
 }
 

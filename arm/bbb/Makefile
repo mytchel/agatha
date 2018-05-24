@@ -6,10 +6,6 @@ include ../../Makefile
 
 include ../Makefile
 
-PROC0 = ../proc0
-
-include $(PROC0)/Makefile
-
 LOAD_ADDR = 0x82000000
 
 CFLAGS += -I include
@@ -49,8 +45,13 @@ CLEAN += bundle.list
 CLEAN += bundle.bin
 CLEAN += bundle.bo
 
-proc0.bin: $(PROC0)/proc0.elf
+PROC0_SRC_C += devices.c
+
+include ../proc0/Makefile
+
+proc0.bin: ../proc0/proc0.elf
 proc0.bo: proc0.bin
+
 CLEAN += proc0.bo proc0.bin
 
 kern.elf: ../kernel.ld proc0.bo $(KERNEL_OBJECTS)

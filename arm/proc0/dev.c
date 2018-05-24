@@ -5,4 +5,5 @@
 #include <c.h>
 
 #include "proc0.h"
+#include "dev.h"
 

@@ -113,7 +113,7 @@ main(size_t kernel_start, size_t dtb_start, size_t dtb_len)
       kernel_len, AP_RW_NO, true);
 
   kernel_va_slot += kernel_len;
-  
+
   map_devs();
 
   mmu_load_ttb(kernel_ttb);

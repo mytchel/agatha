@@ -1,10 +1,10 @@
 #include "../../kern/head.h"
 #include "../kern/fns.h"
 #include <stdarg.h>
-#include <am335x/uart.h>
+#include <arm/omap3_uart.h>
 #include <fdt.h>
 
-static struct uart_regs *regs;
+static struct omap3_uart_regs *regs;
 static size_t regs_pa, regs_len;
 
   static void
@@ -38,7 +38,7 @@ map_uart(void *dtb)
   regs_pa = 0x44e09000;
   regs_len = 0x2000;
 
-  regs = (struct uart_regs *) kernel_va_slot;
+  regs = (struct omap3_uart_regs *) kernel_va_slot;
   map_pages(kernel_l2, regs_pa, kernel_va_slot, regs_len, AP_RW_NO, false);
   kernel_va_slot += PAGE_ALIGN(regs_len);
 }

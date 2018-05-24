@@ -1,5 +1,5 @@
 
-struct uart_regs {
+struct omap3_uart_regs {
   uint32_t hr;
   uint32_t ier;
   uint32_t iir;

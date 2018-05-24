@@ -3,13 +3,14 @@ CLEAN += \
 	$(BASE)/arm/proc0/proc0.bin \
 	$(BASE)/arm/proc0/proc0.list
 
-PROC0_SRC_A := \
+PROC0_SRC_A = \
 	$(BASE)/lib/libc/sys.S
 
-PROC0_SRC_C := \
+PROC0_SRC_C += \
 	$(BASE)/arm/proc0/main.c              \
 	$(BASE)/arm/proc0/proc.c              \
 	$(BASE)/arm/proc0/mem.c               \
+	$(BASE)/arm/proc0/dev.c               \
 	$(BASE)/arm/proc0/mmu.c               \
 	$(BASE)/lib/libfdt/fdt.c              \
 	$(BASE)/lib/libstring/conv.c          \
@@ -17,7 +18,7 @@ PROC0_SRC_C := \
 	$(BASE)/lib/libstring/string.c        \
 	$(BASE)/lib/libc/util.c
 				
-PROC0_OBJECTS := \
+PROC0_OBJECTS = \
   $(PROC0_SRC_A:%.S=%.o) \
   $(PROC0_SRC_C:%.c=%.o)
 
@@ -29,7 +30,7 @@ $(BASE)/arm/proc0/proc0.elf: \
 		bundle.bo \
 		$(PROC0_OBJECTS)
 	@echo LD $@
-	@$(LD) $(LDFLAGS) \
+	$(LD) $(LDFLAGS) \
 		-T $(BASE)/arm/proc0/linker.ld \
 		-Ttext $(USER_ADDR) \
 		-o $@ $(PROC0_OBJECTS) bundle.bo \
