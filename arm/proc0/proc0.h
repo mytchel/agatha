@@ -11,11 +11,10 @@ struct frame {
 };
 
 void
-init_procs(void);
-
-void
 init_mem(void);
 
+void
+init_procs(void);
 
 size_t
 get_mem(size_t l, size_t align);
@@ -34,4 +33,6 @@ init_l1(uint32_t *t);
 
 struct frame *
 get_frame(void);
+
+extern struct kernel_info *info;
 

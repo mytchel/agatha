@@ -6,4 +6,5 @@ struct device {
 };
 
 extern struct device devices[];
+extern size_t ndevices;
 

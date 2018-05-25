@@ -8,7 +8,7 @@ include ../Makefile
 
 LOAD_ADDR = 0x62008000
 
-CFLAGS += -I include
+CFLAGS += -I include -mcpu=cortex-a9
 LDFLAGS +=
 
 KERNEL_SRC_A += 
@@ -42,19 +42,19 @@ CLEAN += bundle.list
 CLEAN += bundle.bin
 CLEAN += bundle.bo
 
-PROC0_SRC_C += devices.c
+DEVICE_TABLE = devices.c
 
 include ../proc0/Makefile
 
-proc0.bin: ../proc0/proc0.elf
+proc0.bin: $(BASE)/arm/proc0/proc0.elf
 proc0.bo: proc0.bin
 
 CLEAN += proc0.bo proc0.bin
 
-kern.elf: ../kernel.ld proc0.bo $(KERNEL_OBJECTS)
+kern.elf: ../kernel.ld proc0.bo bundle.bo $(KERNEL_OBJECTS)
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T ../kernel.ld -Ttext $(LOAD_ADDR) \
-		-o $@ $(KERNEL_OBJECTS) proc0.bo \
+		-o $@ $(KERNEL_OBJECTS) proc0.bo bundle.bo \
 		-lgcc
 

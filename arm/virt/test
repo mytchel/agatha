@@ -1,7 +1,5 @@
 #!/bin/sh
 
-make || exit
-
 cp kern.umg /var/ftpd/
 
 export ETHER=vether0

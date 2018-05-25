@@ -4,15 +4,14 @@
 int
 send_intr(proc_t p, size_t intr)
 {
-	if (p->intr != 0) {
+	if (p->intr != 0 || 
+			(p->state != PROC_ready && p->state != PROC_recv)) {
 		return ERR;
 	}
 
 	p->intr = intr;
-	if (p->state == PROC_recv) {
-		p->state = PROC_ready;
-		schedule(p);
-	}
+	p->state = PROC_ready;
+	schedule(p);
 
 	return OK;
 }

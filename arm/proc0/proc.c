@@ -16,8 +16,6 @@ struct bundle_proc bundled_procs[] = {
 #include "bundle.list"
 };
 
-extern void *_binary_bundle_bin_start;
-
 static bool
 init_bundled_proc(char *name,
     size_t start, size_t len)
@@ -101,13 +99,7 @@ init_procs(void)
 	size_t off;
 	int i;
 
-	off = ((size_t) &_binary_bundle_bin_start)
-		- USER_ADDR + 0x82020000;
-	if (off == nil) {
-		raise();
-	}
-
-	va_table(10, off);
+	off = info->bundle_start;
 
 	for (i = 0; 
 			i < sizeof(bundled_procs)/sizeof(bundled_procs[0]);

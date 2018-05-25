@@ -7,14 +7,15 @@
 
 #include "proc0.h"
 
+struct kernel_info *info;
+
   void
-main(struct kernel_info *k)
+main(struct kernel_info *i)
 {
   uint8_t m[MESSAGE_LEN];
 
-	while (true)
-		;
-
+	info = i;
+	
 	init_mem();
 	init_procs();
 

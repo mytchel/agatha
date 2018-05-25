@@ -3,8 +3,11 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <stdarg.h>
+#include <string.h>
 
 #include "proc0.h"
+#include "../dev.h"
 
 static struct frame *free = nil;
 
@@ -36,22 +39,21 @@ void
 init_mem(void)
 {
 	struct frame *f;
+	int i;
 
-	f = get_frame();
-	f->pa  = 0x80000000;
-	f->len =  0x2000000;
-	f->pid = -1;
-	f->va = 0;
-	f->next = free;
-	free = f;
+	for (i = 0; i < ndevices; i++) {
+		if (!strncmp(devices[i].compatable, "mem", 
+					sizeof(devices[i].compatable)))
+			continue;
 
-	f = get_frame();
-	f->pa  = 0x83000000;
-	f->len = 0x1d000000;
-	f->pid = -1;
-	f->va = 0;
-	f->next = free;
-	free = f;
+		f = get_frame();
+		f->pa  = devices[i].reg;
+		f->len = devices[i].len;
+		f->pid = -1;
+		f->va = 0;
+		f->next = free;
+		free = f;
+	}
 }
 
 	struct frame *
@@ -171,8 +173,11 @@ unmap(void *va, size_t len)
 	void
 init_l1(uint32_t *t)
 {
-	memset(&t[0],     0, 0x800 * sizeof(uint32_t));
-	memcpy(&t[0x800], &l1[0x800], 0x100 * sizeof(uint32_t)); 
-	memset(&t[0x900], 0, 0x700 * sizeof(uint32_t));
+	size_t s;
+
+	memset(&t[0], 0, 0x4000);
+
+	s = info->kernel_start >> 20;
+	memcpy(&t[s], &l1[s], info->kernel_len); 
 }
 

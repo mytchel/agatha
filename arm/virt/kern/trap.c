@@ -9,7 +9,8 @@ static struct cortex_a9_gic_dst_regs *dregs;
 static struct cortex_a9_gic_cpu_regs *cregs;
 static struct cortex_a9_pt_wd_regs *pt_regs;
 
-static void (*handlers[256])(size_t) = { nil };
+static void (*kernel_handlers[256])(size_t) = { nil };
+static proc_t user_handlers[256] = { nil };
 
 static void
 gic_set_priority(size_t irqn, uint32_t p)
@@ -67,7 +68,6 @@ gic_end_interrupt(size_t irqn)
 	cregs->eoi = irqn;
 }
 
-
 static void
 gic_dst_init(void)
 {
@@ -110,13 +110,6 @@ gic_cpu_init(void)
   void
 init_intc(void)
 {
-	debug("init cortex-a9 gic\n");
-	
-	debug("cpu size: %i\n", sizeof(struct cortex_a9_gic_cpu_regs));
-	debug("dis size: %i\n", sizeof(struct cortex_a9_gic_dst_regs));
-
-	debug("cpu interface imp: 0x%h\n", cregs->implementation);
-
 	gic_dst_init();
 	gic_cpu_init();
 }
@@ -184,7 +177,7 @@ add_kernel_irq(size_t irqn, void (*func)(size_t))
 
 	gic_enable_irq(irqn);
 
-	handlers[irqn] = func;
+	kernel_handlers[irqn] = func;
 
   return ERR;
 }
@@ -192,7 +185,12 @@ add_kernel_irq(size_t irqn, void (*func)(size_t))
 int
 add_user_irq(size_t irqn, proc_t p)
 {
-  return ERR;
+	if (user_handlers[irqn] == nil) {
+		user_handlers[irqn] = p;
+		return OK;
+	} else {
+		return ERR;
+	}
 }
 
   static void
@@ -204,8 +202,16 @@ irq_handler(void)
 
 	gic_clear_pending(irqn);
 
-	if (handlers[irqn] != nil) {
-		handlers[irqn](irqn);
+	if (kernel_handlers[irqn] != nil) {
+		kernel_handlers[irqn](irqn);
+
+	} else if (user_handlers[irqn] != nil) {
+		if (send_intr(user_handlers[irqn], irqn) != OK) {
+			debug("proc %i not ready for interrupt %i, disabling!\n", 
+					user_handlers[irqn]->pid, irqn);
+			gic_disable_irq(irqn);
+		}
+
 	} else {
 		debug("got unhandled interrupt %i!\n", irqn);
 		gic_disable_irq(irqn);

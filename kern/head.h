@@ -29,7 +29,7 @@ struct proc {
   uint8_t kstack[KSTACK_LEN];
 
 	uint8_t m[MESSAGE_LEN];
-	size_t intr;
+	uint8_t intr;
 	proc_t waiting_on, wnext;
 	proc_t waiting;
 	
@@ -120,6 +120,4 @@ puts(const char *);
 /* Variables. */
 
 extern proc_t up;
-
-extern struct kernel_info kernel_info;
 

@@ -8,7 +8,7 @@ include ../Makefile
 
 LOAD_ADDR = 0x82000000
 
-CFLAGS += -I include
+CFLAGS += -I include -mcpu=cortex-a8
 LDFLAGS +=
 
 KERNEL_SRC_A += 
@@ -45,7 +45,7 @@ CLEAN += bundle.list
 CLEAN += bundle.bin
 CLEAN += bundle.bo
 
-PROC0_SRC_C += devices.c
+DEVICE_TABLE = devices.c
 
 include ../proc0/Makefile
 

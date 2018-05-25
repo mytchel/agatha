@@ -62,10 +62,8 @@ struct label {
 } __attribute__((__packed__));
 
 struct kernel_info {
-  size_t kernel_start;
-  size_t kernel_len;
-
-  size_t dtb_start;
-  size_t dtb_len;
+	size_t kernel_start, kernel_len;
+	size_t bundle_start, bundle_len;
+	size_t dtb_start, dtb_len;
 };
 

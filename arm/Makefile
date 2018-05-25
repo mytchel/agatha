@@ -13,7 +13,6 @@ USER_ADDR = 0x00010000
 
 CFLAGS += \
 	-fno-stack-protector \
-	-mcpu=cortex-a8 \
 	-DUSER_ADDR=$(USER_ADDR) \
 	-DLOAD_ADDR=$(LOAD_ADDR) \
 	-I$(BASE)/arm/include
