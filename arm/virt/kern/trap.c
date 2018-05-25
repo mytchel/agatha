@@ -2,10 +2,12 @@
 #include "../kern/fns.h"
 #include "../kern/trap.h"
 #include <arm/cortex_a9_gic.h>
+#include <arm/cortex_a9_pt_wd.h>
 #include <fdt.h>
 
 static struct cortex_a9_gic_dst_regs *dregs;
 static struct cortex_a9_gic_cpu_regs *cregs;
+static struct cortex_a9_pt_wd_regs *pt_regs;
 
 static void (*handlers[256])(size_t) = { nil };
 
@@ -133,11 +135,46 @@ map_intc(void)
 	dregs = (struct cortex_a9_gic_dst_regs *) 
 		(kernel_va_slot + 0x1000);
 
+	pt_regs = (struct cortex_a9_pt_wd_regs *) 
+		(kernel_va_slot + 0x600);
+
 	map_pages(kernel_l2, regs_pa, 
 			kernel_va_slot, regs_len, 
 			AP_RW_NO, false);
 
 	kernel_va_slot += PAGE_ALIGN(regs_len);
+}
+
+void
+set_systick(size_t ms)
+{
+	pt_regs->t_load = ms * 100000;
+	pt_regs->t_control |= 1;
+}
+
+static void 
+systick(size_t irq)
+{
+	debug("systick\n");
+	pt_regs->t_intr = 1;
+	schedule(nil);
+}
+
+void
+init_timer(void)
+{
+	if (pt_regs == nil) {
+		panic("Private timer regs not mapped!\n");
+	}
+
+	/* Enable interrupt, no prescaler. */
+	pt_regs->t_control = (1<<2);
+
+	add_kernel_irq(29, &systick);
+
+	/* Disable watch dog timer. */
+	pt_regs->wd_disable = 0x12345678;
+	pt_regs->wd_disable = 0x87654321;
 }
 
   int

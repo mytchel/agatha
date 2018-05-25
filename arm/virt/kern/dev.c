@@ -15,9 +15,6 @@ void
 init_serial(void);
 
 void
-map_timer(void);
-
-void
 init_timer(void);
 
 	void
@@ -25,7 +22,6 @@ map_devs(void)
 {
   map_serial();
   map_intc();
-  map_timer();
 }
 
   void

@@ -16,8 +16,7 @@ KERNEL_SRC_A +=
 KERNEL_SRC_C += \
 	kern/dev.c       \
 	kern/trap.c      \
-	kern/serial.c    \
-	kern/timer.c
+	kern/serial.c
 
 KERNEL_OBJECTS := \
   $(KERNEL_SRC_A:%.S=%.o) \
