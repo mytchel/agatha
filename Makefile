@@ -12,7 +12,7 @@ LDFLAGS = -nostdlib -nodefaultlibs -static \
 .PHONY: clean
 clean:
 	@echo CLEAN
-	rm -f $(CLEAN)
+	@rm -f $(CLEAN)
 
 .c.o .S.o:
 	@echo CC $@

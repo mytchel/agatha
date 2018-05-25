@@ -1,11 +1,154 @@
 #include "../../kern/head.h"
 #include "../kern/fns.h"
 #include "../kern/trap.h"
+#include <arm/cortex_a9_gic.h>
 #include <fdt.h>
+
+static struct cortex_a9_gic_dst_regs *dregs;
+static struct cortex_a9_gic_cpu_regs *cregs;
+
+static void (*handlers[256])(size_t) = { nil };
+
+static void
+gic_set_priority(size_t irqn, uint32_t p)
+{
+	uint8_t *f = (uint8_t *) &dregs->ipr[irqn / 4] + (irqn % 4);
+	*f = p;
+}
+
+/*
+static uint8_t
+gic_get_priority(size_t irqn)
+{
+	uint8_t *f = (uint8_t *) &dregs->ipr[irqn / 4] + (irqn % 4);
+	return (*f) & 0xff;
+}
+*/
+
+static void
+gic_set_target(size_t irqn, size_t t)
+{
+	uint8_t *f = (uint8_t *) &dregs->spi[irqn / 4] + (irqn % 4);
+	*f = t;
+}
+
+/*
+	static uint8_t
+gic_get_target(size_t irqn, size_t t)
+{
+	uint8_t *f = (uint8_t *) &dregs->spi[irqn / 4] + (irqn % 4);
+	return (*f) & 0xff;
+}
+*/
+
+static void
+gic_disable_irq(size_t irqn)
+{
+	dregs->ice[irqn / 32] = 1 << (irqn % 32);
+}
+
+static void
+gic_enable_irq(size_t irqn)
+{
+	dregs->ise[irqn / 32] = 1 << (irqn % 32);
+}
+
+static void
+gic_clear_pending(size_t irqn)
+{
+	dregs->icp[irqn / 32] = 1 << (irqn % 32);
+}
+
+static void
+gic_end_interrupt(size_t irqn)
+{
+	cregs->eoi = irqn;
+}
+
+
+static void
+gic_dst_init(void)
+{
+	uint32_t nirq, i;
+
+	dregs->dcr &= ~1;
+
+	nirq = 32 * ((dregs->ictr & 0x1f) + 1);
+
+	debug("nirq = %i\n", nirq);
+
+	for (i = 32; i < nirq; i++) {
+		gic_disable_irq(i);
+		gic_set_priority(i, 0xff / 2);
+		gic_set_target(i, 0xf);
+	}
+
+	/* May have to set icr values here. */
+
+	dregs->dcr |= 1;
+}
+static void
+gic_cpu_init(void)
+{
+	uint32_t i;
+
+	cregs->control &= ~1;
+
+	for (i = 0; i < 32; i++) {
+		gic_disable_irq(i);
+		gic_set_priority(i, 0xff / 2);
+	}
+
+	cregs->control |= 1;
+
+	cregs->bin_pt = 0;
+	cregs->priority = 0xff;
+}
+
+  void
+init_intc(void)
+{
+	debug("init cortex-a9 gic\n");
+	
+	debug("cpu size: %i\n", sizeof(struct cortex_a9_gic_cpu_regs));
+	debug("dis size: %i\n", sizeof(struct cortex_a9_gic_dst_regs));
+
+	debug("cpu interface imp: 0x%h\n", cregs->implementation);
+
+	gic_dst_init();
+	gic_cpu_init();
+}
+
+  void
+map_intc(void)
+{
+	size_t regs_pa, regs_len;
+
+	regs_pa = 0x1e000000;
+	regs_len = 0x2000;
+
+	cregs = (struct cortex_a9_gic_cpu_regs *) 
+		(kernel_va_slot + 0x100);
+
+	dregs = (struct cortex_a9_gic_dst_regs *) 
+		(kernel_va_slot + 0x1000);
+
+	map_pages(kernel_l2, regs_pa, 
+			kernel_va_slot, regs_len, 
+			AP_RW_NO, false);
+
+	kernel_va_slot += PAGE_ALIGN(regs_len);
+}
 
   int
 add_kernel_irq(size_t irqn, void (*func)(size_t))
 {
+	debug("add intr %i\n", irqn);
+
+	gic_enable_irq(irqn);
+
+	handlers[irqn] = func;
+
   return ERR;
 }
 
@@ -18,7 +161,20 @@ add_user_irq(size_t irqn, proc_t p)
   static void
 irq_handler(void)
 {
+	uint32_t irqn = cregs->ack;
 
+	debug("irq: %i\n", irqn);
+
+	gic_clear_pending(irqn);
+
+	if (handlers[irqn] != nil) {
+		handlers[irqn](irqn);
+	} else {
+		debug("got unhandled interrupt %i!\n", irqn);
+		gic_disable_irq(irqn);
+	}
+	
+	gic_end_interrupt(irqn);
 }
 
   void
@@ -86,15 +242,4 @@ trap(size_t pc, int type)
   /* Never reached */
 }
 
-  void
-init_intc(void)
-{
-
-}
-
-  void
-map_intc(void)
-{
-
-}
 
