@@ -1,6 +1,6 @@
 #include <types.h>
 
-#include "../proc0/dev.h"
+#include "../dev.h"
 
 struct device devices[] = {
 	/* Mem split around kernel. */
@@ -36,4 +36,6 @@ struct device devices[] = {
 		0x5b,
 	},
 };
+
+size_t ndevices = sizeof(devices)/sizeof(devices[0]);
 

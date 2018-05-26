@@ -9,28 +9,28 @@ clean:
 	done
 
 KERNEL_SRC_A += \
-        $(BASE)/arm/kern/vectors.S     \
-        $(BASE)/arm/kern/asm.S
+        ../kern/vectors.S     \
+        ../kern/asm.S
 
 KERNEL_SRC_C += \
-        $(BASE)/arm/kern/main.c       \
-        $(BASE)/arm/kern/mem.c        \
-        $(BASE)/arm/kern/proc.c       \
-        $(BASE)/arm/kern/intr.c       \
-        $(BASE)/kern/debug.c          \
-        $(BASE)/kern/proc.c           \
-        $(BASE)/kern/sys.c            \
-        $(BASE)/kern/util.c           \
-        $(BASE)/lib/libstring/conv.c  \
-        $(BASE)/lib/libstring/scanf.c \
-        $(BASE)/lib/libstring/string.c
+        ../kern/main.c       \
+        ../kern/mem.c        \
+        ../kern/proc.c       \
+        ../kern/intr.c       \
+        ../../kern/debug.c          \
+        ../../kern/proc.c           \
+        ../../kern/sys.c            \
+        ../../kern/util.c           \
+        ../../lib/libstring/conv.c  \
+        ../../lib/libstring/scanf.c \
+        ../../lib/libstring/string.c
 
 KERNEL_OBJECTS = \
 	$(KERNEL_SRC_A:%.S=%.o) \
 	$(KERNEL_SRC_C:%.c=%.o) 
 
-bundle.bin bundle.list: $(BASE)/rules.mk
-		@sh $(BASE)/bundle.sh \
+bundle.bin bundle.list: ../../rules.mk
+		@sh ../bundle.sh \
 				bundle.bin \
 				bundle.list \
 				$(BUNDLE)
@@ -39,9 +39,11 @@ bundle.bo: bundle.bin
 
 CLEAN += bundle.list bundle.bin bundle.bo
 
-include $(BASE)/arm/proc0/Makefile
+include ../proc0/Makefile
 
-proc0.bin: $(BASE)/arm/proc0/proc0.elf
+proc0.bin: ../proc0/proc0.bin
+	cp ../proc0/proc0.bin proc0.bin
+
 proc0.bo: proc0.bin
 
 CLEAN += proc0.bo proc0.bin
@@ -49,11 +51,17 @@ CLEAN += proc0.bo proc0.bin
 CLEAN += kern.elf kern.bin kern.umg kern.list
 CLEAN += $(KERNEL_OBJECTS)
 
-kern.elf: $(BASE)/arm/kernel.ld  proc0.bo bundle.bo $(KERNEL_OBJECTS)
+kern.elf: ../kernel.ld  proc0.bo bundle.bo $(KERNEL_OBJECTS)
 	@echo LD $@
 	$(LD) $(LDFLAGS) \
-			-T $(BASE)/arm/kernel.ld -Ttext $(LOAD_ADDR) \
+			-T ../kernel.ld -Ttext $(LOAD_ADDR) \
 			-o $@ $(KERNEL_OBJECTS) proc0.bo bundle.bo \
 			-lgcc
 
+../../rules.mk: ../../port_rules.mk ../rules.mk rules.mk
+	rm -f ../../rules.mk
+	cat ../../port_rules.mk >> ../../rules.mk
+	echo BASE = ${BASE} >> ../../rules.mk
+	cat ../rules.mk >> ../../rules.mk
+	cat rules.mk >> ../../rules.mk
 

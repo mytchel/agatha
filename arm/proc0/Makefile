@@ -1,20 +1,15 @@
-CLEAN += \
-	$(BASE)/arm/proc0/proc0.elf \
-	$(BASE)/arm/proc0/proc0.bin \
-	$(BASE)/arm/proc0/proc0.list
-
 PROC0_SRC_A = \
-	$(BASE)/lib/libc/sys.S
+	../../lib/libc/sys.S
 
-PROC0_SRC_C += \
-	$(BASE)/arm/proc0/main.c              \
-	$(BASE)/arm/proc0/proc.c              \
-	$(BASE)/arm/proc0/mem.c               \
-	$(BASE)/arm/proc0/mmu.c               \
-	$(BASE)/lib/libstring/conv.c          \
-	$(BASE)/lib/libstring/scanf.c         \
-	$(BASE)/lib/libstring/string.c        \
-	$(BASE)/lib/libc/util.c               \
+PROC0_SRC_C = \
+	../proc0/main.c              \
+	../proc0/proc.c              \
+	../proc0/mem.c               \
+	../proc0/mmu.c               \
+	../../lib/libstring/conv.c   \
+	../../lib/libstring/scanf.c  \
+	../../lib/libstring/string.c \
+	../../lib/libc/util.c        \
 	$(DEVICE_TABLE)
 				
 PROC0_OBJECTS = \
@@ -22,14 +17,15 @@ PROC0_OBJECTS = \
   $(PROC0_SRC_C:%.c=%.o)
 
 CLEAN += $(PROC0_OBJECTS)
+CLEAN += \
+	../proc0/proc0.elf \
+	../proc0/proc0.bin \
+	../proc0/proc0.list
 
-$(BASE)/arm/proc0/proc0.elf: \
-		$(USER.LD) \
-		$(BASE)/arm/proc0/linker.ld \
-		$(PROC0_OBJECTS)
+../proc0/proc0.elf: $(USER.LD) $(PROC0_OBJECTS)
 	@echo LD $@
-	@$(LD) $(LDFLAGS) \
-		-T $(BASE)/arm/proc0/linker.ld \
+	$(LD) $(LDFLAGS) \
+		-T $(USER.LD) \
 		-Ttext $(USER_ADDR) \
 		-o $@ $(PROC0_OBJECTS) \
 		-lgcc
