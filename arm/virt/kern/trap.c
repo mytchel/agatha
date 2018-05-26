@@ -205,10 +205,10 @@ irq_handler(void)
 		kernel_handlers[irqn](irqn);
 
 	} else if (user_handlers[irqn] != nil) {
+		gic_disable_irq(irqn);
 		if (send_intr(user_handlers[irqn], irqn) != OK) {
-			debug("proc %i not ready for interrupt %i, disabling!\n", 
+			debug("proc %i not ready for interrupt %i!\n", 
 					user_handlers[irqn]->pid, irqn);
-			gic_disable_irq(irqn);
 		}
 
 	} else {

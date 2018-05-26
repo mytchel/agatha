@@ -141,6 +141,10 @@ proc_new(void)
 	proc_t
 find_proc(int pid)
 {
-	return procs[pid].state != PROC_dead ? &procs[pid] : nil;
+	if (pid < MAX_PROCS) {
+		return procs[pid].state != PROC_dead ? &procs[pid] : nil;
+	} else {
+		return nil;
+	}
 }
 

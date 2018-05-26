@@ -7,9 +7,8 @@ include rules.mk
 
 LOAD_ADDR = 0x62008000
 
-DEVICE_TABLE = devices.c
-
-BUNDLE += $(BASE)/drivers/test
+BUNDLE += $(BASE)/drivers/ping
+BUNDLE += $(BASE)/drivers/pong
 
 KERNEL_SRC_A = 
 

@@ -9,59 +9,83 @@
 #include "proc0.h"
 #include "../dev.h"
 
-static struct frame *free = nil;
-
 /* TODO: Get the kernel to give this information
 	 somehow. Also have a list of l2 pages. */
 static uint32_t *l1 = (uint32_t *) 0x1000;
 static uint32_t *l2 = (uint32_t *) 0x5000;
 
-struct frame *
-get_frame(void)
+struct mem_container {
+	size_t pa, len;
+	struct mem_container *next;
+};
+
+/* Free container structs. */
+static struct mem_container *mem_container_free = nil;
+/* Memory that is free to be used. */
+static struct mem_container *mem = nil;
+
+	static struct mem_container *
+get_mem_container(void)
 {
-	static struct frame init_frames[32] = { 0 };
-	static int next_frame = 0;
-	static int nframes = 32;
+	struct mem_container *m;
+	size_t pa;
+	void *va;
 
-	struct frame *f;
+	if (mem_container_free == nil) {
+		pa = get_mem(0x1000, 0x1000);
+		if (pa == nil) {
+			raise();
+		}
 
-	f = &init_frames[next_frame++];
+		va = map_free(pa, 0x1000, AP_RW_RW, true);
+		if (va == nil) {
+			raise();
+		}
 
-	if (next_frame == nframes) {
-		/* TODO */
-		raise();
+		for (m = va; (size_t) m < (size_t) va + 0x1000; m++) {
+			m->next = mem_container_free;
+			mem_container_free = m;
+		}
 	}
 
-	return f;
+	m = mem_container_free;
+	mem_container_free = m->next;
+
+	return m;
 }
 
 void
 init_mem(void)
 {
-	struct frame *f;
+	static struct mem_container init_mem[32] = { 0 };
+	struct mem_container *m;
 	int i;
+
+	for (i = 0; i < LEN(init_mem); i++) {
+		m = &init_mem[i];
+		m->next = mem_container_free;
+		mem_container_free = m;
+	}
 
 	for (i = 0; i < ndevices; i++) {
 		if (!strncmp(devices[i].compatable, "mem", 
 					sizeof(devices[i].compatable)))
 			continue;
 
-		f = get_frame();
-		f->pa  = devices[i].reg;
-		f->len = devices[i].len;
-		f->pid = -1;
-		f->va = 0;
-		f->next = free;
-		free = f;
+		m = get_mem_container();
+		m->pa  = devices[i].reg;
+		m->len = devices[i].len;
+		m->next = mem;
+		mem = m;
 	}
 }
 
-	struct frame *
-frame_split(struct frame *f, size_t off)
+static struct mem_container *
+mem_container_split(struct mem_container *f, size_t off)
 {
-	struct frame *n;
+	struct mem_container *n;
 
-	n = get_frame();
+	n = get_mem_container();
 	if (n == nil) {
 		return nil;
 	}
@@ -69,8 +93,6 @@ frame_split(struct frame *f, size_t off)
 	n->pa = f->pa + off;
 	n->len = f->len - off;
 
-	n->va = 0;
-	n->pid = -1;
 	n->next = nil;
 
 	f->len = off;
@@ -78,26 +100,26 @@ frame_split(struct frame *f, size_t off)
 	return n;
 }
 
-	struct frame *
-get_mem_frame(size_t len, size_t align)
+static struct mem_container *
+get_free_mem(size_t len, size_t align)
 {
-	struct frame *f, *n;
+	struct mem_container *f, *n;
 	size_t a;
 
-	for (f = free; f != nil; f = f->next) {
+	for (f = mem; f != nil; f = f->next) {
 		a = (f->pa + align - 1) & ~(align - 1);
 
 		if (len < a - f->pa + f->len) {
 			if (f->pa < a) {
-				f = frame_split(f, a - f->pa);
+				f = mem_container_split(f, a - f->pa);
 				if (f == nil) 
 					return nil;
 			}
 
-			n = frame_split(f, len);
+			n = mem_container_split(f, len);
 
-			n->next = free;
-			free = n;
+			n->next = mem;
+			mem = n;
 
 			return f;
 		}
@@ -109,14 +131,20 @@ get_mem_frame(size_t len, size_t align)
 	size_t
 get_mem(size_t l, size_t align)
 {
-	struct frame *f;
+	struct mem_container *m;
+	size_t pa;
 
-	f = get_mem_frame(l, align);
-	if (f == nil) {
+	m = get_free_mem(l, align);
+	if (m == nil) {
 		return 0;
 	}
 
-	return f->pa;
+	pa = m->pa;
+
+	m->next = mem_container_free;
+	mem_container_free = m;
+
+	return pa;
 }
 
 	void

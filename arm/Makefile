@@ -29,15 +29,15 @@ KERNEL_OBJECTS = \
 	$(KERNEL_SRC_A:%.S=%.o) \
 	$(KERNEL_SRC_C:%.c=%.o) 
 
-bundle.bin bundle.list: ../../rules.mk
+bundle.bin bundle.c: ../../rules.mk
 		@sh ../bundle.sh \
 				bundle.bin \
-				bundle.list \
+				bundle.c \
 				$(BUNDLE)
 
 bundle.bo: bundle.bin
 
-CLEAN += bundle.list bundle.bin bundle.bo
+CLEAN += bundle.c bundle.bin bundle.bo
 
 include ../proc0/Makefile
 

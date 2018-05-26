@@ -10,7 +10,8 @@ PROC0_SRC_C = \
 	../../lib/libstring/scanf.c  \
 	../../lib/libstring/string.c \
 	../../lib/libc/util.c        \
-	$(DEVICE_TABLE)
+	devices.c                    \
+	bundle.c
 				
 PROC0_OBJECTS = \
   $(PROC0_SRC_A:%.S=%.o) \

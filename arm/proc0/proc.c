@@ -5,15 +5,7 @@
 #include <c.h>
 
 #include "proc0.h"
-
-struct bundle_proc {
-  char name[256];
-  size_t len;
-};
-
-struct bundle_proc bundled_procs[] = {
-#include "bundle.list"
-};
+#include "../bundle.h"
 
 static bool
 init_bundled_proc(char *name,
@@ -100,10 +92,7 @@ init_procs(void)
 
 	off = info->bundle_start;
 
-	for (i = 0; 
-			i < sizeof(bundled_procs)/sizeof(bundled_procs[0]);
-			i++) {
-
+	for (i = 0; i < nbundled_procs; i++) {
 		if (!init_bundled_proc(bundled_procs[i].name, 
 					off, bundled_procs[i].len)) {
 			raise();

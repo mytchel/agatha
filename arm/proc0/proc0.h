@@ -16,6 +16,12 @@ init_mem(void);
 void
 init_procs(void);
 
+void *
+alloc(size_t s);
+
+void
+free(void *p);
+
 size_t
 get_mem(size_t l, size_t align);
 
@@ -31,8 +37,8 @@ unmap(void *va, size_t len);
 void
 init_l1(uint32_t *t);
 
-struct frame *
-get_frame(void);
+size_t
+proc_map(size_t pid, size_t pa, size_t va, size_t len, int flags);
 
 extern struct kernel_info *info;
 

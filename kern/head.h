@@ -111,6 +111,9 @@ set_systick(size_t ms);
 int
 add_kernel_irq(size_t irqn, void (*func)(size_t));
 
+int
+add_user_irq(size_t irqn, proc_t p);
+
 void
 fill_intr_m(uint8_t *, size_t irqn);
 

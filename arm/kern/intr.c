@@ -6,9 +6,10 @@
 void
 fill_intr_m(uint8_t *m, size_t irqn)
 {
-	struct msg_irq *i = (struct msg_irq *) m;
+	struct proc0_irq *i = (struct proc0_irq *) m;
 
-	i->type = MSG_T_irq;
+	i->from = PROC0_PID;
+	i->type = PROC0_irq;
 	i->irq = irqn;
 }
 

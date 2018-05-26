@@ -166,11 +166,33 @@ sys_va_table(int p_id, size_t pa)
   return OK;
 }
 
+	size_t
+sys_intr_register(int p_id, size_t irqn)
+{
+	proc_t p;
+
+	debug("%i called sys intr_register with %i, %i\n", up->pid, p_id, irqn);
+
+	if (up->pid != 0) {
+		debug("proc %i is not proc0!\n", up->pid);
+		return ERR;
+	}
+
+	p = find_proc(p_id);
+	if (p == nil) {
+		debug("didnt find %i\n", p_id);
+		return ERR;
+	}
+
+	return add_user_irq(irqn, p);
+}
+
 void *systab[NSYSCALLS] = {
   [SYSCALL_YIELD]            = (void *) &sys_yield,
   [SYSCALL_SEND]             = (void *) &sys_send,
   [SYSCALL_RECV]             = (void *) &sys_recv,
   [SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
   [SYSCALL_VA_TABLE]         = (void *) &sys_va_table,
+  [SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
 };
 

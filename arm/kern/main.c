@@ -110,7 +110,8 @@ main(size_t kernel_start, size_t dtb_start, size_t dtb_len)
 	kernel_info.kernel_len   = kernel_len;
 	kernel_info.bundle_start = (size_t) &_binary_bundle_bin_start;
 	kernel_info.bundle_len   = 
-	(size_t) &_binary_bundle_bin_end - (size_t) &_binary_bundle_bin_start;
+		(size_t) &_binary_bundle_bin_end - 
+		(size_t) &_binary_bundle_bin_start;
 	kernel_info.dtb_start    = dtb_start;
 	kernel_info.dtb_len      = dtb_len;
 
@@ -130,12 +131,6 @@ main(size_t kernel_start, size_t dtb_start, size_t dtb_len)
 	mmu_enable();
 
 	init_devs();
-
-	debug("kernel_start: 0x%h \n", kernel_start);
-	debug("proc0_start : 0x%h \n", &_binary_proc0_bin_start);
-	debug("proc0_end   : 0x%h \n", &_binary_proc0_bin_end);
-	debug("bundle_start: 0x%h \n", &_binary_bundle_bin_start);
-	debug("bundle_end  : 0x%h \n", &_binary_bundle_bin_end);
 
 	p0 = init_proc0();
 

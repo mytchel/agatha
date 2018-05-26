@@ -12,6 +12,7 @@
 .global recv
 .global proc_new
 .global va_table
+.global intr_register
 
 _start:
 	bl main
@@ -61,5 +62,13 @@ proc_new:
 	mov r12, #SYSCALL_PROC_NEW
 	svc 0
 	pop {r12, pc}
+
+
+intr_register:
+	push {r12, lr}
+	mov r12, #SYSCALL_INTR_REGISTER
+	svc 0
+	pop {r12, pc}
+
 
 
