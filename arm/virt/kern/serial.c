@@ -2,7 +2,6 @@
 #include "../kern/fns.h"
 #include <stdarg.h>
 #include <arm/pl01x.h>
-#include <fdt.h>
 
 static struct pl01x_regs *regs;
 static size_t regs_pa, regs_len;

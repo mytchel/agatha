@@ -11,7 +11,6 @@ PROC0_SRC_C += \
 	$(BASE)/arm/proc0/proc.c              \
 	$(BASE)/arm/proc0/mem.c               \
 	$(BASE)/arm/proc0/mmu.c               \
-	$(BASE)/lib/libfdt/fdt.c              \
 	$(BASE)/lib/libstring/conv.c          \
 	$(BASE)/lib/libstring/scanf.c         \
 	$(BASE)/lib/libstring/string.c        \

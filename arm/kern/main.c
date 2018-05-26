@@ -1,7 +1,6 @@
 #include "../../kern/head.h"
 #include "fns.h"
 #include "trap.h"
-#include <fdt.h>
 
 struct kernel_info
 kernel_info __attribute__((__aligned__(0x1000))) = { 0 };

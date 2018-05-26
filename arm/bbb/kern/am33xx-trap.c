@@ -1,7 +1,6 @@
 #include "../../kern/head.h"
 #include "../kern/fns.h"
 #include "../kern/trap.h"
-#include <fdt.h>
 
 #define nirq 128
 

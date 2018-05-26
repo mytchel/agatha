@@ -3,7 +3,6 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
-#include <fdt.h>
 
 #include "proc0.h"
 

@@ -6,17 +6,11 @@ CFLAGS = \
 	-nostdinc -ffreestanding \
 	-I$(BASE)/include
 
-LDFLAGS = -nostdlib -nodefaultlibs -static \
-	-L/usr/local/lib/gcc/$(CROSS)/6.3.1
-
-.PHONY: clean
-clean:
-	@echo CLEAN
-	@rm -f $(CLEAN)
+LDFLAGS = -nostdlib -nodefaultlibs -static
 
 .c.o .S.o:
 	@echo CC $@
-	@$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 .o.a:
 	@echo AR $@
@@ -24,11 +18,11 @@ clean:
 
 .elf.bin:
 	@echo OBJCOPY $@
-	@$(OBJCOPY) -Obinary $< $@
+	$(OBJCOPY) -Obinary $< $@
 
 .elf.list:
 	@echo OBJDUMP $@
-	@$(OBJDUMP) -S $< > $@
+	$(OBJDUMP) -S $< > $@
 
 .bin.umg: 
 	@make -C $(BASE)/tools/mkuboot
@@ -40,7 +34,7 @@ clean:
 
 .bin.bo: 
 	@echo OBJCOPY $@
-	@$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
+	$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
 		--rename-section .data=.bundle \
 		$< $@
 

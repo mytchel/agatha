@@ -3,7 +3,6 @@
 #include "../kern/trap.h"
 #include <arm/cortex_a9_gic.h>
 #include <arm/cortex_a9_pt_wd.h>
-#include <fdt.h>
 
 static struct cortex_a9_gic_dst_regs *dregs;
 static struct cortex_a9_gic_cpu_regs *cregs;

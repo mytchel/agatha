@@ -1,7 +1,6 @@
 #include "../../kern/head.h"
 #include "../kern/fns.h"
 #include <stdarg.h>
-#include <fdt.h>
 
 struct timer_regs {
   uint32_t tidr;

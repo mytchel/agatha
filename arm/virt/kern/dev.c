@@ -1,6 +1,5 @@
 #include "../../kern/head.h"
 #include "../kern/fns.h"
-#include <fdt.h>
 
 void
 map_intc(void);

@@ -2,7 +2,6 @@
 #include "../kern/fns.h"
 #include <stdarg.h>
 #include <arm/omap3_uart.h>
-#include <fdt.h>
 
 static struct omap3_uart_regs *regs;
 static size_t regs_pa, regs_len;
