@@ -1,13 +1,18 @@
 #include "mmu.h"
 
-struct frame {
-	size_t pa;
-	size_t len;
+struct slab_frame {
+	struct slab_frame *next;
+	size_t pa, len;
+	size_t use[];
+};
 
-	int pid;
-	size_t va;
+struct slab {
+	struct slab_frame *head;
+	size_t obj_size;
+	size_t nobj;
+	size_t frame_size;
 
-	struct frame *next;
+	struct slab *next;
 };
 
 void
@@ -16,11 +21,14 @@ init_mem(void);
 void
 init_procs(void);
 
+struct slab *
+slab_new(size_t obj_size);
+
 void *
-alloc(size_t s);
+slab_alloc(struct slab *s);
 
 void
-free(void *p);
+slab_free(struct slab *s, void *p);
 
 size_t
 get_mem(size_t l, size_t align);

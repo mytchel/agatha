@@ -27,11 +27,14 @@ static struct mem_container *mem = nil;
 	static struct mem_container *
 get_mem_container(void)
 {
+	static bool getting_more = false;
 	struct mem_container *m;
 	size_t pa;
 	void *va;
 
-	if (mem_container_free == nil) {
+	if (mem_container_free->next == nil && !getting_more) {
+		getting_more = true;
+
 		pa = get_mem(0x1000, 0x1000);
 		if (pa == nil) {
 			raise();
@@ -46,12 +49,23 @@ get_mem_container(void)
 			m->next = mem_container_free;
 			mem_container_free = m;
 		}
+		
+		getting_more = false;
 	}
 
 	m = mem_container_free;
 	mem_container_free = m->next;
 
 	return m;
+}
+
+static void
+free_mem_container(struct mem_container *m)
+{
+	m->next = mem_container_free;
+	mem_container_free = m;
+
+	/* TODO: free pages somehow. */
 }
 
 void
@@ -141,8 +155,7 @@ get_mem(size_t l, size_t align)
 
 	pa = m->pa;
 
-	m->next = mem_container_free;
-	mem_container_free = m;
+	free_mem_container(m);
 
 	return pa;
 }
@@ -208,4 +221,102 @@ init_l1(uint32_t *t)
 	s = info->kernel_start >> 20;
 	memcpy(&t[s], &l1[s], info->kernel_len); 
 }
+
+static struct slab *slabs = nil;
+
+struct slab *
+slab_new(size_t obj_size)
+{
+	struct slab *s, *n;
+	size_t pa;
+
+	if (slabs == nil) {
+		pa = get_mem(0x1000, 0x1000);
+		if (pa == nil) {
+			return nil;
+		}
+
+		n = map_free(pa, 0x1000, AP_RW_RW, true);
+		if (n == nil) {
+			free_mem(pa, 0x1000);
+			return nil;
+		}
+
+		for (s = n; (size_t) (s + 1) <= (size_t) n + 0x1000; s++) {
+			s->next = slabs;
+			slabs = s;
+		}
+	}
+
+	s = slabs;
+	slabs = s->next;
+
+	s->next = nil;
+	s->head = nil;
+	s->obj_size = obj_size;
+	s->nobj = 16 * 8;
+	s->frame_size = 
+		PAGE_ALIGN(sizeof(struct slab_frame) 
+				+ s->nobj / 8
+				+ s->obj_size * s->nobj);
+
+	return s;
+}
+
+static size_t
+slab_alloc_from_frame(struct slab *s, struct slab_frame *f)
+{
+	size_t *u;
+	int i;
+
+	for (i = 0; i < s->nobj; i++) {
+		u = &f->use[i / sizeof(size_t)];
+		if (!(*u & (1 << (i % sizeof(size_t))))) {
+			*u |=	(1 << (i % sizeof(size_t)));
+			return (size_t) &f->use[s->nobj] + s->obj_size * i;
+		}
+	}	
+
+	return nil;
+}
+
+	void *
+slab_alloc(struct slab *s)
+{
+	struct slab_frame **f;
+	size_t va, pa;
+
+	for (f = &s->head; *f != nil; f = &(*f)->next) {
+		va = slab_alloc_from_frame(s, *f);
+		if (va != nil) {
+			return (void *) va;
+		}
+	}
+
+	pa = get_mem(s->frame_size, 0x1000);
+	if (pa ==  nil) {
+		return nil;
+	}
+
+	*f = map_free(pa, s->frame_size, AP_RW_RW, true);
+	if (*f == nil) {
+		free_mem(pa, 0x1000);
+		return nil;
+	}
+
+	(*f)->next = nil;
+	(*f)->pa = pa;
+	(*f)->len = s->frame_size;
+
+	memset((*f)->use, 0, s->nobj / 8);
+
+	return (void *) slab_alloc_from_frame(s, *f);
+}
+
+	void
+slab_free(struct slab *s, void *p)
+{
+
+}
+
 
