@@ -33,6 +33,7 @@ proc_start(void)
   u.sp = m[1];
 
 	debug("proc %i got start regs at 0x%h 0x%h\n", up->pid, u.pc, u.sp);
-  drop_to_user(&u, up->kstack, KSTACK_LEN);
+
+	drop_to_user(&u, up->kstack, KSTACK_LEN);
 }
 

@@ -53,6 +53,9 @@
 #define F_TABLE_L1           (1<<F_TABLE_TYPE_SHIFT)
 #define F_TABLE_L2           (2<<F_TABLE_TYPE_SHIFT) 
 
+#define MAX_PROCS      32
+#define KSTACK_LEN   1024
+
 typedef struct label label_t;
 
 struct label {
@@ -65,5 +68,6 @@ struct kernel_info {
 	size_t kernel_start, kernel_len;
 	size_t bundle_start, bundle_len;
 	size_t dtb_start, dtb_len;
+	uint32_t *l1_va, *l2_va;
 };
 

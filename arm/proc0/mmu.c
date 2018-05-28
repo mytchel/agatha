@@ -5,12 +5,30 @@
 #include <c.h>
 
 #include "proc0.h"
-#include "../kern/mem.h"
+#include "mmu.h"
 
 	int
-map_l2(uint32_t *l1, size_t pa, size_t va)
+map_l2(uint32_t *l1, size_t pa, size_t va, size_t len)
 {
-	l1[L1X(va)] = pa | L1_COARSE;
+	size_t o;
+
+	/* TODO: is this right? */	
+	for (o = 0; (o << PAGE_SHIFT) < len; o++) {
+		l1[L1X(va + (o << SECTION_SHIFT))] = 
+			(pa + (o << PAGE_SHIFT)) | L1_COARSE;
+	}
+
+	return OK;
+}
+
+	int
+unmap_l2(uint32_t *l1, size_t va, size_t len)
+{
+	size_t o;
+	
+	for (o = 0; (o << PAGE_SHIFT) < len; o++) {
+		l1[L1X(va + (o << SECTION_SHIFT))] = 0;
+	}
 
 	return OK;
 }

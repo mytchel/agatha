@@ -5,9 +5,6 @@
 #include <stdarg.h>
 #include <string.h>
 
-#define MAX_PROCS       4
-#define KSTACK_LEN   1024
-
 typedef struct proc *proc_t;
 
 typedef enum {
@@ -118,9 +115,10 @@ void
 fill_intr_m(uint8_t *, size_t irqn);
 
 void
-puts(const char *);
+irq_handler(void);
 
-/* Variables. */
+void
+puts(const char *);
 
 extern proc_t up;
 

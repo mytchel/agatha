@@ -12,13 +12,7 @@
 
 struct kernel_info *info;
 
-size_t
-proc_map(size_t pid, size_t pa, size_t va, size_t len, int flags)
-{
-	return nil;
-}
-
-int
+	int
 handle_mem_req(struct proc0_req *rq, struct proc0_rsp *rp)
 {
 	size_t pa, va, len;

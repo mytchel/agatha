@@ -9,11 +9,6 @@
 #include "proc0.h"
 #include "../dev.h"
 
-/* TODO: Get the kernel to give this information
-	 somehow. Also have a list of l2 pages. */
-static uint32_t *l1 = (uint32_t *) 0x1000;
-static uint32_t *l2 = (uint32_t *) 0x5000;
-
 struct mem_container {
 	size_t pa, len;
 	struct mem_container *next;
@@ -23,6 +18,8 @@ struct mem_container {
 static struct mem_container *mem_container_free = nil;
 /* Memory that is free to be used. */
 static struct mem_container *mem = nil;
+
+static struct pool *pools = nil;
 
 	static struct mem_container *
 get_mem_container(void)
@@ -166,71 +163,13 @@ free_mem(size_t a, size_t l)
 	/* TODO */
 }
 
-/* TODO: just improve this. */
-
-	void *
-map_free(size_t pa, size_t len, int ap, bool cache)
+	struct pool *
+pool_new(size_t obj_size)
 {
-	size_t i, j;
-
-	/* TODO: should be able to find first page but don't
-		 want it to do that if l2 is at 0. */
-
-	i = 1; 
-	while (true) {
-		if (i == 0x1000 / sizeof(uint32_t)) {
-			return nil;
-		}
-
-		if (l2[i] == 0) {
-			for (j = 1; j * PAGE_SIZE < len; j++) {
-				if (i + j == 0x1000 / sizeof(uint32_t)) {
-					return nil;
-
-				} else if (l2[i+j] != 0) {
-					i += j;
-					goto too_small;
-				}
-			}
-
-			break;
-		}
-
-too_small:
-		i++;
-	}
-
-	map_pages(l2, pa, i * PAGE_SIZE, len, ap, cache);
-
-	return (void *) (i * PAGE_SIZE);
-}
-
-	void
-unmap(void *va, size_t len)
-{
-	unmap_pages(l2, (size_t) va, len);
-}
-
-	void
-init_l1(uint32_t *t)
-{
-	size_t s;
-
-	memset(&t[0], 0, 0x4000);
-
-	s = info->kernel_start >> 20;
-	memcpy(&t[s], &l1[s], info->kernel_len); 
-}
-
-static struct slab *slabs = nil;
-
-struct slab *
-slab_new(size_t obj_size)
-{
-	struct slab *s, *n;
+	struct pool *s, *n;
 	size_t pa;
 
-	if (slabs == nil) {
+	if (pools == nil) {
 		pa = get_mem(0x1000, 0x1000);
 		if (pa == nil) {
 			return nil;
@@ -243,20 +182,20 @@ slab_new(size_t obj_size)
 		}
 
 		for (s = n; (size_t) (s + 1) <= (size_t) n + 0x1000; s++) {
-			s->next = slabs;
-			slabs = s;
+			s->next = pools;
+			pools = s;
 		}
 	}
 
-	s = slabs;
-	slabs = s->next;
+	s = pools;
+	pools = s->next;
 
 	s->next = nil;
 	s->head = nil;
 	s->obj_size = obj_size;
 	s->nobj = 16 * 8;
 	s->frame_size = 
-		PAGE_ALIGN(sizeof(struct slab_frame) 
+		PAGE_ALIGN(sizeof(struct pool_frame) 
 				+ s->nobj / 8
 				+ s->obj_size * s->nobj);
 
@@ -264,7 +203,7 @@ slab_new(size_t obj_size)
 }
 
 static size_t
-slab_alloc_from_frame(struct slab *s, struct slab_frame *f)
+pool_alloc_from_frame(struct pool *s, struct pool_frame *f)
 {
 	size_t *u;
 	int i;
@@ -281,13 +220,13 @@ slab_alloc_from_frame(struct slab *s, struct slab_frame *f)
 }
 
 	void *
-slab_alloc(struct slab *s)
+pool_alloc(struct pool *s)
 {
-	struct slab_frame **f;
+	struct pool_frame **f;
 	size_t va, pa;
 
 	for (f = &s->head; *f != nil; f = &(*f)->next) {
-		va = slab_alloc_from_frame(s, *f);
+		va = pool_alloc_from_frame(s, *f);
 		if (va != nil) {
 			return (void *) va;
 		}
@@ -310,13 +249,34 @@ slab_alloc(struct slab *s)
 
 	memset((*f)->use, 0, s->nobj / 8);
 
-	return (void *) slab_alloc_from_frame(s, *f);
+	return (void *) pool_alloc_from_frame(s, *f);
 }
 
 	void
-slab_free(struct slab *s, void *p)
+pool_free(struct pool *s, void *p)
 {
 
 }
 
+/* TODO: just improve this. */
+
+	void *
+map_free(size_t pa, size_t len, int ap, bool cache)
+{
+	static size_t va = 0x40000;
+	size_t v;
+
+	v = va;
+	va += PAGE_ALIGN(len);
+
+	map_pages(info->l2_va, pa, v, len, ap, cache);
+
+	return (void *) v;
+}
+
+	void
+unmap(void *va, size_t len)
+{
+	unmap_pages(info->l2_va, (size_t) va, len);
+}
 

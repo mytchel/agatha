@@ -19,3 +19,5 @@ CFLAGS += \
 LDFLAGS += \
 	-L/usr/local/lib/gcc/$(CROSS)/6.3.1
 
+include ${BASE}/arm/${BOARD}/rules.mk
+

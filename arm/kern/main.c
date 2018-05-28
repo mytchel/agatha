@@ -64,15 +64,18 @@ init_proc0(void)
 
 	map_l2(proc0_l1, (size_t) proc0_l2, 0);
 
-	map_pages(proc0_l2, (size_t) proc0_l1, 0x1000, 
+	kernel_info.l1_va = (uint32_t *) 0x1000;
+	kernel_info.l2_va = (uint32_t *) 0x5000;
+
+	map_pages(proc0_l2, (size_t) proc0_l1, (size_t) kernel_info.l1_va, 
 			sizeof(proc0_l1),
 			AP_RW_RW, true);
 
-	map_pages(proc0_l2, (size_t) proc0_l2, 0x1000 + sizeof(proc0_l1),
+	map_pages(proc0_l2, (size_t) proc0_l2, (size_t) kernel_info.l2_va,
 			sizeof(proc0_l2), 
 			AP_RW_RW, true);
 
-	proc0_kernel_info_va = 0x1000 + sizeof(proc0_l1) + sizeof(proc0_l2);
+	proc0_kernel_info_va = (size_t) kernel_info.l2_va + sizeof(proc0_l2);
 	map_pages(proc0_l2, (size_t) &kernel_info, proc0_kernel_info_va,
 			sizeof(kernel_info), 
 			AP_RW_RW, true);
@@ -81,9 +84,7 @@ init_proc0(void)
 	l = PAGE_ALIGN(&_binary_proc0_bin_end) - s;
 
 	map_pages(proc0_l2, 
-			s, 
-			USER_ADDR,
-			l, 
+			s, USER_ADDR, l, 
 			AP_RW_RW, true);
 
 	s = (size_t) proc0_stack;

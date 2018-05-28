@@ -5,11 +5,11 @@
 struct device devices[] = {
 	/* Memory split around kernel */
 	{ "mem0", "mem",
-		0x60000000, 2000000,
-		0		
+		0x60000000, 0x2000000,
+		0	
 	},
 	{ "mem1", "mem",
-		0x63000000, 0x1d000000,
+		0x63000000, 0xd000000,
 		0
 	},
 

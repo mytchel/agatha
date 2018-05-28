@@ -4,6 +4,8 @@
 	int
 mmu_switch(size_t pa)
 {
+	debug("switch to mmu table 0x%h\n", pa);
+
 	mmu_load_ttb((uint32_t *) pa);
 	mmu_invalidate();
 

@@ -5,7 +5,8 @@ clean:
 	@echo Clean
 	rm -f $(CLEAN)
 	for B in $(BUNDLE); do \
-		$(MAKE) -C $$B clean; \
+		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} \
+		clean; \
 	done
 
 KERNEL_SRC_A += \
@@ -29,8 +30,10 @@ KERNEL_OBJECTS = \
 	$(KERNEL_SRC_A:%.S=%.o) \
 	$(KERNEL_SRC_C:%.c=%.o) 
 
-bundle.bin bundle.c: ../../rules.mk
-		@sh ../bundle.sh \
+.PHONY: bundle.bin bundle.c
+bundle.bin bundle.c:
+	BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} \
+		sh ../bundle.sh \
 				bundle.bin \
 				bundle.c \
 				$(BUNDLE)
@@ -57,11 +60,4 @@ kern.elf: ../kernel.ld  proc0.bo bundle.bo $(KERNEL_OBJECTS)
 			-T ../kernel.ld -Ttext $(LOAD_ADDR) \
 			-o $@ $(KERNEL_OBJECTS) proc0.bo bundle.bo \
 			-lgcc
-
-../../rules.mk: ../../port_rules.mk ../rules.mk rules.mk
-	rm -f ../../rules.mk
-	cat ../../port_rules.mk >> ../../rules.mk
-	echo BASE = ${BASE} >> ../../rules.mk
-	cat ../rules.mk >> ../../rules.mk
-	cat rules.mk >> ../../rules.mk
 
