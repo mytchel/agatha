@@ -20,6 +20,7 @@ _start:
 
 
 raise:
+	ldr pc, =#0xdeadbeef
 	b .
 
 jump:

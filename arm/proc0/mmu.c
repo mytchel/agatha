@@ -4,7 +4,6 @@
 #include <sys.h>
 #include <c.h>
 
-#include "proc0.h"
 #include "mmu.h"
 
 	int

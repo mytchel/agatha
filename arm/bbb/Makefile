@@ -1,15 +1,15 @@
 all: kern.umg kern.list
 
-BASE = ${PWD}/../..
-include ../../port_rules.mk
-include ../rules.mk
-include rules.mk
+BASE = ${.CURDIR}/../..
+ARCH = arm
+BOARD = bbb
+
+include ../../rules.mk
 
 LOAD_ADDR = 0x82000000
 
-DEVICE_TABLE = devices.c
-
-BUNDLE += ../../drivers/test
+BUNDLE += ../../drivers/ping
+BUNDLE += ../../drivers/pong
 
 KERNEL_SRC_A = 
 

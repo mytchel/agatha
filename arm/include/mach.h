@@ -26,7 +26,6 @@
 #define L2_SMALL     0b10
 #define L2_TINY      0b11
 
-
 #define PAGE_SHIFT 	 12
 #define PAGE_SIZE	 (1UL << PAGE_SHIFT)
 #define PAGE_MASK	 (~(PAGE_SIZE - 1))
@@ -41,17 +40,12 @@
 #define SECTION_ALIGN(x)    ((((size_t) x) + SECTION_SIZE - 1) & SECTION_MASK)
 #define SECTION_ALIGN_DN(x) ((((size_t) x)) & SECTION_MASK)
 
-#define F_TYPE_IO    1
-#define F_TYPE_MEM   2
 
-#define F_MAP_TYPE_PAGE          (0<<F_MAP_TYPE_SHIFT)
-#define F_MAP_TYPE_SECTION       (1<<F_MAP_TYPE_SHIFT)
-#define F_MAP_TYPE_TABLE_L1      (2<<F_MAP_TYPE_SHIFT)
-#define F_MAP_TYPE_TABLE_L2      (3<<F_MAP_TYPE_SHIFT)
-
-#define F_TABLE_NO           (0<<F_TABLE_TYPE_SHIFT)
-#define F_TABLE_L1           (1<<F_TABLE_TYPE_SHIFT)
-#define F_TABLE_L2           (2<<F_TABLE_TYPE_SHIFT) 
+#define MAP_RO         (0<<0)
+#define MAP_RW         (1<<0)
+#define MAP_MEM        (0<<1)
+#define MAP_DEV        (1<<1) 
+#define MAP_TYPE_MASK  (1<<1) 
 
 #define MAX_PROCS      32
 #define KSTACK_LEN   1024

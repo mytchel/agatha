@@ -14,89 +14,28 @@ struct mem_container {
 	struct mem_container *next;
 };
 
-/* Free container structs. */
-static struct mem_container *mem_container_free = nil;
-/* Memory that is free to be used. */
+static uint8_t mem_pool_init_frame[0x1000]
+__attribute__((__aligned__(0x1000)));
+
+static struct pool *mem_pool;
 static struct mem_container *mem = nil;
 
+static struct pool init_pools[128];
 static struct pool *pools = nil;
 
+static struct pool *l1_pool;
+static struct pool *l2_pool;
+static struct pool *l3_pool;
+
+static struct l1 proc0_l1;
+static struct l2 proc0_l2;
+
 	static struct mem_container *
-get_mem_container(void)
-{
-	static bool getting_more = false;
-	struct mem_container *m;
-	size_t pa;
-	void *va;
-
-	if (mem_container_free->next == nil && !getting_more) {
-		getting_more = true;
-
-		pa = get_mem(0x1000, 0x1000);
-		if (pa == nil) {
-			raise();
-		}
-
-		va = map_free(pa, 0x1000, AP_RW_RW, true);
-		if (va == nil) {
-			raise();
-		}
-
-		for (m = va; (size_t) m < (size_t) va + 0x1000; m++) {
-			m->next = mem_container_free;
-			mem_container_free = m;
-		}
-		
-		getting_more = false;
-	}
-
-	m = mem_container_free;
-	mem_container_free = m->next;
-
-	return m;
-}
-
-static void
-free_mem_container(struct mem_container *m)
-{
-	m->next = mem_container_free;
-	mem_container_free = m;
-
-	/* TODO: free pages somehow. */
-}
-
-void
-init_mem(void)
-{
-	static struct mem_container init_mem[32] = { 0 };
-	struct mem_container *m;
-	int i;
-
-	for (i = 0; i < LEN(init_mem); i++) {
-		m = &init_mem[i];
-		m->next = mem_container_free;
-		mem_container_free = m;
-	}
-
-	for (i = 0; i < ndevices; i++) {
-		if (!strncmp(devices[i].compatable, "mem", 
-					sizeof(devices[i].compatable)))
-			continue;
-
-		m = get_mem_container();
-		m->pa  = devices[i].reg;
-		m->len = devices[i].len;
-		m->next = mem;
-		mem = m;
-	}
-}
-
-static struct mem_container *
 mem_container_split(struct mem_container *f, size_t off)
 {
 	struct mem_container *n;
 
-	n = get_mem_container();
+	n = pool_alloc(mem_pool);
 	if (n == nil) {
 		return nil;
 	}
@@ -111,7 +50,7 @@ mem_container_split(struct mem_container *f, size_t off)
 	return n;
 }
 
-static struct mem_container *
+	static struct mem_container *
 get_free_mem(size_t len, size_t align)
 {
 	struct mem_container *f, *n;
@@ -152,7 +91,7 @@ get_mem(size_t l, size_t align)
 
 	pa = m->pa;
 
-	free_mem_container(m);
+	pool_free(mem_pool, m);
 
 	return pa;
 }
@@ -164,9 +103,34 @@ free_mem(size_t a, size_t l)
 }
 
 	struct pool *
-pool_new(size_t obj_size)
+pool_new_from_frame(size_t obj_size, size_t nobj_frame, 
+		struct pool_frame *init_frame)
 {
-	struct pool *s, *n;
+	struct pool *s;
+
+	if (pools == nil) {
+		raise();
+	}
+
+	s = pools;
+	pools = s->next;
+
+	s->next = nil;
+	s->head = init_frame;
+	s->obj_size = obj_size;
+	s->nobj = nobj_frame;
+	s->frame_size = 
+		PAGE_ALIGN(sizeof(struct pool_frame) 
+				+ s->nobj / 8
+				+ s->obj_size * s->nobj);
+
+	return s;
+}
+
+	struct pool *
+pool_new(size_t obj_size, size_t nobj_frame)
+{
+	struct pool *n, *s;
 	size_t pa;
 
 	if (pools == nil) {
@@ -175,7 +139,7 @@ pool_new(size_t obj_size)
 			return nil;
 		}
 
-		n = map_free(pa, 0x1000, AP_RW_RW, true);
+		n = map_free(pa, 0x1000, MAP_MEM|MAP_RW);
 		if (n == nil) {
 			free_mem(pa, 0x1000);
 			return nil;
@@ -187,22 +151,16 @@ pool_new(size_t obj_size)
 		}
 	}
 
-	s = pools;
-	pools = s->next;
-
-	s->next = nil;
-	s->head = nil;
-	s->obj_size = obj_size;
-	s->nobj = 16 * 8;
-	s->frame_size = 
-		PAGE_ALIGN(sizeof(struct pool_frame) 
-				+ s->nobj / 8
-				+ s->obj_size * s->nobj);
-
-	return s;
+	return pool_new_from_frame(obj_size, nobj_frame, nil);
 }
 
-static size_t
+	void
+pool_destroy(struct pool *s)
+{
+
+}
+
+	static size_t
 pool_alloc_from_frame(struct pool *s, struct pool_frame *f)
 {
 	size_t *u;
@@ -237,7 +195,7 @@ pool_alloc(struct pool *s)
 		return nil;
 	}
 
-	*f = map_free(pa, s->frame_size, AP_RW_RW, true);
+	*f = map_free(pa, s->frame_size, MAP_MEM|MAP_RW);
 	if (*f == nil) {
 		free_mem(pa, 0x1000);
 		return nil;
@@ -258,25 +216,363 @@ pool_free(struct pool *s, void *p)
 
 }
 
-/* TODO: just improve this. */
-
-	void *
-map_free(size_t pa, size_t len, int ap, bool cache)
+	struct l1 *
+l1_create_from(size_t pa, void *addr, size_t len)
 {
-	static size_t va = 0x40000;
-	size_t v;
+	struct l1 *l1;
 
-	v = va;
-	va += PAGE_ALIGN(len);
+	l1 = pool_alloc(l1_pool);
+	if (l1 == nil) {
+		return nil;
+	}
 
-	map_pages(info->l2_va, pa, v, len, ap, cache);
+	l1->pa = pa;
+	l1->len = 0x4000;
+	l1->addr = addr;
+	l1->head = nil;
 
-	return (void *) v;
+	l1->n_addr = 0x30000;
+
+	return l1;
+
+}
+
+	struct l1 *
+l1_create(void)
+{
+	struct l1 *l1;
+	size_t s, l;
+	void *addr;
+	size_t pa;
+
+	pa = get_mem(0x4000, 0x4000);
+	if (pa == nil) {
+		return nil;
+	}
+
+	addr = map_free(pa, 0x4000, MAP_DEV|MAP_RW);
+	if (addr == nil) {
+		free_mem(pa, 0x4000);
+		return nil;
+	}
+
+	memset(addr, 0, 0x4000);
+
+	s = info->kernel_start >> 20;
+	l = 0x1000 - s;/*(info->kernel_len >> 20) + 1;*/
+	memcpy(&((uint32_t *) addr)[s], &info->l1_va[s], 
+			l * sizeof(uint32_t));
+
+
+	l1 = l1_create_from(pa, addr, 0x4000);
+	if (l1 == nil) {
+		unmap(addr, 0x4000);
+		free_mem(pa, 0x4000);
+		return nil;
+	}
+
+	return l1;
+}
+
+	void
+l1_free(struct l1 *l)
+{
+	unmap(l->addr, l->len);
+	free_mem(l->pa, l->len);
+	pool_free(l1_pool, l);
+}
+
+	struct l2 *
+l2_create_table_from(size_t len, size_t va, size_t pa, void *addr)
+{
+	struct l2 *n;
+
+	n = pool_alloc(l2_pool);
+	if (n == nil) {
+		return nil;
+	}
+
+	n->pa = pa;
+	n->va = va;
+	n->len = len;
+	n->next = nil;
+
+	n->head = nil;
+	n->addr = addr;
+
+	return n;
+}
+
+	struct l2 *
+l2_create_table(size_t len, size_t va)
+{
+	struct l2 *n;
+	void *addr;
+	size_t pa;
+
+	pa = get_mem(len, 0x1000);
+	if (pa == nil) {
+		return nil;
+	}
+
+	addr = map_free(pa, len, MAP_DEV|MAP_RW);
+	if (addr == nil) {
+		free_mem(pa, len);
+		return nil;
+	}
+
+	memset(addr, 0, len);
+
+	n = l2_create_table_from(len, va, pa, addr);
+	if (n == nil) {
+		unmap(addr, len);
+		free_mem(pa, len);
+		return nil;
+	}
+
+	return n;
+}
+
+	void
+l2_free(struct l2 *l)
+{
+	unmap(l->addr, l->len);
+	free_mem(l->pa, l->len);
+	pool_free(l2_pool, l);
+}
+
+	int
+l1_insert_l2(struct l1 *l1, struct l2 *l2)
+{
+	struct l2 **l;
+
+	for (l = &l1->head; *l != nil; l = &(*l)->next) {
+		if (l2->va < (*l)->va) {
+			if (l2->va + (l2->len << 10) < (*l)->va) {
+				break;
+			} else {
+				return ERR;
+			}
+
+		} else if ((*l)->va + ((*l)->len << 10) < l2->va) {
+			continue;
+
+		} else if ((*l)->va <= l2->va 
+				&& l2->va < (*l)->va + ((*l)->len << 10)) {
+			return ERR;
+		}
+	}
+
+	l2->next = *l;
+	*l = l2;
+
+	map_l2(l1->addr, l2->pa, l2->va, l2->len);
+
+	return OK;
+}
+
+	struct l2 *
+l1_get_l2(struct l1 *l1, size_t va)
+{
+	struct l2 *l;
+
+	for (l = l1->head; l != nil; l = l->next) {
+		if (l->va <= va && va < l->va + (l->len << 10)) {
+			return l;
+		}
+	}
+
+	return nil;
+}
+
+	int
+l2_insert_l3(struct l2 *l2, struct l3 *l3)
+{
+	struct l3 **l;
+	bool cache;
+	int ap;
+
+	for (l = &l2->head; *l != nil; l = &(*l)->next) {
+		if (l3->va < (*l)->va) {
+			if (l3->va + l3->len < (*l)->va) {
+				break;
+			} else {
+				return ERR;
+			}
+
+		} else if ((*l)->va + (*l)->len < l3->va) {
+			continue;
+
+		} else if ((*l)->va <= l3->va 
+				&& l3->va < (*l)->va + (*l)->len) {
+			return ERR;
+		}
+	}
+
+	l3->next = *l;
+	*l = l3;
+
+	if (l3->flags & MAP_RW) {
+		ap = AP_RW_RW;
+	} else {
+		ap = AP_RW_RO;
+	}
+
+	if ((l3->flags & MAP_TYPE_MASK) == MAP_MEM) {
+		cache = true;
+	} else if ((l3->flags & MAP_TYPE_MASK) == MAP_DEV) {
+		cache = false;
+	} else {
+		return ERR;
+	}
+
+	ap = AP_RW_RW;
+	cache = false;
+	return map_pages(l2->addr, l3->pa, l3->va, l3->len, ap, cache);
+}
+
+	size_t
+l1_random_va(struct l1 *l1, size_t len)
+{
+	size_t va;
+
+	va = l1->n_addr;
+	l1->n_addr = SECTION_ALIGN(l1->n_addr + len);
+
+	return va;
+}
+
+	struct l3 *
+l3_create(size_t pa, size_t va, size_t len, int flags)
+{
+	struct l3 *l3;
+
+	l3 = pool_alloc(l3_pool);
+	if (l3 == nil) {
+		return nil;
+	}
+
+	l3->pa = pa;
+	l3->va = va;
+	l3->len = len;
+	l3->flags = flags;
+
+	return l3;
+}
+
+	void
+l3_free(struct l3 *l3)
+{
+	pool_free(l3_pool, l3);
+}
+
+/* TODO: Do these properly */
+
+	
+static size_t a = 0x17000;
+	void *
+map_free(size_t pa, size_t len, int flags)
+{
+	size_t va;
+	va = a;
+	a += len;
+	va = proc_map(0, pa, va, len, flags);
+	return (void *) va;
 }
 
 	void
 unmap(void *va, size_t len)
 {
-	unmap_pages(info->l2_va, (size_t) va, len);
+
+}
+
+	void
+init_mem(void)
+{
+	struct mem_container *m;
+	struct pool_frame *pf;
+	size_t l1_pa, l2_pa;
+	int i;
+
+	va_table(10, mem_pool_init_frame);
+
+	for (i = 0; i < LEN(init_pools); i++) {
+		init_pools[i].next = pools;
+		pools = &init_pools[i];
+	}
+
+	pf = mem_pool_init_frame;
+	pf->next = nil;
+	pf->pa = 0;
+	pf->len = sizeof(mem_pool_init_frame);
+
+	mem_pool = 
+		pool_new_from_frame(sizeof(struct mem_container),
+				300,
+				pf);
+
+	if (mem_pool == nil) {
+		raise();
+	}
+
+	for (i = 0; i < ndevices; i++) {
+		if (!strncmp(devices[i].compatable, "mem", 
+					sizeof(devices[i].compatable)))
+			continue;
+
+		m = pool_alloc(mem_pool);
+		if (m == nil) {
+			raise();
+		}
+
+		m->pa  = devices[i].reg;
+		m->len = devices[i].len;
+		m->next = mem;
+		mem = m;
+	}
+
+	if (mem == nil) {
+		raise();
+	}
+
+	l1_pool = pool_new(sizeof(struct l1), 128);
+	if (l1_pool == nil) {
+		raise();
+	}
+
+	l2_pool = pool_new(sizeof(struct l2), 128);
+	if (l2_pool == nil) {
+		raise();
+	}
+
+	l3_pool = pool_new(sizeof(struct l3), 128);
+	if (l3_pool == nil) {
+		raise();
+	}
+
+	l1_pa = info->l2_va[L2X((uint32_t) info->l1_va)] & ~0x3;
+	l2_pa = info->l2_va[L2X((uint32_t) info->l2_va)] & ~0xfff;
+
+	proc0_l1.pa = l1_pa;
+	proc0_l1.len = 0x4000;
+	proc0_l1.addr = info->l1_va;
+	proc0_l1.head = nil;
+	proc0_l1.n_addr = 0x30000;
+
+	procs[0].pid = 0;
+	procs[0].l1 = &proc0_l1;
+
+	proc0_l2.pa = l2_pa;
+	proc0_l2.va = info->l2_va;
+	proc0_l2.len = 0x1000;
+	proc0_l2.next = nil;
+	proc0_l2.head = nil;
+	proc0_l2.addr = info->l2_va;
+
+	if (l1_insert_l2(&proc0_l1, &proc0_l2) != OK) {
+		raise();
+	}
+
+	/* TODO: add mappings for stack, code, info. */
 }
 
