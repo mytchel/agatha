@@ -14,21 +14,24 @@ struct mem_container {
 	struct mem_container *next;
 };
 
-static uint8_t mem_pool_init_frame[0x1000]
-__attribute__((__aligned__(0x1000)));
+uint8_t mem_pool_init_frame[0x1000]
+__attribute__((__aligned__(0x1000))) = { 0 };
 
-static struct pool *mem_pool;
-static struct mem_container *mem = nil;
+uint8_t l3_pool_init_frame[0x1000]
+__attribute__((__aligned__(0x1000))) = { 0 };
 
-static struct pool init_pools[128];
-static struct pool *pools = nil;
+struct pool *mem_pool = nil;
+struct mem_container *mem = nil;
 
-static struct pool *l1_pool;
-static struct pool *l2_pool;
-static struct pool *l3_pool;
+struct pool init_pools[32] = { 0 };
+struct pool *pools = nil;
 
-static struct l1 proc0_l1;
-static struct l2 proc0_l2;
+struct pool *l1_pool = nil;
+struct pool *l2_pool = nil;
+struct pool *l3_pool = nil;
+
+struct l1 proc0_l1 = { 0 };
+struct l2 proc0_l2 = { 0 };
 
 	static struct mem_container *
 mem_container_split(struct mem_container *f, size_t off)
@@ -102,9 +105,29 @@ free_mem(size_t a, size_t l)
 	/* TODO */
 }
 
+static struct pool_frame *
+pool_frame_init(struct pool *s, void *a, size_t pa, size_t len)
+{
+	struct pool_frame *f;
+
+	memset(a, 0, len);
+
+	f = a;
+	/* TODO: this is probably not the best */
+
+	f->next = nil;
+	f->pa = pa;
+	f->len = len;
+	f->nobj = 
+		(8 * len - 8 * sizeof(struct pool_frame)) / 
+		(1 + 8 * s->obj_size);
+
+	return f;
+}
+
 	struct pool *
-pool_new_from_frame(size_t obj_size, size_t nobj_frame, 
-		struct pool_frame *init_frame)
+pool_new_with_frame(size_t obj_size, 
+		void *frame, size_t len)
 {
 	struct pool *s;
 
@@ -116,19 +139,18 @@ pool_new_from_frame(size_t obj_size, size_t nobj_frame,
 	pools = s->next;
 
 	s->next = nil;
-	s->head = init_frame;
+	s->head = nil;
 	s->obj_size = obj_size;
-	s->nobj = nobj_frame;
-	s->frame_size = 
-		PAGE_ALIGN(sizeof(struct pool_frame) 
-				+ s->nobj / 8
-				+ s->obj_size * s->nobj);
 
+	if (frame != nil) {
+		s->head = pool_frame_init(s, frame, 0, len);
+	}
+	
 	return s;
 }
 
 	struct pool *
-pool_new(size_t obj_size, size_t nobj_frame)
+pool_new(size_t obj_size)
 {
 	struct pool *n, *s;
 	size_t pa;
@@ -151,7 +173,7 @@ pool_new(size_t obj_size, size_t nobj_frame)
 		}
 	}
 
-	return pool_new_from_frame(obj_size, nobj_frame, nil);
+	return pool_new_with_frame(obj_size, nil, 0);
 }
 
 	void
@@ -166,11 +188,11 @@ pool_alloc_from_frame(struct pool *s, struct pool_frame *f)
 	size_t *u;
 	int i;
 
-	for (i = 0; i < s->nobj; i++) {
+	for (i = 0; i < f->nobj; i++) {
 		u = &f->use[i / sizeof(size_t)];
 		if (!(*u & (1 << (i % sizeof(size_t))))) {
 			*u |=	(1 << (i % sizeof(size_t)));
-			return (size_t) &f->use[s->nobj] + s->obj_size * i;
+			return (size_t) &f->use[f->nobj] + s->obj_size * i;
 		}
 	}	
 
@@ -181,7 +203,7 @@ pool_alloc_from_frame(struct pool *s, struct pool_frame *f)
 pool_alloc(struct pool *s)
 {
 	struct pool_frame **f;
-	size_t va, pa;
+	size_t va, pa, len;
 
 	for (f = &s->head; *f != nil; f = &(*f)->next) {
 		va = pool_alloc_from_frame(s, *f);
@@ -190,22 +212,20 @@ pool_alloc(struct pool *s)
 		}
 	}
 
-	pa = get_mem(s->frame_size, 0x1000);
+	len = 0x1000;
+
+	pa = get_mem(len, 0x1000);
 	if (pa ==  nil) {
 		return nil;
 	}
 
-	*f = map_free(pa, s->frame_size, MAP_MEM|MAP_RW);
+	*f = map_free(pa, len, MAP_MEM|MAP_RW);
 	if (*f == nil) {
-		free_mem(pa, 0x1000);
+		free_mem(pa, len);
 		return nil;
 	}
 
-	(*f)->next = nil;
-	(*f)->pa = pa;
-	(*f)->len = s->frame_size;
-
-	memset((*f)->use, 0, s->nobj / 8);
+	pool_frame_init(s, *f, pa, len);
 
 	return (void *) pool_alloc_from_frame(s, *f);
 }
@@ -259,10 +279,9 @@ l1_create(void)
 	memset(addr, 0, 0x4000);
 
 	s = info->kernel_start >> 20;
-	l = 0x1000 - s;/*(info->kernel_len >> 20) + 1;*/
+	l = (info->kernel_len >> 20) + 1;
 	memcpy(&((uint32_t *) addr)[s], &info->l1_va[s], 
 			l * sizeof(uint32_t));
-
 
 	l1 = l1_create_from(pa, addr, 0x4000);
 	if (l1 == nil) {
@@ -469,14 +488,20 @@ l3_free(struct l3 *l3)
 /* TODO: Do these properly */
 
 	
-static size_t a = 0x17000;
+static size_t a = 0x30000;
+
 	void *
 map_free(size_t pa, size_t len, int flags)
 {
 	size_t va;
 	va = a;
 	a += len;
-	va = proc_map(0, pa, va, len, flags);
+
+	struct l3 *l3;
+
+	l3 = l3_create(pa, va, len, flags);
+	l2_insert_l3(&proc0_l2, l3);
+
 	return (void *) va;
 }
 
@@ -490,26 +515,17 @@ unmap(void *va, size_t len)
 init_mem(void)
 {
 	struct mem_container *m;
-	struct pool_frame *pf;
 	size_t l1_pa, l2_pa;
 	int i;
-
-	va_table(10, mem_pool_init_frame);
 
 	for (i = 0; i < LEN(init_pools); i++) {
 		init_pools[i].next = pools;
 		pools = &init_pools[i];
 	}
 
-	pf = mem_pool_init_frame;
-	pf->next = nil;
-	pf->pa = 0;
-	pf->len = sizeof(mem_pool_init_frame);
-
 	mem_pool = 
-		pool_new_from_frame(sizeof(struct mem_container),
-				300,
-				pf);
+		pool_new_with_frame(sizeof(struct mem_container), 
+				mem_pool_init_frame, sizeof(mem_pool_init_frame));
 
 	if (mem_pool == nil) {
 		raise();
@@ -535,17 +551,18 @@ init_mem(void)
 		raise();
 	}
 
-	l1_pool = pool_new(sizeof(struct l1), 128);
+	l1_pool = pool_new(sizeof(struct l1));
 	if (l1_pool == nil) {
 		raise();
 	}
 
-	l2_pool = pool_new(sizeof(struct l2), 128);
+	l2_pool = pool_new(sizeof(struct l2));
 	if (l2_pool == nil) {
 		raise();
 	}
 
-	l3_pool = pool_new(sizeof(struct l3), 128);
+	l3_pool = pool_new_with_frame(sizeof(struct l3), 
+				l3_pool_init_frame, sizeof(l3_pool_init_frame));
 	if (l3_pool == nil) {
 		raise();
 	}
@@ -563,7 +580,7 @@ init_mem(void)
 	procs[0].l1 = &proc0_l1;
 
 	proc0_l2.pa = l2_pa;
-	proc0_l2.va = info->l2_va;
+	proc0_l2.va = (size_t) info->l2_va;
 	proc0_l2.len = 0x1000;
 	proc0_l2.next = nil;
 	proc0_l2.head = nil;

@@ -18,7 +18,7 @@ static uint32_t
 proc0_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 
 static uint32_t
-proc0_stack[4096]__attribute__((__aligned__(0x1000))) = { 0 };
+proc0_stack[1024*4]__attribute__((__aligned__(0x1000))) = { 0 };
 
 extern uint32_t *_binary_proc0_bin_start;
 extern uint32_t *_binary_proc0_bin_end;
@@ -109,12 +109,14 @@ main(size_t kernel_start, size_t dtb_start, size_t dtb_len)
 
 	kernel_info.kernel_start = kernel_start;
 	kernel_info.kernel_len   = kernel_len;
+
+	kernel_info.dtb_start    = dtb_start;
+	kernel_info.dtb_len      = dtb_len;
+
 	kernel_info.bundle_start = (size_t) &_binary_bundle_bin_start;
 	kernel_info.bundle_len   = 
 		(size_t) &_binary_bundle_bin_end - 
 		(size_t) &_binary_bundle_bin_start;
-	kernel_info.dtb_start    = dtb_start;
-	kernel_info.dtb_len      = dtb_len;
 
 	map_l2(kernel_ttb, (size_t) kernel_l2, kernel_start);
 

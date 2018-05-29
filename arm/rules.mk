@@ -9,7 +9,7 @@ OBJDUMP = $(CROSS)-objdump
 MKUBOOT = $(BASE)/mkuboot
 
 USER.LD = $(BASE)/arm/user.ld
-USER_ADDR = 0x00010000
+USER_ADDR = 0x00020000
 
 CFLAGS += \
 	-fno-stack-protector \

@@ -84,7 +84,7 @@ schedule(proc_t n)
 
 		mmu_switch(up->vspace);
 
-		set_systick(1000);
+		set_systick(10000);
 
 		up->state = PROC_oncpu;
 		goto_label(&up->label);

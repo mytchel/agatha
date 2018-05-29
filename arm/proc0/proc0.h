@@ -46,21 +46,19 @@ unmap(void *va, size_t len);
 
 struct pool_frame {
 	struct pool_frame *next;
-	size_t pa, len;
+	size_t pa, len, nobj;
 	size_t use[];
 };
 
 struct pool {
 	struct pool_frame *head;
 	size_t obj_size;
-	size_t nobj;
-	size_t frame_size;
 
 	struct pool *next;
 };
 
 struct pool *
-pool_new(size_t obj_size, size_t nobj_frame);
+pool_new(size_t obj_size);
 
 void
 pool_destroy(struct pool *s);
