@@ -1,4 +1,4 @@
-all: boot.umg 
+all: kern.umg 
 
 BASE = ${PWD}/../..
 ARCH = arm

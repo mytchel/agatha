@@ -104,7 +104,6 @@ main(struct kernel_info *i)
 
 	init_pools();	
 	init_mem();
-	init_devices();
 	init_procs();
 
   while (true) {
