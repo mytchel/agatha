@@ -145,7 +145,7 @@ l1_create(void)
 
 	memset(addr, 0, 0x4000);
 
-	s = L1X(info->kernel.start);
+	s = L1X(info->kernel_pa);
 	l = 0x1000 - s;
 	memcpy(&((uint32_t *) addr)[s], &info->proc0.l1_va[s], 
 			l * sizeof(uint32_t));

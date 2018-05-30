@@ -68,7 +68,7 @@ init_proc0(void)
 			(size_t) &proc0_start);
 
 	memcpy(proc0_l1,
-			info->kernel.l1_va, 
+			kernel_l1, 
 			0x4000);
 
 	map_l2(proc0_l1, (size_t) proc0_l2,
@@ -94,8 +94,7 @@ init_proc0(void)
 			info->proc0.l2_len,
 			AP_RW_RW, true);
 
-	info->proc0.info_va = 
-		(size_t) info->proc0.l2_va + sizeof(proc0_l2);
+	info->proc0.info_va = 0x6000;
 
 	map_pages(proc0_l2, 
 			info->info_pa,
@@ -115,12 +114,9 @@ init_proc0(void)
 			info->proc0.prog_len, 
 			AP_RW_RW, true);
 
-	info->proc0.stack_pa 
-		= (size_t) proc0_stack - info->kernel.start + info->kernel_pa;
-	info->proc0.stack_va 
-		= USER_ADDR - sizeof(proc0_stack);
-	info->proc0.stack_len 
-		= sizeof(proc0_stack);
+	info->proc0.stack_pa = (size_t) proc0_stack;
+	info->proc0.stack_va = USER_ADDR - sizeof(proc0_stack);
+	info->proc0.stack_len = sizeof(proc0_stack);
 
 	map_pages(proc0_l2, 
 			info->proc0.stack_pa,
@@ -149,32 +145,33 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 }
 
 	void
-main(size_t kernel_start, size_t dtb_start, size_t dtb_len)
+main(void)
 {
-	size_t kernel_len;
 	proc_t p0;
 
-	kernel_len = PAGE_ALIGN(&_kernel_end) - kernel_start;
-
-	info->kernel_pa    = kernel_start;
-	info->kernel_len   = kernel_len;
-
-	info->dtb_pa       = dtb_start;
-	info->dtb_len      = dtb_len;
+	info->kernel_pa    = (size_t) &_kernel_start;
+	info->kernel_len   = 
+		PAGE_ALIGN(&_kernel_end) - 
+		(size_t) &_kernel_start;
 
 	info->bundle_pa = (size_t) &_binary_bundle_bin_start;
 	info->bundle_len   = 
-		(size_t) &_binary_bundle_bin_end - 
+		PAGE_ALIGN((size_t) &_binary_bundle_bin_end) - 
 		(size_t) &_binary_bundle_bin_start;
 
-	map_l2(kernel_l1, (size_t) kernel_l2, kernel_start, 0x1000);
+	info->info_pa = (size_t) kernel_info;
+	info->info_len = sizeof(kernel_info);
 
-	kernel_va_slot = kernel_start;
+	map_l2(kernel_l1, (size_t) kernel_l2, 
+			info->kernel_pa, 0x1000);
 
-	map_pages(kernel_l2, kernel_start, kernel_va_slot, 
-			kernel_len, AP_RW_NO, true);
+	map_pages(kernel_l2, 
+			info->kernel_pa, 
+			info->kernel_pa, 
+			info->kernel_len, 
+			AP_RW_NO, true);
 
-	kernel_va_slot += kernel_len;
+	kernel_va_slot = info->kernel_pa + info->kernel_len;
 
 	mmu_load_ttb(kernel_l1);
 	mmu_invalidate();

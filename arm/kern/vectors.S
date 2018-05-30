@@ -5,9 +5,23 @@
 
 .global _start
 
-# void _start(kernel_info);
+/*
+   From U-Boot:
+   r2 = device tree blob address.
+   r3 = device tree blob size. Consistant strange number if no 
+   blob was given.
+   r6 = kernel address.
+
+   I have no idea what any of the other registers are set
+   for. r1, r5, r9, r12 seem to stay consistant regardless of the
+   presense of a device tree. r9 changes.
+
+ */
+
+
 _start:
-	mov r10, r0
+	mov r9,  r6
+	mov r10, r2
 
 	ldr r0, = _bss_start
 	ldr r1, = _bss_end
@@ -17,13 +31,32 @@ _start:
 	stmia r0!, {r2, r3}
 	cmp r0, r1
 	blt 1b
-	
+
+	bl cache_disable
 	bl mmu_disable
 
+	mov r0, #0
+	mrc p15, 0, r0, c1, c0, 0
+	#orr r0, r0, #(1<<1) @ enable branch prediction
+	bic r0, r0, #(1<<1) @ disable branch prediction
+	mcr p15, 0, r0, c1, c0, 0
+	
+	cps #MODE_IRQ
+	ldr sp, =_ex_stack_top
+	cps #MODE_ABORT
+	ldr sp, =_ex_stack_top
+	cps #MODE_UND
+	ldr sp, =_ex_stack_top
+	cps #MODE_SVC
+	ldr sp, =_ex_stack_top
+	
 	bl vector_table_init
 
-# void main(kernel_info);
-	mov r0, r10
+	mov r0, r9
+	mov r1, r10
+
+# void main(kernel_start, dtb_start);
+
 	b main
 
 

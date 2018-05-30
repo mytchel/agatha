@@ -32,7 +32,7 @@ proc_map(size_t pid,
 		va = l1_free_va(l1, len);
 	}
 
-	if (info->kernel.start <= va + len) {
+	if (info->kernel_pa <= va + len) {
 		return nil;
 	}
 

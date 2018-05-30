@@ -65,19 +65,8 @@ struct label {
 struct kernel_info {
 	size_t kernel_pa, kernel_len;
 	size_t bundle_pa, bundle_len;
-	size_t dtb_pa, dtb_len;
 
 	size_t info_pa, info_len;
-
-	struct {
-		size_t info_va;
-		size_t start;
-		size_t end;
-
-		uint32_t *l1_va, *l2_va;
-		size_t l1_pa, l1_len;
-		size_t l2_pa, l2_len;
-	} kernel;
 
 	struct {
 		uint32_t *l1_va, *l2_va;

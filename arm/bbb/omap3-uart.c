@@ -26,7 +26,7 @@ puts(const char *c)
 }
 
   void
-get_uart(void)
+get_serial(void)
 {
   regs_pa = 0x44e09000;
   regs_len = 0x2000;

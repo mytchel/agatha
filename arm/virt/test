@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cp boot.umg /var/ftpd/
+cp kern.umg /var/ftpd/
 
 export ETHER=vether0
 export BRIDGE=bridge0

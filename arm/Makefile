@@ -56,7 +56,7 @@ kern.elf: ../kernel.ld $(KERNEL_OBJECTS) proc0.bo bundle.bo
 	@echo LD $@
 	$(LD) $(LDFLAGS) \
 			-T ../kernel.ld \
-			-Ttext $(KERNEL_BASE) \
+			-Ttext $(LOAD_ADDR) \
 			-o $@ $(KERNEL_OBJECTS) \
 			proc0.bo bundle.bo \
 			-lgcc
