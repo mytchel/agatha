@@ -18,10 +18,10 @@ KERNEL_SRC_C += \
         ../kern/mem.c        \
         ../kern/proc.c       \
         ../kern/intr.c       \
-        ../../kern/debug.c          \
-        ../../kern/proc.c           \
-        ../../kern/sys.c            \
-        ../../kern/util.c           \
+        ../../port/debug.c          \
+        ../../port/proc.c           \
+        ../../port/sys.c            \
+        ../../port/util.c           \
         ../../lib/libstring/conv.c  \
         ../../lib/libstring/scanf.c \
         ../../lib/libstring/string.c

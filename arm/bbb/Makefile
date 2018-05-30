@@ -14,10 +14,10 @@ BUNDLE += ../../drivers/pong
 KERNEL_SRC_A = 
 
 KERNEL_SRC_C = \
-	kern/dev.c           \
-	kern/am33xx-trap.c   \
-	kern/omap3-uart.c    \
-	kern/am335x-timer.c
+	dev.c           \
+	am33xx-trap.c   \
+	omap3-uart.c    \
+	am335x-timer.c
 
 include ../Makefile
 

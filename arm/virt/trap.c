@@ -1,4 +1,4 @@
-#include "../../kern/head.h"
+#include "../../port/head.h"
 #include "../kern/fns.h"
 #include "../kern/trap.h"
 #include <arm/cortex_a9_gic.h>

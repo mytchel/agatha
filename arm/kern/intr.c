@@ -1,4 +1,4 @@
-#include "../../kern/head.h"
+#include "../../port/head.h"
 #include "fns.h"
 #include "trap.h"
 #include <m.h>

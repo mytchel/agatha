@@ -14,9 +14,9 @@ BUNDLE += ../../drivers/pong
 KERNEL_SRC_A = 
 
 KERNEL_SRC_C = \
-	kern/dev.c       \
-	kern/trap.c      \
-	kern/serial.c
+	dev.c       \
+	trap.c      \
+	serial.c
 
 include ../Makefile
 

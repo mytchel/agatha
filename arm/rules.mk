@@ -1,5 +1,5 @@
-ARCH = arm
-CROSS = arm-none-eabi
+ARCH ?= arm
+CROSS ?= arm-none-eabi
 
 CC = $(CROSS)-gcc
 LD = $(CROSS)-ld
