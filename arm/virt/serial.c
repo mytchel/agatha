@@ -23,19 +23,13 @@ puts(const char *c)
 }
 
   void
-init_serial(void)
-{
-	debug("kernel pl01x ready\n");
-}
-
-  void
-map_serial(void *dtb)
+get_serial(void)
 {
 	regs_pa = 0x10000000 + (9 << 12);
 	regs_len = 1 << 12;
 
-	regs = (struct pl01x_regs *) kernel_va_slot;
-	map_pages(kernel_l2, regs_pa, kernel_va_slot, regs_len, AP_RW_NO, false);
-	kernel_va_slot += PAGE_ALIGN(regs_len);
+	regs = kernel_map(regs_pa, regs_len, AP_RW_NO, false);
+		
+	debug("kernel pl01x ready\n");
 }
 

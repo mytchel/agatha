@@ -98,13 +98,17 @@ irq_handler(void)
 }
 
 	void
-init_intc(void)
+get_intc(void)
 {
+	size_t addr, size;
 	int i;
 
-	if (intc == nil) {
-		return;
-	}
+	addr = 0x48200000;
+	size = 0x1000;
+
+	intc = (struct intc *) kernel_va_slot;
+	map_pages(kernel_l2, addr, kernel_va_slot, size, AP_RW_NO, false);
+	kernel_va_slot += PAGE_ALIGN(size);
 
 	intc->control = 1;
 
@@ -122,18 +126,5 @@ init_intc(void)
 	}
 
 	intc->control = 1;
-}
-
-	void
-map_intc(void)
-{
-	size_t addr, size;
-
-	addr = 0x48200000;
-	size = 0x1000;
-
-	intc = (struct intc *) kernel_va_slot;
-	map_pages(kernel_l2, addr, kernel_va_slot, size, AP_RW_NO, false);
-	kernel_va_slot += PAGE_ALIGN(size);
 }
 

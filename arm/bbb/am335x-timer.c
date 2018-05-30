@@ -45,23 +45,8 @@ systick(size_t irq)
   schedule(nil);
 }
 
-  void
-init_timer(void)
-{
-  /* Reset and wait */
-  regs->tiocp_cfg |= (1<<1);
-
-  while ((regs->tiocp_cfg & (1<<0)))
-    ;
-
-  /* Enable interrupt on overflow. */
-  regs->irqenable_set = (1<<1);
-
-  add_kernel_irq(irqn, &systick);
-}
-
-  void
-map_timer(void)
+	void
+get_timer(void)
 {
   regs_pa = 0x48040000;
   regs_len = 0x400;
@@ -71,5 +56,15 @@ map_timer(void)
   map_pages(kernel_l2, regs_pa, kernel_va_slot, regs_len, AP_RW_NO, false);
   kernel_va_slot += PAGE_ALIGN(regs_len);
 
+	/* Reset and wait */
+  regs->tiocp_cfg |= (1<<1);
+
+  while ((regs->tiocp_cfg & (1<<0)))
+    ;
+
+  /* Enable interrupt on overflow. */
+  regs->irqenable_set = (1<<1);
+
+  add_kernel_irq(irqn, &systick);
 }
 

@@ -63,17 +63,30 @@ struct label {
 } __attribute__((__packed__));
 
 struct kernel_info {
-	size_t kernel_start, kernel_len;
-	size_t bundle_start, bundle_len;
-	size_t dtb_start, dtb_len;
+	size_t kernel_pa, kernel_len;
+	size_t bundle_pa, bundle_len;
+	size_t dtb_pa, dtb_len;
 
-	/* Proc0 Information */
-	uint32_t *l1_va, *l2_va;
-	size_t l1_pa, l1_len;
-	size_t l2_pa, l2_len;
+	size_t info_pa, info_len;
 
-	size_t stack_pa, stack_va, stack_len;
-	size_t prog_pa, prog_va, prog_len;
-	size_t kernel_info_pa, kernel_info_va, kernel_info_len;
+	struct {
+		size_t info_va;
+		size_t start;
+		size_t end;
+
+		uint32_t *l1_va, *l2_va;
+		size_t l1_pa, l1_len;
+		size_t l2_pa, l2_len;
+	} kernel;
+
+	struct {
+		uint32_t *l1_va, *l2_va;
+		size_t l1_pa, l1_len;
+		size_t l2_pa, l2_len;
+		
+		size_t stack_pa, stack_va, stack_len;
+		size_t prog_pa, prog_va, prog_len;
+		size_t info_va;
+	} proc0;
 };
 

@@ -1,6 +1,6 @@
 all: kern.umg kern.list
 
-BASE = ${.CURDIR}/../..
+BASE = ${PWD}/../..
 ARCH = arm
 BOARD = bbb
 
@@ -14,7 +14,6 @@ BUNDLE += ../../drivers/pong
 KERNEL_SRC_A = 
 
 KERNEL_SRC_C = \
-	dev.c           \
 	am33xx-trap.c   \
 	omap3-uart.c    \
 	am335x-timer.c

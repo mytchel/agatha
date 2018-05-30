@@ -6,7 +6,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "proc0.h"
+#include "head.h"
 
 static struct pool *pools = nil;
 

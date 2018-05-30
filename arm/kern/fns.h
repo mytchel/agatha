@@ -1,4 +1,4 @@
-#include "mem.h"
+#include "../include/mmu.h"
 
 uint32_t
 fsr_status(void);
@@ -27,8 +27,10 @@ map_devs(void);
 void
 init_devs(void);
 
-extern uint32_t kernel_ttb[], kernel_l2[];
-extern size_t kernel_va_slot;
+void *
+kernel_map(size_t pa, size_t len, int ap, bool cache);
 
-extern struct kernel_devices kernel_devices;
+void
+jump(size_t arg, size_t sp, size_t pc)
+	__attribute__((noreturn));
 

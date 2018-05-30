@@ -26,13 +26,7 @@ puts(const char *c)
 }
 
   void
-init_uart(void)
-{
-  debug("kernel omap3-uart ready at 0x%h -> 0x%h\n", regs_pa, regs);
-}
-
-  void
-map_uart(void *dtb)
+get_uart(void)
 {
   regs_pa = 0x44e09000;
   regs_len = 0x2000;
@@ -40,5 +34,7 @@ map_uart(void *dtb)
   regs = (struct omap3_uart_regs *) kernel_va_slot;
   map_pages(kernel_l2, regs_pa, kernel_va_slot, regs_len, AP_RW_NO, false);
   kernel_va_slot += PAGE_ALIGN(regs_len);
+  
+	debug("kernel omap3-uart ready at 0x%h -> 0x%h\n", regs_pa, regs);
 }
 

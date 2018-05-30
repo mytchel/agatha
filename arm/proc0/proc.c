@@ -4,8 +4,8 @@
 #include <sys.h>
 #include <c.h>
 
-#include "proc0.h"
 #include "../bundle.h"
+#include "head.h"
 
 struct proc procs[MAX_PROCS] = { 0 };
 
@@ -32,7 +32,7 @@ proc_map(size_t pid,
 		va = l1_free_va(l1, len);
 	}
 
-	if (info->kernel_start <= va + len) {
+	if (info->kernel.start <= va + len) {
 		return nil;
 	}
 
@@ -127,7 +127,7 @@ init_procs(void)
 	size_t off;
 	int i;
 
-	off = info->bundle_start;
+	off = info->bundle_pa;
 
 	for (i = 0; i < nbundled_procs; i++) {
 		if (!init_bundled_proc(bundled_procs[i].name, 

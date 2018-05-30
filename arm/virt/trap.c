@@ -88,7 +88,8 @@ gic_dst_init(void)
 
 	dregs->dcr |= 1;
 }
-static void
+
+	static void
 gic_cpu_init(void)
 {
 	uint32_t i;
@@ -107,34 +108,27 @@ gic_cpu_init(void)
 }
 
   void
-init_intc(void)
+get_intc(void)
 {
-	gic_dst_init();
-	gic_cpu_init();
-}
-
-  void
-map_intc(void)
-{
-	size_t regs_pa, regs_len;
+	size_t regs_pa, regs_len, regs;
 
 	regs_pa = 0x1e000000;
 	regs_len = 0x2000;
 
-	cregs = (struct cortex_a9_gic_cpu_regs *) 
-		(kernel_va_slot + 0x100);
-
-	dregs = (struct cortex_a9_gic_dst_regs *) 
-		(kernel_va_slot + 0x1000);
-
-	pt_regs = (struct cortex_a9_pt_wd_regs *) 
-		(kernel_va_slot + 0x600);
-
-	map_pages(kernel_l2, regs_pa, 
-			kernel_va_slot, regs_len, 
+	regs = (size_t) kernel_map(regs_pa, regs_len,
 			AP_RW_NO, false);
 
-	kernel_va_slot += PAGE_ALIGN(regs_len);
+	cregs = (struct cortex_a9_gic_cpu_regs *) 
+		(regs + 0x100);
+
+	dregs = (struct cortex_a9_gic_dst_regs *) 
+		(regs + 0x1000);
+
+	pt_regs = (struct cortex_a9_pt_wd_regs *) 
+		(regs + 0x600);
+
+	gic_dst_init();
+	gic_cpu_init();
 }
 
 void
@@ -153,7 +147,7 @@ systick(size_t irq)
 }
 
 void
-init_timer(void)
+get_systick(void)
 {
 	if (pt_regs == nil) {
 		panic("Private timer regs not mapped!\n");

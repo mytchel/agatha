@@ -81,11 +81,6 @@ void
 raise(void)
 __attribute__((noreturn));
 
-	void
-jump(size_t)
-__attribute__((noreturn));
-
-
 void
 func_label(label_t *l, 
            size_t stack, 

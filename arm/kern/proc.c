@@ -37,3 +37,12 @@ proc_start(void)
 	drop_to_user(&u, up->kstack, KSTACK_LEN);
 }
 
+	int
+mmu_switch(size_t pa)
+{
+	mmu_load_ttb((uint32_t *) pa);
+	mmu_invalidate();
+
+	return OK;
+}
+

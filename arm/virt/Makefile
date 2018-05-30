@@ -1,6 +1,6 @@
-all: kern.umg kern.list
+all: boot.umg 
 
-BASE = ${.CURDIR}/../..
+BASE = ${PWD}/../..
 ARCH = arm
 BOARD = virt
 
@@ -14,7 +14,6 @@ BUNDLE += ../../drivers/pong
 KERNEL_SRC_A = 
 
 KERNEL_SRC_C = \
-	dev.c       \
 	trap.c      \
 	serial.c
 

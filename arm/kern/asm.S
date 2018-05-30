@@ -48,11 +48,14 @@
 
 
 raise:
+	bl mmu_disable
+	ldr pc, =#0xdeadbeef
 	b . 
 	
 jump:
-	mov pc, r0
-	b . 
+	mov sp, r1
+	mov pc, r2
+	bl raise
 	
 	
 set_intr:

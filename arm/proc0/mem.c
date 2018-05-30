@@ -6,8 +6,8 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "proc0.h"
 #include "../dev.h"
+#include "head.h"
 
 struct mem_container {
 	size_t pa, len;
@@ -145,9 +145,9 @@ l1_create(void)
 
 	memset(addr, 0, 0x4000);
 
-	s = info->kernel_start >> 20;
-	l = (info->kernel_len >> 20) + 1;
-	memcpy(&((uint32_t *) addr)[s], &info->l1_va[s], 
+	s = L1X(info->kernel.start);
+	l = 0x1000 - s;
+	memcpy(&((uint32_t *) addr)[s], &info->proc0.l1_va[s], 
 			l * sizeof(uint32_t));
 
 	l1 = l1_create_from(pa, addr, 0x4000);
@@ -414,8 +414,6 @@ init_mem(void)
 	struct l3 *l3;
 	int i;
 
-	init_pools();
-
 	mem_pool = 
 		pool_new_with_frame(sizeof(struct mem_container), 
 				mem_pool_init_frame, sizeof(mem_pool_init_frame));
@@ -460,64 +458,64 @@ init_mem(void)
 		raise();
 	}
 
-	proc0_l1.pa = info->l1_pa;
-	proc0_l1.len = info->l1_len;
-	proc0_l1.addr = info->l1_va;
+	proc0_l1.pa = info->proc0.l1_pa;
+	proc0_l1.len = info->proc0.l1_len;
+	proc0_l1.addr = info->proc0.l1_va;
 	proc0_l1.head = nil;
 
 	procs[0].pid = 0;
 	procs[0].l1 = &proc0_l1;
 
-	proc0_l2.pa = info->l2_pa;
-	proc0_l2.va = (size_t) info->l2_va;
-	proc0_l2.len = info->l2_len;
+	proc0_l2.pa = info->proc0.l2_pa;
+	proc0_l2.va = (size_t) info->proc0.l2_va;
+	proc0_l2.len = info->proc0.l2_len;
 	proc0_l2.next = nil;
 	proc0_l2.head = nil;
-	proc0_l2.addr = info->l2_va;
+	proc0_l2.addr = info->proc0.l2_va;
 
 	if (l1_insert_l2(&proc0_l1, &proc0_l2) != OK) {
 		raise();
 	}
 
-	l3 = l3_create(info->l1_pa,
-			(size_t) info->l1_va,
-			info->l1_len,
+	l3 = l3_create(info->proc0.l1_pa,
+			(size_t) info->proc0.l1_va,
+			info->proc0.l1_len,
 			MAP_SHARED|MAP_RW);
 
 	if (l2_insert_l3(&proc0_l2, l3) != OK) {
 		raise();
 	}
 
-	l3 = l3_create(info->l2_pa,
-			(size_t) info->l2_va,
-			info->l2_len,
+	l3 = l3_create(info->proc0.l2_pa,
+			(size_t) info->proc0.l2_va,
+			info->proc0.l2_len,
 			MAP_SHARED|MAP_RW);
 
 	if (l2_insert_l3(&proc0_l2, l3) != OK) {
 		raise();
 	}
 
-	l3 = l3_create(info->stack_pa,
-			info->stack_va,
-			info->stack_len,
+	l3 = l3_create(info->proc0.stack_pa,
+			info->proc0.stack_va,
+			info->proc0.stack_len,
 			MAP_MEM|MAP_RW);
 
 	if (l2_insert_l3(&proc0_l2, l3) != OK) {
 		raise();
 	}
 
-	l3 = l3_create(info->prog_pa,
-			info->prog_va,
-			info->prog_len,
+	l3 = l3_create(info->proc0.prog_pa,
+			info->proc0.prog_va,
+			info->proc0.prog_len,
 			MAP_MEM|MAP_RW);
 
 	if (l2_insert_l3(&proc0_l2, l3) != OK) {
 		raise();
 	}
 
-	l3 = l3_create(info->kernel_info_pa,
-			info->kernel_info_va,
-			info->kernel_info_len,
+	l3 = l3_create(info->info_pa,
+			info->proc0.info_va,
+			info->info_len,
 			MAP_MEM|MAP_RW);
 
 	if (l2_insert_l3(&proc0_l2, l3) != OK) {

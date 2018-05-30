@@ -8,7 +8,7 @@
 #include <string.h>
 
 #include "../dev.h"
-#include "proc0.h"
+#include "head.h"
 
 struct kernel_info *info;
 
@@ -101,8 +101,10 @@ main(struct kernel_info *i)
 	struct proc0_rsp *rp = (struct proc0_rsp *) rp_buf;
 
 	info = i;
-	
+
+	init_pools();	
 	init_mem();
+	init_devices();
 	init_procs();
 
   while (true) {
