@@ -26,6 +26,9 @@ struct mem_container *mem = nil;
 struct pool init_pools[32] = { 0 };
 struct pool *pools = nil;
 
+/* TODO; make sure l2_pool and l3_pool never become
+	 empty, otherwise proc0 can not map and so cannot
+	 add to them. */
 struct pool *l1_pool = nil;
 struct pool *l2_pool = nil;
 struct pool *l3_pool = nil;
@@ -251,8 +254,6 @@ l1_create_from(size_t pa, void *addr, size_t len)
 	l1->addr = addr;
 	l1->head = nil;
 
-	l1->n_addr = 0x30000;
-
 	return l1;
 
 }
@@ -270,7 +271,7 @@ l1_create(void)
 		return nil;
 	}
 
-	addr = map_free(pa, 0x4000, MAP_DEV|MAP_RW);
+	addr = map_free(pa, 0x4000, MAP_SHARED|MAP_RW);
 	if (addr == nil) {
 		free_mem(pa, 0x4000);
 		return nil;
@@ -334,7 +335,7 @@ l2_create_table(size_t len, size_t va)
 		return nil;
 	}
 
-	addr = map_free(pa, len, MAP_DEV|MAP_RW);
+	addr = map_free(pa, len, MAP_SHARED|MAP_RW);
 	if (addr == nil) {
 		free_mem(pa, len);
 		return nil;
@@ -441,22 +442,40 @@ l2_insert_l3(struct l2 *l2, struct l3 *l3)
 		cache = true;
 	} else if ((l3->flags & MAP_TYPE_MASK) == MAP_DEV) {
 		cache = false;
+	} else if ((l3->flags & MAP_TYPE_MASK) == MAP_SHARED) {
+		cache = false;
 	} else {
 		return ERR;
 	}
 
-	ap = AP_RW_RW;
-	cache = false;
 	return map_pages(l2->addr, l3->pa, l3->va, l3->len, ap, cache);
 }
 
 	size_t
-l1_random_va(struct l1 *l1, size_t len)
+l1_free_va(struct l1 *l1, size_t len)
 {
+	struct l2 *l2;
+	struct l3 *l3;
 	size_t va;
 
-	va = l1->n_addr;
-	l1->n_addr = SECTION_ALIGN(l1->n_addr + len);
+	va = 0x1000;
+	for (l2 = l1->head; l2 != nil; l2 = l2->next) {
+		for (l3 = l2->head; l3 != nil; l3 = l3->next) {
+			if (va + len < l3->va) {
+				return va;
+			}	else {
+				if (L1X(va) != L1X(l3->va + l3->len)) {
+					va = L1VA(L1X(l3->va + l3->len));
+					break;
+				}
+
+				va = l3->va + l3->len;
+				if (l3->next == nil && L1X(va) == L1X(va + len)) {
+					return va;
+				}
+			}
+		}
+	}
 
 	return va;
 }
@@ -485,22 +504,33 @@ l3_free(struct l3 *l3)
 	pool_free(l3_pool, l3);
 }
 
-/* TODO: Do these properly */
-
-	
-static size_t a = 0x30000;
-
 	void *
 map_free(size_t pa, size_t len, int flags)
 {
-	size_t va;
-	va = a;
-	a += len;
-
+	struct l2 *l2;
 	struct l3 *l3;
+	size_t va;
+
+	va = l1_free_va(&proc0_l1, len);
+	if (va == nil) {
+		raise();
+	}
+
+	l2 = l1_get_l2(&proc0_l1, va);
+	if (l2 == nil) {
+		/* TODO: this should be handled */
+		raise();		
+	}
 
 	l3 = l3_create(pa, va, len, flags);
-	l2_insert_l3(&proc0_l2, l3);
+	if (l3 == nil) {
+		/* TODO: this should be handled */
+		raise();
+	}
+	
+	if (l2_insert_l3(l2, l3) != OK) {
+		raise();
+	}
 
 	return (void *) va;
 }
@@ -515,7 +545,7 @@ unmap(void *va, size_t len)
 init_mem(void)
 {
 	struct mem_container *m;
-	size_t l1_pa, l2_pa;
+	struct l3 *l3;
 	int i;
 
 	for (i = 0; i < LEN(init_pools); i++) {
@@ -562,26 +592,22 @@ init_mem(void)
 	}
 
 	l3_pool = pool_new_with_frame(sizeof(struct l3), 
-				l3_pool_init_frame, sizeof(l3_pool_init_frame));
+			l3_pool_init_frame, sizeof(l3_pool_init_frame));
 	if (l3_pool == nil) {
 		raise();
 	}
 
-	l1_pa = info->l2_va[L2X((uint32_t) info->l1_va)] & ~0x3;
-	l2_pa = info->l2_va[L2X((uint32_t) info->l2_va)] & ~0xfff;
-
-	proc0_l1.pa = l1_pa;
-	proc0_l1.len = 0x4000;
+	proc0_l1.pa = info->l1_pa;
+	proc0_l1.len = info->l1_len;
 	proc0_l1.addr = info->l1_va;
 	proc0_l1.head = nil;
-	proc0_l1.n_addr = 0x30000;
 
 	procs[0].pid = 0;
 	procs[0].l1 = &proc0_l1;
 
-	proc0_l2.pa = l2_pa;
+	proc0_l2.pa = info->l2_pa;
 	proc0_l2.va = (size_t) info->l2_va;
-	proc0_l2.len = 0x1000;
+	proc0_l2.len = info->l2_len;
 	proc0_l2.next = nil;
 	proc0_l2.head = nil;
 	proc0_l2.addr = info->l2_va;
@@ -590,6 +616,49 @@ init_mem(void)
 		raise();
 	}
 
-	/* TODO: add mappings for stack, code, info. */
+	l3 = l3_create(info->l1_pa,
+			(size_t) info->l1_va,
+			info->l1_len,
+			MAP_SHARED|MAP_RW);
+
+	if (l2_insert_l3(&proc0_l2, l3) != OK) {
+		raise();
+	}
+
+	l3 = l3_create(info->l2_pa,
+			(size_t) info->l2_va,
+			info->l2_len,
+			MAP_SHARED|MAP_RW);
+
+	if (l2_insert_l3(&proc0_l2, l3) != OK) {
+		raise();
+	}
+
+	l3 = l3_create(info->stack_pa,
+			info->stack_va,
+			info->stack_len,
+			MAP_MEM|MAP_RW);
+
+	if (l2_insert_l3(&proc0_l2, l3) != OK) {
+		raise();
+	}
+
+	l3 = l3_create(info->prog_pa,
+			info->prog_va,
+			info->prog_len,
+			MAP_MEM|MAP_RW);
+
+	if (l2_insert_l3(&proc0_l2, l3) != OK) {
+		raise();
+	}
+
+	l3 = l3_create(info->kernel_info_pa,
+			info->kernel_info_va,
+			info->kernel_info_len,
+			MAP_MEM|MAP_RW);
+
+	if (l2_insert_l3(&proc0_l2, l3) != OK) {
+		raise();
+	}	
 }
 

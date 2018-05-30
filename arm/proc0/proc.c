@@ -29,7 +29,7 @@ proc_map(size_t pid,
 	}
 
 	if (va == nil) {
-		va = l1_random_va(l1, len);
+		va = l1_free_va(l1, len);
 	}
 
 	if (info->kernel_start <= va + len) {
@@ -103,11 +103,15 @@ init_bundled_proc(char *name,
 	memset(stack_v, 0, slen);
 	unmap(stack_v, slen);
 
-	if (proc_map(pid, stack_p, USER_ADDR - slen, slen, 0) != USER_ADDR - slen) {
+	if (proc_map(pid, stack_p, 
+				USER_ADDR - slen, slen, 
+				MAP_MEM|MAP_RW) != USER_ADDR - slen) {
 		return false;
 	}
 
-	if (proc_map(pid, start, USER_ADDR, len, 0) != USER_ADDR) {
+	if (proc_map(pid, start, 
+				USER_ADDR, len, 
+				MAP_MEM|MAP_RW) != USER_ADDR) {
 		return false;
 	}
 

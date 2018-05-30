@@ -14,6 +14,9 @@
 #define L1X(va)          ((va) >> 20)
 #define L2X(va)          (((va) >> 12) & ((1 << 8) - 1))
 
+#define L1VA(x)          ((x) << 20)
+#define L2VA(x)          ((x) << 12)
+
 #define L1_TYPE      0b11
 #define L1_FAULT     0b00
 #define L1_COARSE    0b01
@@ -45,7 +48,8 @@
 #define MAP_RW         (1<<0)
 #define MAP_MEM        (0<<1)
 #define MAP_DEV        (1<<1) 
-#define MAP_TYPE_MASK  (1<<1) 
+#define MAP_SHARED     (2<<1) 
+#define MAP_TYPE_MASK  (3<<1) 
 
 #define MAX_PROCS      32
 #define KSTACK_LEN   1024
@@ -62,6 +66,14 @@ struct kernel_info {
 	size_t kernel_start, kernel_len;
 	size_t bundle_start, bundle_len;
 	size_t dtb_start, dtb_len;
+
+	/* Proc0 Information */
 	uint32_t *l1_va, *l2_va;
+	size_t l1_pa, l1_len;
+	size_t l2_pa, l2_len;
+
+	size_t stack_pa, stack_va, stack_len;
+	size_t prog_pa, prog_va, prog_len;
+	size_t kernel_info_pa, kernel_info_va, kernel_info_len;
 };
 

@@ -29,7 +29,6 @@ extern uint32_t *_kernel_start;
 extern uint32_t *_kernel_end;
 
 size_t kernel_va_slot;
-size_t proc0_kernel_info_va;
 
 	static void
 proc0_start(void)
@@ -37,9 +36,11 @@ proc0_start(void)
 	label_t u = {0};
 
 	u.psr = MODE_USR;
-	u.sp = USER_ADDR;
-	u.pc = USER_ADDR;
-	u.regs[0] = proc0_kernel_info_va;
+	u.sp = kernel_info.stack_va 
+		+ kernel_info.stack_len;
+
+	u.pc = kernel_info.prog_va;
+	u.regs[0] = kernel_info.kernel_info_va;
 
 	drop_to_user(&u, up->kstack, KSTACK_LEN);
 }
@@ -47,7 +48,6 @@ proc0_start(void)
 	static proc_t
 init_proc0(void)
 {
-	size_t s, l;
 	proc_t p;
 
 	p = proc_new();
@@ -64,34 +64,58 @@ init_proc0(void)
 
 	map_l2(proc0_l1, (size_t) proc0_l2, 0);
 
-	kernel_info.l1_va = (uint32_t *) 0x1000;
-	kernel_info.l2_va = (uint32_t *) 0x5000;
-
-	map_pages(proc0_l2, (size_t) proc0_l1, (size_t) kernel_info.l1_va, 
-			sizeof(proc0_l1),
-			AP_RW_RW, true);
-
-	map_pages(proc0_l2, (size_t) proc0_l2, (size_t) kernel_info.l2_va,
-			sizeof(proc0_l2), 
-			AP_RW_RW, true);
-
-	proc0_kernel_info_va = (size_t) kernel_info.l2_va + sizeof(proc0_l2);
-	map_pages(proc0_l2, (size_t) &kernel_info, proc0_kernel_info_va,
-			sizeof(kernel_info), 
-			AP_RW_RW, true);
-
-	s = (size_t) &_binary_proc0_bin_start;
-	l = PAGE_ALIGN(&_binary_proc0_bin_end) - s;
+	kernel_info.l1_pa       = (size_t) proc0_l1;
+	kernel_info.l1_va       = (uint32_t *) 0x1000;
+	kernel_info.l1_len      = 0x4000;
 
 	map_pages(proc0_l2, 
-			s, USER_ADDR, l, 
+			kernel_info.l1_pa, 
+			(size_t) kernel_info.l1_va, 
+			kernel_info.l1_len,
 			AP_RW_RW, true);
 
-	s = (size_t) proc0_stack;
-	l = sizeof(proc0_stack);
+	kernel_info.l2_pa       = (size_t) proc0_l2;
+	kernel_info.l2_va       = (uint32_t *) 0x5000;
+	kernel_info.l2_len      = 0x1000;
 
-	map_pages(proc0_l2, s, USER_ADDR - l,
-			l, 
+	map_pages(proc0_l2, 
+			kernel_info.l2_pa, 
+			(size_t) kernel_info.l2_va, 
+			kernel_info.l2_len,
+			AP_RW_RW, true);
+
+	kernel_info.kernel_info_pa       = 
+		(size_t) &kernel_info;
+	kernel_info.kernel_info_va       = 
+		(size_t) kernel_info.l2_va + sizeof(proc0_l2);
+	kernel_info.kernel_info_len      = 
+		PAGE_ALIGN(sizeof(kernel_info));
+
+	map_pages(proc0_l2, 
+			kernel_info.kernel_info_pa,
+			kernel_info.kernel_info_va, 
+			kernel_info.kernel_info_len,
+			AP_RW_RW, true);
+
+	kernel_info.prog_pa = (size_t) &_binary_proc0_bin_start;
+	kernel_info.prog_va = USER_ADDR;
+	kernel_info.prog_len = PAGE_ALIGN(&_binary_proc0_bin_end) 
+		- (size_t) &_binary_proc0_bin_start;
+
+	map_pages(proc0_l2, 
+			kernel_info.prog_pa,
+		 	kernel_info.prog_va, 
+			kernel_info.prog_len, 
+			AP_RW_RW, true);
+
+	kernel_info.stack_pa = (size_t) proc0_stack;
+	kernel_info.stack_va = USER_ADDR - sizeof(proc0_stack);
+	kernel_info.stack_len = sizeof(proc0_stack);
+
+	map_pages(proc0_l2, 
+			kernel_info.stack_pa,
+			kernel_info.stack_va,
+		 	kernel_info.stack_len, 
 			AP_RW_RW, true);
 
 	p->vspace = (size_t) proc0_l1;

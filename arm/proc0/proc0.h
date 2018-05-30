@@ -19,9 +19,6 @@ struct l1 {
 	size_t pa, len;
 	void *addr;
 	struct l2 *head;
-
-	/* Temporary unsafe way of easily getting a free address. */
-	size_t n_addr;
 };
 
 struct proc {
@@ -97,7 +94,7 @@ l1_get_l2(struct l1 *l1, size_t va);
 l2_insert_l3(struct l2 *l2, struct l3 *l3);
 
 	size_t
-l1_random_va(struct l1 *l1, size_t len);
+l1_free_va(struct l1 *l1, size_t len);
 
 struct l3 *
 l3_create(size_t pa, size_t va, size_t len, int flags);
