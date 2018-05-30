@@ -5,6 +5,7 @@ PROC0_SRC_C = \
 	../proc0/main.c              \
 	../proc0/proc.c              \
 	../proc0/mem.c               \
+	../proc0/pool.c              \
 	../proc0/mmu.c               \
 	../../lib/libstring/conv.c   \
 	../../lib/libstring/scanf.c  \

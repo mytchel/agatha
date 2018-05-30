@@ -69,7 +69,7 @@ handle_dev_req(struct proc0_req *rq, struct proc0_rsp *rp)
 	len = PAGE_ALIGN(devices[rq->m.dev_req.id].len);
 	pa = devices[rq->m.dev_req.id].reg;
 
-	flags = 0; /* TODO */
+	flags = MAP_DEV|MAP_RW;
 	va = proc_map(rq->from, pa, nil, len, flags);
 	if (va == nil) {
 		return ERR;

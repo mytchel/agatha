@@ -54,6 +54,13 @@ struct pool {
 	struct pool *next;
 };
 
+void
+init_pools(void);
+
+struct pool *
+pool_new_with_frame(size_t obj_size, 
+		void *frame, size_t len);
+
 struct pool *
 pool_new(size_t obj_size);
 
