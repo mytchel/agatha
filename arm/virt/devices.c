@@ -3,7 +3,7 @@
 #include "../dev.h"
 
 struct device devices[] = {
-	/* Memory split around kernel */
+	/* Memory split around kernel for now. */
 	{ "mem0", "mem",
 		0x60000000, 2000000,
 		

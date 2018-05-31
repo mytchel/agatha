@@ -8,6 +8,8 @@
 
 static struct pl01x_regs *regs;
 
+extern uint32_t *_data_end;
+
   static void
 putc(char c)
 {
@@ -40,17 +42,34 @@ main(void)
 	regs_len = 1 << 12;
 
 	rq.from = pid();
-	rq.type = PROC0_mem_req;
-	rq.m.mem_req.pa = regs_pa;
-	rq.m.mem_req.va = 0;
-	rq.m.mem_req.len = regs_len;
-	rq.m.mem_req.flags = MAP_DEV|MAP_RW;
+	rq.type = PROC0_addr_req;
+	rq.m.addr_req.pa = regs_pa;
+	rq.m.addr_req.len = regs_len;
 
 	send(0, (uint8_t *) &rq);
 	while (recv((uint8_t *) &rp) != OK || rp.from != 0)
 		;
 
-	regs = (void *) rp.m.mem_req.addr;
+	if (rp.ret != OK) {
+		raise();
+	}
+
+	rq.from = pid();
+	rq.type = PROC0_addr_map;
+	rq.m.addr_map.pa = regs_pa;
+	rq.m.addr_map.len = regs_len;
+	rq.m.addr_map.va = PAGE_ALIGN(&_data_end);
+	rq.m.addr_map.flags = MAP_DEV|MAP_RW;
+
+	send(0, (uint8_t *) &rq);
+	while (recv((uint8_t *) &rp) != OK || rp.from != 0)
+		;
+
+	if (rp.ret != OK) {
+		raise();
+	}
+
+	regs = (void *) rq.m.addr_map.va;
 	
 	puts("user pl01x ready\n");
 	

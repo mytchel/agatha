@@ -10,7 +10,7 @@ LOAD_ADDR = 0x62008000
 
 #BUNDLE += ../../drivers/ping
 #BUNDLE += ../../drivers/pong
-BUNDLE += ../../drivers/pl01x-serial
+BUNDLE += ../../drivers/serial-pl01x
 
 KERNEL_SRC_A += 
 

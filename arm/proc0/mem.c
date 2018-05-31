@@ -165,7 +165,7 @@ l1_create(void)
 		return nil;
 	}
 
-	addr = map_free(pa, 0x4000, MAP_SHARED|MAP_RW);
+	addr = map_free(pa, 0x4000, AP_RW_RW, false);
 	if (addr == nil) {
 		free_mem(pa, 0x4000);
 		return nil;
@@ -229,7 +229,7 @@ l2_create_table(size_t len, size_t va)
 		return nil;
 	}
 
-	addr = map_free(pa, len, MAP_SHARED|MAP_RW);
+	addr = map_free(pa, len, AP_RW_RW, false);
 	if (addr == nil) {
 		free_mem(pa, len);
 		return nil;
@@ -326,21 +326,8 @@ l2_insert_l3(struct l2 *l2, struct l3 *l3)
 	l3->next = *l;
 	*l = l3;
 
-	if (l3->flags & MAP_RW) {
-		ap = AP_RW_RW;
-	} else {
-		ap = AP_RW_RO;
-	}
-
-	if ((l3->flags & MAP_TYPE_MASK) == MAP_MEM) {
-		cache = true;
-	} else if ((l3->flags & MAP_TYPE_MASK) == MAP_DEV) {
-		cache = false;
-	} else if ((l3->flags & MAP_TYPE_MASK) == MAP_SHARED) {
-		cache = false;
-	} else {
-		return ERR;
-	}
+	ap = AP_RW_RW;
+	cache = false;
 
 	return map_pages(l2->addr, l3->pa, l3->va, l3->len, ap, cache);
 }
@@ -399,7 +386,7 @@ l3_free(struct l3 *l3)
 }
 
 	void *
-map_free(size_t pa, size_t len, int flags)
+map_free(size_t pa, size_t len, int ap, bool cache)
 {
 	struct l2 *l2;
 	struct l3 *l3;
@@ -416,7 +403,7 @@ map_free(size_t pa, size_t len, int flags)
 		raise();		
 	}
 
-	l3 = l3_create(pa, va, len, flags);
+	l3 = l3_create(pa, va, len, 0);
 	if (l3 == nil) {
 		/* TODO: this should be handled */
 		raise();
@@ -494,9 +481,6 @@ init_mem(void)
 	proc0_l1.len = info->proc0.l1_len;
 	proc0_l1.addr = info->proc0.l1_va;
 	proc0_l1.head = nil;
-
-	procs[0].pid = 0;
-	procs[0].l1 = &proc0_l1;
 
 	proc0_l2.pa = info->proc0.l2_pa;
 	proc0_l2.va = (size_t) info->proc0.l2_va;

@@ -4,13 +4,20 @@
 struct kernel_info *info;
 
 	int
-handle_mem_req(struct proc0_req *rq, struct proc0_rsp *rp)
+handle_addr_req(struct proc0_req *rq, struct proc0_rsp *rp)
 {
-	size_t pa, va, len;
+	size_t pa, len;
 
-	len = PAGE_ALIGN(rq->m.mem_req.len);
+	len = rq->m.addr_req.len;
+	if (len != PAGE_ALIGN(len)) {
+		return ERR;
+	}
 	
-	pa = rq->m.mem_req.pa;
+	pa = rq->m.addr_req.pa;
+	if (pa != PAGE_ALIGN(pa)) {
+		return ERR;
+	}
+
 	if (pa == nil) {
 		pa = get_ram(len, 0x1000);
 		if (pa == nil) {
@@ -22,22 +29,65 @@ handle_mem_req(struct proc0_req *rq, struct proc0_rsp *rp)
 		}
 	}
 
-	va = proc_map(rq->from, pa, rq->m.mem_req.va, len, 
-			rq->m.mem_req.flags);
-	if (va == nil) {
-		free_mem(pa, len);
+	rp->m.addr_req.pa = pa;
+
+	return proc_give(rq->from, pa, len);
+}
+
+	int
+handle_addr_map(struct proc0_req *rq, struct proc0_rsp *rp)
+{
+	size_t pa, va, len;
+
+	len = rq->m.addr_map.len;
+	if (len != PAGE_ALIGN(len)) {
+		return ERR;
+	}
+	
+	pa = rq->m.addr_map.pa;
+	if (pa != PAGE_ALIGN(pa)) {
 		return ERR;
 	}
 
-	rp->m.mem_req.addr = va;
+	va = rq->m.addr_map.va;
+	if (va != PAGE_ALIGN(va)) {
+		return ERR;
+	}
 
-	return OK;
+	return proc_map(rq->from, 
+			pa, va, len, 
+			rq->m.addr_map.flags);
+}
+
+static int irq_owners[256] = { -1 };
+
+int
+handle_irq_reg(struct proc0_req *rq, struct proc0_rsp *rp)
+{
+	size_t irqn;
+
+	irqn = rq->m.irq_reg.irqn;
+
+	if (irq_owners[irqn] == -1) {
+		irq_owners[irqn] = rq->from;
+		return OK;
+	} else {
+		return ERR;
+	}
 }
 
 	int
 handle_irq_req(struct proc0_req *rq, struct proc0_rsp *rp)
 {
-	return intr_register(rq->from, rq->m.irq_req.irqn);
+	size_t irqn;
+
+	irqn = rq->m.irq_req.irqn;
+
+	if (irq_owners[irqn] == rq->from) {
+		return intr_register(rq->from, rq->m.irq_req.irqn);
+	} else {
+		return ERR;
+	}
 }
 
 	int
@@ -66,8 +116,16 @@ main(struct kernel_info *i)
 		rp->type = rq->type;
 
 		switch (rq->type) {
-			case PROC0_mem_req:
-				rp->ret = handle_mem_req(rq, rp);
+			case PROC0_addr_req:
+				rp->ret = handle_addr_req(rq, rp);
+				break;
+
+			case PROC0_addr_map:
+				rp->ret = handle_addr_map(rq, rp);
+				break;
+
+			case PROC0_irq_reg:
+				rp->ret = handle_irq_reg(rq, rp);
 				break;
 
 			case PROC0_irq_req:

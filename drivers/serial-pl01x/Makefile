@@ -1,4 +1,4 @@
-PROG = pl01x-serial
+PROG = serial-pl01x
 
 all: $(PROG).elf
 

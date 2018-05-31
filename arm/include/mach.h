@@ -49,6 +49,7 @@
 #define MAP_MEM        (0<<1)
 #define MAP_DEV        (1<<1) 
 #define MAP_SHARED     (2<<1) 
+#define MAP_TABLE      (3<<1) 
 #define MAP_TYPE_MASK  (3<<1) 
 
 #define MAX_PROCS      32

@@ -29,9 +29,22 @@ struct l1 {
 	struct l2 *head;
 };
 
+struct addr_frame {
+	struct addr_frame *next;
+	size_t pa, len;
+	int table;
+	int mapped;
+};
+
 struct proc {
 	int pid;
-	struct l1 *l1;
+
+	struct addr_frame *frames;
+
+	struct {
+		size_t pa, len;
+		uint32_t *addr;	
+	} l1;
 };
 
 void
@@ -50,7 +63,7 @@ void
 free_mem(size_t pa, size_t len);
 
 void *
-map_free(size_t pa, size_t len, int flags);
+map_free(size_t pa, size_t len, int ap, bool cache);
 
 void
 unmap(void *va, size_t len);
@@ -126,20 +139,11 @@ l3_free(struct l3 *l);
 void
 init_procs(void);
 
-size_t
+int
+proc_give(size_t pid, size_t pa, size_t len);
+
+int
 proc_map(size_t pid, size_t pa, size_t va, size_t len, int flags);
-
-int
-handle_dev_req(struct proc0_req *rq, struct proc0_rsp *rsp);
-
-int
-handle_dev_register(struct proc0_req *rq, struct proc0_rsp *rsp);
-
-int
-handle_irq_req(struct proc0_req *rq, struct proc0_rsp *rsp);
-
-void
-init_devs(void);
 
 extern struct kernel_info *info;
 extern struct proc procs[];
