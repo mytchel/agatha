@@ -1,11 +1,3 @@
-#include <types.h>
-#include <mach.h>
-#include <err.h>
-#include <sys.h>
-#include <c.h>
-#include <stdarg.h>
-#include <string.h>
-
 #include "head.h"
 
 static struct pool *pools = nil;
@@ -60,7 +52,7 @@ pool_new(size_t obj_size)
 	size_t pa;
 
 	if (pools == nil) {
-		pa = get_mem(0x1000, 0x1000);
+		pa = get_ram(0x1000, 0x1000);
 		if (pa == nil) {
 			return nil;
 		}
@@ -118,7 +110,7 @@ pool_alloc(struct pool *s)
 
 	len = 0x1000;
 
-	pa = get_mem(len, 0x1000);
+	pa = get_ram(len, 0x1000);
 	if (pa ==  nil) {
 		return nil;
 	}

@@ -10,6 +10,7 @@
 .global yield
 .global send
 .global recv
+.global pid
 .global proc_new
 .global va_table
 .global intr_register
@@ -23,8 +24,6 @@ raise:
 	ldr pc, =#0xdeadbeef
 	b .
 
-jump:
-	mov pc, r0	
 
 panic:
   b . 
@@ -47,6 +46,13 @@ send:
 recv:
 	push {r12, lr}
 	mov r12, #SYSCALL_RECV
+	svc 0
+	pop {r12, pc}
+
+
+pid:
+	push {r12, lr}
+	mov r12, #SYSCALL_PID
 	svc 0
 	pop {r12, pc}
 

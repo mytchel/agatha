@@ -1,3 +1,3 @@
-CFLAGS += -I include -mcpu=cortex-a9
+CFLAGS += -mcpu=cortex-a9
 LDFLAGS +=
 

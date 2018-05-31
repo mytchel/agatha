@@ -1,11 +1,5 @@
-#include <types.h>
-#include <mach.h>
-#include <err.h>
-#include <sys.h>
-#include <c.h>
-
-#include "../bundle.h"
 #include "head.h"
+#include "../bundle.h"
 
 struct proc procs[MAX_PROCS] = { 0 };
 
@@ -94,7 +88,7 @@ init_bundled_proc(char *name,
 
 	slen = 0x1000;
 
-	stack_p = get_mem(slen, 0x1000); 
+	stack_p = get_ram(slen, 0x1000); 
 	if (stack_p == nil) {
 		return false;
 	}

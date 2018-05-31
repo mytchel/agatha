@@ -30,6 +30,11 @@ struct device devices[] = {
 		0x1000f000, 0x1000,
 		32
 	},
+	{ "serial0", "pl01x",
+		0x10009000, 0x1000,
+		37
+	},
+
 };
 
 size_t ndevices = sizeof(devices)/sizeof(devices[0]);

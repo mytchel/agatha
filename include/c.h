@@ -7,6 +7,9 @@ send(int pid, uint8_t *m);
 int
 recv(uint8_t *m);
 
+int
+pid(void);
+
 void
 raise(void)
   __attribute__((noreturn));

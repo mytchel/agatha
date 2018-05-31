@@ -1,13 +1,5 @@
-#include <types.h>
-#include <mach.h>
-#include <err.h>
-#include <sys.h>
-#include <c.h>
-#include <stdarg.h>
-#include <string.h>
-
-#include "../dev.h"
 #include "head.h"
+#include "../dev.h"
 
 struct mem_container {
 	size_t pa, len;
@@ -21,7 +13,8 @@ uint8_t l3_pool_init_frame[0x1000]
 __attribute__((__aligned__(0x1000))) = { 0 };
 
 struct pool *mem_pool = nil;
-struct mem_container *mem = nil;
+struct mem_container *ram_free = nil;
+struct mem_container *dev_regs = nil;
 
 /* TODO; make sure l2_pool and l3_pool never become
 	 empty, otherwise proc0 can not map and so cannot
@@ -53,43 +46,78 @@ mem_container_split(struct mem_container *f, size_t off)
 	return n;
 }
 
-	static struct mem_container *
-get_free_mem(size_t len, size_t align)
+int
+get_regs(size_t pa, size_t len)
 {
-	struct mem_container *f, *n;
-	size_t a;
+	struct mem_container **f, *m, *n;
 
-	for (f = mem; f != nil; f = f->next) {
-		a = (f->pa + align - 1) & ~(align - 1);
-
-		if (len < a - f->pa + f->len) {
-			if (f->pa < a) {
-				f = mem_container_split(f, a - f->pa);
-				if (f == nil) 
-					return nil;
+	for (f = &dev_regs; *f != nil; f = &(*f)->next) {
+		if ((*f)->pa <= pa && pa < (*f)->pa + (*f)->len) {
+			if ((*f)->pa + (*f)->len < pa + len) {
+				return ERR;
 			}
 
-			n = mem_container_split(f, len);
+			if ((*f)->pa < pa) {
+				m = mem_container_split(*f, pa - (*f)->pa);
+				if (m == nil) {
+					return ERR;
+				}
 
-			n->next = mem;
-			mem = n;
+			} else {
+				m = *f;
+				*f = (*f)->next;
+			}
 
-			return f;
-		}
+			n = mem_container_split(m, len);
+
+			n->next = dev_regs;
+			dev_regs = n;
+
+			break;
+		}	
 	}
 
-	return nil; 
+	if (m == nil) {
+		return ERR;
+	}
+
+	pool_free(mem_pool, m);
+
+	return OK;
 }
 
 	size_t
-get_mem(size_t l, size_t align)
+get_ram(size_t len, size_t align)
 {
-	struct mem_container *m;
-	size_t pa;
+	struct mem_container **f, *m, *n;
+	size_t a, pa;
 
-	m = get_free_mem(l, align);
+	for (f = &ram_free; *f != nil; f = &(*f)->next) {
+		a = ((*f)->pa + align - 1) & ~(align - 1);
+
+		if (len < a - (*f)->pa + (*f)->len) {
+			if ((*f)->pa < a) {
+				m = mem_container_split(*f, a - (*f)->pa);
+				if (m == nil) {
+					return nil;
+				}
+
+			} else {
+				m = *f;
+				*f = (*f)->next;	
+			}
+
+			n = mem_container_split(m, len);
+
+			n->next = ram_free;
+			ram_free = n;
+
+			break;
+		}
+	}
+
 	if (m == nil) {
-		return 0;
+		return nil;
 	}
 
 	pa = m->pa;
@@ -100,7 +128,7 @@ get_mem(size_t l, size_t align)
 }
 
 	void
-free_mem(size_t a, size_t l)
+free_mem(size_t pa, size_t len)
 {
 	/* TODO */
 }
@@ -132,7 +160,7 @@ l1_create(void)
 	void *addr;
 	size_t pa;
 
-	pa = get_mem(0x4000, 0x4000);
+	pa = get_ram(0x4000, 0x4000);
 	if (pa == nil) {
 		return nil;
 	}
@@ -196,7 +224,7 @@ l2_create_table(size_t len, size_t va)
 	void *addr;
 	size_t pa;
 
-	pa = get_mem(len, 0x1000);
+	pa = get_ram(len, 0x1000);
 	if (pa == nil) {
 		return nil;
 	}
@@ -393,7 +421,7 @@ map_free(size_t pa, size_t len, int flags)
 		/* TODO: this should be handled */
 		raise();
 	}
-	
+
 	if (l2_insert_l3(l2, l3) != OK) {
 		raise();
 	}
@@ -423,10 +451,6 @@ init_mem(void)
 	}
 
 	for (i = 0; i < ndevices; i++) {
-		if (!strncmp(devices[i].compatable, "mem", 
-					sizeof(devices[i].compatable)))
-			continue;
-
 		m = pool_alloc(mem_pool);
 		if (m == nil) {
 			raise();
@@ -434,11 +458,19 @@ init_mem(void)
 
 		m->pa  = devices[i].reg;
 		m->len = devices[i].len;
-		m->next = mem;
-		mem = m;
+
+		if (strncmp(devices[i].compatable, "mem", 
+					sizeof(devices[i].compatable))) {
+
+			m->next = ram_free;
+			ram_free = m;
+		} else {
+			m->next = dev_regs;
+			dev_regs = m;
+		}
 	}
 
-	if (mem == nil) {
+	if (ram_free == nil) {
 		raise();
 	}
 

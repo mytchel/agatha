@@ -1,11 +1,9 @@
 #define PROC0_PID      0
 
-#define PROC0_mem_req  0
-#define PROC0_dev_register 1
-#define PROC0_dev_req  2
-#define PROC0_irq_req  3
-#define PROC0_proc     4
-#define PROC0_irq      5
+#define PROC0_mem_req  1
+#define PROC0_irq_req  2
+#define PROC0_proc     3 
+#define PROC0_irq      4
 
 struct proc0_irq {
 	size_t from;
@@ -18,19 +16,11 @@ struct proc0_req {
 	int type;
 	union {
 		struct {
-			size_t addr;
+			size_t pa;
+			size_t va;
 			size_t len;
 			int flags;
 		} mem_req;
-
-		struct {
-			char compat[32];
-		} dev_register;
-
-		struct {
-			int id;
-			int n;
-		} dev_req;
 
 		struct {
 			size_t irqn;
@@ -39,6 +29,8 @@ struct proc0_req {
 		struct {
 			int flags;
 		} proc;
+
+		uint8_t raw[MESSAGE_LEN - sizeof(size_t) - sizeof(int)];
 	} m;
 };
 
@@ -52,21 +44,13 @@ struct proc0_rsp {
 		} mem_req;
 
 		struct {
-			int id;
-		} dev_register;
-
-		struct {
-			size_t addr;
-			size_t len;
-			int irq;
-		} dev_req;
-
-		struct {
 		} irq_req;
 
 		struct {
 			int pid;
 		} proc;
+		
+		uint8_t raw[MESSAGE_LEN - sizeof(size_t) - sizeof(int)];
 	} m;
 };
 

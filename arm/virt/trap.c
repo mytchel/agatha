@@ -107,7 +107,59 @@ gic_cpu_init(void)
 	cregs->priority = 0xff;
 }
 
+  int
+add_kernel_irq(size_t irqn, void (*func)(size_t))
+{
+	debug("add kernel intr %i\n", irqn);
+
+	gic_enable_irq(irqn);
+
+	kernel_handlers[irqn] = func;
+
+  return ERR;
+}
+
+int
+add_user_irq(size_t irqn, proc_t p)
+{
+	debug("add user intr %i -> %i\n", irqn, p->pid);
+
+	if (user_handlers[irqn] == nil) {
+		user_handlers[irqn] = p;
+		return OK;
+	} else {
+		return ERR;
+	}
+}
+
   void
+irq_handler(void)
+{
+	uint32_t irqn = cregs->ack;
+
+	debug("irq: %i\n", irqn);
+
+	gic_clear_pending(irqn);
+
+	if (kernel_handlers[irqn] != nil) {
+		kernel_handlers[irqn](irqn);
+
+	} else if (user_handlers[irqn] != nil) {
+		gic_disable_irq(irqn);
+		if (send_intr(user_handlers[irqn], irqn) != OK) {
+			debug("proc %i not ready for interrupt %i!\n", 
+					user_handlers[irqn]->pid, irqn);
+		}
+
+	} else {
+		debug("got unhandled interrupt %i!\n", irqn);
+		gic_disable_irq(irqn);
+	}
+	
+	gic_end_interrupt(irqn);
+}
+
+	void
 get_intc(void)
 {
 	size_t regs_pa, regs_len, regs;
@@ -163,55 +215,5 @@ get_systick(void)
 	pt_regs->wd_disable = 0x87654321;
 }
 
-  int
-add_kernel_irq(size_t irqn, void (*func)(size_t))
-{
-	debug("add kernel intr %i\n", irqn);
 
-	gic_enable_irq(irqn);
-
-	kernel_handlers[irqn] = func;
-
-  return ERR;
-}
-
-int
-add_user_irq(size_t irqn, proc_t p)
-{
-	debug("add user intr %i -> %i\n", irqn, p->pid);
-
-	if (user_handlers[irqn] == nil) {
-		user_handlers[irqn] = p;
-		return OK;
-	} else {
-		return ERR;
-	}
-}
-
-  void
-irq_handler(void)
-{
-	uint32_t irqn = cregs->ack;
-
-	debug("irq: %i\n", irqn);
-
-	gic_clear_pending(irqn);
-
-	if (kernel_handlers[irqn] != nil) {
-		kernel_handlers[irqn](irqn);
-
-	} else if (user_handlers[irqn] != nil) {
-		gic_disable_irq(irqn);
-		if (send_intr(user_handlers[irqn], irqn) != OK) {
-			debug("proc %i not ready for interrupt %i!\n", 
-					user_handlers[irqn]->pid, irqn);
-		}
-
-	} else {
-		debug("got unhandled interrupt %i!\n", irqn);
-		gic_disable_irq(irqn);
-	}
-	
-	gic_end_interrupt(irqn);
-}
 

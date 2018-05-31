@@ -1,3 +1,11 @@
+#include <types.h>
+#include <mach.h>
+#include <err.h>
+#include <sys.h>
+#include <c.h>
+#include <stdarg.h>
+#include <string.h>
+#include <m.h>
 #include <arm/mmu.h>
 
 struct l3 {
@@ -29,11 +37,17 @@ struct proc {
 void
 init_mem(void);
 
+int
+get_regs(size_t pa, size_t len);
+
 size_t
-get_mem(size_t l, size_t align);
+get_ram(size_t len, size_t align);
+
+size_t
+get_pa(size_t pa, size_t len);
 
 void
-free_mem(size_t a, size_t l);
+free_mem(size_t pa, size_t len);
 
 void *
 map_free(size_t pa, size_t len, int flags);
@@ -114,6 +128,18 @@ init_procs(void);
 
 size_t
 proc_map(size_t pid, size_t pa, size_t va, size_t len, int flags);
+
+int
+handle_dev_req(struct proc0_req *rq, struct proc0_rsp *rsp);
+
+int
+handle_dev_register(struct proc0_req *rq, struct proc0_rsp *rsp);
+
+int
+handle_irq_req(struct proc0_req *rq, struct proc0_rsp *rsp);
+
+void
+init_devs(void);
 
 extern struct kernel_info *info;
 extern struct proc procs[];

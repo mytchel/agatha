@@ -119,6 +119,13 @@ sys_recv(uint8_t *m)
 }
 
 size_t
+sys_pid(void)
+{
+	debug("%i calling pid\n", up->pid); 
+	return up->pid;
+}
+
+size_t
 sys_proc_new(void)
 {
   proc_t p;
@@ -191,6 +198,7 @@ void *systab[NSYSCALLS] = {
   [SYSCALL_YIELD]            = (void *) &sys_yield,
   [SYSCALL_SEND]             = (void *) &sys_send,
   [SYSCALL_RECV]             = (void *) &sys_recv,
+  [SYSCALL_PID]              = (void *) &sys_pid,
   [SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
   [SYSCALL_VA_TABLE]         = (void *) &sys_va_table,
   [SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
