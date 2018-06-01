@@ -180,23 +180,23 @@ proc_map(size_t pid,
 	}
 }
 
-	static bool
+	static void
 init_bundled_proc(char *name,
 		size_t start, size_t len)
 {
 	uint32_t m[MESSAGE_LEN/sizeof(uint32_t)] = { 0 };
 	size_t l1_pa, l2_pa, stack_pa;
-	uint32_t *l1_va, *stack_v;
+	uint32_t *l1_va;
 	int pid;
 
 	l1_pa = get_ram(0x8000, 0x4000);
 	if (l1_pa == nil) {
-		return false;
+		raise();
 	}
 
 	l1_va = map_free(l1_pa, 0x8000, AP_RW_RW, false);
 	if (l1_va == nil) {
-		return false;
+		raise();
 	}
 
 	memset(l1_va, 0, 0x8000);
@@ -206,21 +206,17 @@ init_bundled_proc(char *name,
 
 	l2_pa = get_ram(0x1000, 0x1000);
 	if (l2_pa == nil) {
-		return false;
+		raise();
 	}
 
 	stack_pa = get_ram(0x2000, 0x1000); 
 	if (stack_pa == nil) {
-		return false;
+		raise();
 	}
-
-	stack_v = map_free(stack_pa, 0x2000, AP_RW_RW, false);
-	memset(stack_v, 0, 0x2000);
-	unmap(stack_v, 0x2000);
-
+	
 	pid = proc_new();
 	if (pid < 0) {
-		return false;
+		raise();
 	}
 
 	procs[pid].pid = pid;
@@ -228,49 +224,44 @@ init_bundled_proc(char *name,
 	procs[pid].l1.pa = l1_pa;
 	procs[pid].l1.len = 0x8000;
 
-	if (proc_give(pid, l1_pa, 0x4000) != OK) {
-		return false;
-	}
-
 	if (proc_give(pid, l2_pa, 0x1000) != OK) {
-		return false;
+		raise();
 	}
 
 	if (proc_give(pid, stack_pa, 0x2000) != OK) {
-		return false;
+		raise();
 	}
 
 	if (proc_give(pid, start, len) != OK) {
-		return false;
+		raise();
 	}
 
 	if (proc_map(pid, l2_pa, 
 				0, 0x1000, 
 				MAP_TABLE) != OK) {
-		return false;
+		raise();
 	}
 
 	if (proc_map(pid, stack_pa, 
 				USER_ADDR - 0x2000, 0x2000, 
 				MAP_MEM|MAP_RW) != OK) {
-		return false;
+		raise();
 	}
 
 	if (proc_map(pid, start, 
 				USER_ADDR, len, 
 				MAP_MEM|MAP_RW) != OK) {
-		return false;
+		raise();
 	}
 
 	if (va_table(pid, procs[pid].l1.pa) != OK) {
-		procs[pid].pid = -1;
-		return false;
+		raise();
 	}
 
 	m[0] = USER_ADDR;
 	m[1] = USER_ADDR;
 
-	return send(pid, (uint8_t *) m) == OK;
+	send(pid, (uint8_t *) m);
 }
 
 	void
@@ -287,11 +278,8 @@ init_procs(void)
 	off = info->bundle_pa;
 
 	for (i = 0; i < nbundled_procs; i++) {
-		if (!init_bundled_proc(bundled_procs[i].name, 
-					off, bundled_procs[i].len)) {
-			raise();
-		}
-
+		init_bundled_proc(bundled_procs[i].name, 
+					off, bundled_procs[i].len);
 		off += bundled_procs[i].len;
 	}
 }
