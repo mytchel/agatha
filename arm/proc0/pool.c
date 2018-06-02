@@ -59,7 +59,7 @@ pool_new(size_t obj_size)
 
 		n = map_free(pa, 0x1000, AP_RW_RW, true);
 		if (n == nil) {
-			free_mem(pa, 0x1000);
+			release_addr(pa, 0x1000);
 			return nil;
 		}
 
@@ -117,7 +117,7 @@ pool_alloc(struct pool *s)
 
 	*f = map_free(pa, len, AP_RW_RW, true);
 	if (*f == nil) {
-		free_mem(pa, len);
+		release_addr(pa, len);
 		return nil;
 	}
 

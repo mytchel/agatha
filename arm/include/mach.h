@@ -11,11 +11,11 @@
    (beto32((X) & 0xffffffff) << 32))
 
 
-#define L1X(va)          ((va) >> 20)
-#define L2X(va)          (((va) >> 12) & ((1 << 8) - 1))
+#define L1X(va)          (((uint32_t) va) >> 20)
+#define L2X(va)          ((((uint32_t) va) >> 12) & ((1 << 8) - 1))
 
-#define L1VA(x)          ((x) << 20)
-#define L2VA(x)          ((x) << 12)
+#define L1VA(x)          (((uint32_t) x) << 20)
+#define L2VA(x)          (((uint32_t) x) << 12)
 
 #define L1_TYPE      0b11
 #define L1_FAULT     0b00

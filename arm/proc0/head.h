@@ -8,27 +8,6 @@
 #include <m.h>
 #include <arm/mmu.h>
 
-struct l3 {
-	struct l3 *next;
-
-	size_t pa, va, len;
-	int flags;
-};
-
-struct l2 {
-	struct l2 *next;
-
-	size_t pa, va, len;
-	struct l3 *head;
-	void *addr;
-};
-
-struct l1 {
-	size_t pa, len;
-	void *addr;
-	struct l2 *head;
-};
-
 struct addr_frame {
 	struct addr_frame *next;
 	size_t pa, len;
@@ -60,7 +39,7 @@ size_t
 get_pa(size_t pa, size_t len);
 
 void
-free_mem(size_t pa, size_t len);
+release_addr(size_t pa, size_t len);
 
 void *
 map_free(size_t pa, size_t len, int ap, bool cache);
@@ -99,42 +78,6 @@ pool_alloc(struct pool *s);
 
 void
 pool_free(struct pool *s, void *p);
-
-	struct l1 *
-l1_create_from(size_t pa, void *va, size_t len);
-
-	struct l1 *
-l1_create(void);
-
-	void
-l1_free(struct l1 *l);
-
-struct l2 *
-l2_create_table_from(size_t len, size_t va, size_t pa, void *addr);
-
-struct l2 *
-l2_create_table(size_t len, size_t va);
-
-	void
-l2_free(struct l2 *l);
-
-	int
-l1_insert_l2(struct l1 *l1, struct l2 *l2);
-
-	struct l2 *
-l1_get_l2(struct l1 *l1, size_t va);
-
-	int
-l2_insert_l3(struct l2 *l2, struct l3 *l3);
-
-	size_t
-l1_free_va(struct l1 *l1, size_t len);
-
-struct l3 *
-l3_create(size_t pa, size_t va, size_t len, int flags);
-
-	void
-l3_free(struct l3 *l);
 
 void
 init_procs(void);
