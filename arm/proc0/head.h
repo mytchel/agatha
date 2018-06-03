@@ -8,24 +8,6 @@
 #include <m.h>
 #include <arm/mmu.h>
 
-struct addr_frame {
-	struct addr_frame *next;
-	size_t pa, len;
-	int table;
-	int mapped;
-};
-
-struct proc {
-	int pid;
-
-	struct addr_frame *frames;
-
-	struct {
-		size_t pa, len;
-		uint32_t *addr;	
-	} l1;
-};
-
 void
 init_mem(void);
 
@@ -34,9 +16,6 @@ get_regs(size_t pa, size_t len);
 
 size_t
 get_ram(size_t len, size_t align);
-
-size_t
-get_pa(size_t pa, size_t len);
 
 void
 release_addr(size_t pa, size_t len);
@@ -89,6 +68,5 @@ int
 proc_map(size_t pid, size_t pa, size_t va, size_t len, int flags);
 
 extern struct kernel_info *info;
-extern struct proc procs[];
 
 

@@ -1,7 +1,28 @@
 #include "head.h"
 #include "../bundle.h"
 
-struct proc procs[MAX_PROCS] = { {-1, 0} };
+struct addr_frame {
+	struct addr_frame *next;
+	size_t pa, len;
+	int table;
+	int mapped;
+};
+
+struct proc {
+	struct addr_frame *frames;
+
+	struct {
+		size_t pa, len;
+		/* 0x8000 long, 
+			 0-0x4000 is the l1 page table,
+			 0x4000-0x8000 is a mapping of 
+			 l2 page table virtual addresses
+			 for reading/writing. */
+		uint32_t *addr;	
+	} l1;
+};
+
+struct proc procs[MAX_PROCS] = { 0 };
 
 static struct pool *frame_pool;
 
@@ -27,8 +48,9 @@ frame_split(struct addr_frame *f, size_t off)
 }
 
 /* TODO: This will have some problems.
-	 If a frame is split then the entire thing is
-	 mapped it should, but this code will not do that.
+	 If a frame is split then multiple frames should
+	 be mapped, but this code will not do that.
+	 Probably has other bugs.
 	 */
 struct addr_frame *
 proc_get_frame(int pid, size_t pa, size_t len)
@@ -219,7 +241,6 @@ init_bundled_proc(char *name,
 		raise();
 	}
 
-	procs[pid].pid = pid;
 	procs[pid].l1.addr = l1_va;
 	procs[pid].l1.pa = l1_pa;
 	procs[pid].l1.len = 0x8000;
@@ -283,4 +304,5 @@ init_procs(void)
 		off += bundled_procs[i].len;
 	}
 }
+
 

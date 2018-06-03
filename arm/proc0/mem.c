@@ -1,7 +1,7 @@
 #include "head.h"
 #include "../dev.h"
 
-struct l1 {
+struct {
 	struct {
 		size_t pa, len;
 		uint32_t *addr;
@@ -11,7 +11,7 @@ struct l1 {
 		size_t pa, len;
 		uint32_t **addr;
 	} va;
-};
+} proc0_l1;
 
 struct addr_range {
 	size_t start, len;
@@ -28,8 +28,6 @@ struct addr_range *dev_regs = nil;
 struct addr_range *free_space = nil;
 
 extern uint32_t *_data_end;
-
-struct l1 proc0_l1;
 
 static void
 addr_range_insert(struct addr_range **head, struct addr_range *n)
@@ -292,6 +290,14 @@ init_mem(void)
 	if (ram_free == nil) {
 		raise();
 	}
+
+	/* Remove kernel from ram free */
+	m = addr_range_get(&ram_free, info->kernel_pa, info->kernel_len);
+	if (m == nil) {
+		raise();
+	}
+
+	pool_free(addr_pool, m);
 
 	proc0_l1.mmu.pa = info->proc0.l1_pa;
 	proc0_l1.mmu.len = info->proc0.l1_len;

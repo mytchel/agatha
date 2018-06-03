@@ -9,7 +9,7 @@ A micro kernel.
 - Virtual memory handled outside of the kernel
   with support from the kernel.
 - Userspace device drivers for everything except
-  the interrupt controller, and a system timer.
+  the interrupt controller, and system timer.
   Currently the kernel also takes a serial device
   for debugging.
 
@@ -46,16 +46,20 @@ and run make. For example to build for vexpress-a9:
 
 ```
 export CROSS=arm-none-eabi-
-cd arm/virt
+cd arm/vexpress-a9
 make
 ```
 
 The kernel should be built and bundled for U-Boot
-at `arm/virt/kern.umg`. Copy that across to your device
-somehow along use U-Boot to load the kernel.
+at `arm/vexpress-a9/kern.umg`. Copy that across to your device
+somehow and use U-Boot to load the kernel.
 
 To run it I am currently using qemu to emulate, booting
 U-Boot which is loading the kernel from dnsmasq's tftp
-server. Look at the script `arm/virt/test`. The U-Boot
-binary is at `arm/virt/u-boot`.
+server. Look at the script `arm/vexpress-a9/test`. The U-Boot
+binary is at `arm/vexpress-a9/u-boot`. There is a script
+`arm/vexpress-a9/test` which starts qemu and sets up
+the networking loop back for U-Boot to load the kernel.
+You will probably have to make some changes to get it working
+on your system.
 

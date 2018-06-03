@@ -18,6 +18,7 @@ struct proc0_req {
 	size_t from;
 	int type;
 	union {
+
 		struct {
 			size_t pa;
 			size_t len;
@@ -43,6 +44,7 @@ struct proc0_req {
 		} proc;
 
 		uint8_t raw[MESSAGE_LEN - sizeof(size_t) - sizeof(int)];
+
 	} m;
 };
 
@@ -51,6 +53,7 @@ struct proc0_rsp {
 	uint8_t type;
 	int ret;
 	union {
+
 		struct {
 			size_t pa;
 		} addr_req;
@@ -60,6 +63,7 @@ struct proc0_rsp {
 		} proc;
 		
 		uint8_t raw[MESSAGE_LEN - sizeof(size_t) - sizeof(int) - sizeof(int)];
+
 	} m;
 };
 
