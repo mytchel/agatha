@@ -13,7 +13,7 @@ CLEAN += $(OBJECTS)
 
 $(PROG).elf: $(USER.LD) $(OBJECTS)
 	@echo LD $@
-	$(LD) $(LDFLAGS) \
+	@$(LD) $(LDFLAGS) \
 		-T $(USER.LD) \
 		-Ttext ${USER_ADDR} \
 		-o $@ \
@@ -22,5 +22,5 @@ $(PROG).elf: $(USER.LD) $(OBJECTS)
 
 clean:
 	@echo Clean
-	rm -f $(CLEAN)
+	@rm -f $(CLEAN)
 

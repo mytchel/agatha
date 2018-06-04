@@ -37,10 +37,6 @@ send(proc_t to, message_t m)
 {
 	message_t *p;
 
-	debug("%i ksend to %i\n", up->pid, to->pid);
-
-	debug("add to message queue\n");
-
 	m->next = nil;
 	for (p = &to->messages; *p != nil; p = &(*p)->next)
 		;
@@ -49,7 +45,6 @@ send(proc_t to, message_t m)
 
 	if (to->state == PROC_recv 
 			&& (to->recv_from == -1 || to->recv_from == up->pid)) {
-		debug("wake %i\n", to->pid);
 		to->state = PROC_ready;
 		schedule(to);
 	}
@@ -63,8 +58,6 @@ recv(int from, uint8_t *raw)
 	message_t *m, n;
 	int f;
 	
-	debug("%i krecv\n", up->pid);
-
   while (true) {
 		for (m = &up->messages; *m != nil; m = &(*m)->next) {
 			if (from != -1 && from != (*m)->from)
@@ -74,18 +67,16 @@ recv(int from, uint8_t *raw)
 			f = (*m)->from;
 
 			n = *m;
-			*m = n->next;
+			*m = (*m)->next;
 
 			message_free(n);
 
 			return f;
 		}
 
-		debug("going to sleep\n");
 		up->recv_from = from;
 		up->state = PROC_recv;
 		schedule(nil);
-		debug("%i has been woken up\n", up->pid);
 	}
 
 	return ERR;
@@ -109,7 +100,6 @@ sys_send(int pid, uint8_t *raw)
 	
 	p = find_proc(pid);
 	if (p == nil) {
-		debug("didnt find %i\n", pid);
 		return ERR;
 	}
 
@@ -132,7 +122,6 @@ sys_recv(int from, uint8_t *m)
 size_t
 sys_pid(void)
 {
-	debug("%i calling pid\n", up->pid); 
 	return up->pid;
 }
 
@@ -140,8 +129,6 @@ size_t
 sys_proc_new(void)
 {
   proc_t p;
-
-	debug("%i called sys proc_new\n", up->pid);
 
 	if (up->pid != 0) {
 		debug("proc %i is not proc0!\n", up->pid);

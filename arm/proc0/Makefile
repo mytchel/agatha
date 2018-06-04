@@ -16,7 +16,7 @@ CLEAN += \
 
 ../proc0/proc0.elf: $(USER.LD) $(PROC0_OBJECTS)
 	@echo LD $@
-	$(LD) $(LDFLAGS) \
+	@$(LD) $(LDFLAGS) \
 		-T $(USER.LD) \
 		-Ttext $(USER_ADDR) \
 		-o $@ \

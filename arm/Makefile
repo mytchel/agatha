@@ -3,17 +3,17 @@ LIBS = ../lib/libc ../../lib/libstring
 .PHONY: clean
 clean:
 	@echo Clean
-	rm -f $(CLEAN)
-	for B in $(BUNDLE); do \
+	@rm -f $(CLEAN)
+	@for B in $(BUNDLE); do \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} clean; \
 	done
-	for L in $(LIBS); do \
+	@for L in $(LIBS); do \
 		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} clean; \
 	done
 
 .PHONE: build_libs
 build_libs:
-	for L in $(LIBS); do \
+	@for L in $(LIBS); do \
 		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD}; \
 	done
 
@@ -38,12 +38,13 @@ KERNEL_OBJECTS = \
 								 $(KERNEL_SRC_A:%.S=%.o) \
 								 $(KERNEL_SRC_C:%.c=%.o) 
 
-.PHONY: bundle.bin bundle.c
+.PHONY: bundle.bin 
 bundle.bin bundle.c:
-	for B in $(BUNDLE); do \
+	@echo BUNDLE $(BUNDLE)
+	@for B in $(BUNDLE); do \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} || exit 1; \
 		done
-	sh ../bundle.sh \
+	@sh ../bundle.sh \
 		bundle.bin \
 		bundle.c \
 		$(BUNDLE)
@@ -55,7 +56,7 @@ CLEAN += bundle.c bundle.bin bundle.bo
 include ../proc0/Makefile
 
 proc0.bin: ../proc0/proc0.bin
-	cp ../proc0/proc0.bin proc0.bin
+	@cp ../proc0/proc0.bin proc0.bin
 
 proc0.bo: proc0.bin
 
@@ -64,9 +65,9 @@ CLEAN += proc0.bo proc0.bin
 CLEAN += kern.elf kern.bin kern.umg kern.list
 CLEAN += $(KERNEL_OBJECTS)
 
-kern.elf: ../kernel.ld $(KERNEL_OBJECTS) proc0.bo bundle.bo
+kern.elf: ../kernel.ld $(KERNEL_OBJECTS) bundle.bo proc0.bo 
 	@echo LD $@
-	$(LD) $(LDFLAGS) \
+	@$(LD) $(LDFLAGS) \
 		-T ../kernel.ld \
 		-Ttext $(LOAD_ADDR) \
 		-o $@ $(KERNEL_OBJECTS) \

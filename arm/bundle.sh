@@ -5,8 +5,6 @@ shift
 C=$1
 shift
 
-echo BUNDLING $@ INTO $BIN $C
-
 echo -n > $C
 echo "#include <types.h>" >> $C
 echo "#include \"../bundle.h\"" >> $C
@@ -26,7 +24,7 @@ do
 
   echo "{ \"$D\", $ALIGNED },"  >> $C
 
-  dd of=$BIN if=$B obs=$ALIGN seek=$(($P / $ALIGN)) || exit 1
+  dd of=$BIN if=$B obs=$ALIGN seek=$(($P / $ALIGN)) 2> /dev/null || exit 1
 
   P=$(($P + $ALIGNED))
 done

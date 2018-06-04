@@ -14,39 +14,22 @@ next_proc(void)
 {
 	proc_t p;
 
-	debug("find next proc in list: ");
-
-	for (p = alive; p != nil; p = p->next)
-		debug("%i[%i] ", p->pid, p->state);
-	debug("\n");	
-
 	if (alive == nil) {
-		debug("none\n");
 		return nil;
 	} else if (up != nil) {
-		debug("one after %i\n", up->pid);
 		p = up->next;
 	} else {
-		debug("start with alive %i\n", alive->pid);
 		p = alive;
 	}
 
 	do {
 		if (p == nil) {
-			debug("loop\n");
 			p = alive;
 
 		} else if (p->state == PROC_ready) {
-			debug("found %i\n", p->pid);
 			return p;
 
 		} else {
-			debug("skip blocked %i %i\n", p->pid, p->state);
-			if (p->state == PROC_recv)
-				debug("waiting for message from %i\n", p->recv_from);
-			else
-				debug("waiting for what?\n");	
-
 			p = p->next;
 		}
 	} while (p != up);
@@ -78,8 +61,6 @@ schedule(proc_t n)
 
 
 	if (up != nil) {
-		debug("SWITCH to %i\n", up->pid);
-
 		mmu_switch(up->vspace);
 
 		set_systick(10000);

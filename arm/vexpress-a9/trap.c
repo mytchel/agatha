@@ -76,8 +76,6 @@ gic_dst_init(void)
 
 	nirq = 32 * ((dregs->ictr & 0x1f) + 1);
 
-	debug("nirq = %i\n", nirq);
-
 	for (i = 32; i < nirq; i++) {
 		gic_disable_irq(i);
 		gic_set_priority(i, 0xff / 2);
@@ -110,8 +108,6 @@ gic_cpu_init(void)
   int
 add_kernel_irq(size_t irqn, void (*func)(size_t))
 {
-	debug("add kernel intr %i\n", irqn);
-
 	gic_enable_irq(irqn);
 
 	kernel_handlers[irqn] = func;

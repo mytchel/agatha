@@ -13,19 +13,15 @@ include ${BASE}/${ARCH}/rules.mk
 
 .c.o .S.o:
 	@echo CC $@
-	$(CC) $(CFLAGS) -c $< -o $@
-
-.o.a:
-	@echo AR $@
-	$(AR) rcs $@ $<
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 .elf.bin:
-	@echo OBJCOPY $@
-	$(OBJCOPY) -Obinary $< $@
+	@echo BIN $@
+	@$(OBJCOPY) -Obinary $< $@
 
 .elf.list:
-	@echo OBJDUMP $@
-	$(OBJDUMP) -S $< > $@
+	@echo LIST $@
+	@$(OBJDUMP) -S $< > $@
 
 .bin.umg: 
 	@make -C $(BASE)/tools/mkuboot
@@ -36,8 +32,8 @@ include ${BASE}/${ARCH}/rules.mk
 		$< $@
 
 .bin.bo: 
-	@echo OBJCOPY $@
-	$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
+	@echo BO $@
+	@$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
 		--rename-section .data=.bundle \
 		$< $@
 
