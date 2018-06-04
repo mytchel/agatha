@@ -1,6 +1,11 @@
 #include "head.h"
 #include "../bundle.h"
 
+/* TODO: L1 tables need to be made less
+	 special so processes can map them 
+	 in the same way they can map L2 tables.
+	 */
+
 struct addr_frame {
 	struct addr_frame *next;
 	size_t pa, len;
