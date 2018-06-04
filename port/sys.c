@@ -1,86 +1,91 @@
 #include "head.h"
 #include <sysnum.h>
 
-int
-send_intr(proc_t p, size_t intr)
+static struct message messages[MAX_MESSAGES];
+static size_t n_messages = 0;
+static message_t free_messages = nil;
+
+message_t
+message_get(void)
 {
-	if (p->intr != 0 || 
-			(p->state != PROC_ready && p->state != PROC_recv)) {
-		return ERR;
+	message_t m;
+
+	if (free_messages == nil) {
+		if (n_messages < LEN(messages)) {
+			free_messages = &messages[n_messages++];
+			free_messages->next = nil;
+		} else {
+			return nil;
+		}
 	}
 
-	p->intr = intr;
-	p->state = PROC_ready;
-	schedule(p);
+	m = free_messages;
+	free_messages = m->next;
 
-	return OK;
+	return m;
+}
+
+void
+message_free(message_t m)
+{
+	m->next = free_messages;
+	free_messages = m;
 }
 
 	int
-send(proc_t p, uint8_t *m)
+send(proc_t to, message_t m)
 {
-	proc_t *n;
+	message_t *p;
 
-	debug("%i ksend to %i\n", up->pid, p->pid);
+	debug("%i ksend to %i\n", up->pid, to->pid);
 
-	memcpy(up->m, m, MESSAGE_LEN);
+	debug("add to message queue\n");
 
-	up->waiting_on = p;
-	up->wnext = nil;
-
-	debug("add to wait list\n");
-
-	for (n = &p->waiting; *n != nil; n = &(*n)->wnext)
+	m->next = nil;
+	for (p = &to->messages; *p != nil; p = &(*p)->next)
 		;
 
-	*n = up;
+	*p = m;
 
-	debug("sleep\n");
-	up->state = PROC_send;
-	if (p->state == PROC_recv) {
-		debug("wake %i\n", p->pid);
-		p->state = PROC_ready;
-		schedule(p);
-	} else {
-		schedule(nil);
+	if (to->state == PROC_recv 
+			&& (to->recv_from == -1 || to->recv_from == up->pid)) {
+		debug("wake %i\n", to->pid);
+		to->state = PROC_ready;
+		schedule(to);
 	}
-
-  up->waiting_on = nil;	
 
 	return OK;
 }
 
 int
-recv(uint8_t *m)
+recv(int from, uint8_t *raw)
 {
-	proc_t f;
+	message_t *m, n;
+	int f;
 	
 	debug("%i krecv\n", up->pid);
 
   while (true) {
-		if (up->intr != 0) {
-			fill_intr_m(m, up->intr);
-			up->intr = 0;
+		for (m = &up->messages; *m != nil; m = &(*m)->next) {
+			if (from != -1 && from != (*m)->from)
+				continue;
 
-			return OK;
+			memcpy(raw, (*m)->body, MESSAGE_LEN);
+			f = (*m)->from;
 
-		} else if ((f = up->waiting) != nil) {
-			debug("got message from %i\n", f->pid);
-			up->waiting = f->wnext;
-			f->wnext = nil;
+			n = *m;
+			*m = n->next;
 
-			memcpy(m, f->m, MESSAGE_LEN);
+			message_free(n);
 
-			f->state = PROC_ready;
-
-			return OK;
-
-		} else {
-			debug("going to sleep\n");
-			up->state = PROC_recv;
-			schedule(nil);
-			debug("%i has been woken up\n", up->pid);
+			return f;
 		}
+
+		debug("going to sleep\n");
+		up->recv_from = from;
+		up->state = PROC_recv;
+		schedule(nil);
+		debug("%i has been woken up\n", up->pid);
 	}
 
 	return ERR;
@@ -95,8 +100,9 @@ sys_yield(void)
 }
 
 size_t
-sys_send(int pid, uint8_t *m)
+sys_send(int pid, uint8_t *raw)
 {
+	message_t m;
 	proc_t p;
 
 	debug("%i send to 0x%h\n", up->pid, pid);
@@ -107,15 +113,20 @@ sys_send(int pid, uint8_t *m)
 		return ERR;
 	}
 
+	m = message_get();
+
+	m->from = up->pid;
+	memcpy(m->body, raw, MESSAGE_LEN);
+
 	return send(p, m);
 }
 
 size_t
-sys_recv(uint8_t *m)
+sys_recv(int from, uint8_t *m)
 {
-	debug("%i recv to 0x%h\n", up->pid, m);
+	debug("%i recv from %i to 0x%h\n", up->pid, from, m);
 	
-	return recv(m);
+	return recv(from, m);
 }
 
 size_t

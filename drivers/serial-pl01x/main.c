@@ -37,24 +37,23 @@ main(void)
 	size_t regs_pa, regs_len;
 	struct proc0_req rq;
 	struct proc0_rsp rp;
+	int from;
 
 	regs_pa = 0x10000000 + (9 << 12);
 	regs_len = 1 << 12;
 
-	rq.from = pid();
 	rq.type = PROC0_addr_req;
 	rq.m.addr_req.pa = regs_pa;
 	rq.m.addr_req.len = regs_len;
 
 	send(0, (uint8_t *) &rq);
-	while (recv((uint8_t *) &rp) != OK || rp.from != 0)
+	while (recv(0, (uint8_t *) &rp) != 0)
 		;
 
 	if (rp.ret != OK) {
 		raise();
 	}
 
-	rq.from = pid();
 	rq.type = PROC0_addr_map;
 	rq.m.addr_map.pa = regs_pa;
 	rq.m.addr_map.len = regs_len;
@@ -62,7 +61,7 @@ main(void)
 	rq.m.addr_map.flags = MAP_DEV|MAP_RW;
 
 	send(0, (uint8_t *) &rq);
-	while (recv((uint8_t *) &rp) != OK || rp.from != 0)
+	while (recv(0, (uint8_t *) &rp) != 0)
 		;
 
 	if (rp.ret != OK) {
@@ -74,10 +73,9 @@ main(void)
 	puts("user pl01x ready\n");
 	
 	while (true) {
-		recv((uint8_t *) &rq);
+		from = recv(-1, (uint8_t *) &rq);
 		puts((char *) rq.m.raw);
-		rp.from = pid();
-		send(rq.from, (uint8_t *) &rp);
+		send(from, (uint8_t *) &rp);
 	}
 }
 

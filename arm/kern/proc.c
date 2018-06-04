@@ -25,7 +25,7 @@ proc_start(void)
 
 	debug("proc %i starting\n", up->pid);
 
-  while ((p = recv((uint8_t *) m)) < 0) 
+  while ((p = recv(-1, (uint8_t *) m)) < 0) 
 		;
 
   u.psr = MODE_USR;

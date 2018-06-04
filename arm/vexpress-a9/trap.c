@@ -136,6 +136,7 @@ add_user_irq(size_t irqn, proc_t p)
 irq_handler(void)
 {
 	uint32_t irqn = cregs->ack;
+	message_t m;
 
 	debug("irq: %i\n", irqn);
 
@@ -146,9 +147,12 @@ irq_handler(void)
 
 	} else if (user_handlers[irqn] != nil) {
 		gic_disable_irq(irqn);
-		if (send_intr(user_handlers[irqn], irqn) != OK) {
-			debug("proc %i not ready for interrupt %i!\n", 
-					user_handlers[irqn]->pid, irqn);
+
+		m = message_get();
+		if (m != nil) {
+			m->from = -1;
+			((int *) m->body)[1] = irqn;
+			send(user_handlers[irqn], m);
 		}
 
 	} else {

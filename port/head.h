@@ -5,11 +5,18 @@
 #include <stdarg.h>
 #include <string.h>
 
+typedef struct message *message_t;
+
+struct message {
+	message_t next;
+	int from;
+	uint8_t body[MESSAGE_LEN];
+};
+
 typedef struct proc *proc_t;
 
 typedef enum {
 	PROC_dead,
-	PROC_enter,
 	PROC_ready,
 	PROC_oncpu,
 	PROC_send,
@@ -25,10 +32,8 @@ struct proc {
 	
   uint8_t kstack[KSTACK_LEN];
 
-	uint8_t m[MESSAGE_LEN];
-	uint8_t intr;
-	proc_t waiting_on, wnext;
-	proc_t waiting;
+	int recv_from;
+	message_t messages;
 	
 	size_t vspace;
 };
@@ -42,14 +47,17 @@ find_proc(int pid);
 void
 schedule(proc_t next);
 
-int
-send(proc_t p, uint8_t *m);
+message_t
+message_get(void);
+
+void
+message_free(message_t);
 
 int
-recv(uint8_t *m);
+send(proc_t to, message_t);
 
 int
-send_intr(proc_t p, size_t intr);
+recv(int from, uint8_t *m);
 
 void
 memcpy(void *dst, const void *src, size_t len);

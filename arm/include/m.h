@@ -9,13 +9,11 @@
 #define PROC0_addr_map 6
 
 struct proc0_irq {
-	size_t from;
 	int type;
 	size_t irq;
 };
 
 struct proc0_req {
-	size_t from;
 	int type;
 	union {
 
@@ -43,13 +41,12 @@ struct proc0_req {
 			int flags;
 		} proc;
 
-		uint8_t raw[MESSAGE_LEN - sizeof(size_t) - sizeof(int)];
+		uint8_t raw[MESSAGE_LEN - sizeof(int)];
 
 	} m;
 };
 
 struct proc0_rsp {
-	size_t from;
 	uint8_t type;
 	int ret;
 	union {
@@ -62,7 +59,7 @@ struct proc0_rsp {
 			int pid;
 		} proc;
 		
-		uint8_t raw[MESSAGE_LEN - sizeof(size_t) - sizeof(int) - sizeof(int)];
+		uint8_t raw[MESSAGE_LEN - sizeof(int) - sizeof(int)];
 
 	} m;
 };

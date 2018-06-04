@@ -42,10 +42,8 @@ next_proc(void)
 
 		} else {
 			debug("skip blocked %i %i\n", p->pid, p->state);
-			if (p->state == PROC_send)
-				debug("waiting on %i\n", p->waiting_on->pid);
-			else if (p->state == PROC_recv)
-				debug("waiting for message\n");
+			if (p->state == PROC_recv)
+				debug("waiting for message from %i\n", p->recv_from);
 			else
 				debug("waiting for what?\n");	
 

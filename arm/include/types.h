@@ -20,4 +20,5 @@ typedef uint8_t	            bool;
 #define false 0
 #define true 1
 
+#define LEN(X)  (sizeof(X)/sizeof(X[0]))
 
