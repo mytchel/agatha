@@ -1,22 +1,12 @@
-PROC0_SRC_A = \
-	../../lib/libc/sys.S
-
-PROC0_SRC_C = \
+PROC0_SRC = \
 	../proc0/main.c              \
 	../proc0/pool.c              \
 	../proc0/proc.c              \
 	../proc0/mem.c               \
-	../lib/libmem/mmu.c          \
-	../../lib/libstring/conv.c   \
-	../../lib/libstring/scanf.c  \
-	../../lib/libstring/string.c \
-	../../lib/libc/util.c        \
 	devices.c                    \
 	bundle.c
 				
-PROC0_OBJECTS = \
-  $(PROC0_SRC_A:%.S=%.o) \
-  $(PROC0_SRC_C:%.c=%.o)
+PROC0_OBJECTS = $(PROC0_SRC:%.c=%.o)
 
 CLEAN += $(PROC0_OBJECTS)
 CLEAN += \
@@ -29,6 +19,8 @@ CLEAN += \
 	$(LD) $(LDFLAGS) \
 		-T $(USER.LD) \
 		-Ttext $(USER_ADDR) \
-		-o $@ $(PROC0_OBJECTS) \
-		-lgcc
+		-o $@ \
+	 	$(PROC0_OBJECTS) \
+		-lc -lstring -lgcc
+
 

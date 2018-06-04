@@ -18,8 +18,6 @@ do
   B=$D/$(basename $D).bin
   E=$D/$(basename $D).elf
 	
-	make -C $D $E $B || exit 1
-
   SIZE=$(ls -l $B | cut -d ' ' -f 8)
   test $? || exit 1
 

@@ -4,6 +4,7 @@ CROSS ?= arm-none-eabi
 CC = $(CROSS)-gcc
 LD = $(CROSS)-ld
 AR = $(CROSS)-ar
+RANLIB = $(CROSS)-ranlib
 OBJCOPY = $(CROSS)-objcopy
 OBJDUMP = $(CROSS)-objdump
 MKUBOOT = $(BASE)/mkuboot
@@ -17,7 +18,8 @@ CFLAGS += \
 	-I$(BASE)/arm/include
 	
 LDFLAGS += \
-	-L/usr/local/lib/gcc/$(CROSS)/6.3.1
+  -L${BASE}/arm/lib \
+  -L/usr/local/lib/gcc/$(CROSS)/6.3.1 
 
 include ${BASE}/arm/${BOARD}/rules.mk
 

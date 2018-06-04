@@ -41,3 +41,26 @@ On top of this most user space calls could be a send
 receive combination that picks out the reply from the
 process it just sent to. 
 
+```
+
+/* Asynchronous send/receive to/from a process */
+int
+send(int pid, uint8_t *s);
+
+/* pid = -1 for receive from any process */
+int
+recv(int pid, uint8_t *r);
+
+/* Synchronous send and receive to and from a process.
+   This will be used most of the time. */
+int
+msg(int pid, uint8_t *s, uint8_t *r);
+
+```
+
+After that it might be made that each process
+has an process page/structure which the kernel knows
+about and that is where messages are written/read 
+to/from so that the kernel doesn't have to worry
+about address's given to it.
+

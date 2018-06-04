@@ -6,7 +6,8 @@ CFLAGS = \
 	-nostdinc -ffreestanding \
 	-I$(BASE)/include
 
-LDFLAGS = -nostdlib -nodefaultlibs -static
+LDFLAGS = -nostdlib -nodefaultlibs -static \
+					-L${BASE}/lib
 
 include ${BASE}/${ARCH}/rules.mk
 
@@ -16,7 +17,7 @@ include ${BASE}/${ARCH}/rules.mk
 
 .o.a:
 	@echo AR $@
-	@$(AR) rcs $@ $<
+	$(AR) rcs $@ $<
 
 .elf.bin:
 	@echo OBJCOPY $@
