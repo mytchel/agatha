@@ -15,8 +15,9 @@ USER_ADDR = 0x00020000
 CFLAGS += \
 	-fno-stack-protector \
 	-DUSER_ADDR=$(USER_ADDR) \
-	-I$(BASE)/arm/include
-	
+	-I$(BASE)/arm/include \
+	-DDEBUG
+
 LDFLAGS += \
   -L${BASE}/arm/lib \
   -L/usr/local/lib/gcc/$(CROSS)/6.3.1 

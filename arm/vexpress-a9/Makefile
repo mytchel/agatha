@@ -8,9 +8,8 @@ include ../../rules.mk
 
 LOAD_ADDR = 0x62008000
 
-#BUNDLE += ../../drivers/ping
-#BUNDLE += ../../drivers/pong
-BUNDLE += ../../drivers/serial-pl01x
+BUNDLE += drivers/serial-pl01x
+BUNDLE += drivers/mmc-pl18x
 
 KERNEL_SRC_A += 
 

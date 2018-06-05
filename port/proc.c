@@ -41,8 +41,6 @@ next_proc(void)
 schedule(proc_t n)
 {
 	/* Until a better scheduler is created */
-	n = nil;
-
 	if (up != nil) {
 		if (up->state == PROC_oncpu) {
 			up->state = PROC_ready;
@@ -58,7 +56,6 @@ schedule(proc_t n)
 	} else {
 		up = next_proc();
 	}
-
 
 	if (up != nil) {
 		mmu_switch(up->vspace);

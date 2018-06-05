@@ -13,8 +13,8 @@ echo "struct bundle_proc bundled_procs[] = {" >> $C
 P=0
 for D in $@
 do
-  B=$D/$(basename $D).bin
-  E=$D/$(basename $D).elf
+  B=$D/out.bin
+  E=$D/out.elf
 	
   SIZE=$(ls -l $B | cut -d ' ' -f 8)
   test $? || exit 1

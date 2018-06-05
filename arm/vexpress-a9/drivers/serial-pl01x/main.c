@@ -37,6 +37,7 @@ main(void)
 	size_t regs_pa, regs_len;
 	struct proc0_req rq;
 	struct proc0_rsp rp;
+	uint8_t m[MESSAGE_LEN];
 	int from;
 
 	regs_pa = 0x10000000 + (9 << 12);
@@ -73,9 +74,9 @@ main(void)
 	puts("user pl01x ready\n");
 	
 	while (true) {
-		from = recv(-1, (uint8_t *) &rq);
-		puts((char *) rq.m.raw);
-		send(from, (uint8_t *) &rp);
+		from = recv(-1, m);
+		puts((char *) m);
+		send(from, m);
 	}
 }
 

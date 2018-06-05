@@ -1,6 +1,6 @@
 all: out.elf out.bin out.list
 
-include ../../rules.mk
+include ../../../../rules.mk
 
 CLEAN = out.elf out.bin out.list
 

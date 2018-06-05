@@ -2,7 +2,6 @@ LIBS = ../lib/libc ../../lib/libstring
 
 .PHONY: clean
 clean:
-	@echo Clean
 	@rm -f $(CLEAN)
 	@for B in $(BUNDLE); do \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} clean; \

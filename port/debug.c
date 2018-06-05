@@ -3,6 +3,7 @@
   int
 debug(const char *fmt, ...)
 {
+#ifdef DEBUG
   char str[128];
   va_list ap;
   size_t i;
@@ -16,6 +17,9 @@ debug(const char *fmt, ...)
   }
 
   return i;
+#else
+	return -1;
+#endif
 }
 
   void
