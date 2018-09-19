@@ -2,7 +2,7 @@ all: build_libs kern.umg  kern.list ../proc0/proc0.list
 
 BASE = ${PWD}/../..
 ARCH = arm
-CPU = cortex-a9
+BOARD = vexpress-a9
 
 include ../../rules.mk
 

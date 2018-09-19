@@ -1,9 +1,9 @@
 #include "../../port/head.h"
 #include "../kern/fns.h"
 #include "../kern/trap.h"
-#include <arm/cortex_a8_gic.h>
+#include <arm/omap3_intc.h>
 
-static struct intc *intc = nil;
+static struct omap3_intc *intc = nil;
 
 static void (*kernel_handlers[nirq])(size_t) = { nil };
 

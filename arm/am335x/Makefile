@@ -2,14 +2,14 @@ all: build_libs kern.umg kern.list ../proc0/proc0.list
 
 BASE = ${PWD}/../..
 ARCH = arm
-CPU = cortex-a8
+BOARD = am335x
 
 include ../../rules.mk
 
 LOAD_ADDR = 0x82000000
 
-BUNDLE += ../../drivers/ping
-BUNDLE += ../../drivers/pong
+#BUNDLE += ../drivers/mmc-omap3
+BUNDLE += ../drivers/serial-omap3
 
 KERNEL_SRC_A += 
 

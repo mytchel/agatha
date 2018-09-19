@@ -1,6 +1,6 @@
 #define nirq 128
 
-struct intc {
+struct omap3_intc {
 	uint32_t revision;
 	uint32_t pad1[3];
 	uint32_t sysconfig;

@@ -20,5 +20,5 @@ LDFLAGS += \
   -L${BASE}/arm/lib \
   -L/usr/local/lib/gcc/$(CROSS)/6.3.1 
 
-include ${BASE}/arm/${CPU}/rules.mk
+include ${BASE}/${ARCH}/${BOARD}/rules.mk
 

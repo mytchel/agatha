@@ -181,6 +181,8 @@ get_intc(void)
 
 	gic_dst_init();
 	gic_cpu_init();
+
+	debug("intc ready, implimentation %i\n", cregs->implementation);
 }
 
 void
@@ -215,6 +217,4 @@ get_systick(void)
 	pt_regs->wd_disable = 0x12345678;
 	pt_regs->wd_disable = 0x87654321;
 }
-
-
 
