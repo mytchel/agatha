@@ -3,5 +3,5 @@ PROG = ping
 SRC = \
 	main.c
 
-include ../Makefile
+include ../rules.mk
 

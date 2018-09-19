@@ -1,12 +1,12 @@
-all: build_libs kern.umg  kern.list ../proc0/proc0.list
+all: build_libs kern.umg kern.list ../proc0/proc0.list
 
 BASE = ${PWD}/../..
 ARCH = arm
-BOARD = bcm2835
+CPU = cortex-a8
 
 include ../../rules.mk
 
-LOAD_ADDR = 0x200000
+LOAD_ADDR = 0x82000000
 
 BUNDLE += ../../drivers/ping
 BUNDLE += ../../drivers/pong
@@ -14,8 +14,9 @@ BUNDLE += ../../drivers/pong
 KERNEL_SRC_A += 
 
 KERNEL_SRC_C += \
-	trap.c       \
-	serial.c
+	trap.c        \
+	serial.c      \
+	systick.c
 
 include ../Makefile
 

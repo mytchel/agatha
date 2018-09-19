@@ -1,4 +1,3 @@
-ARCH ?= arm
 CROSS ?= arm-none-eabi
 
 CC = $(CROSS)-gcc
@@ -21,5 +20,5 @@ LDFLAGS += \
   -L${BASE}/arm/lib \
   -L/usr/local/lib/gcc/$(CROSS)/6.3.1 
 
-include ${BASE}/arm/${BOARD}/rules.mk
+include ${BASE}/arm/${CPU}/rules.mk
 

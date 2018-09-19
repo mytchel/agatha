@@ -1,8 +1,8 @@
 #include "../../port/head.h"
 #include "../kern/fns.h"
 #include "../kern/trap.h"
-#include "cortex_a9_gic.h"
-#include "cortex_a9_pt_wd.h"
+#include <arm/cortex_a9_gic.h>
+#include <arm/cortex_a9_pt_wd.h>
 
 static volatile struct cortex_a9_gic_dst_regs *dregs;
 static volatile struct cortex_a9_gic_cpu_regs *cregs;

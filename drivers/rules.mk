@@ -1,12 +1,14 @@
 all: out.elf out.bin out.list
 
-include ../../../../rules.mk
+include ${BASE}/rules.mk
 
 CLEAN = out.elf out.bin out.list
 
 OBJECTS = $(SRC:%.c=%.o)
 
 CLEAN += $(OBJECTS)
+
+LIBS += -lc -lstring -lgcc
 
 out.elf: $(USER.LD) $(OBJECTS)
 	@echo LD $@
@@ -15,7 +17,7 @@ out.elf: $(USER.LD) $(OBJECTS)
 		-Ttext ${USER_ADDR} \
 		-o $@ \
 		$(OBJECTS) \
-		-lc -lstring -lgcc 
+		$(LIBS)
 
 clean:
 	@rm -f $(CLEAN)

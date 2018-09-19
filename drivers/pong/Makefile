@@ -3,5 +3,5 @@ PROG = pong
 SRC = \
 	main.c
 
-include ../Makefile
+include ../rules.mk
 

@@ -3,5 +3,5 @@ PROG = mmc-pl18x
 SRC = \
 	main.c
 
-include ../Makefile
+include ${BASE}/drivers/rules.mk
 

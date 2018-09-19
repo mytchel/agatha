@@ -4,16 +4,16 @@ LIBS = ../lib/libc ../../lib/libstring
 clean:
 	@rm -f $(CLEAN)
 	@for B in $(BUNDLE); do \
-		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} clean; \
+		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} CPU=${CPU} clean; \
 	done
 	@for L in $(LIBS); do \
-		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} clean; \
+		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} CPU=${CPU} clean; \
 	done
 
 .PHONE: build_libs
 build_libs:
 	@for L in $(LIBS); do \
-		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD}; \
+		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} CPU=${CPU}; \
 	done
 
 KERNEL_SRC_A += \
@@ -41,7 +41,7 @@ KERNEL_OBJECTS = \
 bundle.bin bundle.c:
 	@echo BUNDLE $(BUNDLE)
 	@for B in $(BUNDLE); do \
-		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} || exit 1; \
+		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} CPU=${CPU} || exit 1; \
 		done
 	@sh ../bundle.sh \
 		bundle.bin \
