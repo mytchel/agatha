@@ -15,8 +15,7 @@ USER_ADDR = 0x00020000
 CFLAGS += \
 	-fno-stack-protector \
 	-DUSER_ADDR=$(USER_ADDR) \
-	-I$(BASE)/arm/include \
-	-DDEBUG
+	-I$(BASE)/arm/include
 
 LDFLAGS += \
   -L${BASE}/arm/lib \

@@ -1,0 +1,21 @@
+all: build_libs kern.umg  kern.list ../proc0/proc0.list
+
+BASE = ${PWD}/../..
+ARCH = arm
+BOARD = bcm2835
+
+include ../../rules.mk
+
+LOAD_ADDR = 0x200000
+
+BUNDLE += ../../drivers/ping
+BUNDLE += ../../drivers/pong
+
+KERNEL_SRC_A += 
+
+KERNEL_SRC_C += \
+	trap.c       \
+	serial.c
+
+include ../Makefile
+

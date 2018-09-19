@@ -16,7 +16,7 @@ main(void)
   while (true) {
     snprintf((char *) m, MESSAGE_LEN, "Hello. %i\n", i++);
     send(2, m);
-    recv(m);
+    recv(2, m);
   }
 }
 

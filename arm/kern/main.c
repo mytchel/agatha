@@ -129,15 +129,19 @@ init_proc0(void)
 	return p;
 }
 
-size_t kernel_va_slot;
-
 	void *
 kernel_map(size_t pa, size_t len, int ap, bool cache)
 {
+	static size_t va_next = 0;
 	size_t va;
 
-	va = kernel_va_slot;
-	kernel_va_slot += PAGE_ALIGN(len);
+	if (va_next == 0) {
+		va_next = info->kernel_pa + info->kernel_len;
+	}
+
+	va = va_next;
+
+	va_next += PAGE_ALIGN(len);
 
 	map_pages(kernel_l2, pa, va, len, ap, cache);
 
@@ -171,8 +175,6 @@ main(void)
 			info->kernel_len, 
 			AP_RW_NO, true);
 
-	kernel_va_slot = info->kernel_pa + info->kernel_len;
-
 	mmu_load_ttb(kernel_l1);
 	mmu_invalidate();
 	mmu_enable();
@@ -182,6 +184,8 @@ main(void)
 	get_systick();
 
 	p0 = init_proc0();
+
+	debug("scheduling proc0\n");
 
 	schedule(p0);
 }

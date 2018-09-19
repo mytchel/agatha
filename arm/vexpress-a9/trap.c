@@ -1,12 +1,12 @@
 #include "../../port/head.h"
 #include "../kern/fns.h"
 #include "../kern/trap.h"
-#include <arm/cortex_a9_gic.h>
-#include <arm/cortex_a9_pt_wd.h>
+#include "cortex_a9_gic.h"
+#include "cortex_a9_pt_wd.h"
 
-static struct cortex_a9_gic_dst_regs *dregs;
-static struct cortex_a9_gic_cpu_regs *cregs;
-static struct cortex_a9_pt_wd_regs *pt_regs;
+static volatile struct cortex_a9_gic_dst_regs *dregs;
+static volatile struct cortex_a9_gic_cpu_regs *cregs;
+static volatile struct cortex_a9_pt_wd_regs *pt_regs;
 
 static void (*kernel_handlers[256])(size_t) = { nil };
 static proc_t user_handlers[256] = { nil };
@@ -186,6 +186,7 @@ get_intc(void)
 void
 set_systick(size_t ms)
 {
+	debug("set systick\n");
 	pt_regs->t_load = ms * 100000;
 	pt_regs->t_control |= 1;
 }

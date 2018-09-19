@@ -21,7 +21,7 @@ _start:
 
 
 raise:
-	ldr pc, =#0xdeadbeef
+	add pc, lr, #0xa0000000
 	b .
 
 

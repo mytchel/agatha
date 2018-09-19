@@ -50,8 +50,8 @@ _start:
 	cps #MODE_SVC
 	ldr sp, =_ex_stack_top
 	
-	bl vector_table_init
-
+	#bl vector_table_init
+	
 	mov r0, r9
 	mov r1, r10
 

@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <arm/pl01x.h>
 
-static struct pl01x_regs *regs;
+static volatile struct pl01x_regs *regs;
 static size_t regs_pa, regs_len;
 
   static void
@@ -29,7 +29,7 @@ get_serial(void)
 	regs_len = 1 << 12;
 
 	regs = kernel_map(regs_pa, regs_len, AP_RW_NO, false);
-		
-	debug("kernel pl01x ready\n");
+
+	debug("kernel pl02x ready\n");
 }
 

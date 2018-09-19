@@ -45,7 +45,7 @@ Then go to the directory of the board you want to build
 and run make. For example to build for vexpress-a9:
 
 ```
-export CROSS=arm-none-eabi-
+export CROSS=arm-none-eabi
 cd arm/vexpress-a9
 make
 ```

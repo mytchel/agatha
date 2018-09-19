@@ -6,7 +6,7 @@
 #include <m.h>
 #include <arm/pl01x.h>
 
-static struct pl01x_regs *regs;
+static volatile struct pl01x_regs *regs;
 
 extern uint32_t *_data_end;
 
@@ -17,6 +17,9 @@ putc(char c)
 		;
 
 	regs->dr = c;  
+
+	if (c == '\n')
+		putc('\r');
 }
 
   void
