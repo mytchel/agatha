@@ -247,34 +247,67 @@ mmc_startup(void)
 
 uint8_t buffer[2048];
 
-void
-test(void)
+int
+mmc_read_block(size_t blk, void *buffer)
 {
 	struct mmc_cmd cmd;
 	struct mmc_data data;
-	int ret;
 
 	cmd.cmdidx = MMC_CMD_READ_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
-	cmd.cmdarg = 0;
+	cmd.cmdarg = blk;
 
 	data.dest = buffer;
 	data.blocks = 1;
 	data.blocksize = bl_len;
 	data.flags = MMC_DATA_READ;
 
-	ret = do_data_transfer(&cmd, &data);
+	return do_data_transfer(&cmd, &data);
+}
+
+	int
+mmc_write_block(size_t blk, void *buffer)
+{
+	struct mmc_cmd cmd;
+	struct mmc_data data;
+
+	cmd.cmdidx = MMC_CMD_WRITE_SINGLE_BLOCK;
+	cmd.resp_type = MMC_RSP_R1;
+	cmd.cmdarg = blk;
+
+	data.dest = buffer;
+	data.blocks = 1;
+	data.blocksize = bl_len;
+	data.flags = MMC_DATA_WRITE;
+
+	return do_data_transfer(&cmd, &data);
+}
+
+void
+test(void)
+{
+	int ret, i;
+
+	debug("do data blk 0\n");
+	ret = mmc_read_block(0, buffer);
 	if (ret != OK) {
-		debug("do_data_transfer failed\n");
+		debug("mmc_read-block failed\n");
 		raise();
 	}
 
 	debug("data read:\n");
-	int i;
 	for (i = 0; i < bl_len; i++) {
 		debug("0x%h : 0x%h\n", i, buffer[i]);
 	}
 
+	uint8_t t[32] = "Hello there.";
+	memcpy(buffer + 0x1e0, t, sizeof(t));
+	
+	ret = mmc_write_block(0, buffer);
+	if (ret != OK) {
+		debug("mmc_write_block failed\n");
+		raise();
+	}
 }
 
 	void
