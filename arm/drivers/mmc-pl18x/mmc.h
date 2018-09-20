@@ -371,3 +371,24 @@ enum bus_mode {
 /* Set block count limit because of 16 bit register limit on some hardware*/
 #define CONFIG_SYS_MMC_MAX_BLK_COUNT 65535
 
+int
+pl18x_map(void);
+
+int
+pl18x_init(void);
+
+void
+debug(char *fmt, ...);
+
+void
+udelay(size_t us);
+
+int
+do_data_transfer(struct mmc_cmd *cmd, 
+		struct mmc_data *data);
+
+int
+do_command(struct mmc_cmd *cmd);
+
+uint32_t ocr, rca;
+

@@ -181,14 +181,11 @@ get_intc(void)
 
 	gic_dst_init();
 	gic_cpu_init();
-
-	debug("intc ready, implimentation %i\n", cregs->implementation);
 }
 
 void
 set_systick(size_t ms)
 {
-	debug("set systick\n");
 	pt_regs->t_load = ms * 100000;
 	pt_regs->t_control |= 1;
 }
@@ -196,7 +193,6 @@ set_systick(size_t ms)
 static void 
 systick(size_t irq)
 {
-	debug("systick\n");
 	pt_regs->t_intr = 1;
 	schedule(nil);
 }

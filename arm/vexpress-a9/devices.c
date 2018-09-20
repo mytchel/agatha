@@ -9,7 +9,11 @@ struct device devices[] = {
 	},
 
 	/* Devices */
-	{ "mmc1", "mmc",
+	{ "sysreg", "sp810",
+		0x10000000, 0x1000,
+		0
+	},
+		{ "mmc0", "pl19x",
 		0x10005000, 0x1000,
 		41
 	},

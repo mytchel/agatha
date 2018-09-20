@@ -40,8 +40,6 @@ next_proc(void)
 	void
 schedule(proc_t n)
 {
-	debug("schedule\n");
-
 	/* Until a better scheduler is created */
 	if (up != nil) {
 		if (up->state == PROC_oncpu) {
@@ -60,7 +58,6 @@ schedule(proc_t n)
 	}
 
 	if (up != nil) {
-		debug("switch mmu\n");
 		mmu_switch(up->vspace);
 
 		set_systick(1000);

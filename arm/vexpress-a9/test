@@ -7,5 +7,6 @@ export BRIDGE=bridge0
 
 qemu-system-arm -M vexpress-a9 -nographic \
 	-net nic -net tap \
-	-kernel u-boot 
+	-kernel u-boot \
+	-sd disk.img
 

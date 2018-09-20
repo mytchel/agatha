@@ -1,3 +1,3 @@
-CFLAGS += -DDEBUG -g
+CFLAGS += 
 LDFLAGS +=
 
