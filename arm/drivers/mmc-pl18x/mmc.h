@@ -331,8 +331,8 @@ struct mmc_cmd {
 
 struct mmc_data {
 	union {
-		char *dest;
-		const char *src; /* src buffers don't get written to */
+		uint32_t *dest;
+		const uint32_t *src; /* src buffers don't get written to */
 	};
 	uint flags;
 	uint blocks;
@@ -371,24 +371,24 @@ enum bus_mode {
 /* Set block count limit because of 16 bit register limit on some hardware*/
 #define CONFIG_SYS_MMC_MAX_BLK_COUNT 65535
 
-int
-pl18x_map(void);
+struct mmc {
+	volatile void *base;
+	struct mmc_cid cid;
+	size_t block_len;
+	size_t capacity;
+	uint32_t csd[4];
+	uint32_t voltages;
+	uint32_t ocr, rca;
+
+	int (*command)(struct mmc *mmc, 
+			struct mmc_cmd *cmd);
+	int (*transfer)(struct mmc *mmc,
+			struct mmc_cmd *cmd,
+			struct mmc_data *data);
+	int (*set_ios)(struct mmc *mmc);
+	int (*reset)(struct mmc *mmc);
+};
 
 int
-pl18x_init(void);
-
-void
-debug(char *fmt, ...);
-
-void
-udelay(size_t us);
-
-int
-do_data_transfer(struct mmc_cmd *cmd, 
-		struct mmc_data *data);
-
-int
-do_command(struct mmc_cmd *cmd);
-
-uint32_t ocr, rca;
+mmc_start(struct mmc *mmc);
 

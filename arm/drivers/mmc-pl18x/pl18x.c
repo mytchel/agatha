@@ -25,12 +25,22 @@
 
 extern uint32_t *_data_end;
 
-static volatile struct pl18x_regs *regs;
+void
+debug(char *fmt, ...);
 
-uint32_t rca, ocr;
+static void
+udelay(size_t us)
+{
+	size_t j;
+
+	while (us-- > 0)
+		for (j = 0; j < 1000; j++)
+			;
+}
 
 static int 
-wait_for_command_end(struct mmc_cmd *cmd)
+wait_for_command_end(volatile struct pl18x_regs *regs,
+		struct mmc_cmd *cmd)
 {
 	u32 hoststatus, statusmask;
 
@@ -69,9 +79,10 @@ wait_for_command_end(struct mmc_cmd *cmd)
 	return 0;
 }
 
-int 
-do_command(struct mmc_cmd *cmd)
+static int 
+do_command(struct mmc *mmc, struct mmc_cmd *cmd)
 {
+	volatile struct pl18x_regs *regs = mmc->base;
 	uint32_t sdi_cmd = 0;
 	int result;
 
@@ -88,11 +99,11 @@ do_command(struct mmc_cmd *cmd)
 	regs->argument = cmd->cmdarg;
 	udelay(COMMAND_REG_DELAY);
 	regs->command = sdi_cmd;
-	result = wait_for_command_end(cmd);
+	result = wait_for_command_end(regs, cmd);
 
 	/* After CMD2 set RCA to a none zero value. */
 	if ((result == 0) && (cmd->cmdidx == MMC_CMD_ALL_SEND_CID))
-		rca = 10;
+		mmc->rca = 10;
 
 	/* After CMD3 open drain is switched off and push pull is used. */
 	if ((result == 0) && (cmd->cmdidx == MMC_CMD_SET_RELATIVE_ADDR)) {
@@ -104,11 +115,12 @@ do_command(struct mmc_cmd *cmd)
 }
 
 static int 
-read_bytes(u32 *dest, u32 blkcount, u32 blksize)
+read_bytes(volatile struct pl18x_regs *regs,
+		uint32_t *dest, uint32_t blkcount, uint32_t blksize)
 {
-	u64 xfercount = blkcount * blksize;
-	u32 *tempbuff = dest;
-	u32 status, status_err;
+	uint64_t xfercount = blkcount * blksize;
+	uint32_t *tempbuff = dest;
+	uint32_t status, status_err;
 
 	status = regs->status;
 	status_err = status & (SDI_STA_DCRCFAIL | SDI_STA_DTIMEOUT |
@@ -152,11 +164,12 @@ read_bytes(u32 *dest, u32 blkcount, u32 blksize)
 }
 
 static int 
-write_bytes(u32 *src, u32 blkcount, u32 blksize)
+write_bytes(volatile struct pl18x_regs *regs,
+		const uint32_t *src, uint32_t blkcount, uint32_t blksize)
 {
-	u32 *tempbuff = src;
-	u64 xfercount = blkcount * blksize;
-	u32 status, status_err;
+	const uint32_t *tempbuff = src;
+	uint64_t xfercount = blkcount * blksize;
+	uint32_t status, status_err;
 	int i;
 
 	status = regs->status;
@@ -203,14 +216,17 @@ write_bytes(u32 *src, u32 blkcount, u32 blksize)
 	return 0;
 }
 
-int 
-do_data_transfer(struct mmc_cmd *cmd,
+static int 
+do_data_transfer(struct mmc *mmc, 
+		struct mmc_cmd *cmd,
 			    struct mmc_data *data)
 {
+	volatile struct pl18x_regs *regs = mmc->base;
 	int error = ERR;
-	u32 blksz = 0;
-	u32 data_ctrl = 0;
-	u32 data_len = (u32) (data->blocks * data->blocksize);
+
+	uint32_t blksz = 0;
+	uint32_t data_ctrl = 0;
+	uint32_t data_len = (uint32_t) (data->blocks * data->blocksize);
 
 	blksz = data->blocksize;
 	data_ctrl |= (blksz << SDI_DCTRL_DBLOCKSIZE_V2_SHIFT);
@@ -225,29 +241,31 @@ do_data_transfer(struct mmc_cmd *cmd,
 		data_ctrl |= SDI_DCTRL_DTDIR_IN;
 		regs->datactrl = data_ctrl;
 
-		error = do_command(cmd);
+		error = do_command(mmc, cmd);
 		if (error)
 			return error;
 
-		error = read_bytes((u32 *)data->dest, (u32)data->blocks,
-				   (u32)data->blocksize);
+		error = read_bytes(mmc->base, data->dest, data->blocks,
+				   data->blocksize);
+
 	} else if (data->flags & MMC_DATA_WRITE) {
-		error = do_command(cmd);
+		error = do_command(mmc, cmd);
 		if (error)
 			return error;
 
 		regs->datactrl = data_ctrl;
-		error = write_bytes((u32 *)data->src, (u32)data->blocks,
-							(u32)data->blocksize);
+		error = write_bytes(mmc->base, data->src, data->blocks,
+							data->blocksize);
 	}
 
 	return error;
 }
 
-int
-host_set_ios(void)
+static int
+pl18x_set_ios(struct mmc *mmc)
 {
-	u32 sdi_clkcr;
+	volatile struct pl18x_regs *regs = mmc->base;
+	uint32_t sdi_clkcr;
 
 	sdi_clkcr = regs->clock;
 
@@ -265,16 +283,18 @@ host_set_ios(void)
 	return 0;
 }
 
-int
-pl18x_reset(void)
+static int
+pl18x_reset(struct mmc *mmc)
 {
+	volatile struct pl18x_regs *regs = mmc->base;
+	
 	regs->power = INIT_PWR;
 
 	return 0;
 }
 
-int 
-pl18x_init(void)
+static int 
+pl18x_init(volatile struct pl18x_regs *regs)
 {
 	u32 sdi_u32;
 
@@ -290,9 +310,10 @@ pl18x_init(void)
 	return 0;
 }
 
-int
+static volatile struct pl18x_regs * 
 pl18x_map(void)
 {
+	volatile struct pl18x_regs *regs;
 	size_t regs_pa, regs_len;
 	struct proc0_req rq;
 	struct proc0_rsp rp;
@@ -311,7 +332,7 @@ pl18x_map(void)
 		;
 
 	if (rp.ret != OK) {
-		return rp.ret;
+		return nil;
 	}
 
 	regs = (void *) PAGE_ALIGN(&_data_end);
@@ -328,7 +349,42 @@ pl18x_map(void)
 	while (recv(0, (uint8_t *) &rp) != 0)
 		;
 
-	return rp.ret;
+	if (rp.ret != OK) {
+		return nil;
+	}
+
+	return regs;
 }
 
+void
+main(void)
+{
+	volatile struct pl18x_regs *regs;
+	struct mmc mmc;
+
+	int ret;
+
+	regs = pl18x_map();
+	if (regs == nil) {
+		debug("pl18x_map failed!\n");
+		raise();
+	}
+
+	ret = pl18x_init(regs);
+	if (ret != OK) {
+		debug("pl18x_map failed!\n");
+		raise();
+	}
+
+	mmc.base = regs;
+	mmc.voltages = 0xff8080;
+
+	mmc.command = &do_command;
+	mmc.transfer = &do_data_transfer;
+	mmc.set_ios = &pl18x_set_ios;
+	mmc.reset = &pl18x_reset;
+
+	ret = mmc_start(&mmc);
+	raise();
+}
 
