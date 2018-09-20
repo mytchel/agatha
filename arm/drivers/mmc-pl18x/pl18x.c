@@ -21,12 +21,23 @@
 #include <string.h>
 
 #include <arm/pl18x.h>
-#include "mmc.h"
+#include <mmc.h>
 
 extern uint32_t *_data_end;
 
 void
-debug(char *fmt, ...);
+debug(struct mmc *mmc, char *fmt, ...)
+{
+	char s[MESSAGE_LEN] = "MMC0: ";
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(s + 6, sizeof(s) - 6, fmt, ap);
+	va_end(ap);
+
+	send(1, (uint8_t *) s);
+	recv(1, (uint8_t *) s);
+}
 
 static void
 udelay(size_t us)
@@ -39,9 +50,10 @@ udelay(size_t us)
 }
 
 static int 
-wait_for_command_end(volatile struct pl18x_regs *regs,
+wait_for_command_end(struct mmc *mmc,
 		struct mmc_cmd *cmd)
 {
+	volatile struct pl18x_regs *regs = mmc->base;
 	u32 hoststatus, statusmask;
 
 	statusmask = SDI_STA_CTIMEOUT | SDI_STA_CCRCFAIL;
@@ -55,19 +67,19 @@ wait_for_command_end(volatile struct pl18x_regs *regs,
 		hoststatus = regs->status & statusmask;
 	} while (!hoststatus);
 
-	debug("mmc command done\n");
+	debug(mmc, "mmc command done\n");
 
 	regs->clear = statusmask;
 	if (hoststatus & SDI_STA_CTIMEOUT) {
-		debug("mmc cmd %i timed out\n", cmd->cmdidx);
+		debug(mmc, "mmc cmd %i timed out\n", cmd->cmdidx);
 		return -1;
 	} else if ((hoststatus & SDI_STA_CCRCFAIL) &&
 		   (cmd->resp_type & MMC_RSP_CRC)) {
-		debug("mmc cmd %i crc error\n", cmd->cmdidx);
+		debug(mmc, "mmc cmd %i crc error\n", cmd->cmdidx);
 		return -1;
 	}
 
-	debug("mmc cmd %i good\n", cmd->cmdidx);
+	debug(mmc, "mmc cmd %i good\n", cmd->cmdidx);
 
 	if (cmd->resp_type & MMC_RSP_PRESENT) {
 		cmd->response[0] = regs->response[0];
@@ -86,7 +98,7 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd)
 	uint32_t sdi_cmd = 0;
 	int result;
 
-	debug("do_command %i\n", cmd->cmdidx);
+	debug(mmc, "do_command %i\n", cmd->cmdidx);
 
 	sdi_cmd = ((cmd->cmdidx & SDI_CMD_CMDINDEX_MASK) | SDI_CMD_CPSMEN);
 
@@ -99,7 +111,7 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd)
 	regs->argument = cmd->cmdarg;
 	udelay(COMMAND_REG_DELAY);
 	regs->command = sdi_cmd;
-	result = wait_for_command_end(regs, cmd);
+	result = wait_for_command_end(mmc, cmd);
 
 	/* After CMD2 set RCA to a none zero value. */
 	if ((result == 0) && (cmd->cmdidx == MMC_CMD_ALL_SEND_CID))
@@ -275,10 +287,10 @@ pl18x_set_ios(struct mmc *mmc)
 	sdi_clkcr &= ~(SDI_CLKCR_WIDBUS_MASK);
 	sdi_clkcr |= SDI_CLKCR_WIDBUS_1;
 
-	debug("setting clock to 0x%h\n", sdi_clkcr);
+	debug(mmc, "setting clock to 0x%h\n", sdi_clkcr);
 	regs->clock = sdi_clkcr;
 	udelay(CLK_CHANGE_DELAY);
-	debug("clock now 0x%h\n", regs->clock);
+	debug(mmc, "clock now 0x%h\n", regs->clock);
 
 	return 0;
 }
@@ -318,8 +330,6 @@ pl18x_map(void)
 	struct proc0_req rq;
 	struct proc0_rsp rp;
 
-	debug("mmc debug test\n");
-
 	regs_pa = 0x10000000 + (5 << 12);
 	regs_len = 1 << 12;
 
@@ -337,7 +347,7 @@ pl18x_map(void)
 
 	regs = (void *) PAGE_ALIGN(&_data_end);
 	
-	debug("mmc regs 0x%h mapping at 0x%h\n", regs_pa, regs);
+	debug(nil, "mmc regs 0x%h mapping at 0x%h\n", regs_pa, regs);
 
 	rq.type = PROC0_addr_map;
 	rq.m.addr_map.pa = regs_pa;
@@ -366,13 +376,13 @@ main(void)
 
 	regs = pl18x_map();
 	if (regs == nil) {
-		debug("pl18x_map failed!\n");
+		debug(nil, "pl18x_map failed!\n");
 		raise();
 	}
 
 	ret = pl18x_init(regs);
 	if (ret != OK) {
-		debug("pl18x_map failed!\n");
+		debug(nil, "pl18x_map failed!\n");
 		raise();
 	}
 
@@ -383,6 +393,8 @@ main(void)
 	mmc.transfer = &do_data_transfer;
 	mmc.set_ios = &pl18x_set_ios;
 	mmc.reset = &pl18x_reset;
+	
+	mmc.debug = &debug;
 
 	ret = mmc_start(&mmc);
 	raise();

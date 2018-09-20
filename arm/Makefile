@@ -1,4 +1,4 @@
-LIBS = ../lib/libc ../../lib/libstring
+LIBS = ../lib/libc ../../lib/libstring ../../lib/libsdmmc
 
 .PHONY: clean
 clean:

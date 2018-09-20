@@ -1,9 +1,8 @@
 PROG = mmc-pl18x
 
+LIBS = -lsdmmc
 SRC = \
-	main.c \
-	pl18x.c \
-	util.c
+	pl18x.c
 
 include ${BASE}/drivers/rules.mk
 
