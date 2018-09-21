@@ -16,27 +16,28 @@
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
-#include <m.h>
 #include <stdarg.h>
 #include <string.h>
-
+#include <proc0.h>
 #include <arm/pl18x.h>
-#include <mmc.h>
+#include <sdmmc.h>
 
 extern uint32_t *_data_end;
 
 void
 debug(struct mmc *mmc, char *fmt, ...)
 {
-	char s[MESSAGE_LEN] = "MMC0: ";
+	char s[MESSAGE_LEN] = "pl18x:0: ";
 	va_list ap;
 
 	va_start(ap, fmt);
-	vsnprintf(s + 6, sizeof(s) - 6, fmt, ap);
+	vsnprintf(s + strlen(s), 
+			sizeof(s) - strlen(s), 
+			fmt, ap);
 	va_end(ap);
 
-	send(1, (uint8_t *) s);
-	recv(1, (uint8_t *) s);
+	send(2, (uint8_t *) s);
+	recv(2, (uint8_t *) s);
 }
 
 static void
@@ -67,8 +68,6 @@ wait_for_command_end(struct mmc *mmc,
 		hoststatus = regs->status & statusmask;
 	} while (!hoststatus);
 
-	debug(mmc, "mmc command done\n");
-
 	regs->clear = statusmask;
 	if (hoststatus & SDI_STA_CTIMEOUT) {
 		debug(mmc, "mmc cmd %i timed out\n", cmd->cmdidx);
@@ -78,8 +77,6 @@ wait_for_command_end(struct mmc *mmc,
 		debug(mmc, "mmc cmd %i crc error\n", cmd->cmdidx);
 		return -1;
 	}
-
-	debug(mmc, "mmc cmd %i good\n", cmd->cmdidx);
 
 	if (cmd->resp_type & MMC_RSP_PRESENT) {
 		cmd->response[0] = regs->response[0];
@@ -97,8 +94,6 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd)
 	volatile struct pl18x_regs *regs = mmc->base;
 	uint32_t sdi_cmd = 0;
 	int result;
-
-	debug(mmc, "do_command %i\n", cmd->cmdidx);
 
 	sdi_cmd = ((cmd->cmdidx & SDI_CMD_CMDINDEX_MASK) | SDI_CMD_CPSMEN);
 
@@ -327,21 +322,21 @@ pl18x_map(void)
 {
 	volatile struct pl18x_regs *regs;
 	size_t regs_pa, regs_len;
-	struct proc0_req rq;
-	struct proc0_rsp rp;
+	union proc0_req rq;
+	union proc0_rsp rp;
 
 	regs_pa = 0x10000000 + (5 << 12);
 	regs_len = 1 << 12;
 
-	rq.type = PROC0_addr_req;
-	rq.m.addr_req.pa = regs_pa;
-	rq.m.addr_req.len = regs_len;
+	rq.addr_req.type = PROC0_addr_req;
+	rq.addr_req.pa = regs_pa;
+	rq.addr_req.len = regs_len;
 
 	send(0, (uint8_t *) &rq);
 	while (recv(0, (uint8_t *) &rp) != 0)
 		;
 
-	if (rp.ret != OK) {
+	if (rp.addr_req.ret != OK) {
 		return nil;
 	}
 
@@ -349,17 +344,17 @@ pl18x_map(void)
 	
 	debug(nil, "mmc regs 0x%h mapping at 0x%h\n", regs_pa, regs);
 
-	rq.type = PROC0_addr_map;
-	rq.m.addr_map.pa = regs_pa;
-	rq.m.addr_map.len = regs_len;
-	rq.m.addr_map.va = (size_t) regs;
-	rq.m.addr_map.flags = MAP_DEV|MAP_RW;
+	rq.addr_map.type = PROC0_addr_map;
+	rq.addr_map.pa = regs_pa;
+	rq.addr_map.len = regs_len;
+	rq.addr_map.va = (size_t) regs;
+	rq.addr_map.flags = MAP_DEV|MAP_RW;
 
 	send(0, (uint8_t *) &rq);
 	while (recv(0, (uint8_t *) &rp) != 0)
 		;
 
-	if (rp.ret != OK) {
+	if (rp.addr_map.ret != OK) {
 		return nil;
 	}
 
@@ -370,6 +365,7 @@ void
 main(void)
 {
 	volatile struct pl18x_regs *regs;
+	char *name = "sdmmc0";
 	struct mmc mmc;
 
 	int ret;
@@ -387,6 +383,8 @@ main(void)
 	}
 
 	mmc.base = regs;
+	mmc.name = name;
+
 	mmc.voltages = 0xff8080;
 
 	mmc.command = &do_command;
@@ -397,6 +395,7 @@ main(void)
 	mmc.debug = &debug;
 
 	ret = mmc_start(&mmc);
+	debug(nil, "mmc_start returned %i\n", ret);
 	raise();
 }
 

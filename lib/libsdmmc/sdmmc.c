@@ -14,11 +14,11 @@
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
-#include <m.h>
+#include <proc0.h>
 #include <stdarg.h>
 #include <string.h>
-
-#include "mmc.h"
+#include <sdmmc.h>
+#include <block_dev.h>
 
 int
 mmc_go_idle(struct mmc *mmc)
@@ -274,54 +274,76 @@ mmc_write_block(struct mmc *mmc, size_t blk, void *buffer)
 	return mmc->transfer(mmc, &cmd, &data);
 }
 
-void
-test(struct mmc *mmc)
+int
+read_blocks(struct block_dev *dev,
+		void *buf, size_t idx, size_t n)
 {
-	int ret, i;
+	struct mmc *mmc = dev->arg;
+	int i, ret;
 
-	mmc->debug(mmc, "do data blk 0\n");
-	ret = mmc_read_block(mmc, 0, buffer);
-	if (ret != OK) {
-		mmc->debug(mmc, "mmc_read-block failed\n");
-		raise();
+	for (i = 0; i < n; i++) {
+		ret = mmc_read_block(mmc,
+				idx + i, buf + i * mmc->block_len);
+		if (ret != OK) {
+			return ret;
+		}
 	}
 
-	mmc->debug(mmc, "data read:\n");
-	for (i = 0; i < mmc->block_len; i++) {
-		mmc->debug(mmc, "0x%h : 0x%h\n", i, buffer[i]);
+	return OK;
+}
+
+int
+write_blocks(struct block_dev *dev,
+		void *buf, size_t idx, size_t n)
+{
+	struct mmc *mmc = dev->arg;
+	int i, ret;
+
+	for (i = 0; i < n; i++) {
+		ret = mmc_write_block(mmc,
+				idx + i, buf + i * mmc->block_len);
+		if (ret != OK) {
+			return ret;
+		}
 	}
 
-	uint8_t t[32] = "Hello there.";
-	memcpy(buffer + 0x1e0, t, sizeof(t));
-	
-	ret = mmc_write_block(mmc, 0, buffer);
-	if (ret != OK) {
-		mmc->debug(mmc, "mmc_write_block failed\n");
-		raise();
-	}
+	return OK;
 }
 
 int
 mmc_start(struct mmc *mmc)
 {
+	struct block_dev dev;
 	int ret;
 
 	mmc->debug(mmc, "mmc start_init\n");
 	ret = mmc_start_init(mmc);
-	if (ret != OK)
-		raise();
+	if (ret != OK) {
+		mmc->debug(mmc, "mmc_start_init failed\n");
+		return ret;
+	}
 
 	mmc->debug(mmc, "mmc startup\n");
 	ret = mmc_startup(mmc);
-	if (ret != OK)
-		raise();
-
-	test(mmc);
-
-	mmc->debug(mmc, "mmc loop\n");
-	while (true) {
-
+	if (ret != OK) {
+		mmc->debug(mmc, "mmc_startup failed\n");
+		return ret;
 	}
+
+	dev.arg = mmc;
+	dev.block_len = mmc->block_len;
+	dev.name = mmc->name;
+
+	dev.read_blocks = &read_blocks;
+	dev.write_blocks = &write_blocks;
+
+	ret = block_dev_register(&dev);
+	if (ret != OK) {
+		mmc->debug(mmc, "mmc block_dev_register failed\n");
+		return ret;	
+	}
+
+	return OK;
 }
 
 

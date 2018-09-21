@@ -5,7 +5,7 @@
 #include <c.h>
 #include <stdarg.h>
 #include <string.h>
-#include <m.h>
+#include <proc0.h>
 #include <arm/mmu.h>
 
 void

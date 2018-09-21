@@ -372,7 +372,10 @@ enum bus_mode {
 #define CONFIG_SYS_MMC_MAX_BLK_COUNT 65535
 
 struct mmc {
+	char *name;
+
 	volatile void *base;
+
 	struct mmc_cid cid;
 	size_t block_len;
 	size_t capacity;

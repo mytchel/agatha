@@ -1,7 +1,6 @@
-#include "../../port/head.h"
+#include "../../sys/head.h"
 #include "fns.h"
 #include "trap.h"
-#include <m.h>
 
 	void
 trap(size_t pc, int type)

@@ -10,6 +10,7 @@ LOAD_ADDR = 0x62008000
 
 #BUNDLE += ../../drivers/ping
 #BUNDLE += ../../drivers/pong
+BUNDLE += ../../drivers/dev_reg
 BUNDLE += ../drivers/serial-pl01x
 #BUNDLE += ../drivers/sysreg-sp810
 BUNDLE += ../drivers/mmc-pl18x

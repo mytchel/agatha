@@ -1,6 +1,6 @@
 PROG = mmc-pl18x
 
-LIBS = -lsdmmc
+LIBS = -lsdmmc -lblock
 SRC = \
 	pl18x.c
 

@@ -1,4 +1,8 @@
-LIBS = ../lib/libc ../../lib/libstring ../../lib/libsdmmc
+LIBS = \
+			 ../lib/libc \
+			 ../../lib/libstring \
+			 ../../lib/libsdmmc \
+			 ../../lib/libblock
 
 .PHONY: clean
 clean:
@@ -26,9 +30,9 @@ KERNEL_SRC_C += \
 								../kern/intr.c              \
 								../lib/libc/mmu.c           \
 								../lib/libc/util.c          \
-								../../port/debug.c          \
-								../../port/proc.c           \
-								../../port/sys.c            \
+								../../sys/debug.c          \
+								../../sys/proc.c           \
+								../../sys/sys.c            \
 								../../lib/libstring/conv.c  \
 								../../lib/libstring/scanf.c \
 								../../lib/libstring/string.c
