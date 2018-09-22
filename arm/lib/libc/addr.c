@@ -128,8 +128,7 @@ request_device(size_t pa, size_t len, int flags)
 int
 release_addr(size_t pa, size_t len)
 {
-	/* TODO */
-	return ERR;
+	return give_addr(PROC0_PID, pa, len);
 }
 
 int

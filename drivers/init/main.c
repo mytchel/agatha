@@ -55,7 +55,7 @@ test_block(int bpid)
 	union block_dev_req rq;
 	union block_dev_rsp rp;
 	size_t pa, len, i;
-	uint32_t *a;
+	char *a;
 	int ret;
 
 	len = PAGE_SIZE;
@@ -106,8 +106,8 @@ test_block(int bpid)
 
 	debug("test_block mapped at 0x%h\n", a);
 
-	for (i = 0; i < len / sizeof(uint32_t); i++) {
-		debug("%i: 0x%h\n", i, a[i]);
+	for (i = 0; i < len - 3; i += 4) {
+		debug("%i: %h %h %h %h\n", i, a[i], a[i+1], a[i+2], a[i+3]);
 	}
 
 	debug("test_block unmap and release\n");
@@ -130,7 +130,7 @@ main(void)
 	do {
 		block_pid = get_device_pid(block_name);
 	} while (block_pid < 0);
-	
+
 	debug("init using block device %s at %i\n", block_name, block_pid);
 
 	if (test_block(block_pid) != OK) {

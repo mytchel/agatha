@@ -102,7 +102,13 @@ handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
 		return ret;
 	}
 
-	return proc_give_addr(to, pa, len);
+	if (to == PROC0_PID) {
+		free_addr(pa, len);
+		return OK;
+
+	} else {
+		return proc_give_addr(to, pa, len);
+	}
 }
 
 static int irq_owners[256] = { -1 };
