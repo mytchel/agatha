@@ -18,7 +18,7 @@ size_t
 get_ram(size_t len, size_t align);
 
 void
-release_addr(size_t pa, size_t len);
+free_addr(size_t pa, size_t len);
 
 void *
 map_free(size_t pa, size_t len, int ap, bool cache);

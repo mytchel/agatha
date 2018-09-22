@@ -94,7 +94,6 @@ sd_send_op_cond(struct mmc *mmc)
 		}
 
 		if (cmd.response[0] & OCR_BUSY) {
-			mmc->debug(mmc, "got response?\n");
 			break;
 		}
 
@@ -103,8 +102,6 @@ sd_send_op_cond(struct mmc *mmc)
 			return ERR;
 		}
 	}
-
-	mmc->debug(mmc, "so far so good\n");
 
 	mmc->ocr = cmd.response[0];
 	mmc->debug(mmc, "ocr = 0x%h\n", mmc->ocr);
@@ -174,9 +171,7 @@ mmc_startup(struct mmc *mmc)
 	cmd.resp_type = MMC_RSP_R2;
 	cmd.cmdarg = 0;
 
-	mmc->debug(mmc, "try send cid\n");
 	ret = mmc->command(mmc, &cmd);
-
 	if (ret != OK) {
 		mmc->debug(mmc, "send_cid failed\n");
 		return ERR;
@@ -209,16 +204,15 @@ mmc_startup(struct mmc *mmc)
 
 	memcpy(mmc->csd, cmd.response, 16);
 
-	mmc->block_len = 1 << ((cmd.response[1] >> 16) & 0xf);
-
-	mmc->debug(mmc, "bl_len = 0x%h\n", mmc->block_len);
-
 	csize = (mmc->csd[1] & 0x3ff) << 2;
 	cmult = (mmc->csd[2] & 0x00038000) >> 15;
-	mmc->capacity = ((csize + 1) << (cmult + 2)) * mmc->block_len;
+	
+	mmc->block_len = 1 << ((cmd.response[1] >> 16) & 0xf);
+	mmc->nblocks = ((csize + 1) << (cmult + 2));
+	mmc->capacity = mmc->nblocks * mmc->block_len;
 
-	mmc->debug(mmc, "csize = 0x%h, cmult = 0x%h, cap = 0x%h\n",
-			csize, cmult, mmc->capacity);
+	mmc->debug(mmc, "block len = %i, nblocks = %i, capacity = %iMb\n",
+			mmc->block_len, mmc->nblocks, mmc->capacity >> 20);
 
 	cmd.cmdidx = MMC_CMD_SELECT_CARD;
 	cmd.resp_type = MMC_RSP_R1;
@@ -235,8 +229,6 @@ mmc_startup(struct mmc *mmc)
 
 	return OK;
 }
-
-uint8_t buffer[2048];
 
 int
 mmc_read_block(struct mmc *mmc, size_t blk, void *buffer)
@@ -332,6 +324,7 @@ mmc_start(struct mmc *mmc)
 
 	dev.arg = mmc;
 	dev.block_len = mmc->block_len;
+	dev.nblocks = mmc->nblocks;
 	dev.name = mmc->name;
 
 	dev.read_blocks = &read_blocks;

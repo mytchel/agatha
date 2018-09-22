@@ -5,6 +5,7 @@ SRC_A = \
 
 SRC_C = \
 				mmu.c \
+				addr.c \
 				util.c
 
 include ../Makefile

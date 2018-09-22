@@ -22,8 +22,6 @@
 #include <arm/pl18x.h>
 #include <sdmmc.h>
 
-extern uint32_t *_data_end;
-
 void
 debug(struct mmc *mmc, char *fmt, ...)
 {
@@ -317,68 +315,27 @@ pl18x_init(volatile struct pl18x_regs *regs)
 	return 0;
 }
 
-static volatile struct pl18x_regs * 
-pl18x_map(void)
-{
-	volatile struct pl18x_regs *regs;
-	size_t regs_pa, regs_len;
-	union proc0_req rq;
-	union proc0_rsp rp;
-
-	regs_pa = 0x10000000 + (5 << 12);
-	regs_len = 1 << 12;
-
-	rq.addr_req.type = PROC0_addr_req;
-	rq.addr_req.pa = regs_pa;
-	rq.addr_req.len = regs_len;
-
-	send(0, (uint8_t *) &rq);
-	while (recv(0, (uint8_t *) &rp) != 0)
-		;
-
-	if (rp.addr_req.ret != OK) {
-		return nil;
-	}
-
-	regs = (void *) PAGE_ALIGN(&_data_end);
-	
-	debug(nil, "mmc regs 0x%h mapping at 0x%h\n", regs_pa, regs);
-
-	rq.addr_map.type = PROC0_addr_map;
-	rq.addr_map.pa = regs_pa;
-	rq.addr_map.len = regs_len;
-	rq.addr_map.va = (size_t) regs;
-	rq.addr_map.flags = MAP_DEV|MAP_RW;
-
-	send(0, (uint8_t *) &rq);
-	while (recv(0, (uint8_t *) &rp) != 0)
-		;
-
-	if (rp.addr_map.ret != OK) {
-		return nil;
-	}
-
-	return regs;
-}
-
-void
+	void
 main(void)
 {
 	volatile struct pl18x_regs *regs;
 	char *name = "sdmmc0";
+	size_t regs_pa, regs_len;
 	struct mmc mmc;
-
 	int ret;
 
-	regs = pl18x_map();
+	regs_pa = 0x10000000 + (5 << 12);
+	regs_len = 1 << 12;
+
+	regs = request_device(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		debug(nil, "pl18x_map failed!\n");
+		debug(nil, "pl18x failed to get registers!\n");
 		raise();
 	}
 
 	ret = pl18x_init(regs);
 	if (ret != OK) {
-		debug(nil, "pl18x_map failed!\n");
+		debug(nil, "pl18x init failed!\n");
 		raise();
 	}
 

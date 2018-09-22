@@ -378,6 +378,7 @@ struct mmc {
 
 	struct mmc_cid cid;
 	size_t block_len;
+	size_t nblocks;
 	size_t capacity;
 	uint32_t csd[4];
 	uint32_t voltages;

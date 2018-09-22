@@ -59,6 +59,27 @@ handle_addr_map(int from, union proc0_req *rq, union proc0_rsp *rp)
 			rq->addr_map.flags);
 }
 
+	int
+handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
+{
+	size_t pa, len;
+	int to;
+
+	to = rq->addr_give.to;
+
+	len = rq->addr_give.len;
+	if (len != PAGE_ALIGN(len)) {
+		return ERR;
+	}
+	
+	pa = rq->addr_give.pa;
+	if (pa != PAGE_ALIGN(pa)) {
+		return ERR;
+	}
+
+	return proc_give(to, pa, len);
+}
+
 static int irq_owners[256] = { -1 };
 
 int
@@ -123,6 +144,10 @@ main(struct kernel_info *i)
 
 			case PROC0_addr_map:
 				rp->untyped.ret = handle_addr_map(from, rq, rp);
+				break;
+
+			case PROC0_addr_give:
+				rp->untyped.ret = handle_addr_give(from, rq, rp);
 				break;
 
 			case PROC0_irq_reg:

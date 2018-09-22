@@ -26,13 +26,12 @@ A micro kernel.
 It doesn't do much at the moment but it should start up and
 show you that it isn't doing much on the following devices:
 
-- BeagleBone Black
 - qemu vexpress-a9 
 
 Currently the kernel is not portable between devices and
 relies on a board specific `device.c` file and kernel
-device drivers. Each board
-needs to have its own kernel and proc0 compiled.
+device drivers. Each board needs to have its own kernel 
+and proc0 compiled.
 
 ## Trying it out
 

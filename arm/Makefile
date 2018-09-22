@@ -20,26 +20,24 @@ build_libs:
 		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD}; \
 	done
 
-KERNEL_SRC_A += \
+KERNEL_SRC_A = \
 								../kern/vectors.S     \
-								../kern/asm.S
+								../kern/asm.S         \
+								$(BOARD_KERNEL_SRC_A)
 
-KERNEL_SRC_C += \
-								../kern/main.c              \
-								../kern/proc.c              \
-								../kern/intr.c              \
-								../lib/libc/mmu.c           \
-								../lib/libc/util.c          \
-								../../sys/debug.c          \
-								../../sys/proc.c           \
-								../../sys/sys.c            \
-								../../lib/libstring/conv.c  \
-								../../lib/libstring/scanf.c \
-								../../lib/libstring/string.c
-
-KERNEL_OBJECTS = \
-								 $(KERNEL_SRC_A:%.S=%.o) \
-								 $(KERNEL_SRC_C:%.c=%.o) 
+KERNEL_SRC_C = \
+								../kern/main.c               \
+								../kern/proc.c               \
+								../kern/intr.c               \
+								../lib/libc/mmu.c            \
+								../lib/libc/util.c           \
+								../../sys/debug.c            \
+								../../sys/proc.c             \
+								../../sys/sys.c              \
+								../../lib/libstring/conv.c   \
+								../../lib/libstring/scanf.c  \
+								../../lib/libstring/string.c \
+								$(BOARD_KERNEL_SRC_C)
 
 .PHONY: bundle.bin 
 bundle.bin bundle.c:
@@ -65,15 +63,18 @@ proc0.bo: proc0.bin
 
 CLEAN += proc0.bo proc0.bin
 
-CLEAN += kern.elf kern.bin kern.umg kern.list
-CLEAN += $(KERNEL_OBJECTS)
+KERNEL_OBJECTS = $(KERNEL_SRC_A:%.S=%.o) $(KERNEL_SRC_C:%.c=%.o)
 
+CLEAN += $(KERNEL_OBJECTS) 
+CLEAN += kern.elf kern.bin kern.umg kern.list
+		
 kern.elf: ../kernel.ld $(KERNEL_OBJECTS) bundle.bo proc0.bo 
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T ../kernel.ld \
 		-Ttext $(LOAD_ADDR) \
-		-o $@ $(KERNEL_OBJECTS) \
+		-o $@ \
+		$(KERNEL_OBJECTS) \
 		proc0.bo bundle.bo \
 		-lgcc
 

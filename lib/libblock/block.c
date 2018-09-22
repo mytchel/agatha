@@ -10,12 +10,38 @@
 #include <dev_reg.h>
 
 int
+handle_info(int from,
+	union block_dev_req *rq,
+	union block_dev_rsp *rp)
+{
+	return ERR;
+}
+
+int
+handle_read(int from,
+	union block_dev_req *rq,
+	union block_dev_rsp *rp)
+{
+	return ERR;
+}
+	
+int
+handle_write(int from,
+	union block_dev_req *rq,
+	union block_dev_rsp *rp)
+{
+	return ERR;
+}
+		
+int
 block_dev_register(struct block_dev *dev)
 {
 	uint8_t rq_buf[MESSAGE_LEN], rp_buf[MESSAGE_LEN];
 	union dev_reg_req *drq = (union dev_reg_req *) rq_buf;
 	union dev_reg_rsp *drp = (union dev_reg_rsp *) rp_buf;
-	int ret;
+	union block_dev_req *brq = (union block_dev_req *) rq_buf;
+	union block_dev_rsp *brp = (union block_dev_rsp *) rp_buf;
+	int ret, from;
 
 	drq->type = DEV_REG_register;
 	drq->reg.pid = pid();
@@ -31,7 +57,30 @@ block_dev_register(struct block_dev *dev)
 		return drp->reg.ret;
 
 	while (true) {
+		if ((from = recv(-1, rq_buf)) < 0)
+			continue;
 
+		brp->untyped.type = brq->type;
+
+		switch (brq->type) {
+			case BLOCK_DEV_info:
+				brp->untyped.ret = handle_info(from, brq, brp);
+				break;
+
+			case BLOCK_DEV_read:
+				brp->untyped.ret = handle_read(from, brq, brp);
+				break;
+
+			case BLOCK_DEV_write:
+				brp->untyped.ret = handle_write(from, brq, brp);
+				break;
+
+			default:
+				brp->untyped.ret = ERR;
+				break;
+		}
+
+		send(from, rp_buf);
 	}
 
 	return OK;

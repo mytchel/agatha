@@ -3,12 +3,13 @@
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
+#include <stdarg.h>
+#include <string.h>
 #include <proc0.h>
+#include <dev_reg.h>
 #include <arm/pl01x.h>
 
 static volatile struct pl01x_regs *regs;
-
-extern uint32_t *_data_end;
 
   static void
 putc(char c)
@@ -29,52 +30,40 @@ puts(const char *c)
     putc(*c++);
 }
 
-  void
-get_serial(void)
-{
-}
-
-void
+	void
 main(void)
 {
+	char *name = "serial0";
 	size_t regs_pa, regs_len;
-	union proc0_req rq;
-	union proc0_rsp rp;
+	union dev_reg_req drq;
+	union dev_reg_rsp drp;
 	uint8_t m[MESSAGE_LEN];
 	int from;
 
 	regs_pa = 0x10000000 + (9 << 12);
 	regs_len = 1 << 12;
 
-	rq.addr_req.type = PROC0_addr_req;
-	rq.addr_req.pa = regs_pa;
-	rq.addr_req.len = regs_len;
-
-	send(0, (uint8_t *) &rq);
-	while (recv(0, (uint8_t *) &rp) != 0)
-		;
-
-	if (rp.addr_req.ret != OK) {
+	regs = request_device(regs_pa, regs_len, MAP_DEV|MAP_RW);
+	if (regs == nil) {
 		raise();
 	}
 
-	rq.addr_map.type = PROC0_addr_map;
-	rq.addr_map.pa = regs_pa;
-	rq.addr_map.len = regs_len;
-	rq.addr_map.va = PAGE_ALIGN(&_data_end);
-	rq.addr_map.flags = MAP_DEV|MAP_RW;
+	drq.type = DEV_REG_register;
+	drq.reg.pid = pid();
+	snprintf(drq.reg.name, sizeof(drq.reg.name),
+			"%s", name);
 
-	send(0, (uint8_t *) &rq);
-	while (recv(0, (uint8_t *) &rp) != 0)
+	send(DEV_REG_PID, (uint8_t *) &drq);
+	while (recv(DEV_REG_PID, (uint8_t *) &drp) != DEV_REG_PID)
 		;
 
-	if (rp.addr_map.ret != OK) {
+	if (drp.reg.ret != OK) {
 		raise();
 	}
 
-	regs = (void *) rq.addr_map.va;
-	
-	puts("user pl01x ready\n");
+	puts("pl01x ready at ");
+	puts(name);
+	puts("\n");
 	
 	while (true) {
 		from = recv(-1, m);

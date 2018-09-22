@@ -1,3 +1,5 @@
+/* Syscalls */
+
 int
 yield(void);
 
@@ -10,7 +12,20 @@ recv(int from, uint8_t *m);
 int
 pid(void);
 
-void
+/* Proc0 only syscalls */
+
+int
+proc_new(void);
+
+int
+va_table(int p_id, size_t pa);
+
+int
+intr_register(int p_id, size_t irq);
+
+/* Utils */
+
+	void
 raise(void)
   __attribute__((noreturn));
 
@@ -23,14 +38,19 @@ memcpy(void *dst, const void *src, size_t len);
 void
 memset(void *dst, uint8_t v, size_t len);
 
-/* Proc0 syscalls */
+
+/* Address space management */
+
+void *
+request_memory(size_t len, int flags);
+
+void *
+request_device(size_t pa, size_t len, int flags);
 
 int
-proc_new(void);
+release_addr(void *addr, size_t len);
 
 int
-va_table(int p_id, size_t pa);
-
-int
-intr_register(int p_id, size_t irq);
+give_addr(int to, 
+		size_t pa, size_t len);
 
