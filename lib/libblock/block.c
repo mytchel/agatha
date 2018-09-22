@@ -9,31 +9,49 @@
 #include <block_dev.h>
 #include <dev_reg.h>
 
-int
-handle_info(int from,
-	union block_dev_req *rq,
-	union block_dev_rsp *rp)
+	int
+handle_info(struct block_dev *dev,
+		int from,
+		union block_dev_req *rq,
+		union block_dev_rsp *rp)
 {
 	return ERR;
 }
 
-int
-handle_read(int from,
-	union block_dev_req *rq,
-	union block_dev_rsp *rp)
+	int
+handle_read(struct block_dev *dev,
+		int from,
+		union block_dev_req *rq,
+		union block_dev_rsp *rp)
+{
+	void *addr;
+	int ret;
+
+	addr = map_addr(rq->read.pa, rq->read.len, MAP_RW);
+	if (addr == nil) {
+		return -4;
+		return ERR;
+	}
+
+	ret = dev->read_blocks(dev, addr, 
+			rq->read.start, rq->read.nblocks);
+
+	unmap_addr(addr, rq->read.len);
+	give_addr(from, rq->read.pa, rq->read.len);
+
+	return ret;
+}
+
+	int
+handle_write(struct block_dev *dev,
+		int from,
+		union block_dev_req *rq,
+		union block_dev_rsp *rp)
 {
 	return ERR;
 }
-	
-int
-handle_write(int from,
-	union block_dev_req *rq,
-	union block_dev_rsp *rp)
-{
-	return ERR;
-}
-		
-int
+
+	int
 block_dev_register(struct block_dev *dev)
 {
 	uint8_t rq_buf[MESSAGE_LEN], rp_buf[MESSAGE_LEN];
@@ -64,15 +82,15 @@ block_dev_register(struct block_dev *dev)
 
 		switch (brq->type) {
 			case BLOCK_DEV_info:
-				brp->untyped.ret = handle_info(from, brq, brp);
+				brp->untyped.ret = handle_info(dev, from, brq, brp);
 				break;
 
 			case BLOCK_DEV_read:
-				brp->untyped.ret = handle_read(from, brq, brp);
+				brp->untyped.ret = handle_read(dev, from, brq, brp);
 				break;
 
 			case BLOCK_DEV_write:
-				brp->untyped.ret = handle_write(from, brq, brp);
+				brp->untyped.ret = handle_write(dev, from, brq, brp);
 				break;
 
 			default:

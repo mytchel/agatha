@@ -4,10 +4,10 @@ int
 yield(void);
 
 int
-send(int to, uint8_t *m);
+send(int to, void *m);
 
 int
-recv(int from, uint8_t *m);
+recv(int from, void *m);
 
 int
 pid(void);
@@ -41,14 +41,20 @@ memset(void *dst, uint8_t v, size_t len);
 
 /* Address space management */
 
+int
+unmap_addr(void *a, size_t len);
+
 void *
-request_memory(size_t len, int flags);
+map_addr(size_t pa, size_t len, int flags);
+
+size_t
+request_memory(size_t len);
 
 void *
 request_device(size_t pa, size_t len, int flags);
 
 int
-release_addr(void *addr, size_t len);
+release_addr(size_t pa, size_t len);
 
 int
 give_addr(int to, 

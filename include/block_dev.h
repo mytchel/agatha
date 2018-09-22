@@ -7,16 +7,18 @@ union block_dev_req {
 	int type;
 
 	struct {
-		
+		int type;
 	} info;
 
 	struct {
+		int type;
 		size_t pa, len;
 		size_t start;
 		size_t nblocks;
 	} read;
 
 	struct {
+		int type;
 		size_t pa, len;
 		size_t start;
 		size_t nblocks;

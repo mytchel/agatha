@@ -31,7 +31,25 @@ handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
 
 	rp->addr_req.pa = pa;
 
-	return proc_give(from, pa, len);
+	return proc_give_addr(from, pa, len);
+}
+
+	int
+handle_addr_unmap(int from, union proc0_req *rq, union proc0_rsp *rp)
+{
+	size_t va, len;
+
+	len = rq->addr_unmap.len;
+	if (len != PAGE_ALIGN(len)) {
+		return ERR;
+	}
+	
+	va = rq->addr_unmap.va;
+	if (va != PAGE_ALIGN(va)) {
+		return ERR;
+	}
+
+	return proc_unmap(from, va, len);
 }
 
 	int
@@ -63,7 +81,7 @@ handle_addr_map(int from, union proc0_req *rq, union proc0_rsp *rp)
 handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
 {
 	size_t pa, len;
-	int to;
+	int to, ret;
 
 	to = rq->addr_give.to;
 
@@ -77,7 +95,14 @@ handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
 		return ERR;
 	}
 
-	return proc_give(to, pa, len);
+	/* TODO: Make sure it is not mapped */
+
+	ret = proc_take_addr(from, pa, len);
+	if (ret != OK) {
+		return ret;
+	}
+
+	return proc_give_addr(to, pa, len);
 }
 
 static int irq_owners[256] = { -1 };
@@ -144,6 +169,10 @@ main(struct kernel_info *i)
 
 			case PROC0_addr_map:
 				rp->untyped.ret = handle_addr_map(from, rq, rp);
+				break;
+
+			case PROC0_addr_unmap:
+				rp->untyped.ret = handle_addr_unmap(from, rq, rp);
 				break;
 
 			case PROC0_addr_give:

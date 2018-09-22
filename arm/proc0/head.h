@@ -62,10 +62,16 @@ void
 init_procs(void);
 
 int
-proc_give(size_t pid, size_t pa, size_t len);
+proc_give_addr(int pid, size_t pa, size_t len);
 
 int
-proc_map(size_t pid, size_t pa, size_t va, size_t len, int flags);
+proc_take_addr(int pid, size_t pa, size_t len);
+
+int
+proc_map(int pid, size_t pa, size_t va, size_t len, int flags);
+
+int
+proc_unmap(int pid, size_t va, size_t len);
 
 extern struct kernel_info *info;
 

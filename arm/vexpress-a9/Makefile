@@ -12,6 +12,7 @@ BUNDLE += ../../drivers/dev_reg
 BUNDLE += ../drivers/serial-pl01x
 BUNDLE += ../drivers/sysreg-sp810
 BUNDLE += ../drivers/mmc-pl18x
+BUNDLE += ../../drivers/init
 
 BOARD_KERNEL_SRC_C = \
 	trap.c             \

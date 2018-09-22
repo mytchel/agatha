@@ -1,13 +1,14 @@
-#define PROC0_PID       0
+#define PROC0_PID         0
 
-#define PROC0_irq       0
+#define PROC0_irq         0
 
-#define PROC0_irq_reg   2
-#define PROC0_irq_req   3
-#define PROC0_proc      4 
-#define PROC0_addr_req  5
-#define PROC0_addr_map  6
-#define PROC0_addr_give 7
+#define PROC0_irq_reg     2
+#define PROC0_irq_req     3
+#define PROC0_proc        4  
+#define PROC0_addr_req    5
+#define PROC0_addr_map    6
+#define PROC0_addr_unmap  7
+#define PROC0_addr_give   8
 
 struct proc0_irq {
 	int type;
@@ -31,6 +32,12 @@ union proc0_req {
 		size_t len;
 		int flags;
 	} addr_map;
+
+	struct {
+		int type;
+		size_t va;
+		size_t len;
+	} addr_unmap;
 
 	struct {
 		int type;
@@ -73,6 +80,11 @@ union proc0_rsp {
 		int type;
 		int ret;
 	} addr_map;
+
+	struct {
+		int type;
+		int ret;
+	} addr_unmap;
 
 	struct {
 		int type;

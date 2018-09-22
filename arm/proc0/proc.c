@@ -1,6 +1,10 @@
 #include "head.h"
 #include "../bundle.h"
 
+/* TODO: Most of this file needs improvements.
+	 Frames should be objects that can contains a number
+	 of address ranges and but can be treated as one piece? */
+
 /* TODO: L1 tables need to be made less
 	 special so processes can map them 
 	 in the same way they can map L2 tables.
@@ -91,7 +95,7 @@ proc_get_frame(int pid, size_t pa, size_t len)
 }
 
 int
-proc_give(size_t pid, size_t pa, size_t len)
+proc_give_addr(int pid, size_t pa, size_t len)
 {
 	struct addr_frame *n;
 
@@ -112,8 +116,26 @@ proc_give(size_t pid, size_t pa, size_t len)
 	return OK;
 }
 
+/* This can be improved. */
+int
+proc_take_addr(int pid, size_t pa, size_t len)
+{
+	struct addr_frame **f, *m;
+
+	for (f = &procs[pid].frames; *f != nil; f = &(*f)->next) {
+		if ((*f)->pa <= pa && pa < (*f)->pa + (*f)->len) {
+			m = *f;
+			*f = (*f)->next;
+			pool_free(frame_pool, m);
+			return OK;
+		}
+	}
+
+	return ERR;
+}
+
 static int
-proc_map_table(size_t pid, struct addr_frame *f, size_t va)
+proc_map_table(int pid, struct addr_frame *f, size_t va)
 {
 	void *addr;
 	size_t o;
@@ -145,7 +167,7 @@ proc_map_table(size_t pid, struct addr_frame *f, size_t va)
 }
 
 static int
-proc_map_normal(size_t pid, struct addr_frame *f, size_t va, int flags)
+proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 {
 	void *addr;
 	bool cache;
@@ -181,7 +203,7 @@ proc_map_normal(size_t pid, struct addr_frame *f, size_t va, int flags)
 }
 
 	int
-proc_map(size_t pid, 
+proc_map(int pid, 
 		size_t pa, size_t va, 
 		size_t len, int flags)
 {
@@ -205,6 +227,14 @@ proc_map(size_t pid,
 	} else { 
 		return proc_map_normal(pid, frame, va, flags);
 	}
+}
+
+	int
+proc_unmap(int pid, size_t va, size_t len)
+{
+	/* TODO */
+
+	return OK;
 }
 
 	static void
@@ -250,15 +280,15 @@ init_bundled_proc(char *name,
 	procs[pid].l1.pa = l1_pa;
 	procs[pid].l1.len = 0x8000;
 
-	if (proc_give(pid, l2_pa, 0x1000) != OK) {
+	if (proc_give_addr(pid, l2_pa, 0x1000) != OK) {
 		raise();
 	}
 
-	if (proc_give(pid, stack_pa, 0x2000) != OK) {
+	if (proc_give_addr(pid, stack_pa, 0x2000) != OK) {
 		raise();
 	}
 
-	if (proc_give(pid, start, len) != OK) {
+	if (proc_give_addr(pid, start, len) != OK) {
 		raise();
 	}
 
