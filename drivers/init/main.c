@@ -136,5 +136,8 @@ main(void)
 	if (test_block(block_pid) != OK) {
 		raise();
 	}
+
+	while (true)
+		yield();
 }
 

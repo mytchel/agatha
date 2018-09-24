@@ -13,565 +13,456 @@
 int
 fat_read_bs(struct fat *fat)
 {
-  struct fat_bs bs;
+  struct fat_bs *bs;
+	size_t pa, len;
+	int ret;
 
-  if (read(fat->fd, &bs, sizeof(bs)) != sizeof(bs)) {
-    printf("fat mount failed to read boot sector.\n");
-    return nil;
-  }
+	len = PAGE_ALIGN(sizeof(struct fat_bs));
+	pa = request_memory(len);
+	if (pa == nil) {
+		debug("fat_read_bs, mem req failed\n");
+		return ERR;
+	}
 
-  fat->bps = intcopylittle16(bs.bps);
-  fat->spc = bs.spc;
+	debug("reading bs from block 0x%h into 0x%h, 0x%h\n", fat->start, pa, len);
 
-  fat->nsectors = intcopylittle16(bs.sc16);
+	ret = read_blocks(fat, pa, len, 0, 1);
+
+	if (ret != OK) {
+		debug("fat_read_bs, read blocks failed\n");
+		return ret;
+	}
+
+	bs = map_addr(pa, len, MAP_RO);
+	if (bs == nil) {
+		debug("map_addr failed\n");
+		return ERR;
+	}
+
+	int i;
+	debug("mapped block sector at 0x%h to 0x%h\n", pa, bs);
+	for (i = 0; i < sizeof(struct fat_bs); i++) {
+		debug("%i : %h\n", i, ((uint8_t *) bs)[i]);
+	}
+
+  fat->bps = intcopylittle16(bs->bps);
+  fat->spc = bs->spc;
+
+	fat->nsectors = intcopylittle16(bs->sc16);
   if (fat->nsectors == 0) {
-    fat->nsectors = intcopylittle32(bs.sc32);
+		fat->nsectors = intcopylittle32(bs->sc32);
   }
 
-  fat->nft = bs.nft;
+	debug("fat bps = %i, spc = %i, nsectors = %i\n",
+			fat->bps, fat->spc, fat->nsectors);
 
-  fat->reserved = intcopylittle16(bs.res);
+  fat->nft = bs->nft;
 
-  fat->rde = intcopylittle16(bs.rde);
+  fat->reserved = intcopylittle16(bs->res);
+
+  fat->rde = intcopylittle16(bs->rde);
   if (fat->rde != 0) {
+		debug("fat type FAT16\n");
+
     fat->type = FAT16;
 
-    fat->spf = intcopylittle16(bs.spf);
+		fat->spf = intcopylittle16(bs->spf);
 
     fat->rootdir = fat->reserved + fat->nft * fat->spf;
     fat->dataarea = fat->rootdir +
       (((fat->rde * sizeof(struct fat_dir_entry)) + (fat->bps - 1))
        / fat->bps);
 
-    fat->files->dsize = fat->rde * sizeof(struct fat_dir_entry);
-    fat->files->startcluster = 0;
+    fat->files[0].dsize = fat->rde * sizeof(struct fat_dir_entry);
+    fat->files[0].start_cluster = 0;
 
   } else {
+		debug("fat type FAT32\n");
     fat->type = FAT32;
 
-    fat->spf = intcopylittle32(bs.ext.high.spf);
-
-    /* This should work for now */
-    fat->files->dsize = fat->spc * fat->bps;
+		fat->spf = intcopylittle32(bs->ext.high.spf);
 
     fat->dataarea = fat->reserved + fat->spf * fat->nft;
 
-    fat->files->startcluster =
-      intcopylittle32(bs.ext.high.rootcluster);
-  }
+    /* This should work for now */
 
-  fat->nclusters = (fat->nsectors - fat->dataarea) / fat->spc;
-
-  fatinitbufs(fat);
-
-  fat->files->size = fatdirsize(fat, fat->files);
-
-  return fat;
-}
-
-static struct fat_dir_entry *
-fatfindfileincluster(struct fat *fat, uint8_t *buf, char *name)
-{
-  struct fat_dir_entry *file;
-  char fname[NAMEMAX];
-
-  file = (struct fat_dir_entry *) buf;
-  while ((uint8_t *) file < buf + fat->spc * fat->bps) {
-
-    file = copyfileentryname(file, fname);
-    if (file == nil) {
-      return nil;
-    } else if (strncmp(fname, name, NAMEMAX)) {
-      return file;
-    } else {
-      file++;
-    }
-  }
-
-  return nil;
-}
-
-uint32_t
-fatfilefind(struct fat *fat, struct fat_file *parent,
-	    char *name, int *err)
-{
-  struct fat_dir_entry *direntry;
-  struct buf *buf;
-  uint32_t cluster;
-  uint32_t child;
-  int i;
-
-  for (i = 1; i < FIDSMAX; i++) {
-    if (fat->files[i].parent != parent) continue;
-    if (fat->files[i].refs != 0) continue;
-    if (strncmp(fat->files[i].name, name, NAMEMAX)) {
-      /* Slot was clunked but still in array */
-      *err = OK;
-      return i;
-    }
-  }
-
-  direntry = nil;
-
-  if (parent->startcluster == 0) {
-    buf = readsectors(fat, fat->rootdir, fat->spc);
-    if (buf == nil) {
-      return nil;
-    }
- 
-    direntry = fatfindfileincluster(fat, buf->addr, name);
-  } else {
-    cluster = parent->startcluster;
-    while (cluster != 0) {
-      buf = readsectors(fat, clustertosector(fat, cluster), fat->spc);
-      if (buf == nil) {
-	return nil;
-      }
-
-      direntry =
-	fatfindfileincluster(fat, buf->addr, name);
-
-      if (direntry != nil) {
-	break;
-      } else {
-	cluster = nextcluster(fat, cluster);
-      }
-    }
-  }
-
-  if (direntry == nil) {
-    *err = ENOFILE;
-    return nil;
-  }
-
-  child = fatfilefromentry(fat, buf, direntry, name, parent);
-  if (child == 0) {
-    *err = ENOMEM;
-  } else {
-    *err = OK;
-  }
-
-  return child;
-}
-
-int
-fatfileread(struct fat *fat, struct fat_file *file,
-	    uint8_t *buf, uint32_t offset, uint32_t len,
-	    int *err)
-{
-  uint32_t cluster, rlen, tlen;
-  struct buf *fbuf;
-  
-  if (offset >= file->size) {
-    *err = OK;
-    return 0;
-  } else if (offset + len >= file->size) {
-    len = file->size - offset;
-  }
-
-  tlen = 0;
-  for (cluster = file->startcluster;
-       cluster != 0 && tlen < len;
-       cluster = nextcluster(fat, cluster)) {
-       
-    if (offset > fat->spc * fat->bps) {
-      offset -= fat->spc * fat->bps;
-      continue;
-    }
-
-    fbuf = readsectors(fat, clustertosector(fat, cluster), fat->spc);
-    if (fbuf == nil) {
-      *err = ERR;
-      return 0;
-    }
-
-    if (offset + (len - tlen) >= fat->spc * fat->bps) {
-      rlen = fat->spc * fat->bps - offset;
-    } else {
-      rlen = (len - tlen);
-    }
-
-    memmove(buf, fbuf->addr + offset, rlen);
-    offset = 0;
-
-    tlen += rlen;
-    buf += rlen;
-  }
-
-  *err = OK;
-  return tlen;
-}
-
-int
-fatfilewrite(struct fat *fat, struct fat_file *file,
-	     uint8_t *buf, uint32_t offset, uint32_t len,
-	     int *err)
-{
-  uint32_t cluster, n, rlen, tlen, pos;
-  struct buf *fbuf;
-
-  pos = 0;
-  tlen = 0;
-  *err = OK;
-  cluster = file->startcluster;
-  while (cluster != 0) {
-    if (offset > pos + fat->spc * fat->bps) {
-      pos += fat->spc * fat->bps;
-      cluster = nextcluster(fat, cluster);
-      continue;
-    }
-
-    fbuf = readsectors(fat, clustertosector(fat, cluster),
-		       fat->spc);
-    if (fbuf == nil) {
-      *err = ERR;
-      break;
-    }
-
-    rlen = len - tlen;
-    if (pos >= offset) {
-      if (rlen > fat->spc * fat->bps) {
-	rlen = fat->spc * fat->bps;
-      } 
-
-      memmove(fbuf->addr, buf, rlen);
-    } else {
-      if ((offset - pos) + rlen > fat->spc * fat->bps) {
-	rlen = fat->spc * fat->bps - (offset - pos);
-      }
-
-      memmove(fbuf->addr + (offset - pos), buf, rlen);
-      pos = offset;
-    }
-    
-    if (!writesectors(fat, fbuf, fat->spc)) {
-      printf("fat mount failed to write updated sectors\n");
-      if (!forcerereadbuf(fat, fbuf)) {
-	printf("fat mount failed to read failed write!\n");
-	exit(ERR);
-      }
-      *err = ERR;
-      break;
-    }
-
-    pos += rlen;
-    tlen += rlen;
-    buf += rlen;
-
-    if (tlen == len) {
-      break;
-    } else {
-      n = nextcluster(fat, cluster);
-
-      if (n == 0) {
-	/* Need to find another cluster to use */
-	n = findfreecluster(fat);
-
-	if (!writetableinfo(fat, cluster, n)) {
-	  printf("failed to update file info\n");
-	  *err = ERR;
-	  break;
+    fat->files[0].dsize = fat->spc * fat->bps;
+    fat->files[0].start_cluster =
+			intcopylittle32(bs->ext.high.rootcluster);
 	}
-      }
 
-      cluster = n;
-    }
-  }
+	debug("root dir dsize = 0x%h, start cluster= 0x%h\n",
+			fat->files[0].dsize, fat->files[0].start_cluster);
+	debug("root dir = 0x%h\n", fat->rootdir);
 
-  if (pos > file->size) {
-    file->size = pos;
+	fat->nclusters = (fat->nsectors - fat->dataarea) / fat->spc;
 
-    if (!fatupdatedirentry(fat, file)) {
-      printf("fat mount failed to update dir entry!\n");
-      *err = ERR;
-    }
-  }
+	fat->files[0].size = 0;
 
-  if (*err == OK) {
-    return tlen;
-  } else {
-    return 0;
-  }
+	unmap_addr(bs, len);
+	release_addr(pa, len);
+
+	return OK;
 }
 
-size_t
-readdirsectors(struct fat *fat, uint32_t sector,
-	       uint8_t *buf, uint32_t *offset, uint32_t len)
+	static int
+fat_find_file_in_cluster(struct fat *fat, struct fat_dir_entry *e,
+		uint32_t sector, size_t nsectors,
+	 	char *name)
 {
-  struct fat_dir_entry *entry;
-  char name[NAMEMAX];
-  struct buf *fbuf;
-  size_t tlen;
-  uint8_t l;
+	struct fat_dir_entry *files;
+	size_t pa, len, nfiles;
+	char fname[32];
+	int r, i;
 
-  fbuf = readsectors(fat, sector, fat->spc);
-  if (fbuf == nil) {
-    return nil;
-  }
+	debug("find file %s in sectors 0x%h 0x%h\n", name, sector, nsectors);
 
-  tlen = 0;
-  entry = (struct fat_dir_entry *) fbuf->addr;
-    
-  while ((uint8_t *) entry < fbuf->addr + fat->spc * fat->bps) {
-    if (tlen >= len) {
-      break;
-    }
+	len = PAGE_ALIGN(nsectors * fat->block_size);
+	pa = request_memory(len);
+	if (pa == nil) {
+		return -1;
+	}
 
-    entry = copyfileentryname(entry, name);
-    if (entry == nil) {
-      break;
-    } else {
-      entry++;
-    }
+	r = read_blocks(fat, pa, len, sector, nsectors);
+	if (r != OK) {
+		debug("read failed\n");
+		return -1;
+	}
 
-    l = strlen(name) + 1;
+	nfiles = fat->spc * fat->bps / sizeof(struct fat_dir_entry);
 
-    if (*offset >= l + sizeof(uint8_t)) {
-      *offset -= l + sizeof(uint8_t);
-      continue;
-    }
+	files = map_addr(pa, len, MAP_RO);
+	for (i = 0; i < nfiles; i++) {
+		r = fat_copy_file_entry_name(&files[i], fname);
+		debug("copied name got %i, '%s'\n", r, fname);
+		if (r != OK) {
+			debug("bad\n");
+			unmap_addr(files, len);
+			release_addr(pa, len);
+			return -1;
+		} else if (strncmp(fname, name, 32)) {
+			debug("found\n");
+			break;
+		}
+	}
 
-    if (*offset == 0) { 
-      memmove(buf + tlen, &l, sizeof(uint8_t));
-      tlen += sizeof(uint8_t);
-    } else {
-      *offset -= sizeof(uint8_t);
-    }
-    
-    if (tlen >= len) {
-      break;
-    } else if (tlen + l > len) {
-      l = len - tlen;
-    }
+	if (i < nfiles) {
+		debug("copy struct\n");
+		memcpy(e, &files[i], sizeof(struct fat_dir_entry));
+	}
+	
+	debug("done\n");
 
-    if (*offset == 0) {
-      memmove(buf + tlen, name, l);
-    } else {
-      l -= *offset;
-      memmove(buf + tlen, name + *offset, l);
-      *offset = 0;
-    }
-    
-    tlen += l;
-  }
+	unmap_addr(files, len);
+	release_addr(pa, len);
 
-  return tlen;
-} 
+	return i < nfiles ? 1 : 0;
+}
+
+	int
+fat_file_find(struct fat *fat, 
+		struct fat_file *parent,
+		char *name)
+{
+	struct fat_dir_entry e;
+	uint32_t cluster;
+	int r, i;
+
+	debug("finding file %s\n", name);
+
+	for (i = 1; i < FIDSMAX; i++) {
+		if (fat->files[i].parent != parent) continue;
+		if (fat->files[i].refs != 0) continue;
+		if (strncmp(fat->files[i].name, name, 32)) {
+			/* Slot was clunked but still in array */
+			return i;
+		}
+	}
+
+	if (parent->start_cluster == 0) {
+		r = fat_find_file_in_cluster(fat, &e,
+				fat->rootdir, fat->spc, name);
+	} else {
+		cluster = parent->start_cluster;
+		while (cluster != 0) {
+			r = fat_find_file_in_cluster(fat, &e,
+					cluster_to_sector(fat, cluster), 
+					fat->spc, name);
+
+			if (r	== 0) {
+				cluster = fat_next_cluster(fat, cluster);
+			} else {
+				break;
+			}
+		}
+	}
+
+	debug("r = %i\n", r);
+
+	if (r != 1) {
+		return ERR;
+	}
+
+	return fat_file_from_entry(fat, &e, name, parent);
+}
+
+	int
+fat_file_read(struct fat *fat, struct fat_file *file,
+		size_t pa, uint32_t offset, uint32_t len)
+{
+	uint32_t cluster, tlen;
+	int ret;
+
+	tlen = 0;
+	for (cluster = file->start_cluster;
+			cluster != 0 && tlen < len;
+			cluster = fat_next_cluster(fat, cluster)) {
+
+		if (offset > 0) {
+			offset -= fat->spc * fat->bps;
+			continue;
+		}
+
+		ret = read_blocks(fat, pa + tlen, fat->spc * fat->bps,
+				cluster_to_sector(fat, cluster), fat->spc);
+		if (ret != OK) {
+			return ret;
+		}
+
+		tlen += fat->spc * fat->bps;
+	}
+
+	return OK;
+}
+
+
+	void
+fat_file_clunk(struct fat *fat, struct fat_file *f)
+{
+	if (f->refs == 0) {
+		/* File removed now wipe everything */
+		memset(f, 0, sizeof(struct fat_file));
+	} else {
+		f->refs = 0;
+	}
+}
+
+	uint32_t
+fat_next_cluster(struct fat *fat, uint32_t prev)
+{
+	uint32_t v;
+
+	v = fat_table_info(fat, prev);
+
+	switch (fat->type) {
+		case FAT16:
+			v &= 0xffff;
+			if (v >= 0xfff8) {
+				v = 0;
+			}
+			break;
+		case FAT32:
+			v &= 0x0fffffff;
+			if (v >= 0x0ffffff8) {
+				v = 0;
+			}
+			break;
+	}
+
+	return v;
+}
+
+	uint32_t
+fat_table_info(struct fat *fat, uint32_t cluster)
+{
+	uint32_t sec, off, v;
+	size_t pa, len;
+	uint8_t *va;
+	int r;
+
+	switch (fat->type) {
+		case FAT16:
+			off = cluster * sizeof(uint16_t);
+			break;
+		case FAT32:
+			off = cluster * sizeof(uint32_t);
+			break;
+		default:
+			return 0;
+	}
+
+	sec = off / fat->bps;
+
+	len = PAGE_ALIGN(fat->bps);
+	pa = request_memory(len);
+	if (pa == nil) {
+		return 0;
+	}
+
+	r = read_blocks(fat, pa, len,
+			fat->reserved + sec, 1);
+	if (r != OK) {
+		release_addr(pa, len);
+		return 0;
+	}
+
+	va = map_addr(pa, len, MAP_RO);
+
+	off = off % fat->bps;
+
+	switch (fat->type) {
+		case FAT16:
+			v = intcopylittle16(va + off);
+			break;
+		case FAT32:
+			v = intcopylittle32(va + off);
+			break;
+	}
+
+	unmap_addr(va, len);
+	release_addr(pa, len);
+
+	return v;
+}
+
+	int	
+fat_copy_file_entry_name(struct fat_dir_entry *file, char *name)
+{
+	size_t i, j;
+
+	if (file->name[0] == 0) {
+		debug("empty\n");
+		return ERR;
+	} else if (file->name[0] == 0xe5) {
+		/* Something else should be done here */
+		debug("um\n");
+		return ERR;
+	}
+
+	if ((file->attr & FAT_ATTR_lfn) == FAT_ATTR_lfn) {
+		debug("atr lfn?\n");
+		debug("This is a long file name entry, not sure what to do\n");
+		return ERR;
+	} 
+
+	i = 0;
+
+	for (j = 0; j < sizeof(file->name) && file->name[j] != ' '; j++) {
+		if (file->name[j] >= 'A' && file->name[j] <= 'Z') {
+			/* Convert upper to lower */
+			name[i++] = file->name[j] + 32;
+		} else {
+			name[i++] = file->name[j];
+		}
+	}
+
+	if (file->ext[0] != ' ') {
+		name[i++] = '.';
+
+		for (j = 0; j < sizeof(file->ext) && file->ext[j] != ' '; j++) {
+			if (file->ext[j] >= 'A' && file->ext[j] <= 'Z') {
+				/* Convert upper to lower */
+				name[i++] = file->ext[j] + 32;
+			} else {
+				name[i++] = file->ext[j];
+			}
+		}
+	}
+
+	name[i] = 0;
+
+	return OK;
+}
+
+	uint32_t
+fat_find_free_fid(struct fat *fat)
+{
+	int i, b;
+
+	/* Skip root fid and search for empty slot */
+	b = 0;
+	for (i = 1; i < FIDSMAX; i++) {
+		if (fat->files[i].name[0] == 0) {
+			/* Slot completely unused */
+			b = i;
+			break;
+		} else if (b == 0 && fat->files[i].refs == 0) {
+			/* Slot clunked but could be reused */
+			b = i;
+		}
+	}
+
+	if (b == 0) {
+		debug("fat mount fid table full!\n");
+		return 0;
+	} else {
+		memset(&fat->files[b], 0, sizeof(struct fat_file));
+	}
+
+	return b;
+}
 
 int
-fatdirread(struct fat *fat, struct fat_file *file,
-	   uint8_t *buf, uint32_t offset, uint32_t len,
-	   int *err)
+fat_file_from_entry(struct fat *fat, 
+		struct fat_dir_entry *entry,
+		char *name, struct fat_file *parent)
 {
-  uint32_t cluster;
-  size_t tlen, t;
+	struct fat_file *f;
+	int i;
+	i = fat_find_free_fid(fat);
+	if (i == 0) {
+		return ERR;
+	}
 
-  tlen = 0;
-  
-  if (file->startcluster == 0) {
-    tlen = readdirsectors(fat, fat->rootdir, buf, &offset, len);
-  } else {
-    cluster = file->startcluster;
-    
-    while (cluster != 0 && tlen < len) {
-      t = readdirsectors(fat, clustertosector(fat, cluster),
-			 buf + tlen, &offset, len - tlen);
+	f = &fat->files[i];
 
-      if (t > 0) {
-	tlen += t;
-	cluster = nextcluster(fat, cluster);
-      } else if (t == 0) {
-	break;
-      } else {
-	*err = t;
-	return 0;
-      }
-    }
-  }
+	strlcpy(f->name, name, 32);
 
-  *err = OK;
-  return tlen;
+	f->refs = 1;
+	f->parent = parent;
+
+	f->size = intcopylittle32(entry->size);
+
+	f->start_cluster =
+		((uint32_t) intcopylittle16(entry->cluster_high)) << 16;
+
+	f->start_cluster |=
+		((uint32_t) intcopylittle16(entry->cluster_low));
+
+	if (entry->attr & FAT_ATTR_read_only) {
+		f->attr = ATTR_rd;
+	} else {
+		f->attr = ATTR_rd | ATTR_wr;
+	}
+
+	if (entry->attr & FAT_ATTR_directory) {
+		f->attr |= ATTR_dir;
+		f->dsize = fat->spc * fat->bps;
+		f->size = 0;
+	} else {
+		f->dsize = fat_file_size(fat, f);
+	}
+
+	return i;
 }
 
-int
-fatfileremove(struct fat *fat, struct fat_file *file)
+	uint32_t
+fat_file_size(struct fat *fat, struct fat_file *file)
 {
-  struct fat_dir_entry *direntry;
-  struct fat_file *parent;
-  uint32_t cluster, n;
-  struct buf *buf;
+	uint32_t cluster, s;
 
-  if (file->attr & ATTR_dir) {
-    /* Need to check if the dir is empty somehow */
-  }
-  
-  parent = file->parent;
-  if (parent == nil) {
-    return ERR;
-  }
-  
-  direntry = nil;
+	s = 0;
+	if (file->start_cluster == 0) {
+		s = fat->bps * fat->spc;
+	} else {
+		cluster = file->start_cluster;
 
-  if (parent->startcluster == 0) {
-    buf = readsectors(fat, fat->rootdir, fat->spc);
-    if (buf == nil) {
-      return ERR;
-    }
+		while (cluster != 0) {
+			s += fat->bps * fat->spc;
+			cluster = fat_next_cluster(fat, cluster);
+		}
+	}
 
-    direntry = fatfindfileincluster(fat, buf->addr, file->name);
-  } else {
-    cluster = parent->startcluster;
-    while (cluster != 0) {
-      buf = readsectors(fat, clustertosector(fat, cluster), fat->spc);
-      if (buf == nil) {
-	return ERR;
-      }
-
-      direntry = fatfindfileincluster(fat, buf->addr, file->name);
-      if (direntry != nil) {
-	break;
-      } else {
-	cluster = nextcluster(fat, cluster);
-      }
-    }
-  }
-
-  if (direntry == nil) {
-    printf("remove didn't find dir entry\n");
-    return ENOFILE;
-  }
-
-  cluster = file->startcluster;
-  while (cluster != 0) {
-    n = nextcluster(fat, cluster);
-    writetableinfo(fat, cluster, 0);
-    cluster = n;
-  }
-
-  parent->size--;
-  
-  memmove(direntry, direntry + 1,
-	  fat->spc * fat->bps - ((uint8_t *) direntry - buf->addr));
-
-  if (!writesectors(fat, buf, fat->spc)) {
-    printf("fat mount failed to write modified dir.\n");
-    if (!forcerereadbuf(fat, buf)) {
-      printf("fat mount failed to read failed write!\n");
-      exit(ERR);
-    }
-    return ERR;
-  }
-
-  file->refs = 0;
-
-  return OK;
+	return s;
 }
 
-static struct fat_dir_entry *
-fatfindemptydirentryincluster(struct fat *fat, uint8_t *buf)
-{
-  struct fat_dir_entry *file;
-
-  file = (struct fat_dir_entry *) buf;
-  while ((uint8_t *) file < buf + fat->spc * fat->bps) {
-    if (file->name[0] == 0) {
-      return file;
-    }
-
-    file++;
-  }
-
-  return nil;
-}
-
-uint32_t
-fatfilecreate(struct fat *fat, struct fat_file *parent,
-	      char *name, uint32_t attr)
-{
-  struct fat_dir_entry *direntry;
-  uint32_t cluster, newcluster;
-  struct fat_file *f;
-  struct buf *buf;
-  int i;
-
-  newcluster = findfreecluster(fat);
-  if (newcluster == 0) {
-    return 0;
-  }
-
-  buf = readsectors(fat, clustertosector(fat, newcluster), fat->spc);
-  if (buf == nil) {
-    return 0;
-  }
-
-  memset(buf->addr, 0, fat->spc * fat->bps);
-  if (!writesectors(fat, buf, fat->spc)) {
-    return 0;
-  }
-
-  if (parent->startcluster == 0) {
-    buf = readsectors(fat, fat->rootdir, fat->spc);
-    if (buf == nil) {
-      return 0;
-    }
-    
-    direntry = fatfindemptydirentryincluster(fat, buf->addr);
-  } else {
-    cluster = parent->startcluster;
-    while (cluster != 0) {
-      buf = readsectors(fat, clustertosector(fat, cluster), fat->spc);
-      if (buf == nil) {
-	return 0;
-      }
-
-      direntry = fatfindemptydirentryincluster(fat, buf->addr);
-      if (direntry != nil) {
-	break;
-      } else {
-	cluster = nextcluster(fat, cluster);
-      }
-    }
-  }
-
-  if (direntry == nil) {
-    printf("create out of space, need to exspand dir. not yet implimented\n");
-    writetableinfo(fat, newcluster, 0);
-    return 0;
-  }
-
-  i = fatfindfreefid(fat);
-  if (i == 0) {
-    printf("fat mount out of fid spaces!\n");
-    return 0;
-  }
-
-  parent->size++;
-  
-  f = &fat->files[i];
-
-  f->refs = 1;
-  f->parent = parent;
-
-  strlcpy(f->name, name, NAMEMAX);
-
-  f->direntrysector = buf->sector;
-  f->direntryoffset = (uint32_t) direntry - (uint32_t) buf->addr;
-  
-  f->startcluster = newcluster;
-
-  f->dsize = fat->spc * fat->bps;
-  f->size = 0;
-
-  f->attr = attr;
-
-  if (!fatupdatedirentry(fat, f)) {;
-    printf("fat mount failed to update dir entry\n");
-    if (!forcerereadbuf(fat, buf)) {
-      printf("fat mount failed to read failed write!\n");
-      exit(ERR);
-    }
-    return 0;
-  } else {
-    return i;
-  }
-}

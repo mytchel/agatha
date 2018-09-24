@@ -238,7 +238,7 @@ mmc_read_block(struct mmc *mmc, size_t blk, void *buffer)
 
 	cmd.cmdidx = MMC_CMD_READ_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
-	cmd.cmdarg = blk;
+	cmd.cmdarg = blk * mmc->block_len;
 
 	data.dest = buffer;
 	data.blocks = 1;
@@ -256,7 +256,7 @@ mmc_write_block(struct mmc *mmc, size_t blk, void *buffer)
 
 	cmd.cmdidx = MMC_CMD_WRITE_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
-	cmd.cmdarg = blk;
+	cmd.cmdarg = blk * mmc->block_len;
 
 	data.dest = buffer;
 	data.blocks = 1;

@@ -15,7 +15,7 @@ char *debug_name = "serial0";
 int debug_pid;
 
 char *block_name = "sdmmc0";
-int partition = 1;
+int partition = 0;
 int block_pid;
 
 void
@@ -71,7 +71,7 @@ read_blocks(struct fat *fat, size_t pa, size_t len,
 	rq.read.type = BLOCK_DEV_read;
 	rq.read.pa = pa;
 	rq.read.len = len;
-	rq.read.start = start;
+	rq.read.start = fat->start + start;
 	rq.read.nblocks = nblocks;
 	
 	if (send(fat->block_pid, &rq) != OK) {
@@ -98,17 +98,19 @@ read_mbr(struct fat *fat)
 	size_t pa, len;
 	int ret;
 
+	debug("reading mbr from %i\n", fat->block_pid);
+
 	rq.info.type = BLOCK_DEV_info;
 	
 	if (send(fat->block_pid, &rq) != OK) {
 		debug("block info send failed\n");
-		return nil;
+		return ERR;
 	} else if (recv(fat->block_pid, &rp) != fat->block_pid) {
 		debug("block info recv failed\n");
-		return nil;
+		return ERR;
 	} else if (rp.info.ret != OK) {
 		debug("block info returned bad %i\n", rp.info.ret);
-		return nil;
+		return ERR;
 	}
 
 	fat->block_size = rp.info.block_len;
@@ -133,14 +135,17 @@ read_mbr(struct fat *fat)
 	int i;
 	for (i = 0; i < 4; i++) {
 		debug("partition %i\n", i);
-		debug("status = %i\n", mbr->parts[i].status);
-		debug("type = %i\n", mbr->parts[i].type);
+		debug("status = 0x%h\n", mbr->parts[i].status);
+		debug("type = 0x%h\n", mbr->parts[i].type);
 		debug("lba = 0x%h\n", mbr->parts[i].lba);
 		debug("len = 0x%h\n", mbr->parts[i].sectors);
 	}
 
 	fat->start = mbr->parts[partition].lba;
 	fat->nblocks = mbr->parts[partition].sectors;
+
+	debug("partition %i starts at 0x%h and goes for 0x%h blocks\n",
+			partition, fat->start, fat->nblocks);
 
 	unmap_addr(mbr, len);	
 	release_addr(pa, len);
@@ -162,18 +167,55 @@ main(void)
 	} while (block_pid < 0);
 
 
+	fat.block_pid = block_pid;
+
 	debug("fat fs starting on %s.%i\n", block_name, partition);
 
+	debug("read mbr\n");
 	if (read_mbr(&fat) != OK) {
+		debug("fat_read_mbr failed\n");
 		raise();
 	}
 
 	if (fat_read_bs(&fat) != OK) {
+		debug("fat_read_bs failed\n");
 		raise();
 	}
 
-	while (true) {
+	int fid;
 
+	fid = fat_file_find(&fat, &fat.files[0], "test");
+	debug("file test has fid %i\n", fid);
+	if (fid < 0) {
+		raise();
+	}
+
+	debug("file has len %i\n", fat.files[fid].size);
+	
+	size_t pa, len;
+	len = PAGE_ALIGN(fat.files[fid].dsize);
+	pa = request_memory(len);
+	if (pa == nil) {
+		raise();
+	}
+
+	int r = fat_file_read(&fat, &fat.files[fid],
+			pa, 0, len);
+	if (r != OK) {
+		raise();
+	}
+
+	uint8_t *a = map_addr(pa, len, MAP_RO);
+
+	debug("reading file test mapped to 0x%h\n", a);
+	int i;
+	for (i = 0; i < fat.files[fid].size; i++)
+		debug("%c\n", a[i]);
+
+	debug("done\n");	
+
+	while (true) {
+		yield();
 	}
 }
 

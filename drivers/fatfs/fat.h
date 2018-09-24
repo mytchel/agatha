@@ -1,3 +1,13 @@
+#define ATTR_rd    1
+#define ATTR_wr    2
+#define ATTR_dir   4
+
+#define intcopylittle16(X) \
+	((X)[0] | ((X)[1]<<8))
+
+#define intcopylittle32(X) \
+	((X)[0] | ((X)[1]<<8) | ((X)[2]<<16) | ((X)[3]<<24))
+
 struct fat_bs_ext32 {
   uint8_t spf[4];
   uint8_t extflags[2];
@@ -96,10 +106,7 @@ struct fat_file {
   uint32_t size;
   uint32_t dsize;
 
-  uint32_t startcluster;
-
-  uint32_t direntrysector;
-  uint32_t direntryoffset;
+  uint32_t start_cluster;
 
   struct fat_file *parent;
 };
@@ -108,6 +115,8 @@ typedef enum { FAT16, FAT32 } fat_t;
 
 #define FAT16_END 0xfff8
 #define FAT32_END 0x0ffffff8
+
+#define FIDSMAX 32
 
 struct fat {
   int block_pid;
@@ -129,43 +138,35 @@ struct fat {
   uint32_t rde;
   uint32_t rootdir;
   uint32_t dataarea;
+
+	struct fat_file files[FIDSMAX];
 };
 
-#define clustertosector(fat, cluster) \
+#define cluster_to_sector(fat, cluster) \
   (fat->dataarea + ((cluster - 2) * fat->spc))
 
 int
 fat_read_bs(struct fat *fat);
 
-uint32_t
+int
+read_blocks(struct fat *fat, size_t pa, size_t len,
+		size_t start, size_t nblocks);
+
+int
 fat_file_find(struct fat *fat, 
 		struct fat_file *parent,
-		char *name, int *err);
+		char *name);
 
 void
 fat_file_clunk(struct fat *fat, struct fat_file *file);
 
 int
 fat_file_read(struct fat *fat, struct fat_file *file,
-	    void *buf, uint32_t offset, uint32_t len,
-	    int *err);
-
-int
-fat_file_write(struct fat *fat, struct fat_file *file,
-	    void *buf, uint32_t offset, uint32_t len,
-	    int *err);
+	    size_t pa, uint32_t offset, uint32_t len);
 
 int
 fat_dir_read(struct fat *fat, struct fat_file *file,
-	   void *buf, uint32_t offset, uint32_t len,
-	   int *err);
-
-int
-fat_file_remove(struct fat *fat, struct fat_file *file);
-
-uint32_t
-fat_file_create(struct fat *fat, struct fat_file *parent,
-	      char *name, uint32_t attr);
+	   void *buf, uint32_t offset, uint32_t len);
 
 uint32_t
 fat_next_cluster(struct fat *fat, uint32_t prev);
@@ -177,24 +178,15 @@ uint32_t
 fat_table_info(struct fat *fat, uint32_t prev);
 
 int
-fat_write_table_info(struct fat *fat, uint32_t cluster, uint32_t v);
-
-struct fat_dir_entry *
 fat_copy_file_entry_name(struct fat_dir_entry *start, char *name);
 
-uint32_t
-fat_file_from_entry(struct fat *fat, struct buf *buf,
+int
+fat_file_from_entry(struct fat *fat,
 		 struct fat_dir_entry *entry,
 		 char *name, struct fat_file *parent);
 
 uint32_t
 fat_find_free_fid(struct fat *fat);
-
-bool
-fat_update_dir_entry(struct fat *fat, struct fat_file *file);
-
-uint32_t
-fat_dir_size(struct fat *fat, struct fat_file *file);
 
 uint32_t
 fat_file_size(struct fat *fat, struct fat_file *file);
