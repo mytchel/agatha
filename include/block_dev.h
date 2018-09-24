@@ -14,14 +14,14 @@ union block_dev_req {
 		int type;
 		size_t pa, len;
 		size_t start;
-		size_t nblocks;
+		size_t r_len;
 	} read;
 
 	struct {
 		int type;
 		size_t pa, len;
 		size_t start;
-		size_t nblocks;
+		size_t w_len;
 	} write;
 };
 

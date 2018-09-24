@@ -231,14 +231,14 @@ mmc_startup(struct mmc *mmc)
 }
 
 int
-mmc_read_block(struct mmc *mmc, size_t blk, void *buffer)
+mmc_read_block(struct mmc *mmc, size_t off, void *buffer)
 {
 	struct mmc_cmd cmd;
 	struct mmc_data data;
 
 	cmd.cmdidx = MMC_CMD_READ_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
-	cmd.cmdarg = blk * mmc->block_len;
+	cmd.cmdarg = off;
 
 	data.dest = buffer;
 	data.blocks = 1;
@@ -249,14 +249,14 @@ mmc_read_block(struct mmc *mmc, size_t blk, void *buffer)
 }
 
 	int
-mmc_write_block(struct mmc *mmc, size_t blk, void *buffer)
+mmc_write_block(struct mmc *mmc, size_t off, void *buffer)
 {
 	struct mmc_cmd cmd;
 	struct mmc_data data;
 
 	cmd.cmdidx = MMC_CMD_WRITE_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
-	cmd.cmdarg = blk * mmc->block_len;
+	cmd.cmdarg = off;
 
 	data.dest = buffer;
 	data.blocks = 1;
@@ -268,14 +268,14 @@ mmc_write_block(struct mmc *mmc, size_t blk, void *buffer)
 
 int
 read_blocks(struct block_dev *dev,
-		void *buf, size_t idx, size_t n)
+		void *buf, size_t start, size_t n)
 {
 	struct mmc *mmc = dev->arg;
 	int i, ret;
 
-	for (i = 0; i < n; i++) {
-		ret = mmc_read_block(mmc,
-				idx + i, buf + i * mmc->block_len);
+	for (i = 0; i < n; i += mmc->block_len) {
+		ret = mmc_read_block(mmc, start + i, 
+				(uint8_t *) buf + i);
 		if (ret != OK) {
 			return ret;
 		}
@@ -286,14 +286,14 @@ read_blocks(struct block_dev *dev,
 
 int
 write_blocks(struct block_dev *dev,
-		void *buf, size_t idx, size_t n)
+		void *buf, size_t start, size_t n)
 {
 	struct mmc *mmc = dev->arg;
 	int i, ret;
 
-	for (i = 0; i < n; i++) {
-		ret = mmc_write_block(mmc,
-				idx + i, buf + i * mmc->block_len);
+	for (i = 0; i < n; i += mmc->block_len) {
+		ret = mmc_write_block(mmc, start + i, 
+				(uint8_t *) buf + i);
 		if (ret != OK) {
 			return ret;
 		}

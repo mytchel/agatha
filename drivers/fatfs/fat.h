@@ -1,3 +1,5 @@
+/* TODO: If bps * spc is not page aligned we have a problem. */
+
 #define ATTR_rd    1
 #define ATTR_wr    2
 #define ATTR_dir   4
@@ -149,8 +151,8 @@ int
 fat_read_bs(struct fat *fat);
 
 int
-read_blocks(struct fat *fat, size_t pa, size_t len,
-		size_t start, size_t nblocks);
+read_blocks(struct fat *fat, size_t pa, size_t m_len,
+		size_t start, size_t r_len);
 
 int
 fat_file_find(struct fat *fat, 
@@ -162,17 +164,10 @@ fat_file_clunk(struct fat *fat, struct fat_file *file);
 
 int
 fat_file_read(struct fat *fat, struct fat_file *file,
-	    size_t pa, uint32_t offset, uint32_t len);
-
-int
-fat_dir_read(struct fat *fat, struct fat_file *file,
-	   void *buf, uint32_t offset, uint32_t len);
+	    size_t pa, size_t offset, size_t len);
 
 uint32_t
 fat_next_cluster(struct fat *fat, uint32_t prev);
-
-uint32_t
-fat_find_free_cluster(struct fat *fat);
 
 uint32_t
 fat_table_info(struct fat *fat, uint32_t prev);

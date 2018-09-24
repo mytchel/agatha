@@ -83,7 +83,7 @@ test_block(int bpid)
 	rq.read.pa = pa;
 	rq.read.len = len;
 	rq.read.start = 0;
-	rq.read.nblocks = 8;
+	rq.read.r_len = len;
 	
 	if (send(bpid, &rq) != OK) {
 		debug("test_block send failed\n");

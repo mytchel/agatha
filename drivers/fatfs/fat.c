@@ -17,7 +17,7 @@ fat_read_bs(struct fat *fat)
 	size_t pa, len;
 	int ret;
 
-	len = PAGE_ALIGN(sizeof(struct fat_bs));
+	len = PAGE_ALIGN(fat->block_size);
 	pa = request_memory(len);
 	if (pa == nil) {
 		debug("fat_read_bs, mem req failed\n");
@@ -25,8 +25,8 @@ fat_read_bs(struct fat *fat)
 	}
 
 	debug("reading bs from block 0x%h into 0x%h, 0x%h\n", fat->start, pa, len);
-
-	ret = read_blocks(fat, pa, len, 0, 1);
+	
+	ret = read_blocks(fat, pa, len, 0, fat->block_size);
 
 	if (ret != OK) {
 		debug("fat_read_bs, read blocks failed\n");
@@ -106,7 +106,7 @@ fat_read_bs(struct fat *fat)
 }
 
 	static int
-fat_find_file_in_cluster(struct fat *fat, struct fat_dir_entry *e,
+fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 		uint32_t sector, size_t nsectors,
 	 	char *name)
 {
@@ -117,19 +117,20 @@ fat_find_file_in_cluster(struct fat *fat, struct fat_dir_entry *e,
 
 	debug("find file %s in sectors 0x%h 0x%h\n", name, sector, nsectors);
 
-	len = PAGE_ALIGN(nsectors * fat->block_size);
+	len = PAGE_ALIGN(nsectors * fat->bps);
 	pa = request_memory(len);
 	if (pa == nil) {
 		return -1;
 	}
 
-	r = read_blocks(fat, pa, len, sector, nsectors);
+	r = read_blocks(fat, pa, len, 
+			sector * fat->bps, nsectors * fat->bps);
 	if (r != OK) {
 		debug("read failed\n");
 		return -1;
 	}
 
-	nfiles = fat->spc * fat->bps / sizeof(struct fat_dir_entry);
+	nfiles = nsectors * fat->bps / sizeof(struct fat_dir_entry);
 
 	files = map_addr(pa, len, MAP_RO);
 	for (i = 0; i < nfiles; i++) {
@@ -180,12 +181,12 @@ fat_file_find(struct fat *fat,
 	}
 
 	if (parent->start_cluster == 0) {
-		r = fat_find_file_in_cluster(fat, &e,
+		r = fat_find_file_in_sectors(fat, &e,
 				fat->rootdir, fat->spc, name);
 	} else {
 		cluster = parent->start_cluster;
 		while (cluster != 0) {
-			r = fat_find_file_in_cluster(fat, &e,
+			r = fat_find_file_in_sectors(fat, &e,
 					cluster_to_sector(fat, cluster), 
 					fat->spc, name);
 
@@ -208,7 +209,7 @@ fat_file_find(struct fat *fat,
 
 	int
 fat_file_read(struct fat *fat, struct fat_file *file,
-		size_t pa, uint32_t offset, uint32_t len)
+		size_t pa, size_t offset, size_t len)
 {
 	uint32_t cluster, tlen;
 	int ret;
@@ -224,7 +225,7 @@ fat_file_read(struct fat *fat, struct fat_file *file,
 		}
 
 		ret = read_blocks(fat, pa + tlen, fat->spc * fat->bps,
-				cluster_to_sector(fat, cluster), fat->spc);
+				cluster_to_sector(fat, cluster) * fat->bps, fat->spc * fat->bps);
 		if (ret != OK) {
 			return ret;
 		}
@@ -300,7 +301,7 @@ fat_table_info(struct fat *fat, uint32_t cluster)
 	}
 
 	r = read_blocks(fat, pa, len,
-			fat->reserved + sec, 1);
+			(fat->reserved + sec) * fat->bps, fat->bps);
 	if (r != OK) {
 		release_addr(pa, len);
 		return 0;

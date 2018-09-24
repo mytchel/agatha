@@ -32,12 +32,11 @@ handle_read(struct block_dev *dev,
 
 	addr = map_addr(rq->read.pa, rq->read.len, MAP_RW);
 	if (addr == nil) {
-		return -4;
 		return ERR;
 	}
 
 	ret = dev->read_blocks(dev, addr, 
-			rq->read.start, rq->read.nblocks);
+			rq->read.start, rq->read.r_len);
 
 	unmap_addr(addr, rq->read.len);
 	give_addr(from, rq->read.pa, rq->read.len);

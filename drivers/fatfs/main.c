@@ -55,12 +55,13 @@ get_device_pid(char *name)
 
 int
 read_blocks(struct fat *fat, size_t pa, size_t len,
-		size_t start, size_t nblocks)
+		size_t start, size_t r_len)
 {
 	union block_dev_req rq;
 	union block_dev_rsp rp;
 	int ret;
 
+	debug("give block pid %i from 0x%h 0x%h\n", fat->block_pid, pa, len);
 	if ((ret = give_addr(fat->block_pid, pa, len)) != OK) {
 		debug("block give addr failed %i\n", ret);
 		return ERR;
@@ -71,8 +72,8 @@ read_blocks(struct fat *fat, size_t pa, size_t len,
 	rq.read.type = BLOCK_DEV_read;
 	rq.read.pa = pa;
 	rq.read.len = len;
-	rq.read.start = fat->start + start;
-	rq.read.nblocks = nblocks;
+	rq.read.start = fat->start * fat->block_size + start;
+	rq.read.r_len = r_len;
 	
 	if (send(fat->block_pid, &rq) != OK) {
 		debug("block send failed\n");
@@ -181,38 +182,6 @@ main(void)
 		debug("fat_read_bs failed\n");
 		raise();
 	}
-
-	int fid;
-
-	fid = fat_file_find(&fat, &fat.files[0], "test");
-	debug("file test has fid %i\n", fid);
-	if (fid < 0) {
-		raise();
-	}
-
-	debug("file has len %i\n", fat.files[fid].size);
-	
-	size_t pa, len;
-	len = PAGE_ALIGN(fat.files[fid].dsize);
-	pa = request_memory(len);
-	if (pa == nil) {
-		raise();
-	}
-
-	int r = fat_file_read(&fat, &fat.files[fid],
-			pa, 0, len);
-	if (r != OK) {
-		raise();
-	}
-
-	uint8_t *a = map_addr(pa, len, MAP_RO);
-
-	debug("reading file test mapped to 0x%h\n", a);
-	int i;
-	for (i = 0; i < fat.files[fid].size; i++)
-		debug("%c\n", a[i]);
-
-	debug("done\n");	
 
 	while (true) {
 		yield();
