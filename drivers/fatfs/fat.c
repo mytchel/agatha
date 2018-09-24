@@ -1,56 +1,19 @@
-/*
- *
- * Copyright (c) 2016 Mytchel Hammond <mytchel@openmailbox.org>
- * 
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following
- * conditions:
- * 
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- *
- */
-
-#include <libc.h>
-#include <mem.h>
+#include <types.h>
 #include <err.h>
-#include <fs.h>
-#include <fssrv.h>
+#include <sys.h>
+#include <c.h>
+#include <mach.h>
+#include <stdarg.h>
 #include <string.h>
+#include <dev_reg.h>
+#include <block_dev.h>
 
 #include "fat.h"
 
-struct fat *
-fatinit(int fd)
+int
+fat_read_bs(struct fat *fat)
 {
   struct fat_bs bs;
-  struct fat *fat;
-
-  fat = malloc(sizeof(struct fat));
-  if (fat == nil) {
-    printf("fat mount failed to alloc fat struct!\n");
-    return nil;
-  }
-
-  fat->fd = fd;
-
-  memset(fat->files, 0, sizeof(fat->files));
-  
-  fat->files[0].attr = ATTR_wr|ATTR_rd|ATTR_dir;
 
   if (read(fat->fd, &bs, sizeof(bs)) != sizeof(bs)) {
     printf("fat mount failed to read boot sector.\n");

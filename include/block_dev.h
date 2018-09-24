@@ -29,14 +29,16 @@ union block_dev_rsp {
 	uint8_t raw[MESSAGE_LEN];
 
 	struct {
-		size_t block_len;
-		size_t nblocks;
-	} info;
+		int type;
+		int ret;
+	} untyped;
 
 	struct {
 		int type;
 		int ret;
-	} untyped;
+		size_t block_len;
+		size_t nblocks;
+	} info;
 
 	struct {
 		int type;

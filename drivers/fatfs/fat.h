@@ -90,7 +90,7 @@ struct fat_dir_entry {
 
 struct fat_file {
   uint8_t refs;
-  char name[NAMEMAX];
+  char name[32];
   
   uint32_t attr;
   uint32_t size;
@@ -111,7 +111,8 @@ typedef enum { FAT16, FAT32 } fat_t;
 
 struct fat {
   int block_pid;
-	size_t start_block, nblocks;
+	size_t block_size;
+	size_t start, nblocks;
 
   fat_t type;
 
@@ -133,8 +134,8 @@ struct fat {
 #define clustertosector(fat, cluster) \
   (fat->dataarea + ((cluster - 2) * fat->spc))
 
-struct fat *
-fat_init(int block_pid);
+int
+fat_read_bs(struct fat *fat);
 
 uint32_t
 fat_file_find(struct fat *fat, 

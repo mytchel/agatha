@@ -56,3 +56,6 @@ union dev_reg_rsp {
 	} list;
 };
 
+int
+get_device_pid(char *name);
+
