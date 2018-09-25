@@ -7,8 +7,74 @@
 #include <string.h>
 #include <dev_reg.h>
 #include <block_dev.h>
+#include <fs.h>
+#include <mbr.h>
 
 #include "fat.h"
+
+	int
+fat_read_mbr(struct fat *fat, int partition)
+{
+	union block_dev_req rq;
+	union block_dev_rsp rp;
+	struct mbr *mbr;
+	size_t pa, len;
+	int ret;
+
+	fat_debug("reading mbr from %i\n", fat->block_pid);
+
+	rq.info.type = BLOCK_DEV_info;
+	
+	if (send(fat->block_pid, &rq) != OK) {
+		fat_debug("block info send failed\n");
+		return ERR;
+	} else if (recv(fat->block_pid, &rp) != fat->block_pid) {
+		fat_debug("block info recv failed\n");
+		return ERR;
+	} else if (rp.info.ret != OK) {
+		fat_debug("block info returned bad %i\n", rp.info.ret);
+		return ERR;
+	}
+
+	fat->block_size = rp.info.block_len;
+
+	len = PAGE_ALIGN(sizeof(struct mbr));
+	pa = request_memory(len);
+	if (pa == nil) {
+		fat_debug("read mbr memory request failed\n");
+		return ERR;
+	}
+
+	ret = fat_read_blocks(fat, pa, len, 0, 1);
+	if (ret != OK) {
+		return ret;
+	}
+
+	mbr = map_addr(pa, len, MAP_RO);
+	if (mbr == nil) {
+		return ERR;
+	}
+
+	int i;
+	for (i = 0; i < 4; i++) {
+		fat_debug("partition %i\n", i);
+		fat_debug("status = 0x%h\n", mbr->parts[i].status);
+		fat_debug("type = 0x%h\n", mbr->parts[i].type);
+		fat_debug("lba = 0x%h\n", mbr->parts[i].lba);
+		fat_debug("len = 0x%h\n", mbr->parts[i].sectors);
+	}
+
+	fat->start = mbr->parts[partition].lba;
+	fat->nblocks = mbr->parts[partition].sectors;
+
+	fat_debug("partition %i starts at 0x%h and goes for 0x%h blocks\n",
+			partition, fat->start, fat->nblocks);
+
+	unmap_addr(mbr, len);	
+	release_addr(pa, len);
+
+	return OK;
+}
 
 int
 fat_read_bs(struct fat *fat)
@@ -20,29 +86,23 @@ fat_read_bs(struct fat *fat)
 	len = PAGE_ALIGN(fat->block_size);
 	pa = request_memory(len);
 	if (pa == nil) {
-		debug("fat_read_bs, mem req failed\n");
+		fat_debug("fat_read_bs, mem req failed\n");
 		return ERR;
 	}
 
-	debug("reading bs from block 0x%h into 0x%h, 0x%h\n", fat->start, pa, len);
+	fat_debug("reading bs from block 0x%h into 0x%h, 0x%h\n", fat->start, pa, len);
 	
-	ret = read_blocks(fat, pa, len, 0, fat->block_size);
+	ret = fat_read_blocks(fat, pa, len, 0, fat->block_size);
 
 	if (ret != OK) {
-		debug("fat_read_bs, read blocks failed\n");
+		fat_debug("fat_read_bs, read blocks failed\n");
 		return ret;
 	}
 
 	bs = map_addr(pa, len, MAP_RO);
 	if (bs == nil) {
-		debug("map_addr failed\n");
+		fat_debug("map_addr failed\n");
 		return ERR;
-	}
-
-	int i;
-	debug("mapped block sector at 0x%h to 0x%h\n", pa, bs);
-	for (i = 0; i < sizeof(struct fat_bs); i++) {
-		debug("%i : %h\n", i, ((uint8_t *) bs)[i]);
 	}
 
   fat->bps = intcopylittle16(bs->bps);
@@ -53,7 +113,7 @@ fat_read_bs(struct fat *fat)
 		fat->nsectors = intcopylittle32(bs->sc32);
   }
 
-	debug("fat bps = %i, spc = %i, nsectors = %i\n",
+	fat_debug("fat bps = %i, spc = %i, nsectors = %i\n",
 			fat->bps, fat->spc, fat->nsectors);
 
   fat->nft = bs->nft;
@@ -62,7 +122,7 @@ fat_read_bs(struct fat *fat)
 
   fat->rde = intcopylittle16(bs->rde);
   if (fat->rde != 0) {
-		debug("fat type FAT16\n");
+		fat_debug("fat type FAT16\n");
 
     fat->type = FAT16;
 
@@ -73,11 +133,11 @@ fat_read_bs(struct fat *fat)
       (((fat->rde * sizeof(struct fat_dir_entry)) + (fat->bps - 1))
        / fat->bps);
 
-    fat->files[0].dsize = fat->rde * sizeof(struct fat_dir_entry);
-    fat->files[0].start_cluster = 0;
+    fat->files[FILE_root_fid].dsize = fat->rde * sizeof(struct fat_dir_entry);
+    fat->files[FILE_root_fid].start_cluster = 0;
 
   } else {
-		debug("fat type FAT32\n");
+		fat_debug("fat type FAT32\n");
     fat->type = FAT32;
 
 		fat->spf = intcopylittle32(bs->ext.high.spf);
@@ -86,18 +146,19 @@ fat_read_bs(struct fat *fat)
 
     /* This should work for now */
 
-    fat->files[0].dsize = fat->spc * fat->bps;
-    fat->files[0].start_cluster =
+    fat->files[FILE_root_fid].dsize = fat->spc * fat->bps;
+    fat->files[FILE_root_fid].start_cluster =
 			intcopylittle32(bs->ext.high.rootcluster);
 	}
 
-	debug("root dir dsize = 0x%h, start cluster= 0x%h\n",
+	fat_debug("root dir dsize = 0x%h, start cluster= 0x%h\n",
 			fat->files[0].dsize, fat->files[0].start_cluster);
-	debug("root dir = 0x%h\n", fat->rootdir);
+	fat_debug("root dir = 0x%h\n", fat->rootdir);
 
 	fat->nclusters = (fat->nsectors - fat->dataarea) / fat->spc;
 
-	fat->files[0].size = 0;
+	fat->files[FILE_root_fid].refs = 1;
+	fat->files[FILE_root_fid].size = 0;
 
 	unmap_addr(bs, len);
 	release_addr(pa, len);
@@ -115,7 +176,7 @@ fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 	char fname[32];
 	int r, i;
 
-	debug("find file %s in sectors 0x%h 0x%h\n", name, sector, nsectors);
+	fat_debug("find file %s in sectors 0x%h 0x%h\n", name, sector, nsectors);
 
 	len = PAGE_ALIGN(nsectors * fat->bps);
 	pa = request_memory(len);
@@ -123,10 +184,10 @@ fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 		return -1;
 	}
 
-	r = read_blocks(fat, pa, len, 
+	r = fat_read_blocks(fat, pa, len, 
 			sector * fat->bps, nsectors * fat->bps);
 	if (r != OK) {
-		debug("read failed\n");
+		fat_debug("read failed\n");
 		return -1;
 	}
 
@@ -135,24 +196,24 @@ fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 	files = map_addr(pa, len, MAP_RO);
 	for (i = 0; i < nfiles; i++) {
 		r = fat_copy_file_entry_name(&files[i], fname);
-		debug("copied name got %i, '%s'\n", r, fname);
+		fat_debug("copied name got %i, '%s'\n", r, fname);
 		if (r != OK) {
-			debug("bad\n");
+			fat_debug("bad\n");
 			unmap_addr(files, len);
 			release_addr(pa, len);
 			return -1;
 		} else if (strncmp(fname, name, 32)) {
-			debug("found\n");
+			fat_debug("found\n");
 			break;
 		}
 	}
 
 	if (i < nfiles) {
-		debug("copy struct\n");
+		fat_debug("copy struct\n");
 		memcpy(e, &files[i], sizeof(struct fat_dir_entry));
 	}
 	
-	debug("done\n");
+	fat_debug("done\n");
 
 	unmap_addr(files, len);
 	release_addr(pa, len);
@@ -169,7 +230,7 @@ fat_file_find(struct fat *fat,
 	uint32_t cluster;
 	int r, i;
 
-	debug("finding file %s\n", name);
+	fat_debug("finding file %s\n", name);
 
 	for (i = 1; i < FIDSMAX; i++) {
 		if (fat->files[i].parent != parent) continue;
@@ -198,7 +259,7 @@ fat_file_find(struct fat *fat,
 		}
 	}
 
-	debug("r = %i\n", r);
+	fat_debug("r = %i\n", r);
 
 	if (r != 1) {
 		return ERR;
@@ -209,14 +270,15 @@ fat_file_find(struct fat *fat,
 
 	int
 fat_file_read(struct fat *fat, struct fat_file *file,
-		size_t pa, size_t offset, size_t len)
+		size_t pa, size_t m_len,
+		size_t offset, size_t r_len)
 {
 	uint32_t cluster, tlen;
 	int ret;
 
 	tlen = 0;
 	for (cluster = file->start_cluster;
-			cluster != 0 && tlen < len;
+			cluster != 0 && tlen < r_len;
 			cluster = fat_next_cluster(fat, cluster)) {
 
 		if (offset > 0) {
@@ -224,7 +286,7 @@ fat_file_read(struct fat *fat, struct fat_file *file,
 			continue;
 		}
 
-		ret = read_blocks(fat, pa + tlen, fat->spc * fat->bps,
+		ret = fat_read_blocks(fat, pa + tlen, fat->spc * fat->bps,
 				cluster_to_sector(fat, cluster) * fat->bps, fat->spc * fat->bps);
 		if (ret != OK) {
 			return ret;
@@ -300,7 +362,7 @@ fat_table_info(struct fat *fat, uint32_t cluster)
 		return 0;
 	}
 
-	r = read_blocks(fat, pa, len,
+	r = fat_read_blocks(fat, pa, len,
 			(fat->reserved + sec) * fat->bps, fat->bps);
 	if (r != OK) {
 		release_addr(pa, len);
@@ -332,17 +394,17 @@ fat_copy_file_entry_name(struct fat_dir_entry *file, char *name)
 	size_t i, j;
 
 	if (file->name[0] == 0) {
-		debug("empty\n");
+		fat_debug("empty\n");
 		return ERR;
 	} else if (file->name[0] == 0xe5) {
 		/* Something else should be done here */
-		debug("um\n");
+		fat_debug("um\n");
 		return ERR;
 	}
 
 	if ((file->attr & FAT_ATTR_lfn) == FAT_ATTR_lfn) {
-		debug("atr lfn?\n");
-		debug("This is a long file name entry, not sure what to do\n");
+		fat_debug("atr lfn?\n");
+		fat_debug("This is a long file name entry, not sure what to do\n");
 		return ERR;
 	} 
 
@@ -394,7 +456,7 @@ fat_find_free_fid(struct fat *fat)
 	}
 
 	if (b == 0) {
-		debug("fat mount fid table full!\n");
+		fat_debug("fat mount fid table full!\n");
 		return 0;
 	} else {
 		memset(&fat->files[b], 0, sizeof(struct fat_file));
@@ -431,13 +493,13 @@ fat_file_from_entry(struct fat *fat,
 		((uint32_t) intcopylittle16(entry->cluster_low));
 
 	if (entry->attr & FAT_ATTR_read_only) {
-		f->attr = ATTR_rd;
+		f->attr = FILE_ATTR_rd;
 	} else {
-		f->attr = ATTR_rd | ATTR_wr;
+		f->attr = FILE_ATTR_rd | FILE_ATTR_wr;
 	}
 
 	if (entry->attr & FAT_ATTR_directory) {
-		f->attr |= ATTR_dir;
+		f->attr |= FILE_ATTR_dir;
 		f->dsize = fat->spc * fat->bps;
 		f->size = 0;
 	} else {
@@ -466,4 +528,42 @@ fat_file_size(struct fat *fat, struct fat_file *file)
 
 	return s;
 }
+
+	int
+fat_read_blocks(struct fat *fat, size_t pa, size_t len,
+		size_t start, size_t r_len)
+{
+	union block_dev_req rq;
+	union block_dev_rsp rp;
+	int ret;
+
+	fat_debug("give block pid %i from 0x%h 0x%h\n", fat->block_pid, pa, len);
+	if ((ret = give_addr(fat->block_pid, pa, len)) != OK) {
+		fat_debug("block give addr failed %i\n", ret);
+		return ERR;
+	}
+
+	fat_debug("block sending request\n");
+
+	rq.read.type = BLOCK_DEV_read;
+	rq.read.pa = pa;
+	rq.read.len = len;
+	rq.read.start = fat->start * fat->block_size + start;
+	rq.read.r_len = r_len;
+	
+	if (send(fat->block_pid, &rq) != OK) {
+		fat_debug("block send failed\n");
+		return ERR;
+	} else if (recv(fat->block_pid, &rp) != fat->block_pid) {
+		fat_debug("block recv failed\n");
+		return ERR;
+	} else if (rp.read.ret != OK) {
+		fat_debug("block read returned bad %i\n", rp.read.ret);
+		return ERR;
+	}
+
+	fat_debug("block read responded good, map\n");
+	return OK;
+}
+
 

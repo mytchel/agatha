@@ -1,0 +1,228 @@
+#include <types.h>
+#include <err.h>
+#include <sys.h>
+#include <c.h>
+#include <mach.h>
+#include <stdarg.h>
+#include <string.h>
+#include <dev_reg.h>
+#include <block_dev.h>
+#include <mbr.h>
+#include <fs.h>
+
+#include "fat.h"
+
+char *fat_debug_name = "serial0";
+int fat_debug_pid = 0;
+
+void
+fat_debug(char *fmt, ...)
+{
+	uint8_t m[MESSAGE_LEN];
+	va_list a;
+
+	if (fat_debug_pid == 0)
+		return;
+
+	va_start(a, fmt);
+	vsnprintf((char *) m, sizeof(m), fmt, a);
+	va_end(a);
+
+	send(fat_debug_pid, m);
+	recv(fat_debug_pid, m);
+}
+
+int
+fat_get_device_pid(char *name)
+{
+	union dev_reg_req rq;
+	union dev_reg_rsp rp;
+
+	rq.find.type = DEV_REG_find;
+	snprintf(rq.find.name, sizeof(rq.find.name),
+			"%s", name);
+
+	if (send(DEV_REG_PID, &rq) != OK) {
+		return ERR;
+	} else if (recv(DEV_REG_PID, &rp) != DEV_REG_PID) {
+		return ERR;
+	} else if (rp.find.ret != OK) {
+		return ERR;
+	}
+
+	return rp.find.pid;
+}
+
+	static int
+handle_find(struct fat *fat, int from, 
+		union file_req *rq,
+		union file_rsp *rp)
+{
+	struct fat_file *parent;
+
+	fat_debug("fat fs find %i %s\n", rq->find.fid, rq->find.name);
+
+	if (0 > rq->find.fid || rq->find.fid > FIDSMAX) {
+		fat_debug("fid bad\n");
+	 return ERR;
+	}
+
+	parent = &fat->files[rq->find.fid];
+	if (parent->refs == 0) {
+		fat_debug("parent file bad\n");
+		return ERR;
+	}
+
+	rp->find.fid = fat_file_find(fat,
+			parent, rq->find.name);
+
+	if (rp->find.fid > 0) {
+		fat_debug("found\n");
+		parent->refs++;
+		return OK;
+	} else {
+		return ERR;
+	}
+}
+
+	static int
+handle_stat(struct fat *fat, int from, 
+		union file_req *rq,
+		union file_rsp *rp)
+{
+	struct fat_file *f;
+
+	if (0 > rq->stat.fid || rq->stat.fid > FIDSMAX) {
+	 return ERR;
+	}
+
+	f = &fat->files[rq->stat.fid];
+	if (f->refs == 0) {
+		return ERR;
+	}
+
+	rp->stat.attr = f->attr;
+	rp->stat.size = f->size;
+	rp->stat.dsize = f->dsize;
+
+	return OK;
+}
+
+	static int
+handle_read(struct fat *fat, int from, 
+		union file_req *rq,
+		union file_rsp *rp)
+{
+	struct fat_file *f;
+	int ret;
+
+	if (0 > rq->read.fid || rq->read.fid > FIDSMAX) {
+	 return ERR;
+	}
+
+	f = &fat->files[rq->read.fid];
+	if (f->refs == 0) {
+		return ERR;
+	}
+
+	ret = fat_file_read(fat, f,
+			rq->read.pa, rq->read.m_len, 
+			rq->read.offset, rq->read.r_len);
+
+	give_addr(from, rq->read.pa, rq->read.m_len);
+
+	return ret;
+}
+
+	static int
+handle_write(struct fat *fat, int from, 
+		union file_req *rq,
+		union file_rsp *rp)
+{
+	return ERR;
+}
+
+	static int
+handle_clunk(struct fat *fat, int from, 
+		union file_req *rq,
+		union file_rsp *rp)
+{
+	struct fat_file *f;
+
+	if (0 > rq->clunk.fid || rq->clunk.fid > FIDSMAX) {
+	 return ERR;
+	}
+
+	f = &fat->files[rq->clunk.fid];
+	if (f->refs == 0) {
+		return ERR;
+	}
+
+	fat_file_clunk(fat, f);
+	return OK;
+}
+
+int
+fat_mount(int block_pid, int partition)
+{
+	union file_req rq;
+	union file_rsp rp;
+	struct fat fat;
+	int from;
+
+	do {
+		fat_debug_pid = fat_get_device_pid(fat_debug_name);
+	} while (fat_debug_pid < 0);
+
+	fat.block_pid = block_pid;
+
+	fat_debug("fat fs starting on %i.%i\n", block_pid, partition);
+
+	if (fat_read_mbr(&fat, partition) != OK) {
+		fat_debug("fat_read_mbr failed\n");
+		return ERR;
+	}
+
+	if (fat_read_bs(&fat) != OK) {
+		fat_debug("fat_read_bs failed\n");
+		return ERR;
+	}
+
+	while (true) {
+		if ((from = recv(-1, &rq)) < 0)
+			continue;
+
+		rp.untyped.type = rq.type;
+		switch (rq.type) {
+			case FILE_find:
+				rp.untyped.ret = handle_find(&fat, from, &rq, &rp);
+				break;
+
+			case FILE_stat:
+				rp.untyped.ret = handle_stat(&fat, from, &rq, &rp);
+				break;
+
+			case FILE_read:
+				rp.untyped.ret = handle_read(&fat, from, &rq, &rp);
+				break;
+
+			case FILE_write:
+				rp.untyped.ret = handle_write(&fat, from, &rq, &rp);
+				break;
+
+			case FILE_clunk:
+				rp.untyped.ret = handle_clunk(&fat, from, &rq, &rp);
+				break;
+
+			default:
+				rp.untyped.ret = ERR;
+				break;
+		};
+
+		send(from, &rp);
+	}
+		
+	return OK;
+}
+
+

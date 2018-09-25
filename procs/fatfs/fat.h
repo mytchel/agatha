@@ -1,9 +1,5 @@
 /* TODO: If bps * spc is not page aligned we have a problem. */
 
-#define ATTR_rd    1
-#define ATTR_wr    2
-#define ATTR_dir   4
-
 #define intcopylittle16(X) \
 	((X)[0] | ((X)[1]<<8))
 
@@ -148,10 +144,17 @@ struct fat {
   (fat->dataarea + ((cluster - 2) * fat->spc))
 
 int
+fat_mount(int block_pid, int partition);
+
+int
+fat_read_mbr(struct fat *fat, int paritition);
+
+int
 fat_read_bs(struct fat *fat);
 
 int
-read_blocks(struct fat *fat, size_t pa, size_t m_len,
+fat_read_blocks(struct fat *fat, 
+		size_t pa, size_t m_len,
 		size_t start, size_t r_len);
 
 int
@@ -164,7 +167,8 @@ fat_file_clunk(struct fat *fat, struct fat_file *file);
 
 int
 fat_file_read(struct fat *fat, struct fat_file *file,
-	    size_t pa, size_t offset, size_t len);
+	    size_t pa, size_t m_len,
+			size_t offset, size_t r_len);
 
 uint32_t
 fat_next_cluster(struct fat *fat, uint32_t prev);

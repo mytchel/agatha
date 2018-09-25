@@ -8,12 +8,12 @@ include ../../rules.mk
 
 LOAD_ADDR = 0x62008000
 
-BUNDLE += ../../drivers/dev_reg
+BUNDLE += ../../procs/dev_reg
 BUNDLE += ../drivers/serial-pl01x
 BUNDLE += ../drivers/sysreg-sp810
 BUNDLE += ../drivers/mmc-pl18x
-BUNDLE += ../../drivers/init
-BUNDLE += ../../drivers/fatfs
+BUNDLE += ../../procs/init
+BUNDLE += ../../procs/fatfs
 
 BOARD_KERNEL_SRC_C = \
 	trap.c             \
