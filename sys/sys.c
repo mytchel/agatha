@@ -133,13 +133,16 @@ sys_proc_new(void)
 
 	debug("%i proc new\n", up->pid);
 
+	debug("is %i != 0\n", up->pid);
 	if (up->pid != 0) {
+		debug("it is not\n");
 		debug("proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
 
   p = proc_new();
   if (p == nil) {
+		debug("proc_new failed\n");
     return ERR;
   }
 

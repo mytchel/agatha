@@ -40,6 +40,9 @@ get_serial(void)
 
 	puts("kernel aml_meson UART0-AO ready\n");
 
+	puts("try debug\n");
+	debug("trying debug\n");
+
 	debug("mapped registers 0x%h from 0x%h to 0x%h offset 0x%h\n",
 			regs_pa, base, regs, offset);
 	debug("status = 0x%h\n", regs->status);

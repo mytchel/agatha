@@ -39,6 +39,8 @@ You will need:
 - an arm cross compiler. I'm using arm-none-eabi
 	6.3.1 on OpenBSD 6.2. 
 - Make. I'm use BSD make but GNU should also work.
+- U-Boot tools/mkimage for the version of U-Boot
+  you are using.
 
 Then go to the directory of the board you want to build
 and run make. For example to build for vexpress-a9:

@@ -195,6 +195,9 @@ read_init_file(char *f, size_t size)
 	void
 main(void)
 {
+	while (true)
+		;
+
 	do {
 		debug_pid = get_device_pid(debug_name);
 	} while (debug_pid < 0);

@@ -17,6 +17,7 @@ BUNDLE += ../../procs/init
 BUNDLE += ../../procs/fatfs
 
 BOARD_KERNEL_SRC_C = \
+	../kern/gic.c      \
 	trap.c             \
 	serial.c
 

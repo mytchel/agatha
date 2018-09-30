@@ -1,4 +1,4 @@
-struct cortex_a9_gic_dst_regs {
+struct gic_dst_regs {
 	uint32_t dcr;
 	uint32_t ictr;
 	uint32_t diir;
@@ -17,7 +17,7 @@ struct cortex_a9_gic_dst_regs {
 	uint32_t icdsgir;
 };
 
-struct cortex_a9_gic_cpu_regs {
+struct gic_cpu_regs {
 	uint32_t control;
 	uint32_t priority;
 	uint32_t bin_pt;
