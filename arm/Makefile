@@ -78,3 +78,8 @@ kern.elf: ../kernel.ld $(KERNEL_OBJECTS) bundle.bo proc0.bo
 		proc0.bo bundle.bo \
 		-lgcc
 
+kern.umg: kern.bin
+	$(MKIMAGE) -A arm -O linux -T kernel -C none \
+		-a $(LOAD_ADDR) -e $(LOAD_ADDR) \
+		-d kern.bin kern.umg
+

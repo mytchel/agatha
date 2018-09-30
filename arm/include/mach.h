@@ -52,9 +52,9 @@
 #define MAP_TABLE      (3<<1) 
 #define MAP_TYPE_MASK  (3<<1) 
 
-#define MAX_PROCS      32
-#define MAX_MESSAGES 1024
-#define KSTACK_LEN   1024
+#define MAX_PROCS      16
+#define MAX_MESSAGES   32
+#define KSTACK_LEN    256
 
 typedef struct label label_t;
 

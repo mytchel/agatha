@@ -23,14 +23,6 @@ include ${BASE}/${ARCH}/rules.mk
 	@echo LIST $@
 	@$(OBJDUMP) -S $< > $@
 
-.bin.umg: 
-	@make -C $(BASE)/tools/mkuboot
-	@echo MKUBOOT $@
-	@$(BASE)/tools/mkuboot/mkuboot \
-		-a arm -o linux -t kernel \
-		-e $(LOAD_ADDR) -l $(LOAD_ADDR) \
-		$< $@
-
 .bin.bo: 
 	@echo BO $@
 	@$(OBJCOPY) -B arm -O elf32-littlearm -I binary \

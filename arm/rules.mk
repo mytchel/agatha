@@ -6,7 +6,6 @@ AR = $(CROSS)-ar
 RANLIB = $(CROSS)-ranlib
 OBJCOPY = $(CROSS)-objcopy
 OBJDUMP = $(CROSS)-objdump
-MKUBOOT = $(BASE)/mkuboot
 
 USER.LD = $(BASE)/arm/user.ld
 USER_ADDR = 0x00020000

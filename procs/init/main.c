@@ -159,13 +159,42 @@ map_init_file(char *file)
 		return ERR;
 	}
 
+	rq.clunk.type = FILE_clunk;
+	rq.clunk.fid = file_fid;
+
+	if (send(fat_fs_pid, &rq) != OK) {
+		debug("failed to send fs clunk to %i\n", fat_fs_pid);
+		return ERR;
+	} else if (recv(fat_fs_pid, &rp) != fat_fs_pid) {
+		debug("failed to recv fs clunk from %i\n", fat_fs_pid);
+		return ERR;
+	} else if (rp.start.ret != OK) {
+		debug("fs clunk returned bad %i\n", rp.start.ret);
+		return ERR;
+	}
+
+	return OK;
+}
+
+int
+read_init_file(char *f, size_t size)
+{
+	debug("processing init file\n");
+
+	debug("init file contains:\n---\n");
+
+	int i;
+	for (i = 0; i < init_size; i++)
+		debug("%c", init_file[i]);
+
+	debug("---\n");
+
 	return OK;
 }
 
 	void
 main(void)
 {
-
 	do {
 		debug_pid = get_device_pid(debug_name);
 	} while (debug_pid < 0);
@@ -176,18 +205,14 @@ main(void)
 		raise();
 	}
 
-	debug("init file contains:\n---\n");
-
-	int i;
-	for (i = 0; i < init_size; i++)
-		debug("%c", init_file[i]);
-
-	debug("---\n");
-
-	while (true)
-		yield();
+	if (read_init_file(init_file, init_size) != OK) {
+		raise();
+	}
 
 	unmap_addr(init_file, init_m_len);
 	release_addr(init_pa, init_m_len);
+
+	while (true)
+		yield();
 }
 

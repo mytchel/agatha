@@ -3,6 +3,7 @@ all: build_libs kern.umg  kern.list ../proc0/proc0.list
 BASE = ${PWD}/../..
 ARCH = arm
 BOARD = vexpress-a9
+MKIMAGE = ~/src/u-boot/tools/mkimage
 
 include ../../rules.mk
 
