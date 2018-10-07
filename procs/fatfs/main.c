@@ -10,12 +10,11 @@
 #include <mbr.h>
 #include <fs.h>
 #include <fat.h>
-#include <mbr.h>
 
-char *fat_debug_name = "serial0";
-int fat_debug_pid = 0;
+static char *fat_debug_name = "serial0";
+static int fat_debug_pid = 0;
 
-void
+static void
 fat_debug(char *fmt, ...)
 {
 	uint8_t m[MESSAGE_LEN];
@@ -32,7 +31,7 @@ fat_debug(char *fmt, ...)
 	recv(fat_debug_pid, m);
 }
 
-int
+static int
 fat_get_device_pid(char *name)
 {
 	union dev_reg_req rq;
@@ -163,30 +162,11 @@ handle_clunk(struct fat *fat, int from,
 }
 
 int
-fat_mount(int block_pid, int partition)
+fat_mount(struct fat *fat) 
 {
 	union file_req rq;
 	union file_rsp rp;
-	struct fat fat;
 	int from;
-
-	do {
-		fat_debug_pid = fat_get_device_pid(fat_debug_name);
-	} while (fat_debug_pid < 0);
-
-	fat.block_pid = block_pid;
-
-	fat_debug("fat fs starting on %i.%i\n", block_pid, partition);
-
-	if (fat_read_mbr(&fat, partition) != OK) {
-		fat_debug("fat_read_mbr failed\n");
-		return ERR;
-	}
-
-	if (fat_read_bs(&fat) != OK) {
-		fat_debug("fat_read_bs failed\n");
-		return ERR;
-	}
 
 	while (true) {
 		if ((from = recv(-1, &rq)) < 0)
@@ -195,23 +175,23 @@ fat_mount(int block_pid, int partition)
 		rp.untyped.type = rq.type;
 		switch (rq.type) {
 			case FILE_find:
-				rp.untyped.ret = handle_find(&fat, from, &rq, &rp);
+				rp.untyped.ret = handle_find(fat, from, &rq, &rp);
 				break;
 
 			case FILE_stat:
-				rp.untyped.ret = handle_stat(&fat, from, &rq, &rp);
+				rp.untyped.ret = handle_stat(fat, from, &rq, &rp);
 				break;
 
 			case FILE_read:
-				rp.untyped.ret = handle_read(&fat, from, &rq, &rp);
+				rp.untyped.ret = handle_read(fat, from, &rq, &rp);
 				break;
 
 			case FILE_write:
-				rp.untyped.ret = handle_write(&fat, from, &rq, &rp);
+				rp.untyped.ret = handle_write(fat, from, &rq, &rp);
 				break;
 
 			case FILE_clunk:
-				rp.untyped.ret = handle_clunk(&fat, from, &rq, &rp);
+				rp.untyped.ret = handle_clunk(fat, from, &rq, &rp);
 				break;
 
 			default:
@@ -225,30 +205,101 @@ fat_mount(int block_pid, int partition)
 	return OK;
 }
 
-	void
+int
 main(void)
 {
-	union file_req rq;
-	union file_rsp rp;
-	int from;
+	char *block_dev = "sdmmc0";
+	int partition = 0;
+
+	union block_dev_req rq;
+	union block_dev_rsp rp;
+	size_t pa, len, block_size;
+	int ret, block_pid;
+	struct mbr *mbr;
+	struct fat fat;
 	
-	while (true) {
-		if ((from = recv(-1, &rq)) < 0)
-			continue;
+	do {
+		fat_debug_pid = fat_get_device_pid(fat_debug_name);
+	} while (fat_debug_pid < 0);
 
-		if (rq.type == FILE_start) {
-			rp.untyped.type = rq.type;
-			rp.untyped.ret = OK;
-			send(from, &rp);
+	fat_debug("fatfs mounting %s.%i\n", block_dev, partition);
 
-			/* TODO: Fork */
-			fat_mount(rq.start.dev_pid, rq.start.partition);
-		} else {
-			rp.untyped.type = rq.type;
-			rp.untyped.ret = ERR;
-			send(from, &rp);
-		}
+	do {
+		block_pid = fat_get_device_pid(block_dev);
+	} while (block_pid < 0);
+
+	fat_debug("mount fat fs %s pid %i parititon %i\n",
+			block_dev, block_pid, partition);
+
+	fat_debug("reading mbr from %i\n", block_pid);
+
+	rq.info.type = BLOCK_DEV_info;
+	
+	if (send(block_pid, &rq) != OK) {
+		fat_debug("block info send failed\n");
+		return ERR;
+	} else if (recv(block_pid, &rp) != block_pid) {
+		fat_debug("block info recv failed\n");
+		return ERR;
+	} else if (rp.info.ret != OK) {
+		fat_debug("block info returned bad %i\n", rp.info.ret);
+		return ERR;
 	}
+
+	block_size = rp.info.block_len;
+
+	len = PAGE_ALIGN(sizeof(struct mbr));
+	pa = request_memory(len);
+	if (pa == nil) {
+		fat_debug("read mbr memory request failed\n");
+		return ERR;
+	}
+
+	if ((ret = give_addr(block_pid, pa, len)) != OK) {
+		fat_debug("give block addr failed\n");
+		return ERR;
+	}
+
+	rq.read.type = BLOCK_DEV_read;
+	rq.read.pa = pa;
+	rq.read.len = len;
+	rq.read.start = 0;
+	rq.read.r_len = block_size;
+
+	if (send(block_pid, &rq) != OK) {
+		fat_debug("block read send failed\n");
+		return ERR;
+	} else if (recv(block_pid, &rp) != block_pid) {
+		fat_debug("block read recv failed\n");
+		return ERR;
+	} else if (rp.read.ret != OK) {
+		fat_debug("block read returned bad %i\n", rp.read.ret);
+		return ERR;
+	}
+
+	mbr = map_addr(pa, len, MAP_RO);
+	if (mbr == nil) {
+		return ERR;
+	}
+
+	fat_debug("partition %i starts at 0x%h and goes for 0x%h blocks\n",
+				partition, 
+				mbr->parts[partition].lba,
+				mbr->parts[partition].sectors);
+
+	ret = fat_init(&fat, block_pid,
+			block_size,
+			mbr->parts[partition].lba,
+			mbr->parts[partition].sectors);
+	
+	if (ret != OK) {
+			fat_debug("error %i init fat fs\n", ret);
+	}
+
+	unmap_addr(mbr, len);	
+	release_addr(pa, len);
+
+	fat_mount(&fat);
 
 	raise();
 }

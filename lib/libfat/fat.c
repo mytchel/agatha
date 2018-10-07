@@ -32,31 +32,14 @@ fat_debug(char *fmt, ...)
 
 	int
 fat_init(struct fat *fat, int block_pid, 
-		size_t p_start, size_t p_size)
+		size_t block_size, size_t p_start, size_t p_size)
 {
-	union block_dev_req rq;
-	union block_dev_rsp rp;
   struct fat_bs *bs;
 	size_t pa, len;
 	int ret;
 
 	fat->block_pid = block_pid;
-
-	rq.info.type = BLOCK_DEV_info;
-	
-	if (send(fat->block_pid, &rq) != OK) {
-		fat_debug("block info send failed\n");
-		return ERR;
-	} else if (recv(fat->block_pid, &rp) != fat->block_pid) {
-		fat_debug("block info recv failed\n");
-		return ERR;
-	} else if (rp.info.ret != OK) {
-		fat_debug("block info returned bad %i\n", rp.info.ret);
-		return ERR;
-	}
-
-	fat->block_size = rp.info.block_len;
-
+	fat->block_size = block_size;
 
 	fat->start = p_start;
 	fat->nblocks = p_size;

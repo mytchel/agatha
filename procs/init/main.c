@@ -139,7 +139,7 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 		debug("len = 0x%h\n", mbr->parts[i].sectors);
 	}
 
-	ret = fat_init(fat, block_pid,
+	ret = fat_init(fat, block_pid, block_size,
 			mbr->parts[partition].lba,
 			mbr->parts[partition].sectors);
 
