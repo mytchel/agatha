@@ -114,8 +114,12 @@ sys_send(int pid, uint8_t *raw)
 size_t
 sys_recv(int from, uint8_t *m)
 {
+	int ret;
+
 	debug("%i receive from %i\n", up->pid, from);
-	return recv(from, m);
+	ret = recv(from, m);
+	debug("%i received from %i\n", up->pid, ret);
+	return ret;
 }
 
 size_t
@@ -141,14 +145,9 @@ sys_proc_new(void)
 {
   proc_t p;
 
-	debug("0x%h -> %i\n", up, up->pid);
 	debug("%i proc new\n", up->pid);
 
-	debug("is %i != 0\n", up->pid);
-	debug("is %i != 0\n", up->pid);
-	debug("is %i != 0\n", up->pid);
 	if (up->pid != 0) {
-		debug("%i is not 0\n", up->pid);
 		debug("proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}

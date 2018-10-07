@@ -54,7 +54,7 @@
 
 #define MAX_PROCS      16
 #define MAX_MESSAGES   32
-#define KSTACK_LEN    256
+#define KSTACK_LEN   1024
 
 typedef struct label label_t;
 
