@@ -6,6 +6,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include <dev_reg.h>
+#include <block_dev.h>
+#include <mbr.h>
+#include <fat.h>
 #include <fs.h>
 
 char *debug_name = "serial0";
@@ -52,12 +55,116 @@ get_device_pid(char *name)
 }
 
 int
+read_blocks(int pid, size_t pa, size_t len,
+		size_t start, size_t r_len)
+{
+	union block_dev_req rq;
+	union block_dev_rsp rp;
+	int ret;
+
+	if ((ret = give_addr(pid, pa, len)) != OK) {
+		debug("block give_addr failed %i\n", ret);
+		return ERR;
+	}
+
+	rq.read.type = BLOCK_DEV_read;
+	rq.read.pa = pa;
+	rq.read.len = len;
+	rq.read.start = start;
+	rq.read.r_len = r_len;
+
+	if (send(pid, &rq) != OK) {
+		debug("block send failed\n");
+		return ERR;
+	} else if (recv(pid, &rp) != pid) {
+		debug("block send recv failed\n");
+		return ERR;
+	} else if (rp.read.ret != OK) {
+		debug("block read response bad %i\n", rp.read.ret);
+		return ERR;
+	}
+
+	return OK;
+}
+
+	int
+fat_local_init(struct fat *fat, int block_pid, int partition)
+{
+	union block_dev_req rq;
+	union block_dev_rsp rp;
+	struct mbr *mbr;
+	size_t pa, len, block_size;
+	int ret;
+
+	debug("reading mbr from %i\n", fat->block_pid);
+
+	rq.info.type = BLOCK_DEV_info;
+	
+	if (send(block_pid, &rq) != OK) {
+		debug("block info send failed\n");
+		return ERR;
+	} else if (recv(block_pid, &rp) != block_pid) {
+		debug("block info recv failed\n");
+		return ERR;
+	} else if (rp.info.ret != OK) {
+		debug("block info returned bad %i\n", rp.info.ret);
+		return ERR;
+	}
+
+	block_size = rp.info.block_len;
+
+	len = PAGE_ALIGN(sizeof(struct mbr));
+	pa = request_memory(len);
+	if (pa == nil) {
+		debug("read mbr memory request failed\n");
+		return ERR;
+	}
+
+	ret = read_blocks(block_pid, pa, len, 0, block_size);
+	if (ret != OK) {
+		return ret;
+	}
+
+	mbr = map_addr(pa, len, MAP_RO);
+	if (mbr == nil) {
+		return ERR;
+	}
+
+	int i;
+	for (i = 0; i < 4; i++) {
+		debug("partition %i\n", i);
+		debug("status = 0x%h\n", mbr->parts[i].status);
+		debug("type = 0x%h\n", mbr->parts[i].type);
+		debug("lba = 0x%h\n", mbr->parts[i].lba);
+		debug("len = 0x%h\n", mbr->parts[i].sectors);
+	}
+
+	ret = fat_init(fat, block_pid,
+			mbr->parts[partition].lba,
+			mbr->parts[partition].sectors);
+
+	debug("partition %i starts at 0x%h and goes for 0x%h blocks\n",
+				partition, 
+				mbr->parts[partition].lba,
+				mbr->parts[partition].sectors);
+	
+	if (ret != OK) {
+			debug("error %i reading fat fs\n", ret);
+	}
+
+	unmap_addr(mbr, len);	
+	release_addr(pa, len);
+
+	return ret;
+}
+
+int
 map_init_file(char *file)
 {
 	char block_dev[32], *file_name;
-	int i, block_pid, partition, file_fid;
-	union file_req rq;
-	union file_rsp rp;
+	int i, block_pid, partition, fid;
+	struct fat_file *root, *f;
+	struct fat fat;
 
 	debug("loading init file %s\n", init);
 
@@ -75,54 +182,22 @@ map_init_file(char *file)
 	debug("mount fat fs %s pid %i parititon %i to read %s\n",
 			block_dev, block_pid, partition, file_name);
 
-	rq.start.type = FILE_start;
-	rq.start.dev_pid = block_pid;
-	rq.start.partition = partition;
-
-	if (send(fat_fs_pid, &rq) != OK) {
-		debug("failed to send fs start to %i\n", fat_fs_pid);
-		return ERR;
-	} else if (recv(fat_fs_pid, &rp) != fat_fs_pid) {
-		debug("failed to recv fs start from %i\n", fat_fs_pid);
-		return ERR;
-	} else if (rp.start.ret != OK) {
-		debug("fs start returned bad %i\n", rp.start.ret);
+	if (fat_local_init(&fat, block_pid, partition) != OK) {
+		debug("fat_local_init failed\n");
 		return ERR;
 	}
 
-	rq.find.type = FILE_find;
-	rq.find.fid = FILE_root_fid;
-	memcpy(rq.find.name, file_name, sizeof(rq.find.name));
-
-	if (send(fat_fs_pid, &rq) != OK) {
-		debug("failed to send fs find to %i\n", fat_fs_pid);
-		return ERR;
-	} else if (recv(fat_fs_pid, &rp) != fat_fs_pid) {
-		debug("failed to recv fs find from %i\n", fat_fs_pid);
-		return ERR;
-	} else if (rp.start.ret != OK) {
-		debug("fs find returned bad %i\n", rp.start.ret);
+	root = &fat.files[FILE_root_fid];
+	fid = fat_file_find(&fat, root, file);
+	if (fid < 0) {
+		debug("failed to find %s\n", file);
 		return ERR;
 	}
 
-	file_fid = rp.find.fid;
+	f = &fat.files[fid];
 
-	rq.stat.type = FILE_stat;
-	rq.stat.fid = file_fid;
-
-	if (send(fat_fs_pid, &rq) != OK) {
-		debug("failed to send fs stat to %i\n", fat_fs_pid);
-		return ERR;
-	} else if (recv(fat_fs_pid, &rp) != fat_fs_pid) {
-		debug("failed to recv fs stat from %i\n", fat_fs_pid);
-		return ERR;
-	} else if (rp.start.ret != OK) {
-		debug("fs stat returned bad %i\n", rp.start.ret);
-		return ERR;
-	}
-
-	init_m_len = PAGE_ALIGN(rp.stat.dsize);
-	init_size = rp.stat.size;
+	init_m_len = PAGE_ALIGN(f->dsize);
+	init_size = f->size;
 
 	init_pa = request_memory(init_m_len);
 	if (init_pa == nil) {
@@ -130,26 +205,10 @@ map_init_file(char *file)
 		return ERR;
 	}
 
-	rq.read.type = FILE_read;
-	rq.read.fid = file_fid;
-	rq.read.offset = 0;
-	rq.read.r_len = init_size;
-	rq.read.m_len = init_m_len;
-	rq.read.pa = init_pa;
-
-	if (give_addr(fat_fs_pid, init_pa, init_m_len) != OK) {
-		debug("failed to give fs 0x%h 0x%h\n", init_pa, init_m_len);
-		return ERR;
-	}
-
-	if (send(fat_fs_pid, &rq) != OK) {
-		debug("failed to send fs read to %i\n", fat_fs_pid);
-		return ERR;
-	} else if (recv(fat_fs_pid, &rp) != fat_fs_pid) {
-		debug("failed to recv fs read from %i\n", fat_fs_pid);
-		return ERR;
-	} else if (rp.start.ret != OK) {
-		debug("fs read returned bad %i\n", rp.start.ret);
+	if (fat_file_read(&fat, f,
+				init_pa, init_m_len,
+				0, init_size) != OK) {
+		debug("error reading init file\n");
 		return ERR;
 	}
 
@@ -159,24 +218,12 @@ map_init_file(char *file)
 		return ERR;
 	}
 
-	rq.clunk.type = FILE_clunk;
-	rq.clunk.fid = file_fid;
-
-	if (send(fat_fs_pid, &rq) != OK) {
-		debug("failed to send fs clunk to %i\n", fat_fs_pid);
-		return ERR;
-	} else if (recv(fat_fs_pid, &rp) != fat_fs_pid) {
-		debug("failed to recv fs clunk from %i\n", fat_fs_pid);
-		return ERR;
-	} else if (rp.start.ret != OK) {
-		debug("fs clunk returned bad %i\n", rp.start.ret);
-		return ERR;
-	}
-
+	fat_file_clunk(&fat, f);
+	
 	return OK;
 }
 
-int
+	int
 read_init_file(char *f, size_t size)
 {
 	debug("processing init file\n");

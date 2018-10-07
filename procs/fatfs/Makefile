@@ -1,9 +1,10 @@
-PROG = dev_reg
+PROG = fatfs
+
+LIBS = \
+			 -lfat
 
 SRC = \
-	main.c \
-	mount.c \
-	fat.c
+	main.c
 
 include ../rules.mk
 

@@ -12,6 +12,10 @@ recv(int from, void *m);
 int
 pid(void);
 
+void
+exit(void)
+	__attribute__((noreturn));
+
 /* Proc0 only syscalls */
 
 int

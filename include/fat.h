@@ -144,13 +144,8 @@ struct fat {
   (fat->dataarea + ((cluster - 2) * fat->spc))
 
 int
-fat_mount(int block_pid, int partition);
-
-int
-fat_read_mbr(struct fat *fat, int paritition);
-
-int
-fat_read_bs(struct fat *fat);
+fat_init(struct fat *fat, int block_pid,
+		size_t p_start, size_t p_size);
 
 int
 fat_read_blocks(struct fat *fat, 

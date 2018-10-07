@@ -14,7 +14,6 @@ BUNDLE += ../drivers/serial-pl01x
 BUNDLE += ../drivers/sysreg-sp810
 BUNDLE += ../drivers/mmc-pl18x
 BUNDLE += ../../procs/init
-BUNDLE += ../../procs/fatfs
 
 BOARD_KERNEL_SRC_C = \
 	../kern/gic.c      \

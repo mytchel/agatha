@@ -1,5 +1,8 @@
 PROG = init
 
+LIBS = \
+			 -lfat
+
 SRC = \
 	main.c
 

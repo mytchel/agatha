@@ -8,20 +8,39 @@
 #include <dev_reg.h>
 #include <block_dev.h>
 #include <fs.h>
-#include <mbr.h>
+#include <fat.h>
 
-#include "fat.h"
+char *fat_debug_name = "serial0";
+int fat_debug_pid = 0;
+
+static void
+fat_debug(char *fmt, ...)
+{
+	uint8_t m[MESSAGE_LEN];
+	va_list a;
+
+	if (fat_debug_pid == 0) 
+		return;
+
+	va_start(a, fmt);
+	vsnprintf((char *) m, sizeof(m), fmt, a);
+	va_end(a);
+
+	send(fat_debug_pid, m);
+	recv(fat_debug_pid, m);
+}
 
 	int
-fat_read_mbr(struct fat *fat, int partition)
+fat_init(struct fat *fat, int block_pid, 
+		size_t p_start, size_t p_size)
 {
 	union block_dev_req rq;
 	union block_dev_rsp rp;
-	struct mbr *mbr;
+  struct fat_bs *bs;
 	size_t pa, len;
 	int ret;
 
-	fat_debug("reading mbr from %i\n", fat->block_pid);
+	fat->block_pid = block_pid;
 
 	rq.info.type = BLOCK_DEV_info;
 	
@@ -38,50 +57,9 @@ fat_read_mbr(struct fat *fat, int partition)
 
 	fat->block_size = rp.info.block_len;
 
-	len = PAGE_ALIGN(sizeof(struct mbr));
-	pa = request_memory(len);
-	if (pa == nil) {
-		fat_debug("read mbr memory request failed\n");
-		return ERR;
-	}
 
-	ret = fat_read_blocks(fat, pa, len, 0, 1);
-	if (ret != OK) {
-		return ret;
-	}
-
-	mbr = map_addr(pa, len, MAP_RO);
-	if (mbr == nil) {
-		return ERR;
-	}
-
-	int i;
-	for (i = 0; i < 4; i++) {
-		fat_debug("partition %i\n", i);
-		fat_debug("status = 0x%h\n", mbr->parts[i].status);
-		fat_debug("type = 0x%h\n", mbr->parts[i].type);
-		fat_debug("lba = 0x%h\n", mbr->parts[i].lba);
-		fat_debug("len = 0x%h\n", mbr->parts[i].sectors);
-	}
-
-	fat->start = mbr->parts[partition].lba;
-	fat->nblocks = mbr->parts[partition].sectors;
-
-	fat_debug("partition %i starts at 0x%h and goes for 0x%h blocks\n",
-			partition, fat->start, fat->nblocks);
-
-	unmap_addr(mbr, len);	
-	release_addr(pa, len);
-
-	return OK;
-}
-
-int
-fat_read_bs(struct fat *fat)
-{
-  struct fat_bs *bs;
-	size_t pa, len;
-	int ret;
+	fat->start = p_start;
+	fat->nblocks = p_size;
 
 	len = PAGE_ALIGN(fat->block_size);
 	pa = request_memory(len);

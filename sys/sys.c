@@ -127,15 +127,28 @@ sys_pid(void)
 }
 
 size_t
+sys_exit(void)
+{
+	debug("%i proc exiting\n", up->pid);
+	up->state = PROC_dead;
+	schedule(nil);
+	panic("schedule returned to exit!\n");
+	return 0;
+}
+
+size_t
 sys_proc_new(void)
 {
   proc_t p;
 
+	debug("0x%h -> %i\n", up, up->pid);
 	debug("%i proc new\n", up->pid);
 
 	debug("is %i != 0\n", up->pid);
+	debug("is %i != 0\n", up->pid);
+	debug("is %i != 0\n", up->pid);
 	if (up->pid != 0) {
-		debug("it is not\n");
+		debug("%i is not 0\n", up->pid);
 		debug("proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
@@ -203,6 +216,7 @@ void *systab[NSYSCALLS] = {
   [SYSCALL_SEND]             = (void *) &sys_send,
   [SYSCALL_RECV]             = (void *) &sys_recv,
   [SYSCALL_PID]              = (void *) &sys_pid,
+  [SYSCALL_EXIT]             = (void *) &sys_exit,
   [SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
   [SYSCALL_VA_TABLE]         = (void *) &sys_va_table,
   [SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
