@@ -1,12 +1,13 @@
 #!/bin/sh
 
 cp kern.umg /var/ftpd/
+cp vexpress.dtb /var/ftpd/
 
 export ETHER=vether0
 export BRIDGE=bridge0
 
 qemu-system-arm -M vexpress-a9 -nographic \
-	-net nic -net tap \
 	-kernel u-boot \
+	-net nic -net tap \
 	-sd disk.iso
 

@@ -1,6 +1,7 @@
 #include "../../sys/head.h"
 #include "fns.h"
 #include "trap.h"
+#include <fdt.h>
 
 void
 get_intc();
@@ -148,6 +149,23 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 	return (void *) va;
 }
 
+void
+fdt_process(size_t dtb_start, size_t dtb_size)
+{
+	struct fdt_header head;
+	void *dtb;
+	
+	dtb = kernel_map(dtb_start, dtb_size, 
+			AP_RW_RO, true);
+
+	debug("dtb mapped at 0x%x\n", dtb);
+
+	if (fdt_check(dtb, &head) != OK) {
+		panic("error fdt_check\n");
+	}
+
+}
+
 	void
 main(size_t kernel_start, 
 		size_t dtb_start, size_t dtb_size)
@@ -186,6 +204,8 @@ main(size_t kernel_start,
 
 	debug("kernel_start at 0x%x, dtb 0x%x, 0x%x\n",
 			kernel_start, dtb_start, dtb_size);
+
+	fdt_process(dtb_start, dtb_size);
 
 	p0 = init_proc0();
 

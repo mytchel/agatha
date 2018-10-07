@@ -260,6 +260,6 @@ main(void)
 	release_addr(init_pa, init_m_len);
 
 	while (true)
-		yield();
+		;
 }
 

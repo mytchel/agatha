@@ -10,6 +10,7 @@ void gic_get_intc_gt(size_t base);
 void
 get_intc(void)
 {
-	gic_get_intc_gt(0xC4300000);
+	gic_get_intc_gt(0x1e000000);
 }
+
 

@@ -36,6 +36,7 @@ KERNEL_SRC_C = \
 								../../sys/debug.c            \
 								../../sys/proc.c             \
 								../../sys/sys.c              \
+								../../lib/libfdt/fdt.c       \
 								../../lib/libstring/conv.c   \
 								../../lib/libstring/scanf.c  \
 								../../lib/libstring/string.c \
