@@ -153,7 +153,9 @@ void
 fdt_process(size_t dtb_start, size_t dtb_size)
 {
 	struct fdt_header head;
-	void *dtb;
+	void *dtb, *root, *irq;
+	uint32_t irq_phandle;
+	char *data;
 	
 	dtb = kernel_map(dtb_start, dtb_size, 
 			AP_RW_RO, true);
@@ -161,9 +163,35 @@ fdt_process(size_t dtb_start, size_t dtb_size)
 	debug("dtb mapped at 0x%x\n", dtb);
 
 	if (fdt_check(dtb, &head) != OK) {
+		debug("check bad\n");
 		panic("error fdt_check\n");
 	}
 
+	root = fdt_root_node(dtb);
+	if (root == nil) {
+		panic("couldn't find root node in fdt\n");
+	}
+
+	if (fdt_node_property(dtb, root, "interrupt-parent", &data) != 
+			sizeof(uint32_t)) {
+		panic("couldn't read interrupt-parent phandle from root node\n");
+	}
+
+	irq_phandle = beto32(data);
+	debug("is 0x%x\n", irq_phandle);
+
+	irq = fdt_find_node_phandle(dtb, irq_phandle);
+	debug("irq is 0x%x\n", irq);
+	if (irq == nil) {
+		panic("couldn't find interrupt parent with phandle %i\n", irq_phandle);
+	}
+
+	debug("read compatability\n");
+
+	fdt_node_property(dtb, irq, "compatible", &data);
+	debug("interrupt-parent has compatability %s\n", data);
+
+	panic("hmm\n");
 }
 
 	void

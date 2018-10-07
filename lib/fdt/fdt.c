@@ -399,7 +399,7 @@ fdt_find_node_phandle_h(void *dtb,
             &data, &len); 
 
         if (strcmp("phandle", name)) {
-          h = beto32(((uint32_t *) data)[0]);
+          h = beto32(data);
           if (h == handle) {
             *found = true;
             return node;

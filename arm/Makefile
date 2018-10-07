@@ -1,10 +1,10 @@
 LIBS = \
-			 ../lib/libc \
-			 ../../lib/libstring \
-			 ../../lib/libsdmmc \
-			 ../../lib/libblock \
-			 ../../lib/libfat \
-			 ../../lib/libfdt
+			 ../lib/c \
+			 ../../lib/string \
+			 ../../lib/sdmmc \
+			 ../../lib/block \
+			 ../../lib/fat \
+			 ../../lib/fdt
 
 .PHONY: clean
 clean:
@@ -31,15 +31,15 @@ KERNEL_SRC_C = \
 								../kern/main.c               \
 								../kern/proc.c               \
 								../kern/intr.c               \
-								../lib/libc/mmu.c            \
-								../lib/libc/util.c           \
+								../lib/c/mmu.c               \
+								../lib/c/util.c              \
 								../../sys/debug.c            \
 								../../sys/proc.c             \
 								../../sys/sys.c              \
-								../../lib/libfdt/fdt.c       \
-								../../lib/libstring/conv.c   \
-								../../lib/libstring/scanf.c  \
-								../../lib/libstring/string.c \
+								../../lib/fdt/fdt.c          \
+								../../lib/string/conv.c      \
+								../../lib/string/scanf.c     \
+								../../lib/string/string.c    \
 								$(BOARD_KERNEL_SRC_C)
 
 .PHONY: bundle.bin 
