@@ -8,7 +8,7 @@ trap(size_t pc, int type)
 	uint32_t fsr;
 	size_t addr;
 
-	debug("trap at 0x%h, type %i\n", pc, type);
+	debug("trap at 0x%x, type %i\n", pc, type);
 
 	switch(type) {
 		case ABORT_INTERRUPT:
@@ -17,18 +17,18 @@ trap(size_t pc, int type)
 			return; /* Note the return. */
 
 		case ABORT_INSTRUCTION:
-			debug("abort instruction at 0x%h\n", pc);
+			debug("abort instruction at 0x%x\n", pc);
 			break;
 
 		case ABORT_PREFETCH:
-			debug("prefetch instruction at 0x%h\n", pc);
+			debug("prefetch instruction at 0x%x\n", pc);
 			break;
 
 		case ABORT_DATA:
 			addr = fault_addr();
 			fsr = fsr_status() & 0xf;
 
-			debug("data abort at 0x%h for 0x%h type 0x%h\n", pc, addr, fsr);
+			debug("data abort at 0x%x for 0x%x type 0x%x\n", pc, addr, fsr);
 
 			switch (fsr) {
 				case 0x5: /* section translation */

@@ -50,7 +50,7 @@ mmc_send_if_cond(struct mmc *mmc)
 		return ret;
 	}
 
-	mmc->debug(mmc, "got response 0x%h\n", cmd.response[0]);
+	mmc->debug(mmc, "got response 0x%x\n", cmd.response[0]);
 
 	if ((cmd.response[0] & 0xff) != 0xaa) {
 		mmc->debug(mmc, "bad response to if cond\n");
@@ -104,7 +104,7 @@ sd_send_op_cond(struct mmc *mmc)
 	}
 
 	mmc->ocr = cmd.response[0];
-	mmc->debug(mmc, "ocr = 0x%h\n", mmc->ocr);
+	mmc->debug(mmc, "ocr = 0x%x\n", mmc->ocr);
 	if ((mmc->ocr & OCR_HCS) == OCR_HCS) {
 		mmc->debug(mmc, "high capacity\n");
 	}

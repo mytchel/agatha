@@ -51,7 +51,7 @@ fat_init(struct fat *fat, int block_pid,
 		return ERR;
 	}
 
-	fat_debug("reading bs from block 0x%h into 0x%h, 0x%h\n", fat->start, pa, len);
+	fat_debug("reading bs from block 0x%x into 0x%x, 0x%x\n", fat->start, pa, len);
 	
 	ret = fat_read_blocks(fat, pa, len, 0, fat->block_size);
 
@@ -112,9 +112,9 @@ fat_init(struct fat *fat, int block_pid,
 			intcopylittle32(bs->ext.high.rootcluster);
 	}
 
-	fat_debug("root dir dsize = 0x%h, start cluster= 0x%h\n",
+	fat_debug("root dir dsize = 0x%x, start cluster= 0x%x\n",
 			fat->files[0].dsize, fat->files[0].start_cluster);
-	fat_debug("root dir = 0x%h\n", fat->rootdir);
+	fat_debug("root dir = 0x%x\n", fat->rootdir);
 
 	fat->nclusters = (fat->nsectors - fat->dataarea) / fat->spc;
 
@@ -137,7 +137,7 @@ fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 	char fname[32];
 	int r, i;
 
-	fat_debug("find file %s in sectors 0x%h 0x%h\n", name, sector, nsectors);
+	fat_debug("find file %s in sectors 0x%x 0x%x\n", name, sector, nsectors);
 
 	len = PAGE_ALIGN(nsectors * fat->bps);
 	pa = request_memory(len);
@@ -498,7 +498,7 @@ fat_read_blocks(struct fat *fat, size_t pa, size_t len,
 	union block_dev_rsp rp;
 	int ret;
 
-	fat_debug("give block pid %i from 0x%h 0x%h\n", fat->block_pid, pa, len);
+	fat_debug("give block pid %i from 0x%x 0x%x\n", fat->block_pid, pa, len);
 	if ((ret = give_addr(fat->block_pid, pa, len)) != OK) {
 		fat_debug("block give addr failed %i\n", ret);
 		return ERR;

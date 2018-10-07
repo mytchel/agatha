@@ -16,12 +16,15 @@
    for. r1, r5, r9, r12 seem to stay consistant regardless of the
    presense of a device tree. r9 changes.
 
+	These are described somewhere in the u-boot code. I think
+	to do with booting linux which agatha is pretending to be.
  */
 
 
 _start:
 	mov r9,  r6
 	mov r10, r2
+	mov r11, r3
 
 	ldr r0, = _bss_start
 	ldr r1, = _bss_end
@@ -54,6 +57,7 @@ _start:
 	
 	mov r0, r9
 	mov r1, r10
+	mov r2, r11
 
 # void main(kernel_start, dtb_start);
 

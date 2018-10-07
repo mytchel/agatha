@@ -43,9 +43,9 @@ get_serial(void)
 	puts("try debug\n");
 	debug("trying debug\n");
 
-	debug("mapped registers 0x%h from 0x%h to 0x%h offset 0x%h\n",
+	debug("mapped registers 0x%x from 0x%x to 0x%x offset 0x%x\n",
 			regs_pa, base, regs, offset);
-	debug("status = 0x%h\n", regs->status);
-	debug("control= 0x%h\n", regs->control);
+	debug("status = 0x%x\n", regs->status);
+	debug("control= 0x%x\n", regs->control);
 }
 

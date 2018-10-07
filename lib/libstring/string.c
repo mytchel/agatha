@@ -130,13 +130,8 @@ vsnprintf(char *str, size_t max, const char *fmt, va_list ap)
         ind += printint(str + ind, max - ind,
             u, 10);
         break;
-      case 'h':
-        u = va_arg(ap, uint32_t);
-        ind += printint(str + ind, max - ind, 
-            u, 16);
-        break;
       case 'x':
-        u = va_arg(ap, uint64_t);
+        u = va_arg(ap, uint32_t);
         ind += printint(str + ind, max - ind, 
             u, 16);
         break;

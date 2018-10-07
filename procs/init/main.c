@@ -133,17 +133,17 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 	int i;
 	for (i = 0; i < 4; i++) {
 		debug("partition %i\n", i);
-		debug("status = 0x%h\n", mbr->parts[i].status);
-		debug("type = 0x%h\n", mbr->parts[i].type);
-		debug("lba = 0x%h\n", mbr->parts[i].lba);
-		debug("len = 0x%h\n", mbr->parts[i].sectors);
+		debug("status = 0x%x\n", mbr->parts[i].status);
+		debug("type = 0x%x\n", mbr->parts[i].type);
+		debug("lba = 0x%x\n", mbr->parts[i].lba);
+		debug("len = 0x%x\n", mbr->parts[i].sectors);
 	}
 
 	ret = fat_init(fat, block_pid, block_size,
 			mbr->parts[partition].lba,
 			mbr->parts[partition].sectors);
 
-	debug("partition %i starts at 0x%h and goes for 0x%h blocks\n",
+	debug("partition %i starts at 0x%x and goes for 0x%x blocks\n",
 				partition, 
 				mbr->parts[partition].lba,
 				mbr->parts[partition].sectors);
@@ -201,7 +201,7 @@ map_init_file(char *file)
 
 	init_pa = request_memory(init_m_len);
 	if (init_pa == nil) {
-		debug("request for 0x%h bytes failed\n", init_m_len);
+		debug("request for 0x%x bytes failed\n", init_m_len);
 		return ERR;
 	}
 

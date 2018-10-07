@@ -43,10 +43,11 @@ KERNEL_SRC_C = \
 
 .PHONY: bundle.bin 
 bundle.bin bundle.c:
-	@echo BUNDLE $(BUNDLE)
 	@for B in $(BUNDLE); do \
+		echo $(MAKE) -C $$B; \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} || exit 1; \
 		done
+	@echo BUNDLE $(BUNDLE)
 	@sh ../bundle.sh \
 		bundle.bin \
 		bundle.c \

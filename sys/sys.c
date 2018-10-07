@@ -171,7 +171,7 @@ sys_va_table(int p_id, size_t pa)
 {
 	proc_t p;
 
-	debug("%i called sys va_table with %i, 0x%h\n", up->pid, p_id, pa);
+	debug("%i called sys va_table with %i, 0x%x\n", up->pid, p_id, pa);
 
 	if (up->pid != 0) {
 		debug("proc %i is not proc0!\n", up->pid);

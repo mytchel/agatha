@@ -280,10 +280,10 @@ pl18x_set_ios(struct mmc *mmc)
 	sdi_clkcr &= ~(SDI_CLKCR_WIDBUS_MASK);
 	sdi_clkcr |= SDI_CLKCR_WIDBUS_1;
 
-	debug(mmc, "setting clock to 0x%h\n", sdi_clkcr);
+	debug(mmc, "setting clock to 0x%x\n", sdi_clkcr);
 	regs->clock = sdi_clkcr;
 	udelay(CLK_CHANGE_DELAY);
-	debug(mmc, "clock now 0x%h\n", regs->clock);
+	debug(mmc, "clock now 0x%x\n", regs->clock);
 
 	return 0;
 }

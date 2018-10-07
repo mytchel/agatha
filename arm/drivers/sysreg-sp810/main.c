@@ -37,10 +37,10 @@ main(void)
 		raise();
 	}
 
-	debug("sysreg mapped from 0x%h to 0x%h\n", regs_pa, regs);	
-	debug("id 0x%h\n", regs->id);	
-	debug("mci address 0x%h\n", &regs->mci);	
-	debug("mci 0x%h\n", regs->mci);	
+	debug("sysreg mapped from 0x%x to 0x%x\n", regs_pa, regs);	
+	debug("id 0x%x\n", regs->id);	
+	debug("mci address 0x%x\n", &regs->mci);	
+	debug("mci 0x%x\n", regs->mci);	
 
 	while (true)
 		yield();

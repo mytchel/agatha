@@ -149,7 +149,8 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 }
 
 	void
-main(void)
+main(size_t kernel_start, 
+		size_t dtb_start, size_t dtb_size)
 {
 	proc_t p0;
 
@@ -182,6 +183,9 @@ main(void)
 	get_serial();
 	get_intc();
 	get_systick();
+
+	debug("kernel_start at 0x%x, dtb 0x%x, 0x%x\n",
+			kernel_start, dtb_start, dtb_size);
 
 	p0 = init_proc0();
 

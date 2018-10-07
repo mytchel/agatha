@@ -282,7 +282,7 @@ main(void)
 		return ERR;
 	}
 
-	fat_debug("partition %i starts at 0x%h and goes for 0x%h blocks\n",
+	fat_debug("partition %i starts at 0x%x and goes for 0x%x blocks\n",
 				partition, 
 				mbr->parts[partition].lba,
 				mbr->parts[partition].sectors);
