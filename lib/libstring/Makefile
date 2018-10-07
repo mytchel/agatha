@@ -7,4 +7,4 @@ SRC_C = \
 				scanf.c \
 				string.c
 
-include ../Makefile
+include ../rules.mk

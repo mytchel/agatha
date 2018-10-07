@@ -1,8 +1,8 @@
-LIB = libblock
+LIB = libfdt
 
 SRC_A = 
 
 SRC_C = \
-				block.c
+				fdt.c
 
 include ../rules.mk

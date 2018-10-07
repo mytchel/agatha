@@ -8,5 +8,5 @@ SRC_C = \
 				addr.c \
 				util.c
 
-include ../Makefile
+include ../../../lib/rules.mk
 

@@ -1,4 +1,4 @@
-include ../../rules.mk
+include ${BASE}/rules.mk
 
 OBJECTS = \
 					${SRC_A:%.S=%.o} \

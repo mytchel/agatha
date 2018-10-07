@@ -5,4 +5,4 @@ SRC_A =
 SRC_C = \
 				fat.c
 
-include ../Makefile
+include ../rules.mk

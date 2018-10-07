@@ -3,7 +3,8 @@ LIBS = \
 			 ../../lib/libstring \
 			 ../../lib/libsdmmc \
 			 ../../lib/libblock \
-			 ../../lib/libfat
+			 ../../lib/libfat \
+			 ../../lib/libfdt
 
 .PHONY: clean
 clean:

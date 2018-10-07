@@ -1,16 +1,4 @@
 
-#define beto16(X) \
-  ((((X)>>8) & 0x00ff) | (((X)<<8) & 0xff00))
-
-#define beto32(X) \
-  (beto16((X)>>16) | \
-   (beto16((X) & 0xffff) << 16))
-
-#define beto64(X) \
-  (beto32((X)>>32) | \
-   (beto32((X) & 0xffffffff) << 32))
-
-
 #define L1X(va)          (((uint32_t) va) >> 20)
 #define L2X(va)          ((((uint32_t) va) >> 12) & ((1 << 8) - 1))
 
