@@ -4,7 +4,6 @@
 #include <arm/pl01x.h>
 
 static volatile struct pl01x_regs *regs;
-static size_t regs_pa, regs_len;
 
   static void
 putc(char c)
@@ -15,7 +14,7 @@ putc(char c)
 	regs->dr = c;  
 }
 
-  void
+  static void
 puts(const char *c)
 {
   while (*c)
@@ -23,13 +22,14 @@ puts(const char *c)
 }
 
   void
-get_serial(void)
+init_pl011(size_t regs_pa)
 {
-	regs_pa = 0x10000000 + (9 << 12);
-	regs_len = 1 << 12;
+	size_t regs_len = 1 << 12;
 
 	regs = kernel_map(regs_pa, regs_len, AP_RW_NO, false);
 
-	debug("kernel pl02x ready\n");
+	debug_puts = &puts;
+
+	debug("kernel pl011 ready\n");
 }
 

@@ -11,12 +11,11 @@ LOAD_ADDR = 0x13000000
 
 BUNDLE += ../../procs/dev_reg
 BUNDLE += ../../procs/init
-#BUNDLE += ../../procs/fatfs
 
-BOARD_KERNEL_SRC_C = \
-	../kern/gic.c      \
-	trap.c             \
-	serial.c
+BOARD_KERNEL_SRC_C =  \
+	../kern/gic.c       \
+	serial_aml_uart.c   \
+	drivers.c
 
 include ../Makefile
 

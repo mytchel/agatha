@@ -57,6 +57,8 @@ struct kernel_info {
 	size_t bundle_pa, bundle_len;
 
 	size_t info_pa, info_len;
+	
+	size_t dtb_pa, dtb_len;
 
 	struct {
 		uint32_t *l1_va, *l2_va;

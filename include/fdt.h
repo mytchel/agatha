@@ -47,7 +47,7 @@ fdt_node_regs(void *dtb, void *node,
     size_t *size);
 
 void *
-fdt_find_node_phandle(void *dtb, uint32_t handle);
+fdt_find_node_phandle(void *dtb, void *node, uint32_t handle);
 
 uint32_t
 fdt_node_phandle(void *dtb, void *node);
@@ -64,15 +64,25 @@ fdt_find_node_device_type(void *dtb, char *type,
     void *arg);
 
 void *
+fdt_find_node_path(void *dtb, void *node, char *path);
+
+void *
 fdt_root_node(void *dtb);
 
 char *
 fdt_node_name(void *dtb, void *node);
 
+size_t
+fdt_node_name_addr(void *dtb, void *node);
+
 int
-fdt_node_path(void *dtb, void *node, char **path, size_t max);
+fdt_node_path(void *dtb, void *node, char *path, size_t max);
 
 void
 fdt_check_reserved(void *dtb, 
     void (*callback)(size_t start, size_t len));
+
+bool
+fdt_compatable(char *dev, size_t devlen,
+		char *driver, size_t drilen);
 

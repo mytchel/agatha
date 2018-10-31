@@ -1,16 +1,9 @@
 #include "../../sys/head.h"
 #include "fns.h"
 #include "trap.h"
-#include <fdt.h>
 
 void
-get_intc();
-
-void
-get_systick();
-
-void
-get_serial();
+init_kernel_drivers();
 
 uint32_t
 kernel_info[1024] __attribute__((__aligned__(0x1000))) = { 0 };
@@ -134,69 +127,27 @@ init_proc0(void)
 kernel_map(size_t pa, size_t len, int ap, bool cache)
 {
 	static size_t va_next = 0;
-	size_t va;
+	size_t va, off;
+
+	off = pa - PAGE_ALIGN_DN(pa);
+	pa = PAGE_ALIGN_DN(pa);
+	len = PAGE_ALIGN(len);
 
 	if (va_next == 0) {
 		va_next = info->kernel_pa + info->kernel_len;
 	}
 
 	va = va_next;
-
-	va_next += PAGE_ALIGN(len);
+	va_next += len;
 
 	map_pages(kernel_l2, pa, va, len, ap, cache);
 
-	return (void *) va;
-}
-
-void
-fdt_process(size_t dtb_start, size_t dtb_size)
-{
-	struct fdt_header head;
-	void *dtb, *root, *irq;
-	uint32_t irq_phandle;
-	char *data;
-	
-	dtb = kernel_map(dtb_start, dtb_size, 
-			AP_RW_RO, true);
-
-	debug("dtb mapped at 0x%x\n", dtb);
-
-	if (fdt_check(dtb, &head) != OK) {
-		debug("check bad\n");
-		panic("error fdt_check\n");
-	}
-
-	root = fdt_root_node(dtb);
-	if (root == nil) {
-		panic("couldn't find root node in fdt\n");
-	}
-
-	if (fdt_node_property(dtb, root, "interrupt-parent", &data) != 
-			sizeof(uint32_t)) {
-		panic("couldn't read interrupt-parent phandle from root node\n");
-	}
-
-	irq_phandle = beto32(data);
-	debug("is 0x%x\n", irq_phandle);
-
-	irq = fdt_find_node_phandle(dtb, irq_phandle);
-	debug("irq is 0x%x\n", irq);
-	if (irq == nil) {
-		panic("couldn't find interrupt parent with phandle %i\n", irq_phandle);
-	}
-
-	debug("read compatability\n");
-
-	fdt_node_property(dtb, irq, "compatible", &data);
-	debug("interrupt-parent has compatability %s\n", data);
-
-	panic("hmm\n");
+	return (void *) (va + off);
 }
 
 	void
 main(size_t kernel_start, 
-		size_t dtb_start, size_t dtb_size)
+		size_t dtb_start, size_t dtb_len)
 {
 	proc_t p0;
 
@@ -213,6 +164,9 @@ main(size_t kernel_start,
 	info->info_pa = (size_t) kernel_info;
 	info->info_len = sizeof(kernel_info);
 
+	info->dtb_pa = dtb_start;
+	info->dtb_len = dtb_len;
+
 	map_l2(kernel_l1, (size_t) kernel_l2, 
 			info->kernel_pa, 0x1000);
 
@@ -226,14 +180,7 @@ main(size_t kernel_start,
 	mmu_invalidate();
 	mmu_enable();
 
-	get_serial();
-	get_intc();
-	get_systick();
-
-	debug("kernel_start at 0x%x, dtb 0x%x, 0x%x\n",
-			kernel_start, dtb_start, dtb_size);
-
-	fdt_process(dtb_start, dtb_size);
+	init_kernel_drivers();
 
 	p0 = init_proc0();
 

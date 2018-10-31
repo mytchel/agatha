@@ -17,8 +17,8 @@ BUNDLE += ../../procs/init
 
 BOARD_KERNEL_SRC_C = \
 	../kern/gic.c      \
-	trap.c             \
-	serial.c
+	serial_pl011.c     \
+	drivers.c
 
 include ../Makefile
 

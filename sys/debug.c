@@ -1,38 +1,41 @@
 #include "head.h"
 
+void (*debug_puts)(const char *) = nil;
+
   int
 debug(const char *fmt, ...)
 {
   char str[128];
   va_list ap;
-  size_t i;
+  int i;
 
-  va_start(ap, fmt);
-  i = vsnprintf(str, sizeof(str), fmt, ap);
-  va_end(ap);
+	if (debug_puts != nil) {
+		va_start(ap, fmt);
+		i = vsnprintf(str, sizeof(str), fmt, ap);
+		va_end(ap);
 
-  if (i > 0) {
-    puts(str);
-  }
+		debug_puts(str);
+	} else {
+		i = -1;
+	}
 
-  return i;
+	return i;
 }
 
-  void
+	void
 panic(const char *fmt, ...)
 {
-  char str[128];
-  va_list ap;
-  size_t i;
+	char str[128];
+	va_list ap;
 
-  va_start(ap, fmt);
-  i = vsnprintf(str, sizeof(str), fmt, ap);
-  va_end(ap);
+	if (debug_puts != nil) {
+		va_start(ap, fmt);
+		vsnprintf(str, sizeof(str), fmt, ap);
+		va_end(ap);
 
-  if (i > 0) {
-    puts(str);
-  }
+		debug_puts(str);
+	}
 
-  raise();	
+	raise();	
 }
 

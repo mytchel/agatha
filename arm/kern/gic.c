@@ -159,8 +159,22 @@ irq_handler(void)
 	gic_end_interrupt(irqn);
 }
 
+void
+set_systick(size_t ms)
+{
+	pt_regs->t_load = ms * 100000;
+	pt_regs->t_control |= 1;
+}
+
+static void 
+systick(size_t irq)
+{
+	pt_regs->t_intr = 1;
+	schedule(nil);
+}
+
 	void
-gic_get_intc_gt(size_t base)
+init_gic_systick(size_t base)
 {
 	size_t regs_pa, regs_len, regs;
 
@@ -181,28 +195,6 @@ gic_get_intc_gt(size_t base)
 
 	gic_dst_init();
 	gic_cpu_init();
-}
-
-void
-set_systick(size_t ms)
-{
-	pt_regs->t_load = ms * 100000;
-	pt_regs->t_control |= 1;
-}
-
-static void 
-systick(size_t irq)
-{
-	pt_regs->t_intr = 1;
-	schedule(nil);
-}
-
-void
-get_systick(void)
-{
-	if (pt_regs == nil) {
-		panic("Private timer regs not mapped!\n");
-	}
 
 	/* Enable interrupt, no prescaler. */
 	pt_regs->t_control = (1<<2);

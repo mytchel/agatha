@@ -120,8 +120,7 @@ fill_intr_m(uint8_t *, size_t irqn);
 void
 irq_handler(void);
 
-void
-puts(const char *);
-
 extern proc_t up;
+
+extern void (*debug_puts)(const char *);
 

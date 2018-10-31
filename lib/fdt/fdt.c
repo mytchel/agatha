@@ -114,7 +114,6 @@ fdt_get_prop(void *dtb,
   static uint32_t *
 fdt_skip_node(void *dtb, uint32_t *pr)
 {
-  uint32_t p;
   char *pc;
   size_t i;
 
@@ -125,8 +124,7 @@ fdt_skip_node(void *dtb, uint32_t *pr)
   pr = (uint32_t *) (pc + (((i+1) + 3) & ~3));
 
   while (true) {
-		p = *pr++;
-    switch (beto32(&p)) {
+    switch (beto32(pr)) {
       default:  
         return nil;
 
@@ -148,6 +146,8 @@ fdt_skip_node(void *dtb, uint32_t *pr)
         pr = fdt_skip_prop(dtb, pr);
         break;
     }
+
+		pr++;
   }
 }
 
@@ -237,16 +237,16 @@ fdt_node_regs(void *dtb, void *node,
   return true;
 }
 
+	int
+fdt_node_path(void *dtb, void *node, char *path, size_t max)
+{
+	return -1;
+}
+
   char *
 fdt_node_name(void *dtb, void *node)
 {
   return ((char *) node) + sizeof(uint32_t);
-}
-
-int
-fdt_node_path(void *dtb, void *node, char **path, size_t max)
-{
-	return -1;
 }
 
   static uint32_t *
@@ -350,11 +350,9 @@ fdt_node_phandle(void *dtb, void *node)
 }
 
   static uint32_t *
-fdt_find_node_phandle_h(void *dtb, 
-    struct fdt_header *head, 
-    uint32_t handle,
-    uint32_t *node,
-    bool *found)
+fdt_find_node_phandle_h(void *dtb, struct fdt_header *head, 
+		uint32_t handle,
+    uint32_t *node, bool *found)
 {
   char *name, *data;
   uint32_t *pr, h;
@@ -376,8 +374,8 @@ fdt_find_node_phandle_h(void *dtb,
         return pr;
 
       case FDT_BEGIN_NODE:
-        pr = fdt_find_node_phandle_h(dtb,
-            head, handle,
+        pr = fdt_find_node_phandle_h(dtb, head, 
+						handle,
             pr, found);
 
         if (pr == nil) {
@@ -416,19 +414,16 @@ fdt_find_node_phandle_h(void *dtb,
 }
 
   void *
-fdt_find_node_phandle(void *dtb, uint32_t handle)
+fdt_find_node_phandle(void *dtb, void *node, uint32_t handle)
 {
-  struct fdt_header head;
-  uint32_t *node;
+	struct fdt_header head;
   bool found;
 
   if (fdt_check(dtb, &head) != OK) {
     return nil;
   }
 
-  found = false;
-
-  node = (uint32_t *) ((size_t) dtb + head.off_dt_struct);
+	found = false;
 
   node = fdt_find_node_phandle_h(dtb,
       &head, handle, node, &found);
@@ -438,6 +433,121 @@ fdt_find_node_phandle(void *dtb, uint32_t handle)
   } else {
     return nil;
   }
+}
+
+void *
+fdt_find_node_path_h(void *dtb, 
+		char *path, 
+		uint32_t *node, bool *found)
+{
+  uint32_t *pr;
+	bool skip;
+  size_t i;
+  char *pc;
+
+  pc = (char *) (node + 1);
+  for (i = 0; pc[i] != 0; i++)
+    ;
+  
+	pr = (uint32_t *) (pc + (((i+1) + 3) & ~3));
+
+	skip = false;
+	for (i = 0; pc[i] != 0 && path[i] != 0 && path[i] != '/'; i++) {
+		if (pc[i] != path[i]) {
+			skip = true;
+			break;
+		}
+	}
+
+	if (skip) {
+		return fdt_skip_node(dtb, node);
+
+	} else {
+		if (path[i] == 0) {
+			*found = true;
+			return node;
+		}
+
+		path = &path[i+1];
+	}
+	
+  while (true) {
+    switch (beto32(pr)) {
+      default:  
+        return nil;
+
+      case FDT_END_NODE:
+        return pr;
+
+      case FDT_BEGIN_NODE:
+				pr = fdt_find_node_path_h(dtb,
+						path, 
+						pr, found);
+
+        if (pr == nil) {
+          return nil;
+
+        } else if (*found) {
+          return pr;
+
+        } else {
+          break;
+        }
+
+      case FDT_NOP:
+        break;
+
+      case FDT_PROP:
+				pr = fdt_skip_prop(dtb, pr);
+        break;
+    }
+
+    pr++;
+  }
+}
+
+void *
+fdt_find_node_path(void *dtb, void *node, char *path)
+{
+  bool found;
+
+	found = false;
+
+  node = fdt_find_node_path_h(dtb, path, 
+			node, &found);
+
+  if (found) {
+    return node;
+  } else {
+    return nil;
+  }
+}
+
+bool
+fdt_compatable(char *device, size_t devlen, char *driver, size_t drilen)
+{
+	int len, dlen;
+	char *d;
+
+	while (devlen > 0 && *device != 0) {
+		d = driver;
+		dlen = drilen;
+		while (dlen > 0 && *d != 0) {
+			if (strcmp(device, d)) {
+				return true;
+			}
+
+			len = strlen(d);
+			d += len + 1;
+			dlen -= len + 1;
+		}
+
+		len = strlen(device);
+		device += len + 1;
+		devlen -= len + 1;
+	}
+
+	return false;
 }
 
   static uint32_t *
