@@ -33,6 +33,8 @@ puts(const char *c)
 	void
 main(void)
 {
+	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+
 	char *name = "serial0";
 	size_t regs_pa, regs_len;
 	union dev_reg_req drq;
@@ -40,8 +42,9 @@ main(void)
 	uint8_t m[MESSAGE_LEN];
 	int from;
 
-	regs_pa = 0x10000000 + (9 << 12);
-	regs_len = 1 << 12;
+	recv(-1, init_m);
+	regs_pa = init_m[0];
+	regs_len = init_m[1];
 
 	regs = request_device(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {

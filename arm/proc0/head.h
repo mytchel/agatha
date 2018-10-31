@@ -12,7 +12,7 @@ void
 init_mem(void);
 
 int
-get_regs(size_t pa, size_t len);
+get_mmio(size_t pa, size_t len);
 
 size_t
 get_ram(size_t len, size_t align);
@@ -72,6 +72,27 @@ proc_map(int pid, size_t pa, size_t va, size_t len, int flags);
 
 int
 proc_unmap(int pid, size_t va, size_t len);
+
+
+
+
+int
+init_bundled_proc(char *name, size_t prog_pa, size_t len);
+
+void
+add_ram(size_t start, size_t len);
+
+void
+add_mmio(size_t start, size_t len);
+
+void
+board_init_ram(void);
+
+void
+board_init_bundled_drivers(size_t offset_into_bundle);
+
+
+
 
 extern struct kernel_info *info;
 

@@ -1,16 +1,17 @@
 ALIGN=4096
 
+NAME=$1
+shift
 BIN=$1
 shift
 C=$1
 shift
+P=$1
+shift
 
-echo -n > $C
-echo "#include <types.h>" >> $C
-echo "#include \"../bundle.h\"" >> $C
-echo "struct bundle_proc bundled_procs[] = {" >> $C
+echo >> $C
+echo "struct bundle_proc $NAME[] = {" >> $C
 
-P=0
 for D in $@
 do
   B=$D/out.bin
@@ -30,7 +31,11 @@ do
 done
 
 echo "};" >> $C
-echo "size_t nbundled_procs = sizeof(bundled_procs)/sizeof(bundled_procs[0]);" >> $C
+echo >> $C
+echo "size_t n$NAME = sizeof($NAME)/sizeof($NAME[0]);" >> $C
+echo >> $C
+
+echo $P
 
 exit 0
 

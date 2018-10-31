@@ -9,16 +9,19 @@ include ../../rules.mk
 
 LOAD_ADDR = 0x62008000
 
-BUNDLE += ../../procs/dev_reg
-BUNDLE += ../drivers/serial-pl01x
-BUNDLE += ../drivers/sysreg-sp810
-BUNDLE += ../drivers/mmc-pl18x
-BUNDLE += ../../procs/init
+PROCS = \
+				../../procs/dev_reg \
+				../../procs/init
+
+DRIVERS = \
+					drivers/serial-pl01x \
+					drivers/sysreg-sp810 \
+					drivers/mmc-pl18x
 
 BOARD_KERNEL_SRC_C = \
-	../kern/gic.c      \
-	serial_pl011.c     \
-	drivers.c
+										 ../kern/gic.c      \
+										 serial_pl01x.c     \
+										 kernel.c
 
 include ../Makefile
 

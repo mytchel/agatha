@@ -22,7 +22,7 @@ puts(const char *c)
 }
 
   void
-init_pl011(size_t regs_pa)
+init_pl01x(size_t regs_pa)
 {
 	size_t regs_len = 1 << 12;
 
@@ -30,6 +30,6 @@ init_pl011(size_t regs_pa)
 
 	debug_puts = &puts;
 
-	debug("kernel pl011 ready\n");
+	debug("kernel pl01x ready\n");
 }
 

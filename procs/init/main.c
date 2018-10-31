@@ -14,7 +14,7 @@
 char *debug_name = "serial0";
 int debug_pid;
 
-char *init = "sdmmc0a:test";
+char *init = "sda0:test";
 char *init_file;
 size_t init_pa, init_m_len, init_size;
 int fat_fs_pid = 6;
@@ -173,7 +173,7 @@ map_init_file(char *file)
 
 	block_dev[i-1] = 0;
 	file_name = &init[i+1];
-	partition = init[i-1] - 'a';
+	partition = init[i-1] - '0';
 
 	do {
 		block_pid = get_device_pid(block_dev);

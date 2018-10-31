@@ -3,8 +3,7 @@ LIBS = \
 			 ../../lib/string \
 			 ../../lib/sdmmc \
 			 ../../lib/block \
-			 ../../lib/fat \
-			 ../../lib/fdt
+			 ../../lib/fat
 
 .PHONY: clean
 clean:
@@ -43,15 +42,11 @@ KERNEL_SRC_C = \
 
 .PHONY: bundle.bin 
 bundle.bin bundle.c:
-	@for B in $(BUNDLE); do \
+	@for B in $(PROCS) $(DRIVERS); do \
 		echo $(MAKE) -C $$B; \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} || exit 1; \
 		done
-	@echo BUNDLE $(BUNDLE)
-	@sh ../bundle.sh \
-		bundle.bin \
-		bundle.c \
-		$(BUNDLE)
+	PROCS="$(PROCS)" DRIVERS="$(DRIVERS)" sh ../mkbundle.sh
 
 bundle.bo: bundle.bin
 

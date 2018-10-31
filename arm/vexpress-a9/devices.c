@@ -1,35 +1,55 @@
-#include <types.h>
-
+#include "../proc0/head.h"
+#include "../bundle.h"
 #include "../dev.h"
 
 struct device devices[] = {
-	{ "mem0", "mem",
-		0x60000000, 0x20000000,
-		0		
-	},
-
-	/* Devices */
-	{ "sysreg", "sp810",
+	{ "sysreg", "drivers/sysreg-sp810",
 		0x10000000, 0x1000,
 		0
 	},
-		{ "mmc0", "pl19x",
+	{ "mmc0", "drivers/mmc-pl18x",
 		0x10005000, 0x1000,
 		41
 	},
-	{ "timer0", "t804",
-		0x10011000, 0x1000,
-		34	
-	},
-	{ "timer1", "t804",
-		0x10012000, 0x1000,
-		35
-	},
-	{ "serial0", "pl01x",
+	{ "serial0", "drivers/serial-pl01x",
 		0x10009000, 0x1000,
 		37
 	},
 };
 
-size_t ndevices = sizeof(devices)/sizeof(devices[0]);
+	void
+board_init_ram(void)
+{
+	add_ram(0x60000000, 0x20000000);
+}
+
+	void
+board_init_bundled_drivers(size_t off)
+{
+	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+	int b, d, pid;
+
+	for (b = 0; b < nbundled_drivers; b++) {
+		for (d = 0; d < LEN(devices); d++) {
+			if (!strcmp(devices[d].compatable, bundled_drivers[b].name))
+				continue;
+
+			/* The proc can handle this device */
+
+			add_mmio(devices[d].reg, devices[d].len);
+
+			pid = init_bundled_proc(devices[d].name,
+					off, 
+					bundled_drivers[b].len);
+
+			init_m[0] = devices[d].reg;
+			init_m[1] = devices[d].len;
+			init_m[2] = devices[d].irqn;
+		
+			send(pid, init_m);	
+		}
+
+		off += bundled_drivers[b].len;
+	}
+}
 

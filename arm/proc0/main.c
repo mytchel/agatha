@@ -24,7 +24,7 @@ handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
 			return ERR;
 		}
 	} else {
-		if (get_regs(pa, len) != OK) {
+		if (get_mmio(pa, len) != OK) {
 			return ERR;
 		}
 	}

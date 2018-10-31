@@ -237,7 +237,7 @@ proc_unmap(int pid, size_t va, size_t len)
 	return OK;
 }
 
-	static void
+int
 init_bundled_proc(char *name,
 		size_t start, size_t len)
 {
@@ -318,6 +318,8 @@ init_bundled_proc(char *name,
 	m[1] = USER_ADDR;
 
 	send(pid, (uint8_t *) m);
+
+	return pid;
 }
 
 	void
@@ -332,12 +334,15 @@ init_procs(void)
 	}
 
 	off = info->bundle_pa;
-
 	for (i = 0; i < nbundled_procs; i++) {
-		init_bundled_proc(bundled_procs[i].name, 
-					off, bundled_procs[i].len);
+		init_bundled_proc(bundled_procs[i].name,
+				off,
+				bundled_procs[i].len);
+
 		off += bundled_procs[i].len;
 	}
+
+	board_init_bundled_drivers(off);
 }
 
 

@@ -24,7 +24,7 @@ __attribute__((__aligned__(0x1000))) = { 0 };
 struct pool *addr_pool = nil;
 
 struct addr_range *ram_free = nil;
-struct addr_range *dev_regs = nil;
+struct addr_range *mmio_free = nil;
 struct addr_range *free_space = nil;
 
 extern uint32_t *_data_end;
@@ -134,16 +134,13 @@ addr_range_get_any(struct addr_range **head, size_t len, size_t align)
 }
 
 	int
-get_regs(size_t pa, size_t len)
+get_mmio(size_t pa, size_t len)
 {
 	struct addr_range *m;
 
-	m = addr_range_get(&dev_regs, pa, len);
+	m = addr_range_get(&mmio_free, pa, len);
 	if (m == nil) {
-		m = addr_range_get(&ram_free, pa, len);
-		if (m == nil) {
-			return ERR;
-		}
+		return ERR;
 	}
 
 	pool_free(addr_pool, m);
@@ -254,11 +251,42 @@ unmap(void *addr, size_t len)
 
 }
 
+void
+add_mmio(size_t start, size_t len)
+{
+	struct addr_range *m;
+
+	m = pool_alloc(addr_pool);
+	if (m == nil) {
+		raise();
+	}
+
+	m->start = start;
+	m->len = len;
+
+	addr_range_insert(&mmio_free, m);
+}
+
+void
+add_ram(size_t start, size_t len)
+{
+	struct addr_range *m;
+
+	m = pool_alloc(addr_pool);
+	if (m == nil) {
+		raise();
+	}
+
+	m->start = start;
+	m->len = len;
+
+	addr_range_insert(&ram_free, m);
+}
+
 	void
 init_mem(void)
 {
 	struct addr_range *m;
-	int i;
 
 	addr_pool = 
 		pool_new_with_frame(sizeof(struct addr_range), 
@@ -269,23 +297,7 @@ init_mem(void)
 		raise();
 	}
 
-	for (i = 0; i < ndevices; i++) {
-		m = pool_alloc(addr_pool);
-		if (m == nil) {
-			raise();
-		}
-
-		m->start  = devices[i].reg;
-		m->len = devices[i].len;
-
-		if (strncmp(devices[i].compatable, "mem", 
-					sizeof(devices[i].compatable))) {
-
-			addr_range_insert(&ram_free, m);
-		} else {
-			addr_range_insert(&dev_regs, m);
-		}
-	}
+	board_init_ram();
 
 	if (ram_free == nil) {
 		raise();
@@ -325,12 +337,12 @@ init_mem(void)
 	}
 
 	next_l2_addr = (void *) 
-			(PAGE_ALIGN(&_data_end) + 0x4000);
-	
+		(PAGE_ALIGN(&_data_end) + 0x4000);
+
 	next_l2_va = SECTION_ALIGN(
 			PAGE_ALIGN(&_data_end) 
 			+ 0x4000 + 0x1000);
-	
+
 	map_pages(info->proc0.l2_va, 
 			next_l2_pa, 
 			(size_t) next_l2_addr, 

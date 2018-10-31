@@ -9,13 +9,16 @@ include ../../rules.mk
 
 LOAD_ADDR = 0x13000000
 
-BUNDLE += ../../procs/dev_reg
-BUNDLE += ../../procs/init
+PROCS = \
+	../../procs/dev_reg \
+	../../procs/init
+
+DRIVERS =
 
 BOARD_KERNEL_SRC_C =  \
 	../kern/gic.c       \
 	serial_aml_uart.c   \
-	drivers.c
+	kernel.c
 
 include ../Makefile
 

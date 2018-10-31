@@ -34,8 +34,8 @@ debug(struct mmc *mmc, char *fmt, ...)
 			fmt, ap);
 	va_end(ap);
 
-	send(2, (uint8_t *) s);
-	recv(2, (uint8_t *) s);
+	send(3, (uint8_t *) s);
+	recv(3, (uint8_t *) s);
 }
 
 static void
@@ -318,14 +318,17 @@ pl18x_init(volatile struct pl18x_regs *regs)
 	void
 main(void)
 {
+	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+
 	volatile struct pl18x_regs *regs;
-	char *name = "sdmmc0";
+	char *name = "sda";
 	size_t regs_pa, regs_len;
 	struct mmc mmc;
 	int ret;
 
-	regs_pa = 0x10000000 + (5 << 12);
-	regs_len = 1 << 12;
+	recv(-1, init_m);
+	regs_pa = init_m[0];
+	regs_len = init_m[1];
 
 	regs = request_device(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
