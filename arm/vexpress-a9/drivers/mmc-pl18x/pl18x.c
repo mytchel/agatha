@@ -326,13 +326,13 @@ main(void)
 	struct mmc mmc;
 	int ret;
 
-	recv(-1, init_m);
+	recv(0, init_m);
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
 
-	regs = request_device(regs_pa, regs_len, MAP_DEV|MAP_RW);
+	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		debug(nil, "pl18x failed to get registers!\n");
+		debug(nil, "pl18x failed to map registers!\n");
 		raise();
 	}
 

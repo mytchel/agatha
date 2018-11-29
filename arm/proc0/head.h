@@ -11,9 +11,6 @@
 void
 init_mem(void);
 
-int
-get_mmio(size_t pa, size_t len);
-
 size_t
 get_ram(size_t len, size_t align);
 
@@ -81,9 +78,6 @@ init_bundled_proc(char *name, size_t prog_pa, size_t len);
 
 void
 add_ram(size_t start, size_t len);
-
-void
-add_mmio(size_t start, size_t len);
 
 void
 board_init_ram(void);

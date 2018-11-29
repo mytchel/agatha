@@ -163,6 +163,8 @@ sys_proc_new(void)
   func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
         (size_t) &proc_start);
 
+	p->state = PROC_ready;
+
 	return p->pid;
 }
 

@@ -18,15 +18,9 @@ handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
 		return ERR;
 	}
 
+	pa = get_ram(len, 0x1000);
 	if (pa == nil) {
-		pa = get_ram(len, 0x1000);
-		if (pa == nil) {
-			return ERR;
-		}
-	} else {
-		if (get_mmio(pa, len) != OK) {
-			return ERR;
-		}
+		return ERR;
 	}
 
 	rp->addr_req.pa = pa;

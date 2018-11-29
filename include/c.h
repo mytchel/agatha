@@ -53,9 +53,6 @@ map_addr(size_t pa, size_t len, int flags);
 size_t
 request_memory(size_t len);
 
-void *
-request_device(size_t pa, size_t len, int flags);
-
 int
 release_addr(size_t pa, size_t len);
 

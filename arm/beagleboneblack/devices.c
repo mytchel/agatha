@@ -3,28 +3,29 @@
 #include "../dev.h"
 
 struct device devices[] = {
-	{ "sysreg", "drivers/sysreg-sp810",
-		0x10000000, 0x1000,
+	{ "serial0", "drivers/serial-omap3",
+		0x44e09000, 0x1000,
 		0
 	},
-	{ "mmc0", "drivers/mmc-pl18x",
-		0x10005000, 0x1000,
-		41
+	{ "wdt1", "drivers/wtd-am335x",
+		0x44e31000, 0x1000,
+		0	
 	},
-	{ "serial0", "drivers/serial-pl01x",
-		0x10009000, 0x1000,
-		37
+
+ 	 { "sdmmc0", "drivers/mmc-omap3",
+		0x48060000, 0x10000,
+		64
 	},
-	{ "eth0", "drivers/ethernet-lan9118",
-		0x4e000000, 0x10000,
-		0xf
+	{ "sdmmc1", "drivers/mmc-omap3",
+		0x481d8000, 0x10000,
+		28
 	},
 };
 
 	void
 board_init_ram(void)
 {
-	add_ram(0x60000000, 0x20000000);
+	add_ram(0x80000000, 0x20000000);
 }
 
 	void
@@ -51,6 +52,9 @@ board_init_bundled_drivers(size_t off)
 			init_m[2] = devices[d].irqn;
 		
 			send(pid, init_m);	
+
+			strlcpy((char *) init_m, devices[d].name, sizeof(init_m));
+			send(pid, init_m);
 		}
 
 		off += bundled_drivers[b].len;

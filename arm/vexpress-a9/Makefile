@@ -16,7 +16,8 @@ PROCS = \
 DRIVERS = \
 					drivers/serial-pl01x \
 					drivers/sysreg-sp810 \
-					drivers/mmc-pl18x
+					drivers/mmc-pl18x    \
+					drivers/ethernet-lan9118
 
 BOARD_KERNEL_SRC_C = \
 										 ../kern/gic.c      \

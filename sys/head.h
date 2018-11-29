@@ -17,6 +17,7 @@ typedef struct proc *proc_t;
 
 typedef enum {
 	PROC_dead,
+	PROC_notready,
 	PROC_ready,
 	PROC_oncpu,
 	PROC_send,

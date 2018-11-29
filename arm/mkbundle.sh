@@ -1,6 +1,3 @@
-echo PROCS $PROCS
-echo DRIVERS $DRIVERS
-
 echo -n > bundle.c
 echo '#include <types.h>' >> bundle.c
 echo '#include "../bundle.h"' >> bundle.c

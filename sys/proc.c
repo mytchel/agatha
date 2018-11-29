@@ -57,7 +57,7 @@ schedule(proc_t n)
 	}
 
 	if (up != nil) {
-		debug("switch to %i\n", up->pid);
+		debug("switch to %i at 0x%x\n", up->pid, up->label.pc);
 		mmu_switch(up->vspace);
 
 		set_systick(1000);
@@ -107,7 +107,7 @@ proc_new(void)
 
 	p->pid = pid;
 
-	p->state = PROC_ready;
+	p->state = PROC_notready;
 
 	add_to_list(&alive, p);
 

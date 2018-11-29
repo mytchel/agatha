@@ -2,24 +2,25 @@ all: build_libs kern.umg  kern.list ../proc0/proc0.list
 
 BASE = ${PWD}/../..
 ARCH = arm
-BOARD = odroid-c1
-MKIMAGE = ~/src/u-boot-odroid/build/tools/mkimage
+BOARD = beagleboneblack
+MKIMAGE = ~/src/u-boot/tools/mkimage
 
 include ../../rules.mk
 
-LOAD_ADDR = 0x13000000
+LOAD_ADDR = 0x82000000
 
 PROCS = \
 	../../procs/dev_reg \
 #	../../procs/init
 
 DRIVERS = \
-					drivers/serial-aml \
-					drivers/mmc-aml
+					drivers/serial-omap3 \
+					drivers/mmc-omap3
 
 BOARD_KERNEL_SRC_C =  \
-	../kern/gic.c       \
-	serial_aml_uart.c   \
+	cortex_a8_intr.c      \
+	serial_omap3_uart.c   \
+	am335x_dmtimer.c      \
 	kernel.c
 
 include ../Makefile

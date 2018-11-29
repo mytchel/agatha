@@ -1,0 +1,6 @@
+To get this to work with u-boot I've had to make some modifications
+to the u-boot branch that hardkernel distributes. I don't know why
+they are needed but u-boot refused to load a kernel. I had to
+remove code in arch/arm/lib/bootm.c in do_bootm_linux that set up
+tags for something. The u-boot.img binary in this directoy works.
+

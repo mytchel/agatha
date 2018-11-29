@@ -8,11 +8,8 @@ LIBS = \
 .PHONY: clean
 clean:
 	@rm -f $(CLEAN)
-	@for B in $(BUNDLE); do \
+	@for B in $(PROCS) $(DRIVERS) $(LIBS); do \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} clean; \
-	done
-	@for L in $(LIBS); do \
-		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} clean; \
 	done
 
 .PHONE: build_libs
@@ -46,7 +43,9 @@ bundle.bin bundle.c:
 		echo $(MAKE) -C $$B; \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} || exit 1; \
 		done
-	PROCS="$(PROCS)" DRIVERS="$(DRIVERS)" sh ../mkbundle.sh
+	@echo 'BUNDLE procs   : ' $(PROCS)
+	@echo 'BUNDLE drivers : ' $(DRIVERS)
+	@PROCS="$(PROCS)" DRIVERS="$(DRIVERS)" sh ../mkbundle.sh
 
 bundle.bo: bundle.bin
 

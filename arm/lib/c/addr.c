@@ -98,34 +98,7 @@ request_memory(size_t len)
 	return rp.addr_req.pa;
 }
 
-void *
-request_device(size_t pa, size_t len, int flags)
-{
-	union proc0_req rq;
-	union proc0_rsp rp;
-
-	len = PAGE_ALIGN(len);
-
-	rq.addr_req.type = PROC0_addr_req;
-	rq.addr_req.pa = pa;
-	rq.addr_req.len = len;
-
-	if (send(PROC0_PID, (uint8_t *) &rq) != OK) {
-		return nil;
-	}
-
-	if (recv(PROC0_PID, (uint8_t *) &rp) != PROC0_PID) {
-		return nil;
-	}
-
-	if (rp.addr_req.ret != OK) {
-		return nil;
-	}
-
-	return map_addr(pa, len, flags);
-}
-
-int
+	int
 release_addr(size_t pa, size_t len)
 {
 	return give_addr(PROC0_PID, pa, len);

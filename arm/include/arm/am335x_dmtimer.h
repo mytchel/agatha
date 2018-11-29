@@ -1,4 +1,4 @@
-struct omap3_dmtimer_regs {
+struct am335x_dmtimer_regs {
   uint32_t tidr;
   uint8_t pad0[12];
   uint32_t tiocp_cfg;

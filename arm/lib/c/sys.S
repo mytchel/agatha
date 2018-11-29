@@ -7,6 +7,7 @@
 .global jump
 .global panic
 
+.global exit
 .global yield
 .global send
 .global recv
@@ -17,7 +18,7 @@
 
 _start:
 	bl main
-	b .
+	bl exit
 
 
 raise:
@@ -27,6 +28,13 @@ raise:
 
 panic:
   b . 
+
+
+exit:
+	push {r12, lr}
+	mov r12, #SYSCALL_EXIT
+	svc 0
+	pop {r12, pc}
 
 
 yield:

@@ -31,11 +31,11 @@ main(void)
 
 	size_t regs_pa, regs_len;
 
-	recv(-1, init_m);
+	recv(0, init_m);
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
 
-	regs = request_device(regs_pa, regs_len, MAP_DEV|MAP_RW);
+	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		raise();
 	}

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cp kern.umg /var/ftpd/
+
