@@ -383,10 +383,9 @@ struct mmc {
 	uint32_t csd[4];
 	uint32_t voltages;
 	uint32_t ocr, rca;
+	int version;
 
 	int (*command)(struct mmc *mmc, 
-			struct mmc_cmd *cmd);
-	int (*transfer)(struct mmc *mmc,
 			struct mmc_cmd *cmd,
 			struct mmc_data *data);
 	int (*set_ios)(struct mmc *mmc);
