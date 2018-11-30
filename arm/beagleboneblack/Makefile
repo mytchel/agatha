@@ -11,7 +11,7 @@ LOAD_ADDR = 0x82000000
 
 PROCS = \
 	../../procs/dev_reg \
-#	../../procs/init
+	../../procs/init
 
 DRIVERS = \
 					drivers/serial-omap3 \

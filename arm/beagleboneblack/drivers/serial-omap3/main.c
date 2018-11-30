@@ -54,8 +54,6 @@ main(void)
 		exit();
 	}
 
-	puts("serial_omap3 test");
-
 	drq.type = DEV_REG_register;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),

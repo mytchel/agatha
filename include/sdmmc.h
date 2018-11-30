@@ -377,11 +377,15 @@ struct mmc {
 	volatile void *base;
 
 	struct mmc_cid cid;
-	size_t block_len;
-	size_t nblocks;
-	size_t capacity;
+	uint64_t block_len;
+	uint64_t nblocks;
+	uint64_t capacity;
 	uint32_t csd[4];
 	uint32_t voltages;
+
+	uint8_t ext_csd[512];
+
+	bool high_capacity;
 	uint32_t ocr, rca;
 	int version;
 

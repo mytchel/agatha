@@ -57,16 +57,6 @@ debug(struct mmc *mmc, char *fmt, ...)
 	recv(pid, (uint8_t *) s);
 }
 
-void
-dump_regs(struct mmc *mmc)
-{
-	volatile uint32_t *regs = mmc->base;
-
-	int i;
-	for (i = 68; i < sizeof(struct omap3_mmchs_regs) / 4; i++)
-		debug(mmc, "0x%x -> 0x%x\n", i * 4, regs[i]);
-}
-
 static void
 udelay(size_t us)
 {
@@ -113,24 +103,19 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	if (cmd->resp_type) {
 		if (cmd->resp_type & MMC_RSP_PRESENT) {
 			if (cmd->resp_type & MMC_RSP_BUSY) {
-				debug(mmc, "with busy\n");
 				send |= MMCHS_SD_CMD_RSP_TYPE_48B_BUSY;
 			} else if (cmd->resp_type & MMC_RSP_136) {
-				debug(mmc, "with long\n");
 				send |= MMCHS_SD_CMD_RSP_TYPE_136B;
 			} else {
-				debug(mmc, "with normal\n");
 				send |= MMCHS_SD_CMD_RSP_TYPE_48B;
 			}
 		}
 
 		if (cmd->resp_type & MMC_RSP_CRC) {
-				debug(mmc, "with crc\n");
 			send |= MMCHS_SD_CMD_CCCE_ENABLE;
 		}
 
 		if (cmd->resp_type & MMC_RSP_OPCODE) {
-			debug(mmc, "with opcode\n");
 			send |= MMCHS_SD_CMD_CICE_ENABLE;
 		}
 	}
@@ -138,20 +123,14 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	if (data != nil) {
 		send |= MMCHS_SD_CMD_DP_DATA |
 			MMCHS_SD_CMD_MSBS_SINGLE;
-		debug(mmc, "with data\n");
 
 		if (data->flags == MMC_DATA_READ) {
-			debug(mmc, "with read\n");
 			send |= MMCHS_SD_CMD_DDIR_READ;
 
 		} else if (data->flags == MMC_DATA_WRITE) {
-			debug(mmc, "with write\n");
 			send |= MMCHS_SD_CMD_DDIR_WRITE;
 		}
 	}
-
-	debug(mmc, "sending cmd 0x%x with resp of 0x%x as 0x%x\n", cmd->cmdidx, cmd->resp_type, send);
-	debug(mmc, "stat before = 0x%x\n", regs->stat);
 
 	regs->arg = cmd->cmdarg;
 	regs->cmd = send;
@@ -160,24 +139,19 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 
 	stat = regs->stat;
 
-	debug(mmc, "got stat of 0x%x\n", stat);
-
 	regs->stat = MMCHS_SD_STAT_CC |
 			MMCHS_SD_STAT_CIE |
 			MMCHS_SD_STAT_CCRC |
 			MMCHS_SD_STAT_CTO;
 
 	if (stat & MMCHS_SD_STAT_CTO) {
-		debug(mmc, "reset src line\n");
 		mmchs_reset_line(regs, MMCHS_SD_SYSCTL_SRC);
 	}
 
 	if (stat & MMCHS_SD_STAT_DTO) {
-		debug(mmc, "reset src srd\n");
 		mmchs_reset_line(regs, MMCHS_SD_SYSCTL_SRD);
 	}
 
-	debug(mmc, "stat now 0x%x\n", regs->stat);
 	if (stat & MMCHS_SD_STAT_ERRI) {
 		debug(mmc, "command failed stat = 0x%x\n", stat);
 		return ERR;
@@ -194,8 +168,6 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 
 	if (data != nil) {
 		/* TODO: error handling */
-
-		debug(mmc, "handling data\n");
 
 		if (data->flags == MMC_DATA_READ) {
 			wait_for_intr(regs, MMCHS_SD_STAT_ERRI | MMCHS_SD_STAT_BRR);
@@ -369,7 +341,7 @@ main(void)
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		debug(nil, "mmc-aml failed to map registers!\n");
+		debug(nil, "mmc-omap3 failed to map registers!\n");
 		exit();
 	}
 
@@ -384,7 +356,6 @@ main(void)
 
 	mmc.debug = &debug;
 
-	debug(&mmc, "mmchs_init\n");
 	ret = mmchs_init(&mmc);
 	if (ret != OK) {
 		debug(&mmc, "init failed!\n");

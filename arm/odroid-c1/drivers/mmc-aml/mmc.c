@@ -117,40 +117,7 @@ wait_for_command_end(struct mmc *mmc,
 
 	return 0;
 }
-
-static int 
-do_command(struct mmc *mmc, struct mmc_cmd *cmd)
-{
-	volatile struct aml_meson8_mmc_regs *regs = mmc->base;
-	uint32_t send = 0;
-	int result;
-
-	debug(mmc, "do command\n");
-
-	send = cmd->cmdidx & CMD_CMDINDEX_MASK;
-
-	if (cmd->resp_type) {
-		debug(mmc, "has response\n");
-		send |= CMD_HAS_RESP;
-		if (cmd->resp_type & MMC_RSP_136)
-			send |= CMD_LONGRESP;
-	}
-
-	regs->argu = cmd->cmdarg;
-	udelay(COMMAND_REG_DELAY);
-	debug(mmc, "sending 0x%x\n", send);
-
-	regs->send = send;
-	result = wait_for_command_end(mmc, cmd);
-
-	/* After CMD2 set RCA to a none zero value. */
-	if ((result == 0) && (cmd->cmdidx == MMC_CMD_ALL_SEND_CID))
-		mmc->rca = 10;
-
-	return result;
-}
-
-static int 
+	static int 
 read_bytes(volatile struct aml_meson8_mmc_regs *regs,
 		uint32_t *dest, uint32_t blkcount, uint32_t blksize)
 {
@@ -191,35 +158,51 @@ read_bytes(volatile struct aml_meson8_mmc_regs *regs,
 	return 0;
 }
 
-	static int 
-do_data_transfer(struct mmc *mmc, 
-		struct mmc_cmd *cmd,
-		struct mmc_data *data)
+static int 
+do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 {
-	int error = ERR;
+	volatile struct aml_meson8_mmc_regs *regs = mmc->base;
+	uint32_t send = 0;
+	int result;
 
-	debug(mmc, "do data transfer\n");
+	debug(mmc, "do command\n");
 
-	if (data->flags & MMC_DATA_READ) {
-		error = do_command(mmc, cmd);
-		if (error)
-			return error;
+	send = cmd->cmdidx & CMD_CMDINDEX_MASK;
 
-		error = read_bytes(mmc->base, data->dest, data->blocks,
-				data->blocksize);
-
-	} else if (data->flags & MMC_DATA_WRITE) {
-		return ERR;
+	if (cmd->resp_type) {
+		debug(mmc, "has response\n");
+		send |= CMD_HAS_RESP;
+		if (cmd->resp_type & MMC_RSP_136)
+			send |= CMD_LONGRESP;
 	}
 
-	return error;
+	regs->argu = cmd->cmdarg;
+	udelay(COMMAND_REG_DELAY);
+	debug(mmc, "sending 0x%x\n", send);
+
+	regs->send = send;
+	result = wait_for_command_end(mmc, cmd);
+
+	/* After CMD2 set RCA to a none zero value. */
+	if ((result == 0) && (cmd->cmdidx == MMC_CMD_ALL_SEND_CID))
+		mmc->rca = 10;
+
+	if (data != nil) {
+		if (data->flags & MMC_DATA_READ) {
+			result = read_bytes(regs, data->dest, 
+					data->blocks, data->blocksize);
+
+		} else if (data->flags & MMC_DATA_WRITE) {
+			return ERR;
+		}
+	}
+
+	return result;
 }
 
 	static int
 aml_meson8_mmc_set_ios(struct mmc *mmc)
 {
-	volatile struct aml_meson8_mmc_regs *regs = mmc->base;
-
 	debug(mmc, "set ios\n");
 
 	/*
@@ -271,7 +254,7 @@ aml_meson8_mmc_init(volatile struct aml_meson8_mmc_regs *regs)
 	debug(nil, "mmc pdma 0x%x\n", regs->pdma);
 	regs->pdma = 0;
 	debug(nil, "mmc pdma 0x%x\n", regs->pdma);
-	
+
 	debug(nil, "mmc clkc 0x%x\n", regs->clkc);
 	regs->clkc = 0;
 	regs->clkc = 0 | (0<<16) | (1<<19) | (1<<23);
@@ -340,7 +323,6 @@ main(void)
 	mmc.voltages = 0xff8080;
 
 	mmc.command = &do_command;
-	mmc.transfer = &do_data_transfer;
 	mmc.set_ios = &aml_meson8_mmc_set_ios;
 	mmc.reset = &aml_meson8_mmc_reset;
 

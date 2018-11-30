@@ -11,13 +11,10 @@ struct device devices[] = {
 		0x44e31000, 0x1000,
 		0	
 	},
-/* is either broken on my device, or the sd card
-	 is not working. 
  	 { "sdmmc0", "drivers/mmc-omap3",
 		0x48060000, 0x10000,
 		64
 	},
-	*/
 	{ "sdmmc1", "drivers/mmc-omap3",
 		0x481d8000, 0x10000,
 		28

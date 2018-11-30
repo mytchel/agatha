@@ -46,7 +46,7 @@ send(proc_t to, message_t m)
 	if (to->state == PROC_recv 
 			&& (to->recv_from == -1 || to->recv_from == up->pid)) {
 		to->state = PROC_ready;
-		schedule(to);
+/*		schedule(to); */
 	}
 
 	return OK;

@@ -14,7 +14,7 @@
 char *debug_name = "serial0";
 int debug_pid;
 
-char *init = "sda0:test";
+char *init = "sdmmc1a:test";
 char *init_file;
 size_t init_pa, init_m_len, init_size;
 int fat_fs_pid = 6;
@@ -96,6 +96,8 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 	size_t pa, len, block_size;
 	int ret;
 
+	fat->block_pid = block_pid;
+
 	debug("reading mbr from %i\n", fat->block_pid);
 
 	rq.info.type = BLOCK_DEV_info;
@@ -113,12 +115,16 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 
 	block_size = rp.info.block_len;
 
+	debug("block size is 0x%x\n", block_size);
+
 	len = PAGE_ALIGN(sizeof(struct mbr));
 	pa = request_memory(len);
 	if (pa == nil) {
 		debug("read mbr memory request failed\n");
 		return ERR;
 	}
+
+	debug("read mbr\n");
 
 	ret = read_blocks(block_pid, pa, len, 0, block_size);
 	if (ret != OK) {
@@ -139,17 +145,17 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 		debug("len = 0x%x\n", mbr->parts[i].sectors);
 	}
 
+	debug("partition %i starts at 0x%x and goes for 0x%x blocks\n",
+			partition, 
+			mbr->parts[partition].lba,
+			mbr->parts[partition].sectors);
+
 	ret = fat_init(fat, block_pid, block_size,
 			mbr->parts[partition].lba,
 			mbr->parts[partition].sectors);
 
-	debug("partition %i starts at 0x%x and goes for 0x%x blocks\n",
-				partition, 
-				mbr->parts[partition].lba,
-				mbr->parts[partition].sectors);
-	
 	if (ret != OK) {
-			debug("error %i reading fat fs\n", ret);
+		debug("error %i reading fat fs\n", ret);
 	}
 
 	unmap_addr(mbr, len);	
@@ -158,7 +164,7 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 	return ret;
 }
 
-int
+	int
 map_init_file(char *file)
 {
 	char block_dev[32], *file_name;
@@ -173,7 +179,9 @@ map_init_file(char *file)
 
 	block_dev[i-1] = 0;
 	file_name = &init[i+1];
-	partition = init[i-1] - '0';
+	partition = init[i-1] - 'a';
+
+	debug("find block device %s\n", block_dev);
 
 	do {
 		block_pid = get_device_pid(block_dev);
@@ -219,7 +227,7 @@ map_init_file(char *file)
 	}
 
 	fat_file_clunk(&fat, f);
-	
+
 	return OK;
 }
 

@@ -11,7 +11,7 @@
 #include <fat.h>
 
 char *fat_debug_name = "serial0";
-int fat_debug_pid = 0;
+int fat_debug_pid = 3;
 
 static void
 fat_debug(char *fmt, ...)
@@ -158,7 +158,10 @@ fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 	for (i = 0; i < nfiles; i++) {
 		r = fat_copy_file_entry_name(&files[i], fname);
 		fat_debug("copied name got %i, '%s'\n", r, fname);
-		if (r != OK) {
+		if (r == -2) {
+			/* For now, skip lfn errors */
+			continue;
+		} else if (r != OK) {
 			fat_debug("bad\n");
 			unmap_addr(files, len);
 			release_addr(pa, len);
@@ -247,7 +250,8 @@ fat_file_read(struct fat *fat, struct fat_file *file,
 			continue;
 		}
 
-		ret = fat_read_blocks(fat, pa + tlen, fat->spc * fat->bps,
+		/* TODO: this needs to be made to work with alignements */
+		ret = fat_read_blocks(fat, pa + tlen, PAGE_ALIGN(fat->spc * fat->bps),
 				cluster_to_sector(fat, cluster) * fat->bps, fat->spc * fat->bps);
 		if (ret != OK) {
 			return ret;
@@ -363,10 +367,9 @@ fat_copy_file_entry_name(struct fat_dir_entry *file, char *name)
 		return ERR;
 	}
 
-	if ((file->attr & FAT_ATTR_lfn) == FAT_ATTR_lfn) {
-		fat_debug("atr lfn?\n");
+	while ((file->attr & FAT_ATTR_lfn) == FAT_ATTR_lfn) {
 		fat_debug("This is a long file name entry, not sure what to do\n");
-		return ERR;
+		return -2;
 	} 
 
 	i = 0;
