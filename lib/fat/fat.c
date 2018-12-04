@@ -11,7 +11,7 @@
 #include <fat.h>
 
 char *fat_debug_name = "serial0";
-int fat_debug_pid = 3;
+int fat_debug_pid = 0;
 
 static void
 fat_debug(char *fmt, ...)

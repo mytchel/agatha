@@ -14,7 +14,7 @@
 char *debug_name = "serial0";
 int debug_pid;
 
-char *init = "sdmmc1a:test";
+char *init = "sdmmc0a:test";
 char *init_file;
 size_t init_pa, init_m_len, init_size;
 int fat_fs_pid = 6;
