@@ -218,7 +218,7 @@ mmc_set_addr(struct mmc *mmc)
 mmc_send_csd(struct mmc *mmc)
 {
 	struct mmc_cmd cmd;
-	uint64_t csize, cmult;
+	uint32_t csize, cmult;
 	int ret;
 
 	cmd.cmdidx = MMC_CMD_SEND_CSD;
@@ -277,22 +277,13 @@ mmc_send_csd(struct mmc *mmc)
 
 	mmc->block_len = 1 << ((cmd.response[1] >> 16) & 0xf);
 
+	mmc->debug(mmc, "block len = 0x%x\n", mmc->block_len);
+
 	mmc->nblocks = ((csize + 1) << (cmult + 2));
+	mmc->debug(mmc, "nblocks = 0x%x\n", mmc->nblocks);
+
 	mmc->capacity = mmc->nblocks * mmc->block_len;
-
-	/*
-	mmc->debug(mmc, "block len = %i, nblocks = %i\n",
-			(uint32_t) (mmc->block_len & 0xffffffff), 
-			(uint32_t) (mmc->nblocks & 0xffffffff));
-
-	mmc->debug(mmc, "capacity = %iMb\n",
-			(uint32_t) ((mmc->capacity >> 20) & 0xffffffff));
-*/
-
-	/* The above is incorrect */
-
-	mmc->block_len = 512;
-	mmc->nblocks = csize;
+	mmc->debug(mmc, "capacity = %i Mb\n", (uint32_t) (mmc->capacity >> 20));
 
 	return OK;
 }
@@ -368,13 +359,9 @@ mmc_startup(struct mmc *mmc)
 	ret = mmc_send_if_cond(mmc);
 
 	ret = sd_send_op_cond(mmc);
-	if (ret == OK) {
-		mmc->debug(mmc, "sd card 1.0 or later\n");
-
-	} else {
-		mmc->debug(mmc, "mmc or sd card 1.0\n");
-
+	if (ret != OK) {
 		ret = mmc_send_op_cond(mmc);
+		if (ret != OK) return ret;
 	}
 	
 	ret = mmc_send_all_cid(mmc);
@@ -408,6 +395,8 @@ mmc_read_block(struct mmc *mmc, size_t off, void *buffer)
 {
 	struct mmc_cmd cmd;
 	struct mmc_data data;
+
+	mmc->debug(mmc, "reading 0x%x\n", off);
 
 	cmd.cmdidx = MMC_CMD_READ_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
@@ -444,23 +433,28 @@ read_blocks(struct block_dev *dev,
 		void *buf, size_t start, size_t n)
 {
 	struct mmc *mmc = dev->arg;
+	size_t mult, blocks;
 	int i, ret;
-	size_t mult;
+	uint8_t *b;
 
 	mmc->debug(mmc, "read blocks 0x%x 0x%x\n", start, n);
 
 	if (mmc->high_capacity) {
-		start /= mmc->block_len;
 		mult = 1;
 	} else {
 		mult = mmc->block_len;
-	}
+	} 
 
-	for (i = 0; i * mmc->block_len < n; i++) {
-		ret = mmc_read_block(mmc, (start + i) * mult, 
-				((uint8_t *) buf) + i * mmc->block_len);
+	b = buf;
+	start = start / mmc->block_len;
+	blocks = n / mmc->block_len;
+
+	for (i = 0; i < blocks; i++) {
+		ret = mmc_read_block(mmc, (start + i) * mult, b);
 		if (ret != OK) {
 			return ret;
+		} else {
+			b += mmc->block_len;
 		}
 	}
 
@@ -472,23 +466,28 @@ write_blocks(struct block_dev *dev,
 		void *buf, size_t start, size_t n)
 {
 	struct mmc *mmc = dev->arg;
+	size_t mult, blocks;
 	int i, ret;
-	size_t mult;
+	uint8_t *b;
 
 	mmc->debug(mmc, "write blocks 0x%x 0x%x\n", start, n);
 
 	if (mmc->high_capacity) {
-		start /= mmc->block_len;
 		mult = 1;
 	} else {
 		mult = mmc->block_len;
-	}
+	} 
 
-	for (i = 0; i * mmc->block_len < n; i++) {
-		ret = mmc_write_block(mmc, (start + i) * mult, 
-				(uint8_t *) buf + i * mmc->block_len);
+	b = buf;
+	start = start / mmc->block_len;
+	blocks = n / mmc->block_len;
+
+	for (i = 0; i < blocks; i++) {
+		ret = mmc_write_block(mmc, (start + i) * mult, b);
 		if (ret != OK) {
 			return ret;
+		} else {
+			b += mmc->block_len;
 		}
 	}
 

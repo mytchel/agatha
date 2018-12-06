@@ -2,7 +2,6 @@
 
 #define TIME_SLICE   100000
 
-void add_to_list_head(proc_list_t l, proc_t p);
 void add_to_list_tail(proc_list_t l, proc_t p);
 void remove_from_list(proc_list_t l, proc_t p);
 
@@ -17,23 +16,6 @@ proc_t up = nil;
 
 static uint32_t nextpid = 0;
 static struct proc procs[MAX_PROCS] = { 0 };
-
-	void
-add_to_list_head(proc_list_t l, proc_t p)
-{
-	p->list = l;
-
-	p->next = l->head;
-	p->prev = nil;
-
-	if (l->head == nil) {
-		l->tail = p;
-	} else {
-		l->head->prev = p;
-	}
-
-	l->head = p;
-}
 
 	void
 add_to_list_tail(proc_list_t l, proc_t p)
@@ -75,36 +57,21 @@ next_proc(void)
 {
 	proc_t p, n;
 
-	debug("next proc\n");
-
 	p = ready.queue[ready.q].head; 
 	
 	while (p != nil) {
 		n = p->next;
 
-		debug("%i?\n", p->pid);
-
 		if (p->state == PROC_ready) {
 			if (p->ts > 0) {
-				debug("yes\n");
 				return p;
 
 			} else {
-				debug("no, put into next ready queue\n");
 				remove_from_list(&ready.queue[ready.q], p);
 				add_to_list_tail(&ready.queue[(ready.q + 1) % 2], p);
 			}
 
-		} else if (p->state == PROC_dead) {
-			debug("no, dead\n");
-			remove_from_list(&ready.queue[ready.q], p);
-
-		} else if (p->state == PROC_recv) {
-			debug("no, blocked\n");
-			remove_from_list(&ready.queue[ready.q], p);
-
 		} else {
-			debug("proc state unhandled %i\n", p->state);
 			remove_from_list(&ready.queue[ready.q], p);
 		}
 
@@ -143,13 +110,11 @@ schedule(proc_t n)
 		}
 
 		up->ts -= systick_passed();
-		if (up->ts < 0)
-			up->ts = 0;
+		if (up->ts < 0) up->ts = 0;
 
 		debug("up now has %i ns left to run\n", up->ts);
 
 		if (n != nil) {
-			debug("give to next %i\n", n->pid);
 			n->ts += up->ts;
 		}
 
@@ -157,8 +122,7 @@ schedule(proc_t n)
 			up->ts = 0;
 
 		} else if (up->state == PROC_ready && up->list == nil) {
-			debug("out of time and not in a ready queue, put on next ready queue\n");
-			add_to_list_tail(&ready.queue[(ready.q + 1) % 2], up);
+			add_to_list_tail(&ready.queue[ready.q], up);
 		}
 	}
 

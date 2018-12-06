@@ -10,8 +10,7 @@
 #include <fs.h>
 #include <fat.h>
 
-char *fat_debug_name = "serial0";
-int fat_debug_pid = 0;
+int fat_debug_pid = 3;
 
 static void
 fat_debug(char *fmt, ...)
@@ -71,6 +70,7 @@ fat_init(struct fat *fat, int block_pid,
 
 	fat->nsectors = intcopylittle16(bs->sc16);
   if (fat->nsectors == 0) {
+		fat_debug("nsectors zero use 32\n");
 		fat->nsectors = intcopylittle32(bs->sc32);
   }
 
@@ -158,7 +158,10 @@ fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 	for (i = 0; i < nfiles; i++) {
 		r = fat_copy_file_entry_name(&files[i], fname);
 		fat_debug("copied name got %i, '%s'\n", r, fname);
-		if (r == -2) {
+		if (r == -3) {
+			/* Skip this for some reason */
+			continue;
+		} else if (r == -2) {
 			/* For now, skip lfn errors */
 			continue;
 		} else if (r != OK) {
@@ -362,9 +365,7 @@ fat_copy_file_entry_name(struct fat_dir_entry *file, char *name)
 		fat_debug("empty\n");
 		return ERR;
 	} else if (file->name[0] == 0xe5) {
-		/* Something else should be done here */
-		fat_debug("um\n");
-		return ERR;
+		return -3;
 	}
 
 	while ((file->attr & FAT_ATTR_lfn) == FAT_ATTR_lfn) {
@@ -507,19 +508,16 @@ fat_read_blocks(struct fat *fat, size_t pa, size_t len,
 		return ERR;
 	}
 
-	fat_debug("block sending request\n");
-
 	rq.read.type = BLOCK_DEV_read;
 	rq.read.pa = pa;
 	rq.read.len = len;
 	rq.read.start = fat->start * fat->block_size + start;
 	rq.read.r_len = r_len;
 	
-	if (send(fat->block_pid, &rq) != OK) {
-		fat_debug("block send failed\n");
-		return ERR;
-	} else if (recv(fat->block_pid, &rp) != fat->block_pid) {
-		fat_debug("block recv failed\n");
+	fat_debug("block sending request for 0x%x 0x%x\n", rq.read.start, r_len);
+	
+	if (mesg(fat->block_pid, &rq, &rp) != OK) {
+		fat_debug("block mesg failed\n");
 		return ERR;
 	} else if (rp.read.ret != OK) {
 		fat_debug("block read returned bad %i\n", rp.read.ret);

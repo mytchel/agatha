@@ -211,9 +211,14 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 		data_ctrl |= (blksz << SDI_DCTRL_DBLOCKSIZE_V2_SHIFT);
 		data_ctrl |= SDI_DCTRL_DTEN | SDI_DCTRL_BUSYMODE;
 
+		if (data->flags & MMC_DATA_READ) {
+			data_ctrl |= SDI_DCTRL_DTDIR_IN;
+		}
+
 		regs->datatimer = SDI_DTIMER_DEFAULT;
 		regs->datalength = data_len;
 		udelay(DATA_REG_DELAY);
+		regs->datactrl = data_ctrl;
 	}
 
 	regs->argument = cmd->cmdarg;
@@ -233,24 +238,17 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 
 	if (data != nil) {
 		if (data->flags & MMC_DATA_READ) {
-			data_ctrl |= SDI_DCTRL_DTDIR_IN;
-			regs->datactrl = data_ctrl;
-
 			result = read_bytes(mmc->base, data->dest, data->blocks,
 					data->blocksize);
 
 		} else if (data->flags & MMC_DATA_WRITE) {
-			regs->datactrl = data_ctrl;
-
 			result = write_bytes(mmc->base, data->src, data->blocks,
 					data->blocksize);
 		}
 	}
 
-
 	return result;
 }
-
 
 	static int
 pl18x_set_ios(struct mmc *mmc)
