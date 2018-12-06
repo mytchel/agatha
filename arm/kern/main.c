@@ -120,6 +120,8 @@ init_proc0(void)
 
 	p->vspace = info->proc0.l1_pa;
 
+	proc_ready(p);
+
 	return p;
 }
 

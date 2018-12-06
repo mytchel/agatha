@@ -10,6 +10,9 @@ int
 recv(int from, void *m);
 
 int
+mesg(int to, void *send, void *recv);
+
+int
 pid(void);
 
 void

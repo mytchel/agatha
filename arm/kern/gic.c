@@ -159,11 +159,22 @@ irq_handler(void)
 	gic_end_interrupt(irqn);
 }
 
+static size_t systick_set;
+
 void
-set_systick(size_t ms)
+set_systick(size_t ns)
 {
-	pt_regs->t_load = ms * 100000;
+	systick_set = ns * 100;
+
+	pt_regs->t_load = systick_set;
 	pt_regs->t_control |= 1;
+}
+
+size_t
+systick_passed(void)
+{
+	size_t dt = systick_set - pt_regs->t_count;
+	return dt / 100;
 }
 
 static void 

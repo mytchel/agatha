@@ -34,8 +34,7 @@ debug(struct mmc *mmc, char *fmt, ...)
 			fmt, ap);
 	va_end(ap);
 
-	send(3, (uint8_t *) s);
-	recv(3, (uint8_t *) s);
+	mesg(3, (uint8_t *) s, (uint8_t *) s);
 }
 
 static void
@@ -84,39 +83,6 @@ wait_for_command_end(struct mmc *mmc,
 	}
 
 	return 0;
-}
-
-static int 
-do_command(struct mmc *mmc, struct mmc_cmd *cmd)
-{
-	volatile struct pl18x_regs *regs = mmc->base;
-	uint32_t sdi_cmd = 0;
-	int result;
-
-	sdi_cmd = ((cmd->cmdidx & SDI_CMD_CMDINDEX_MASK) | SDI_CMD_CPSMEN);
-
-	if (cmd->resp_type) {
-		sdi_cmd |= SDI_CMD_WAITRESP;
-		if (cmd->resp_type & MMC_RSP_136)
-			sdi_cmd |= SDI_CMD_LONGRESP;
-	}
-
-	regs->argument = cmd->cmdarg;
-	udelay(COMMAND_REG_DELAY);
-	regs->command = sdi_cmd;
-	result = wait_for_command_end(mmc, cmd);
-
-	/* After CMD2 set RCA to a none zero value. */
-	if ((result == 0) && (cmd->cmdidx == MMC_CMD_ALL_SEND_CID))
-		mmc->rca = 10;
-
-	/* After CMD3 open drain is switched off and push pull is used. */
-	if ((result == 0) && (cmd->cmdidx == MMC_CMD_SET_RELATIVE_ADDR)) {
-		uint32_t sdi_pwr = regs->power & ~SDI_PWR_OPD;
-		regs->power = sdi_pwr;
-	}
-
-	return result;
 }
 
 static int 
@@ -221,52 +187,72 @@ write_bytes(volatile struct pl18x_regs *regs,
 	return 0;
 }
 
-static int 
-do_data_transfer(struct mmc *mmc, 
-		struct mmc_cmd *cmd,
-			    struct mmc_data *data)
+	static int 
+do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 {
 	volatile struct pl18x_regs *regs = mmc->base;
-	int error = ERR;
-
-	uint32_t blksz = 0;
 	uint32_t data_ctrl = 0;
-	uint32_t data_len = (uint32_t) (data->blocks * data->blocksize);
+	uint32_t sdi_cmd = 0;
+	uint32_t blksz = 0;
+	uint32_t data_len;
+	int result;
 
-	blksz = data->blocksize;
-	data_ctrl |= (blksz << SDI_DCTRL_DBLOCKSIZE_V2_SHIFT);
-	
-	data_ctrl |= SDI_DCTRL_DTEN | SDI_DCTRL_BUSYMODE;
+	sdi_cmd = ((cmd->cmdidx & SDI_CMD_CMDINDEX_MASK) | SDI_CMD_CPSMEN);
 
-	regs->datatimer = SDI_DTIMER_DEFAULT;
-	regs->datalength = data_len;
-	udelay(DATA_REG_DELAY);
-
-	if (data->flags & MMC_DATA_READ) {
-		data_ctrl |= SDI_DCTRL_DTDIR_IN;
-		regs->datactrl = data_ctrl;
-
-		error = do_command(mmc, cmd);
-		if (error)
-			return error;
-
-		error = read_bytes(mmc->base, data->dest, data->blocks,
-				   data->blocksize);
-
-	} else if (data->flags & MMC_DATA_WRITE) {
-		error = do_command(mmc, cmd);
-		if (error)
-			return error;
-
-		regs->datactrl = data_ctrl;
-		error = write_bytes(mmc->base, data->src, data->blocks,
-							data->blocksize);
+	if (cmd->resp_type) {
+		sdi_cmd |= SDI_CMD_WAITRESP;
+		if (cmd->resp_type & MMC_RSP_136)
+			sdi_cmd |= SDI_CMD_LONGRESP;
 	}
 
-	return error;
+	if (data != nil) {
+		data_len = (uint32_t) (data->blocks * data->blocksize);
+		blksz = data->blocksize;
+		data_ctrl |= (blksz << SDI_DCTRL_DBLOCKSIZE_V2_SHIFT);
+		data_ctrl |= SDI_DCTRL_DTEN | SDI_DCTRL_BUSYMODE;
+
+		regs->datatimer = SDI_DTIMER_DEFAULT;
+		regs->datalength = data_len;
+		udelay(DATA_REG_DELAY);
+	}
+
+	regs->argument = cmd->cmdarg;
+	udelay(COMMAND_REG_DELAY);
+	regs->command = sdi_cmd;
+	result = wait_for_command_end(mmc, cmd);
+
+	/* After CMD2 set RCA to a none zero value. */
+	if ((result == 0) && (cmd->cmdidx == MMC_CMD_ALL_SEND_CID))
+		mmc->rca = 10;
+
+	/* After CMD3 open drain is switched off and push pull is used. */
+	if ((result == 0) && (cmd->cmdidx == MMC_CMD_SET_RELATIVE_ADDR)) {
+		uint32_t sdi_pwr = regs->power & ~SDI_PWR_OPD;
+		regs->power = sdi_pwr;
+	}
+
+	if (data != nil) {
+		if (data->flags & MMC_DATA_READ) {
+			data_ctrl |= SDI_DCTRL_DTDIR_IN;
+			regs->datactrl = data_ctrl;
+
+			result = read_bytes(mmc->base, data->dest, data->blocks,
+					data->blocksize);
+
+		} else if (data->flags & MMC_DATA_WRITE) {
+			regs->datactrl = data_ctrl;
+
+			result = write_bytes(mmc->base, data->src, data->blocks,
+					data->blocksize);
+		}
+	}
+
+
+	return result;
 }
 
-static int
+
+	static int
 pl18x_set_ios(struct mmc *mmc)
 {
 	volatile struct pl18x_regs *regs = mmc->base;
@@ -288,17 +274,17 @@ pl18x_set_ios(struct mmc *mmc)
 	return 0;
 }
 
-static int
+	static int
 pl18x_reset(struct mmc *mmc)
 {
 	volatile struct pl18x_regs *regs = mmc->base;
-	
+
 	regs->power = INIT_PWR;
 
 	return 0;
 }
 
-static int 
+	static int 
 pl18x_init(volatile struct pl18x_regs *regs)
 {
 	u32 sdi_u32;
@@ -311,7 +297,7 @@ pl18x_init(volatile struct pl18x_regs *regs)
 	/* Disable mmc interrupts */
 	sdi_u32 = regs->mask[0] & ~SDI_MASK0_MASK;
 	regs->mask[0] = sdi_u32;
-	
+
 	return 0;
 }
 
@@ -321,7 +307,7 @@ main(void)
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 
 	volatile struct pl18x_regs *regs;
-	char *name = "sda";
+	char *name = "sdmmc0";
 	size_t regs_pa, regs_len;
 	struct mmc mmc;
 	int ret;
@@ -348,10 +334,9 @@ main(void)
 	mmc.voltages = 0xff8080;
 
 	mmc.command = &do_command;
-	mmc.transfer = &do_data_transfer;
 	mmc.set_ios = &pl18x_set_ios;
 	mmc.reset = &pl18x_reset;
-	
+
 	mmc.debug = &debug;
 
 	ret = mmc_start(&mmc);

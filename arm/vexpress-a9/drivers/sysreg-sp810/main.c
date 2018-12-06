@@ -20,8 +20,7 @@ debug(char *fmt, ...)
 	vsnprintf(s, sizeof(s), fmt, ap);
 	va_end(ap);
 
-	send(2, (uint8_t *) s);
-	recv(2, (uint8_t *) s);
+	mesg(2, (uint8_t *) s, (uint8_t *) s);
 }
 
 void

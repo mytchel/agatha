@@ -21,9 +21,7 @@ get_device_pid(char *name)
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
 
-	if (send(DEV_REG_PID, &rq) != OK) {
-		return ERR;
-	} else if (recv(DEV_REG_PID, &rp) != DEV_REG_PID) {
+	if (mesg(DEV_REG_PID, &rq, &rp) != OK) {
 		return ERR;
 	} else if (rp.find.ret != OK) {
 		return ERR;
@@ -50,8 +48,7 @@ debug(char *fmt, ...)
 			fmt, ap);
 	va_end(ap);
 
-	send(pid, (uint8_t *) s);
-	recv(pid, (uint8_t *) s);
+	mesg(pid, (uint8_t *) s, (uint8_t *) s);
 }
 
 void
@@ -92,9 +89,9 @@ main(void)
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", name);
 
-	send(DEV_REG_PID, (uint8_t *) &drq);
-	while (recv(DEV_REG_PID, (uint8_t *) &drp) != DEV_REG_PID)
-		;
+	if (mesg(DEV_REG_PID, (uint8_t *) &drq, &drp) != OK) {
+		raise();
+	}
 
 	if (drp.reg.ret != OK) {
 		raise();

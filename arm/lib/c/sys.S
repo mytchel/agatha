@@ -11,6 +11,7 @@
 .global yield
 .global send
 .global recv
+.global mesg
 .global pid
 .global proc_new
 .global va_table
@@ -54,6 +55,13 @@ send:
 recv:
 	push {r12, lr}
 	mov r12, #SYSCALL_RECV
+	svc 0
+	pop {r12, pc}
+
+	
+mesg:
+	push {r12, lr}
+	mov r12, #SYSCALL_MESG
 	svc 0
 	pop {r12, pc}
 

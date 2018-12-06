@@ -33,26 +33,6 @@ message_free(message_t m)
 }
 
 	int
-send(proc_t to, message_t m)
-{
-	message_t *p;
-
-	m->next = nil;
-	for (p = &to->messages; *p != nil; p = &(*p)->next)
-		;
-
-	*p = m;
-
-	if (to->state == PROC_recv 
-			&& (to->recv_from == -1 || to->recv_from == up->pid)) {
-		to->state = PROC_ready;
-/*		schedule(to); */
-	}
-
-	return OK;
-}
-
-int
 recv(int from, uint8_t *raw)
 {
 	message_t *m, n;
@@ -82,15 +62,56 @@ recv(int from, uint8_t *raw)
 	return ERR;
 }
 
-  size_t
-sys_yield(void)
+	int
+send_h(proc_t to, message_t m, uint8_t *recv_buf)
 {
-  schedule(nil);
+	message_t *p;
+	int r;
 
-  return OK;
+	m->next = nil;
+	for (p = &to->messages; *p != nil; p = &(*p)->next)
+		;
+
+	*p = m;
+
+	if (to->state == PROC_recv && (to->recv_from == -1 || to->recv_from == up->pid)) {
+
+		if (recv_buf != nil)  {
+			up->state = PROC_recv;
+			up->recv_from = to->pid;
+		}
+
+		to->state = PROC_ready;
+		schedule(to); 
+	}
+
+	if (recv_buf != nil) {
+		r = recv(to->pid, recv_buf);
+		if (r == to->pid) {
+			return OK;
+		} else {
+			return r;
+		}
+	} else {
+		return OK;
+	}
 }
 
-size_t
+	int
+send(proc_t to, message_t m)
+{
+	return send_h(to, m, false);
+}
+
+	size_t
+sys_yield(void)
+{
+	schedule(nil);
+
+	return OK;
+}
+
+	size_t
 sys_send(int pid, uint8_t *raw)
 {
 	message_t m;
@@ -111,7 +132,7 @@ sys_send(int pid, uint8_t *raw)
 	return send(p, m);
 }
 
-size_t
+	size_t
 sys_recv(int from, uint8_t *m)
 {
 	int ret;
@@ -122,7 +143,28 @@ sys_recv(int from, uint8_t *m)
 	return ret;
 }
 
-size_t
+	size_t
+sys_mesg(int pid, uint8_t *send, uint8_t *recv)
+{
+	message_t m;
+	proc_t p;
+
+	debug("%i mesg to %i\n", up->pid, pid);
+
+	p = find_proc(pid);
+	if (p == nil) {
+		return ERR;
+	}
+
+	m = message_get();
+
+	m->from = up->pid;
+	memcpy(m->body, send, MESSAGE_LEN);
+
+	return send_h(p, m, recv);
+}
+
+	size_t
 sys_pid(void)
 {
 	debug("%i get pid\n", up->pid);
@@ -130,7 +172,7 @@ sys_pid(void)
 	return up->pid;
 }
 
-size_t
+	size_t
 sys_exit(void)
 {
 	debug("%i proc exiting\n", up->pid);
@@ -140,10 +182,10 @@ sys_exit(void)
 	return 0;
 }
 
-size_t
+	size_t
 sys_proc_new(void)
 {
-  proc_t p;
+	proc_t p;
 
 	debug("%i proc new\n", up->pid);
 
@@ -152,23 +194,23 @@ sys_proc_new(void)
 		return ERR;
 	}
 
-  p = proc_new();
-  if (p == nil) {
+	p = proc_new();
+	if (p == nil) {
 		debug("proc_new failed\n");
-    return ERR;
-  }
+		return ERR;
+	}
 
-  debug("new proc %i\n", p->pid);
+	debug("new proc %i\n", p->pid);
 
-  func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
-        (size_t) &proc_start);
+	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
+			(size_t) &proc_start);
 
-	p->state = PROC_ready;
+	proc_ready(p);
 
 	return p->pid;
 }
 
-size_t
+	size_t
 sys_va_table(int p_id, size_t pa)
 {
 	proc_t p;
@@ -188,7 +230,7 @@ sys_va_table(int p_id, size_t pa)
 
 	p->vspace = pa;
 
-  return OK;
+	return OK;
 }
 
 	size_t
@@ -213,13 +255,14 @@ sys_intr_register(int p_id, size_t irqn)
 }
 
 void *systab[NSYSCALLS] = {
-  [SYSCALL_YIELD]            = (void *) &sys_yield,
-  [SYSCALL_SEND]             = (void *) &sys_send,
-  [SYSCALL_RECV]             = (void *) &sys_recv,
-  [SYSCALL_PID]              = (void *) &sys_pid,
-  [SYSCALL_EXIT]             = (void *) &sys_exit,
-  [SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
-  [SYSCALL_VA_TABLE]         = (void *) &sys_va_table,
-  [SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
+	[SYSCALL_YIELD]            = (void *) &sys_yield,
+	[SYSCALL_SEND]             = (void *) &sys_send,
+	[SYSCALL_RECV]             = (void *) &sys_recv,
+	[SYSCALL_MESG]             = (void *) &sys_mesg,
+	[SYSCALL_PID]              = (void *) &sys_pid,
+	[SYSCALL_EXIT]             = (void *) &sys_exit,
+	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
+	[SYSCALL_VA_TABLE]         = (void *) &sys_va_table,
+	[SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
 };
 

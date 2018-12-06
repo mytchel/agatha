@@ -20,9 +20,7 @@ get_device_pid(char *name)
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
 
-	if (send(DEV_REG_PID, &rq) != OK) {
-		return ERR;
-	} else if (recv(DEV_REG_PID, &rp) != DEV_REG_PID) {
+	if (mesg(DEV_REG_PID, &rq, &rp) != OK) {
 		return ERR;
 	} else if (rp.find.ret != OK) {
 		return ERR;
@@ -53,8 +51,7 @@ debug(struct mmc *mmc, char *fmt, ...)
 			fmt, ap);
 	va_end(ap);
 
-	send(pid, (uint8_t *) s);
-	recv(pid, (uint8_t *) s);
+	mesg(pid, (uint8_t *) s, (uint8_t *) s);
 }
 
 static void

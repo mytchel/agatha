@@ -67,11 +67,8 @@ block_dev_register(struct block_dev *dev)
 	drq->reg.pid = pid();
 	memcpy(drq->reg.name, dev->name, sizeof(drq->reg.name));
 
-	if ((ret = send(DEV_REG_PID, rq_buf)) != OK)
+	if ((ret = mesg(DEV_REG_PID, rq_buf, rp_buf)) != OK)
 		return ret;
-
-	while (recv(DEV_REG_PID, rp_buf) != DEV_REG_PID)
-		;
 
 	if (drp->reg.ret != OK)
 		return drp->reg.ret;

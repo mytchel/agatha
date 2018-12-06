@@ -29,8 +29,7 @@ debug(char *fmt, ...)
 	vsnprintf((char *) m, sizeof(m), fmt, a);
 	va_end(a);
 
-	send(debug_pid, m);
-	recv(debug_pid, m);
+	mesg(debug_pid, m, m);
 }
 
 int
@@ -43,9 +42,7 @@ get_device_pid(char *name)
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
 
-	if (send(DEV_REG_PID, &rq) != OK) {
-		return ERR;
-	} else if (recv(DEV_REG_PID, &rp) != DEV_REG_PID) {
+	if (mesg(DEV_REG_PID, &rq, &rp) != OK) {
 		return ERR;
 	} else if (rp.find.ret != OK) {
 		return ERR;
@@ -73,11 +70,8 @@ read_blocks(int pid, size_t pa, size_t len,
 	rq.read.start = start;
 	rq.read.r_len = r_len;
 
-	if (send(pid, &rq) != OK) {
-		debug("block send failed\n");
-		return ERR;
-	} else if (recv(pid, &rp) != pid) {
-		debug("block send recv failed\n");
+	if (mesg(pid, &rq, &rp) != OK) {
+		debug("block send mesg failed\n");
 		return ERR;
 	} else if (rp.read.ret != OK) {
 		debug("block read response bad %i\n", rp.read.ret);
@@ -102,11 +96,8 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 
 	rq.info.type = BLOCK_DEV_info;
 	
-	if (send(block_pid, &rq) != OK) {
-		debug("block info send failed\n");
-		return ERR;
-	} else if (recv(block_pid, &rp) != block_pid) {
-		debug("block info recv failed\n");
+	if (mesg(block_pid, &rq, &rp) != OK) {
+		debug("block info mesg failed\n");
 		return ERR;
 	} else if (rp.info.ret != OK) {
 		debug("block info returned bad %i\n", rp.info.ret);

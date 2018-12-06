@@ -22,11 +22,7 @@ unmap_addr(void *va, size_t len)
 	rq.addr_unmap.len = len;
 	rq.addr_unmap.va = (size_t) va;
 
-	if (send(PROC0_PID, (uint8_t *) &rq) != OK) {
-		return nil;
-	}
-
-	if (recv(PROC0_PID, (uint8_t *) &rp) != PROC0_PID ) {
+	if (mesg(PROC0_PID, &rq, &rp) != OK) {
 		return nil;
 	}
 
@@ -56,11 +52,7 @@ map_addr(size_t pa, size_t len, int flags)
 	rq.addr_map.va = va;
 	rq.addr_map.flags = flags;
 
-	if (send(PROC0_PID, (uint8_t *) &rq) != OK) {
-		return nil;
-	}
-
-	if (recv(PROC0_PID, (uint8_t *) &rp) != PROC0_PID ) {
+	if (mesg(PROC0_PID, &rq, &rp) != OK) {
 		return nil;
 	}
 
@@ -83,11 +75,7 @@ request_memory(size_t len)
 	rq.addr_req.pa = nil;
 	rq.addr_req.len = len;
 
-	if (send(PROC0_PID, (uint8_t *) &rq) != OK) {
-		return nil;
-	}
-
-	if (recv(PROC0_PID, (uint8_t *) &rp) != PROC0_PID) {
+	if (mesg(PROC0_PID, &rq, &rp) != OK) {
 		return nil;
 	}
 
@@ -115,9 +103,7 @@ give_addr(int to, size_t pa, size_t len)
 	rq.addr_give.pa = pa;
 	rq.addr_give.len = len;
 
-	if (send(PROC0_PID, (uint8_t *) &rq) != OK) {
-		return ERR;
-	} else if (recv(PROC0_PID, (uint8_t *) &rp) != PROC0_PID) {
+	if (mesg(PROC0_PID, &rq, &rp) != OK) {
 		return ERR;
 	}
 

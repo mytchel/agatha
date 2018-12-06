@@ -14,22 +14,28 @@ struct message {
 };
 
 typedef struct proc *proc_t;
+typedef struct proc_list *proc_list_t;
 
 typedef enum {
 	PROC_dead,
-	PROC_notready,
+
 	PROC_ready,
-	PROC_oncpu,
-	PROC_send,
 	PROC_recv,
 } procstate_t;
+
+struct proc_list {
+	proc_t head, tail;
+};
 
 struct proc {
 	label_t label;
 	
 	procstate_t state;
 	int pid;
-	proc_t next;
+
+	int ts;
+	proc_list_t list;		
+	proc_t prev, next;
 	
   uint8_t kstack[KSTACK_LEN];
 
@@ -41,6 +47,9 @@ struct proc {
 
 proc_t
 proc_new(void);
+
+void
+proc_ready(proc_t p);
 
 proc_t
 find_proc(int pid);
@@ -107,7 +116,10 @@ int
 mmu_switch(size_t va_pa);
 
 void
-set_systick(size_t ms);
+set_systick(size_t ns);
+
+size_t
+systick_passed(void);
 
 int
 add_kernel_irq(size_t irqn, void (*func)(size_t));
