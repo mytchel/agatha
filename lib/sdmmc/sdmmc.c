@@ -277,13 +277,6 @@ mmc_send_csd(struct mmc *mmc)
 		mmc->nblocks = ((csize + 1) << (cmult + 2));
 	}
 
-	mmc->debug(mmc, "block len = 0x%x\n", mmc->block_size);
-
-	mmc->debug(mmc, "nblocks = 0x%x * 1024\n", (uint32_t) (mmc->nblocks >> 10));
-
-	mmc->capacity = mmc->nblocks * mmc->block_size;
-	mmc->debug(mmc, "capacity = %i Mb\n", (uint32_t) (mmc->capacity >> 20));
-
 	return OK;
 }
 
@@ -325,11 +318,23 @@ mmc_send_ext_csd(struct mmc *mmc, uint8_t *ext_csd)
 	data.flags = MMC_DATA_READ;
 
 	err = mmc->command(mmc, &cmd, &data);
+	if (err != OK) return ERR;
+
+	uint32_t cap;
+	cap = mmc->ext_csd[212]
+		| mmc->ext_csd[213] << 8
+		| mmc->ext_csd[214] << 16
+		| mmc->ext_csd[215] << 24;
+
+	mmc->debug(mmc, "ext cap = %i\n", cap);
+	if (cap > 0) {
+		mmc->nblocks = cap;
+	}
 
 	return err;
 }
 
-		static int
+	static int
 mmc_startup(struct mmc *mmc)
 {
 	int ret;
@@ -362,7 +367,7 @@ mmc_startup(struct mmc *mmc)
 		ret = mmc_send_op_cond(mmc);
 		if (ret != OK) return ret;
 	}
-	
+
 	ret = mmc_send_all_cid(mmc);
 	if (ret != OK) return ret;
 
@@ -379,17 +384,23 @@ mmc_startup(struct mmc *mmc)
 		mmc->debug(mmc, "sd ready\n");
 
 	} else if (IS_MMC(mmc)) {
-		/* What is this used for? */
 		ret = mmc_send_ext_csd(mmc, mmc->ext_csd);
 		if (ret != OK) return ret;
 
 		mmc->debug(mmc, "mmc ready\n");
 	}
 
+	mmc->debug(mmc, "block len = 0x%x\n", mmc->block_size);
+
+	mmc->debug(mmc, "nblocks = 0x%x * 1024\n", (uint32_t) (mmc->nblocks >> 10));
+
+	mmc->capacity = mmc->nblocks * mmc->block_size;
+	mmc->debug(mmc, "capacity = %i Mb\n", (uint32_t) (mmc->capacity >> 20));
+
 	return OK;
 }
 
-int
+	int
 mmc_read_block(struct mmc *mmc, size_t off, void *buffer)
 {
 	struct mmc_cmd cmd;
@@ -399,11 +410,11 @@ mmc_read_block(struct mmc *mmc, size_t off, void *buffer)
 
 	cmd.cmdidx = MMC_CMD_READ_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
-	
+
 	if (!mmc->high_capacity) {
 		off *= mmc->block_size;
 	}
-	
+
 	cmd.cmdarg = off;
 
 	data.dest = buffer;
