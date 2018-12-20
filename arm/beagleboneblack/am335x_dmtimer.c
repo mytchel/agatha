@@ -4,14 +4,27 @@
 #include <arm/am335x_dmtimer.h>
 
 static volatile struct am335x_dmtimer_regs *regs;
+static size_t time_set;
 
 	void
 set_systick(size_t ms)
 {
 	uint32_t t = ms * 32;
-	regs->tcrr = 0xffffffff - t;
+	time_set = 0xffffffff - t;
+	regs->tcrr = time_set;
 	regs->irqstatus = 3;
 	regs->tclr = 1;
+}
+
+size_t
+systick_passed(void)
+{
+	uint32_t t, ms;
+
+	t = regs->tcrr - time_set;
+	ms = t / 32;
+
+	return ms;
 }
 
 static void 

@@ -378,8 +378,8 @@ struct mmc {
 
 	struct mmc_cid cid;
 	
-	uint32_t block_len;
-	uint32_t nblocks;
+	uint32_t block_size;
+	uint64_t nblocks;
 	uint64_t capacity;
 
 	uint32_t csd[4];

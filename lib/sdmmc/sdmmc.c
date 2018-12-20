@@ -1,14 +1,3 @@
-/* Heavily modified from U-Boot with help from the
-	 SD Host Controller Simplified Specification Version 4.20. 
-
- * Copyright (C) ST-Ericsson SA 2010
- *
- * Author: Ulf Hansson <ulf.hansson@stericsson.com>
- * Author: Martin Lundholm <martin.xa.lundholm@stericsson.com>
- * Ported to drivers/mmc/ by: Matt Waddel <matt.waddel@linaro.org>
- */
-
-
 #include <types.h>
 #include <err.h>
 #include <sys.h>
@@ -236,6 +225,11 @@ mmc_send_csd(struct mmc *mmc)
 	mmc->csd[2] = cmd.response[2];
 	mmc->csd[3] = cmd.response[3];
 
+	mmc->debug(mmc, "csd[0] = 0x%x\n", mmc->csd[0]);
+	mmc->debug(mmc, "csd[] = 0x%x\n", mmc->csd[1]);
+	mmc->debug(mmc, "csd[2] = 0x%x\n", mmc->csd[2]);
+	mmc->debug(mmc, "csd[3] = 0x%x\n", mmc->csd[3]);
+
 	if (mmc->version == MMC_VERSION_UNKNOWN) {
 		int version = (cmd.response[0] >> 26) & 0xf;
 
@@ -262,27 +256,32 @@ mmc_send_csd(struct mmc *mmc)
 
 	if (mmc->high_capacity) {
 		mmc->debug(mmc, "high capacity\n");
+		
+		mmc->block_size = 512;
 
 		csize = (mmc->csd[1] & 0x3f) << 16 
 			| (mmc->csd[2] & 0xffff0000) >> 16;
 		
-		cmult = 8;
+		mmc->debug(mmc, "csize = %i\n", csize);
 
+		mmc->nblocks = ((uint64_t) (csize + 1)) << 10;
 	} else {
+		mmc->block_size = 1 << ((cmd.response[1] >> 16) & 0xf);
+
 		csize = (mmc->csd[1] & 0x3ff) << 2 
 			| (mmc->csd[2] & 0xc0000000) >> 30;
 	
 		cmult = (mmc->csd[2] & 0x00038000) >> 15;
+	
+		mmc->debug(mmc, "csize = %i, cmult = %i\n", csize, cmult);
+		mmc->nblocks = ((csize + 1) << (cmult + 2));
 	}
 
-	mmc->block_len = 1 << ((cmd.response[1] >> 16) & 0xf);
+	mmc->debug(mmc, "block len = 0x%x\n", mmc->block_size);
 
-	mmc->debug(mmc, "block len = 0x%x\n", mmc->block_len);
+	mmc->debug(mmc, "nblocks = 0x%x * 1024\n", (uint32_t) (mmc->nblocks >> 10));
 
-	mmc->nblocks = ((csize + 1) << (cmult + 2));
-	mmc->debug(mmc, "nblocks = 0x%x\n", mmc->nblocks);
-
-	mmc->capacity = mmc->nblocks * mmc->block_len;
+	mmc->capacity = mmc->nblocks * mmc->block_size;
 	mmc->debug(mmc, "capacity = %i Mb\n", (uint32_t) (mmc->capacity >> 20));
 
 	return OK;
@@ -400,11 +399,16 @@ mmc_read_block(struct mmc *mmc, size_t off, void *buffer)
 
 	cmd.cmdidx = MMC_CMD_READ_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
+	
+	if (!mmc->high_capacity) {
+		off *= mmc->block_size;
+	}
+	
 	cmd.cmdarg = off;
 
 	data.dest = buffer;
 	data.blocks = 1;
-	data.blocksize = mmc->block_len;
+	data.blocksize = mmc->block_size;
 	data.flags = MMC_DATA_READ;
 
 	return mmc->command(mmc, &cmd, &data);
@@ -418,11 +422,16 @@ mmc_write_block(struct mmc *mmc, size_t off, void *buffer)
 
 	cmd.cmdidx = MMC_CMD_WRITE_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
+
+	if (!mmc->high_capacity) {
+		off *= mmc->block_size;
+	}
+
 	cmd.cmdarg = off;
 
 	data.dest = buffer;
 	data.blocks = 1;
-	data.blocksize = mmc->block_len;
+	data.blocksize = mmc->block_size;
 	data.flags = MMC_DATA_WRITE;
 
 	return mmc->command(mmc, &cmd, &data);
@@ -433,28 +442,22 @@ read_blocks(struct block_dev *dev,
 		void *buf, size_t start, size_t n)
 {
 	struct mmc *mmc = dev->arg;
-	size_t mult, blocks;
+	size_t blocks;
 	int i, ret;
 	uint8_t *b;
 
 	mmc->debug(mmc, "read blocks 0x%x 0x%x\n", start, n);
 
-	if (mmc->high_capacity) {
-		mult = 1;
-	} else {
-		mult = mmc->block_len;
-	} 
-
 	b = buf;
-	start = start / mmc->block_len;
-	blocks = n / mmc->block_len;
+	start = start / mmc->block_size;
+	blocks = n / mmc->block_size;
 
 	for (i = 0; i < blocks; i++) {
-		ret = mmc_read_block(mmc, (start + i) * mult, b);
+		ret = mmc_read_block(mmc, start + i, b);
 		if (ret != OK) {
 			return ret;
 		} else {
-			b += mmc->block_len;
+			b += mmc->block_size;
 		}
 	}
 
@@ -466,28 +469,22 @@ write_blocks(struct block_dev *dev,
 		void *buf, size_t start, size_t n)
 {
 	struct mmc *mmc = dev->arg;
-	size_t mult, blocks;
+	size_t blocks;
 	int i, ret;
 	uint8_t *b;
 
 	mmc->debug(mmc, "write blocks 0x%x 0x%x\n", start, n);
 
-	if (mmc->high_capacity) {
-		mult = 1;
-	} else {
-		mult = mmc->block_len;
-	} 
-
 	b = buf;
-	start = start / mmc->block_len;
-	blocks = n / mmc->block_len;
+	start = start / mmc->block_size;
+	blocks = n / mmc->block_size;
 
 	for (i = 0; i < blocks; i++) {
-		ret = mmc_write_block(mmc, (start + i) * mult, b);
+		ret = mmc_write_block(mmc, start + i, b);
 		if (ret != OK) {
 			return ret;
 		} else {
-			b += mmc->block_len;
+			b += mmc->block_size;
 		}
 	}
 
@@ -508,7 +505,7 @@ mmc_start(struct mmc *mmc)
 	}
 
 	dev.arg = mmc;
-	dev.block_len = mmc->block_len;
+	dev.block_size = mmc->block_size;
 	dev.nblocks = mmc->nblocks;
 	dev.name = mmc->name;
 

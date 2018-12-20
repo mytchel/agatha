@@ -15,7 +15,7 @@ handle_info(struct block_dev *dev,
 		union block_dev_req *rq,
 		union block_dev_rsp *rp)
 {
-	rp->info.block_len = dev->block_len;
+	rp->info.block_size = dev->block_size;
 	rp->info.nblocks = dev->nblocks;
 
 	return OK;

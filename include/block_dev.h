@@ -36,7 +36,7 @@ union block_dev_rsp {
 	struct {
 		int type;
 		int ret;
-		size_t block_len;
+		size_t block_size;
 		size_t nblocks;
 	} info;
 
@@ -53,7 +53,7 @@ union block_dev_rsp {
 
 struct block_dev {
 	void *arg;
-	size_t block_len;
+	size_t block_size;
 	size_t nblocks;
 
 	char *name;

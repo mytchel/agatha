@@ -155,11 +155,13 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	}
 
 	if (cmd->resp_type & MMC_RSP_PRESENT) {
-		cmd->response[0] = regs->rsp10;
 		if (cmd->resp_type & MMC_RSP_136) {
-			cmd->response[1] = regs->rsp32;
-			cmd->response[2] = regs->rsp54;
-			cmd->response[3] = regs->rsp76;
+			cmd->response[3] = regs->rsp10;
+			cmd->response[2] = regs->rsp32;
+			cmd->response[1] = regs->rsp54;
+			cmd->response[0] = regs->rsp76;
+		} else {
+			cmd->response[0] = regs->rsp10;
 		}
 	}
 
