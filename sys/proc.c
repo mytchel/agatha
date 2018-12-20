@@ -78,8 +78,6 @@ next_proc(void)
 		p = n;
 	}
 
-	debug("switch ready queue\n");
-	
 	ready.q = (ready.q + 1) % 2;
 	if (ready.queue[ready.q].head == nil) {
 		return nil;
@@ -95,24 +93,13 @@ next_proc(void)
 	void
 schedule(proc_t n)
 {
-	debug("schedule\n");
-
-	if (n != nil) {
-		debug("possibly to %i which is in state %i with %i ns\n", n->pid,
-				n->state, n->ts);
-	}
-
 	if (up != nil) {
-		debug("from %i\n", up->pid);
-
 		if (set_label(&up->label)) {
 			return;
 		}
 
 		up->ts -= systick_passed();
 		if (up->ts < 0) up->ts = 0;
-
-		debug("up now has %i ns left to run\n", up->ts);
 
 		if (n != nil) {
 			n->ts += up->ts;
@@ -127,11 +114,9 @@ schedule(proc_t n)
 	}
 
 	if (n != nil && n->ts > 0) {
-		debug("switch to given %i\n", n->pid);
 		up = n;
 
 	} else {
-		debug("find next proc\n");
 		up = next_proc();
 	}
 

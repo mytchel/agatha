@@ -9,6 +9,6 @@ void
 init_kernel_drivers(void)
 {
 	init_gic_systick(0x1e000000);
-/*	init_pl01x(0x10000000 + (9 << 12));*/
+	init_pl01x(0x10000000 + (9 << 12));
 }
 
