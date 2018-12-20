@@ -37,6 +37,8 @@ fat_init(struct fat *fat, int block_pid,
 	size_t pa, len;
 	int ret;
 
+	memset(fat, 0, sizeof(struct fat));
+
 	fat->block_pid = block_pid;
 	fat->block_size = block_size;
 
@@ -410,6 +412,8 @@ fat_find_free_fid(struct fat *fat)
 	/* Skip root fid and search for empty slot */
 	b = 0;
 	for (i = 1; i < FIDSMAX; i++) {
+		fat->files[i].name[sizeof(fat->files[i].name)-1] = 0;
+		fat_debug("fat fid table %i = '%s'\n", i, fat->files[i].name);
 		if (fat->files[i].name[0] == 0) {
 			/* Slot completely unused */
 			b = i;
