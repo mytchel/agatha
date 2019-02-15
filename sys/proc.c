@@ -121,7 +121,7 @@ schedule(proc_t n)
 	}
 
 	if (up != nil) {
-		debug("switch to %i at 0x%x for %i\n", up->pid, up->label.pc, up->ts);
+		debug(DEBUG_SCHED, "switch to %i at 0x%x for %i\n", up->pid, up->label.pc, up->ts);
 		mmu_switch(up->vspace);
 
 		set_systick(up->ts);
@@ -153,7 +153,7 @@ proc_new(void)
 void
 proc_ready(proc_t p)
 {
-	debug("ready %i\n", p->pid);
+	debug(DEBUG_SCHED, "ready %i\n", p->pid);
 
 	p->state = PROC_ready;
 	add_to_list_tail(&ready.queue[(ready.q + 1) % 2], p);

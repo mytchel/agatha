@@ -117,7 +117,7 @@ sys_send(int pid, uint8_t *raw)
 	message_t m;
 	proc_t p;
 
-	debug("%i send to %i\n", up->pid, pid);
+	debug(DEBUG_INFO, "%i send to %i\n", up->pid, pid);
 
 	p = find_proc(pid);
 	if (p == nil) {
@@ -137,9 +137,9 @@ sys_recv(int from, uint8_t *m)
 {
 	int ret;
 
-	debug("%i receive from %i\n", up->pid, from);
+	debug(DEBUG_INFO, "%i receive from %i\n", up->pid, from);
 	ret = recv(from, m);
-	debug("%i received from %i\n", up->pid, ret);
+	debug(DEBUG_INFO, "%i received from %i\n", up->pid, ret);
 	return ret;
 }
 
@@ -149,7 +149,7 @@ sys_mesg(int pid, uint8_t *send, uint8_t *recv)
 	message_t m;
 	proc_t p;
 
-	debug("%i mesg to %i\n", up->pid, pid);
+	debug(DEBUG_INFO, "%i mesg to %i\n", up->pid, pid);
 
 	p = find_proc(pid);
 	if (p == nil) {
@@ -167,7 +167,7 @@ sys_mesg(int pid, uint8_t *send, uint8_t *recv)
 	size_t
 sys_pid(void)
 {
-	debug("%i get pid\n", up->pid);
+	debug(DEBUG_INFO, "%i get pid\n", up->pid);
 
 	return up->pid;
 }
@@ -175,7 +175,7 @@ sys_pid(void)
 	size_t
 sys_exit(void)
 {
-	debug("%i proc exiting\n", up->pid);
+	debug(DEBUG_INFO, "%i proc exiting\n", up->pid);
 	up->state = PROC_dead;
 	schedule(nil);
 	panic("schedule returned to exit!\n");
@@ -187,20 +187,20 @@ sys_proc_new(void)
 {
 	proc_t p;
 
-	debug("%i proc new\n", up->pid);
+	debug(DEBUG_INFO, "%i proc new\n", up->pid);
 
 	if (up->pid != 0) {
-		debug("proc %i is not proc0!\n", up->pid);
+		debug(DEBUG_WARN, "proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
 
 	p = proc_new();
 	if (p == nil) {
-		debug("proc_new failed\n");
+		debug(DEBUG_INFO, "proc_new failed\n");
 		return ERR;
 	}
 
-	debug("new proc %i\n", p->pid);
+	debug(DEBUG_INFO, "new proc %i\n", p->pid);
 
 	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
 			(size_t) &proc_start);
@@ -215,16 +215,16 @@ sys_va_table(int p_id, size_t pa)
 {
 	proc_t p;
 
-	debug("%i called sys va_table with %i, 0x%x\n", up->pid, p_id, pa);
+	debug(DEBUG_INFO, "%i called sys va_table with %i, 0x%x\n", up->pid, p_id, pa);
 
 	if (up->pid != 0) {
-		debug("proc %i is not proc0!\n", up->pid);
+		debug(DEBUG_WARN, "proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
 
 	p = find_proc(p_id);
 	if (p == nil) {
-		debug("didnt find %i\n", p_id);
+		debug(DEBUG_INFO, "didnt find %i\n", p_id);
 		return ERR;
 	}
 
@@ -238,16 +238,16 @@ sys_intr_register(int p_id, size_t irqn)
 {
 	proc_t p;
 
-	debug("%i called sys intr_register with %i, %i\n", up->pid, p_id, irqn);
+	debug(DEBUG_INFO, "%i called sys intr_register with %i, %i\n", up->pid, p_id, irqn);
 
 	if (up->pid != 0) {
-		debug("proc %i is not proc0!\n", up->pid);
+		debug(DEBUG_WARN, "proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
 
 	p = find_proc(p_id);
 	if (p == nil) {
-		debug("didnt find %i\n", p_id);
+		debug(DEBUG_INFO, "didnt find %i\n", p_id);
 		return ERR;
 	}
 

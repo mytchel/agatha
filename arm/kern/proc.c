@@ -23,7 +23,7 @@ proc_start(void)
   label_t u = {0};
   int p;
 
-	debug("proc %i starting\n", up->pid);
+	debug(DEBUG_INFO, "proc %i starting\n", up->pid);
 
   while ((p = recv(-1, (uint8_t *) m)) < 0) 
 		;
@@ -32,7 +32,7 @@ proc_start(void)
   u.pc = m[0];
   u.sp = m[1];
 
-	debug("proc %i got start regs at 0x%x 0x%x\n", up->pid, u.pc, u.sp);
+	debug(DEBUG_INFO, "proc %i got start regs at 0x%x 0x%x\n", up->pid, u.pc, u.sp);
 
 	drop_to_user(&u, up->kstack, KSTACK_LEN);
 }

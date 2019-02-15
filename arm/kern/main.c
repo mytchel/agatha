@@ -186,7 +186,7 @@ main(size_t kernel_start,
 
 	p0 = init_proc0();
 
-	debug("scheduling proc0\n");
+	debug(DEBUG_SCHED, "scheduling proc0\n");
 
 	schedule(p0);
 }

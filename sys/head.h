@@ -75,13 +75,22 @@ memcpy(void *dst, const void *src, size_t len);
 void
 memset(void *dst, uint8_t v, size_t len);
 
-/* Machine dependant. */
+#define DEBUG_ERR     0
+#define DEBUG_WARN    1
+#define DEBUG_INFO    2
+#define DEBUG_SCHED   3
 
-int
-debug(const char *fmt, ...);
+#ifndef DEBUG_LEVEL
+#define DEBUG_LEVEL DEBUG_ERR
+#endif
+
+void
+debug(int code, const char *fmt, ...);
 
 void
 panic(const char *fmt, ...);
+
+/* Machine dependant. */
 
 int
 set_label(label_t *l);

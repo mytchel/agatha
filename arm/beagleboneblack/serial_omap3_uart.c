@@ -33,6 +33,6 @@ init_omap3_uart(size_t regs_pa)
 
 	debug_puts = &puts;
 
-	debug("kernel omap3_uart UART0 ready\n");
+	debug(DEBUG_INFO, "kernel omap3_uart UART0 ready\n");
 }
 
