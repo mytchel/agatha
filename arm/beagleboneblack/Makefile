@@ -15,7 +15,9 @@ PROCS = \
 
 DRIVERS = \
 					drivers/serial-omap3 \
-					drivers/mmc-omap3
+					drivers/prm-cm-am33xx \
+					drivers/mmc-omap3 \
+					drivers/lcd-am335x
 
 BOARD_KERNEL_SRC_C =  \
 	cortex_a8_intr.c      \

@@ -3,6 +3,10 @@
 #include "../dev.h"
 
 struct device devices[] = {
+	{ "prm-cm0", "drivers/prm-cm-am33xx",
+		0x44e00000, 0x2000,
+		0
+	},
 	{ "serial0", "drivers/serial-omap3",
 		0x44e09000, 0x1000,
 		0
@@ -12,12 +16,16 @@ struct device devices[] = {
 		0	
 	},
  	 { "sdmmc0", "drivers/mmc-omap3",
-		0x48060000, 0x10000,
+		0x48060000, 0x1000,
 		64
 	},
 	{ "sdmmc1", "drivers/mmc-omap3",
-		0x481d8000, 0x10000,
+		0x481d8000, 0x1000,
 		28
+	},
+	{ "lcd0", "drivers/lcd-am335x",
+		0x4830e000, 0x2000,
+		36
 	},
 };
 
