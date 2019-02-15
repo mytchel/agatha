@@ -1,9 +1,9 @@
-struct am335x_i2c {
+struct am335x_i2c_regs {
 	uint32_t revnb_lo;
 	uint32_t revnb_hi;
 	uint32_t pad0[2];
 	uint32_t sysc;
-	uint32_t pad1[3];
+	uint32_t pad1[4];
 	uint32_t irqstatus_raw;
 	uint32_t irqstatus;
 	uint32_t irqenable_set;
@@ -15,7 +15,7 @@ struct am335x_i2c {
 	uint32_t dmatxenable_clr;
 	uint32_t dmarxwake_en;
 	uint32_t dmatxwake_en;
-	uint32_t pad2[18];
+	uint32_t pad2[16];
 	uint32_t syss;
 	uint32_t buf;
 	uint32_t cnt;

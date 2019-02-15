@@ -9,9 +9,12 @@
 #include <dev_reg.h>
 #include <arm/am33xx_prm_cm.h>
 
-static volatile struct cm_perpll *cm_perpll_regs;
-static volatile struct prm_wkup  *prm_wkup_regs;
-static volatile struct prm_per   *prm_per_regs;
+static volatile struct cm_perpll  *cm_perpll;
+static volatile struct cm_device  *cm_device;
+static volatile struct cm_mpu     *cm_mpu;
+static volatile struct cm_wkuppll *cm_wkup;
+static volatile struct prm_wkup   *prm_wkup;
+static volatile struct prm_per    *prm_per;
 
 int
 get_device_pid(char *name)
@@ -96,28 +99,59 @@ main(void)
 
 	debug("test\n");
 
-	prm_per_regs = (void *) ((size_t) regs + 0xc00);
-	debug("per           = 0x%x\n", prm_per_regs);
-	debug("per rst       = 0x%x\n", prm_per_regs->rstctrl);
-	debug("per pwrstst   = 0x%x\n", prm_per_regs->pwrstst);
-	debug("per pwrstctrl = 0x%x\n", prm_per_regs->pwrstctrl);
+	cm_perpll  = regs;
+	cm_wkup    = (void *) ((size_t) regs + 0x400);
+	cm_mpu     = (void *) ((size_t) regs + 0x600);
+	cm_device  = (void *) ((size_t) regs + 0x700);
+	prm_per    = (void *) ((size_t) regs + 0xc00);
+	prm_wkup   = (void *) ((size_t) regs + 0xd00);
 
-	prm_wkup_regs = (void *) ((size_t) regs + 0xd00);
-	debug("wkup           = 0x%x\n", prm_wkup_regs);
-	debug("wkup rst       = 0x%x\n", prm_wkup_regs->rstctrl);
-	debug("wkup pwrstctrl = 0x%x\n", prm_wkup_regs->pwrstctrl);
-	debug("wkup pwrstst   = 0x%x\n", prm_wkup_regs->pwrstst);
-	debug("wkup rstst     = 0x%x\n", prm_wkup_regs->rstst);
+	debug("per rst       = 0x%x\n", prm_per->rstctrl);
+	debug("per pwrstst   = 0x%x\n", prm_per->pwrstst);
+	debug("per pwrstctrl = 0x%x\n", prm_per->pwrstctrl);
 
-	cm_perpll_regs = regs;
+	debug("per l4ls      = 0x%x\n", cm_perpll->l4lsclkstctrl);
+	debug("per l3s       = 0x%x\n", cm_perpll->l3sclkstctrl);
+	debug("per l3        = 0x%x\n", cm_perpll->l3clkstctrl);
+	debug("per l4ls      = 0x%x\n", cm_perpll->l4lsclkctrl);
+
+	/* need to set bit 17 of l4ls for lcd */
+
+	debug("wkup rst       = 0x%x\n", prm_wkup->rstctrl);
+	debug("wkup pwrstctrl = 0x%x\n", prm_wkup->pwrstctrl);
+	debug("wkup pwrstst   = 0x%x\n", prm_wkup->pwrstst);
+	debug("wkup rstst     = 0x%x\n", prm_wkup->rstst);
+	
+	debug("cmdevice clkout = 0x%x\n", cm_device->clkout_ctrl);
+
+	debug("mpu stctrl      = 0x%x\n", cm_mpu->clkstctrl);
+	debug("mpu clkctrl     = 0x%x\n", cm_mpu->clkctrl);
 
 	debug("enable lcd\n");
-	debug("enable lcd 0x%x\n", cm_perpll_regs->lcdclkctrl);
-	cm_perpll_regs->lcdclkctrl = 0x2;
-	while ((cm_perpll_regs->lcdclkctrl >> 18) & 1)
-		debug("enable lcd 0x%x\n", cm_perpll_regs->lcdclkctrl);
+	debug("enable lcd 0x%x\n", cm_perpll->lcdclkctrl);
+	cm_perpll->lcdclkctrl = 0x2;
+	while ((cm_perpll->lcdclkctrl >> 18) & 1)
+		;
 	debug("lcd enabled\n");
 
+	debug("enable i2c0\n");
+	cm_wkup->wkup_i2c0ctrl = 0x2;
+	while ((cm_wkup->wkup_i2c0ctrl >> 16) & 3)
+		;
+	debug("enabled i2c0\n");
+
+	debug("enable i2c1\n");
+	cm_perpll->i2c1clkctrl = 0x2;
+	while ((cm_perpll->i2c1clkctrl >> 16) & 3)
+		;
+	debug("enabled i2c1\n");
+	
+	debug("enable i2c2\n");
+	cm_perpll->i2c2clkctrl = 0x2;
+	while ((cm_perpll->i2c2clkctrl >> 16) & 3)
+		;
+	debug("enabled i2c2\n");
+	
 	uint8_t m[MESSAGE_LEN];
 	while (true) {
 		int pid = recv(-1, m);

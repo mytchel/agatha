@@ -11,14 +11,14 @@ LOAD_ADDR = 0x82000000
 
 PROCS = \
 	../../procs/dev_reg \
-	../../procs/init
+#	../../procs/init
 
 DRIVERS = \
 					drivers/serial-omap3 \
 					drivers/i2c-am335x \
 					drivers/prm-cm-am33xx \
-					drivers/mmc-omap3 \
-					drivers/lcd-am335x
+#					drivers/mmc-omap3 \
+#					drivers/lcd-am335x
 
 BOARD_KERNEL_SRC_C =  \
 	cortex_a8_intr.c      \

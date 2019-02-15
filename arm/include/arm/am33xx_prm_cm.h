@@ -13,6 +13,16 @@ struct prm_wkup {
 	uint32_t rstst;
 };
 
+struct cm_mpu {
+	uint32_t clkstctrl;
+	uint32_t clkctrl;
+};
+
+struct cm_device {
+	uint32_t clkout_ctrl;
+};
+
+
 /* Encapsulating core pll registers */
 struct cm_wkuppll {
 	unsigned int wkclkstctrl;	/* offset 0x00 */

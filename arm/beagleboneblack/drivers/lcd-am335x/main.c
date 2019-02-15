@@ -120,6 +120,8 @@ TODO: make some protocol for this
 
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
+	regs->irqenable_set = 0xffffffff;
+
 	regs->clkc_enable = 7;
 	regs->raster_ctrl = 0;
 	regs->ctrl = (clock_div << 8) | 1;
@@ -174,7 +176,6 @@ TODO: make some protocol for this
 
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
-	uint32_t stat = regs->irqstatus_raw;
 	/*
 	while (regs->irqstatus_raw == stat)
 		;
