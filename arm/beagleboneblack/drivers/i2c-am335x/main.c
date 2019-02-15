@@ -7,11 +7,10 @@
 #include <string.h>
 #include <proc0.h>
 #include <dev_reg.h>
-#include <arm/am33xx_prm_cm.h>
+#include <arm/am335x_i2c.h>
 
-static volatile struct cm_perpll *cm_perpll_regs;
-static volatile struct prm_wkup  *prm_wkup_regs;
-static volatile struct prm_per   *prm_per_regs;
+static volatile struct am335x_i2c_regs *regs;
+static char dev_name[MESSAGE_LEN];
 
 int
 get_device_pid(char *name)
@@ -41,9 +40,10 @@ debug(char *fmt, ...)
 		pid = get_device_pid("serial0");
 	}
 
-	char s[MESSAGE_LEN] = "prm-cm0: ";
+	char s[MESSAGE_LEN];
 	va_list ap;
 
+	snprintf(s, sizeof(s), "%s: ", dev_name);
 	va_start(ap, fmt);
 	vsnprintf(s + strlen(s),
 			sizeof(s) - strlen(s),
@@ -57,11 +57,8 @@ debug(char *fmt, ...)
 main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-	char name[MESSAGE_LEN];
 
 	size_t regs_pa, regs_len;
-	void *regs;
-
 	union dev_reg_req drq;
 	union dev_reg_rsp drp;
 
@@ -70,7 +67,9 @@ main(void)
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
 	
-	recv(0, name);
+	recv(0, dev_name);
+
+	debug("test\n");
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
@@ -83,7 +82,7 @@ main(void)
 	drq.type = DEV_REG_register;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
-			"%s", name);
+			"%s", dev_name);
 
 	send(DEV_REG_PID, (uint8_t *) &drq);
 	while (recv(DEV_REG_PID, (uint8_t *) &drp) != DEV_REG_PID)
@@ -94,34 +93,10 @@ main(void)
 		exit();
 	}
 
-	debug("test\n");
+	debug("mapped and registered\n");
 
-	prm_per_regs = (void *) ((size_t) regs + 0xc00);
-	debug("per           = 0x%x\n", prm_per_regs);
-	debug("per rst       = 0x%x\n", prm_per_regs->rstctrl);
-	debug("per pwrstst   = 0x%x\n", prm_per_regs->pwrstst);
-	debug("per pwrstctrl = 0x%x\n", prm_per_regs->pwrstctrl);
-
-	prm_wkup_regs = (void *) ((size_t) regs + 0xd00);
-	debug("wkup           = 0x%x\n", prm_wkup_regs);
-	debug("wkup rst       = 0x%x\n", prm_wkup_regs->rstctrl);
-	debug("wkup pwrstctrl = 0x%x\n", prm_wkup_regs->pwrstctrl);
-	debug("wkup pwrstst   = 0x%x\n", prm_wkup_regs->pwrstst);
-	debug("wkup rstst     = 0x%x\n", prm_wkup_regs->rstst);
-
-	cm_perpll_regs = regs;
-
-	debug("enable lcd\n");
-	debug("enable lcd 0x%x\n", cm_perpll_regs->lcdclkctrl);
-	cm_perpll_regs->lcdclkctrl = 0x2;
-	while ((cm_perpll_regs->lcdclkctrl >> 18) & 1)
-		debug("enable lcd 0x%x\n", cm_perpll_regs->lcdclkctrl);
-	debug("lcd enabled\n");
-
-	uint8_t m[MESSAGE_LEN];
 	while (true) {
-		int pid = recv(-1, m);
-		send(pid, m);
+		recv(-1, init_m);
 	}
 }
 

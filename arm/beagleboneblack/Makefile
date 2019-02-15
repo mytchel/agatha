@@ -15,6 +15,7 @@ PROCS = \
 
 DRIVERS = \
 					drivers/serial-omap3 \
+					drivers/i2c-am335x \
 					drivers/prm-cm-am33xx \
 					drivers/mmc-omap3 \
 					drivers/lcd-am335x

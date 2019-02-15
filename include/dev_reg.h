@@ -13,6 +13,7 @@ union dev_reg_req {
 	struct {
 		int type;
 		char name[DEV_REG_name_len];
+		bool block;
 	} find;
 
 	struct {

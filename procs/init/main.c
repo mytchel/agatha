@@ -39,6 +39,7 @@ get_device_pid(char *name)
 	union dev_reg_rsp rp;
 
 	rq.find.type = DEV_REG_find;
+	rq.find.block = true;
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
 
@@ -258,7 +259,8 @@ main(void)
 	unmap_addr(init_file, init_m_len);
 	release_addr(init_pa, init_m_len);
 
+	uint8_t m[MESSAGE_LEN];
 	while (true)
-		;
+		recv(-1, m);
 }
 

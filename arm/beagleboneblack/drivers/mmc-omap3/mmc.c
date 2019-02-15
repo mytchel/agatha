@@ -10,6 +10,8 @@
 #include <sdmmc.h>
 #include <dev_reg.h>
 
+static char dev_name[MESSAGE_LEN];
+
 int
 get_device_pid(char *name)
 {
@@ -17,6 +19,7 @@ get_device_pid(char *name)
 	union dev_reg_rsp rp;
 
 	rq.find.type = DEV_REG_find;
+	rq.find.block = true;
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
 
@@ -30,7 +33,7 @@ get_device_pid(char *name)
 }
 
 void
-debug(struct mmc *mmc, char *fmt, ...)
+debug(char *fmt, ...)
 {
 	static int pid = -1;
 
@@ -38,12 +41,10 @@ debug(struct mmc *mmc, char *fmt, ...)
 		pid = get_device_pid("serial0");
 	}
 
-	char s[MESSAGE_LEN] = "omap3_mmchs: ";
+	char s[MESSAGE_LEN];
 	va_list ap;
 
-	if (mmc != nil) {
-		snprintf(s, sizeof(s), "%s: ", mmc->name);
-	}
+	snprintf(s, sizeof(s), "%s: ", dev_name);
 
 	va_start(ap, fmt);
 	vsnprintf(s + strlen(s), 
@@ -94,7 +95,7 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	uint32_t send, stat;
 	size_t l;
 
-	debug(mmc, "sending cmd 0x%x with arg 0x%x\n", cmd->cmdidx, cmd->cmdarg);
+	debug("sending cmd 0x%x with arg 0x%x\n", cmd->cmdidx, cmd->cmdarg);
 	send = MMCHS_SD_CMD_INDEX_CMD(cmd->cmdidx);
 
 	if (cmd->resp_type) {
@@ -150,7 +151,7 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	}
 
 	if (stat & MMCHS_SD_STAT_ERRI) {
-		debug(mmc, "command failed stat = 0x%x\n", stat);
+		debug("command failed stat = 0x%x\n", stat);
 		return ERR;
 	}
 
@@ -208,7 +209,7 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	static int
 mmchs_set_ios(struct mmc *mmc)
 {
-	debug(mmc, "set ios\n");
+	debug("set ios\n");
 
 	return OK;
 }
@@ -219,14 +220,14 @@ mmchs_reset(struct mmc *mmc)
 	volatile struct omap3_mmchs_regs *regs = mmc->base;
 	int i = 100;
 
-	debug(mmc, "reset\n");
+	debug("reset\n");
 
 	regs->sysconfig |= MMCHS_SD_SYSCONFIG_SOFTRESET;
 
 	while (!(regs->sysstatus & MMCHS_SD_SYSSTATUS_RESETDONE)) {
 		udelay(1000);
 		if (i-- < 0) {
-			debug(mmc, "reset failed!\n");
+			debug("reset failed!\n");
 			return ERR;
 		}
 	}
@@ -255,7 +256,7 @@ mmchs_init(struct mmc *mmc)
 	while (!(regs->hctl & MMCHS_SD_HCTL_SDBP)) {
 		udelay(1000);
 		if (i-- < 0) {
-			debug(mmc, "failed to power on card!\n");
+			debug("failed to power on card!\n");
 			return ERR;
 		}
 	}
@@ -274,7 +275,7 @@ mmchs_init(struct mmc *mmc)
 	while (!(regs->sysctl & MMCHS_SD_SYSCTL_ICS)) {
 		udelay(100);
 		if (i-- < 0) {
-			debug(mmc, "clock not stable!\n");
+			debug("clock not stable!\n");
 			return ERR;
 		}
 	}
@@ -324,7 +325,6 @@ mmchs_init(struct mmc *mmc)
 main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-	char name[MESSAGE_LEN];
 
 	volatile struct omap3_mmchs_regs *regs;
 	size_t regs_pa, regs_len;
@@ -336,7 +336,7 @@ main(void)
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
 
-	recv(0, name);
+	recv(0, dev_name);
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
@@ -344,8 +344,10 @@ main(void)
 		exit();
 	}
 
+	debug("mapped 0x%x -> 0x%x\n", regs_pa, regs);
+
 	mmc.base = regs;
-	mmc.name = name;
+	mmc.name = dev_name;
 
 	mmc.voltages = OCR_VOLTAGE_MASK;
 
@@ -357,12 +359,12 @@ main(void)
 
 	ret = mmchs_init(&mmc);
 	if (ret != OK) {
-		debug(&mmc, "init failed!\n");
+		debug("init failed!\n");
 		exit();
 	}
 
-	debug(&mmc, "mmc_start\n");
+	debug("mmc_start\n");
 	ret = mmc_start(&mmc);
-	debug(&mmc, "mmc_start returned %i\n", ret);
+	debug("mmc_start returned %i\n", ret);
 }
 

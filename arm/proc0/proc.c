@@ -242,9 +242,29 @@ init_bundled_proc(char *name,
 		size_t start, size_t len)
 {
 	uint32_t m[MESSAGE_LEN/sizeof(uint32_t)] = { 0 };
-	size_t l1_pa, l2_pa, stack_pa;
-	uint32_t *l1_va;
+	size_t l1_pa, l2_pa, stack_pa, code_pa;
+	uint32_t *l1_va, *code_va, *start_va;
 	int pid;
+
+	code_pa = get_ram(len, 0x1000);
+	if (code_pa == nil) {
+		raise();
+	}
+
+	code_va = map_free(code_pa, len, AP_RW_RW, false);
+	if (code_va == nil) {
+		raise();
+	}
+
+	start_va = map_free(start, len, AP_RW_RW, true);
+	if (start_va == nil) {
+		raise();
+	}
+
+	memcpy(code_va, start_va, len);
+
+	unmap(code_va, len);
+	unmap(start_va, len);
 
 	l1_pa = get_ram(0x8000, 0x4000);
 	if (l1_pa == nil) {
@@ -288,7 +308,7 @@ init_bundled_proc(char *name,
 		raise();
 	}
 
-	if (proc_give_addr(pid, start, len) != OK) {
+	if (proc_give_addr(pid, code_pa, len) != OK) {
 		raise();
 	}
 
@@ -304,7 +324,7 @@ init_bundled_proc(char *name,
 		raise();
 	}
 
-	if (proc_map(pid, start, 
+	if (proc_map(pid, code_pa, 
 				USER_ADDR, len, 
 				MAP_MEM|MAP_RW) != OK) {
 		raise();

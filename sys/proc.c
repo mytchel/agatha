@@ -1,6 +1,6 @@
 #include "head.h"
 
-#define TIME_SLICE   100000
+#define TIME_SLICE   1000
 
 void add_to_list_tail(proc_list_t l, proc_t p);
 void remove_from_list(proc_list_t l, proc_t p);
@@ -153,6 +153,8 @@ proc_new(void)
 void
 proc_ready(proc_t p)
 {
+	debug("ready %i\n", p->pid);
+
 	p->state = PROC_ready;
 	add_to_list_tail(&ready.queue[(ready.q + 1) % 2], p);
 }

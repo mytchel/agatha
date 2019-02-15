@@ -18,6 +18,7 @@ get_device_pid(char *name)
 	union dev_reg_rsp rp;
 
 	rq.find.type = DEV_REG_find;
+	rq.find.block = true;
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
 
@@ -84,9 +85,7 @@ TODO: make some protocol for this
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
 
-	debug("test\n");
-	debug("regs at 0x%x 0x%x\n", regs_pa, regs_len);
-	debug("regs mapped to -> 0x%x\n", regs);
+	debug("mapped 0x%x -> 0x%x\n", regs_pa, regs);
 
 	uint32_t minor = regs->pid & ((1<<5)-1);
 	uint32_t major = (regs->pid >> 8) & ((1<<3)-1);
@@ -176,8 +175,10 @@ TODO: make some protocol for this
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
 	uint32_t stat = regs->irqstatus_raw;
+	/*
 	while (regs->irqstatus_raw == stat)
 		;
+		*/
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
 	drq.type = DEV_REG_register;
@@ -195,7 +196,7 @@ TODO: make some protocol for this
 	}
 
 	while (true) {
-
+		recv(-1, init_m);
 	}
 }
 

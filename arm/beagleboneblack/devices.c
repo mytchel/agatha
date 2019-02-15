@@ -9,11 +9,7 @@ struct device devices[] = {
 	},
 	{ "serial0", "drivers/serial-omap3",
 		0x44e09000, 0x1000,
-		0
-	},
-	{ "wdt1", "drivers/wtd-am335x",
-		0x44e31000, 0x1000,
-		0	
+		72	
 	},
  	 { "sdmmc0", "drivers/mmc-omap3",
 		0x48060000, 0x1000,
@@ -26,6 +22,18 @@ struct device devices[] = {
 	{ "lcd0", "drivers/lcd-am335x",
 		0x4830e000, 0x2000,
 		36
+	},
+	{ "i2c0", "drivers/i2c-am335x",
+		0x44e0b000, 0x1000,
+		70
+	},
+	{ "i2c1", "drivers/i2c-am335x",
+		0x4802a000, 0x1000,
+		71	
+	},
+	{ "i2c2", "drivers/i2c-am335x",
+		0x4819c000, 0x1000,
+		30	
 	},
 };
 
