@@ -1,3 +1,15 @@
+#define I2C_CON_EN    (1<<15)
+#define I2C_CON_MST   (1<<10)
+#define I2C_CON_TRX   (1<<9)
+#define I2C_CON_STP   (1<<1)
+#define I2C_CON_STT   (1<<0)
+
+#define I2C_IRQ_BB    (1<<12)
+#define I2C_IRQ_XRDY  (1<<4)
+#define I2C_IRQ_RRDY  (1<<3)
+#define I2C_IRQ_ARDY  (1<<2)
+#define I2C_IRQ_NACK  (1<<1)
+
 struct am335x_i2c_regs {
 	uint32_t revnb_lo;
 	uint32_t revnb_hi;

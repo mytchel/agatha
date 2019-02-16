@@ -65,23 +65,13 @@ udelay(size_t us)
 int
 i2c_init(int oa)
 {
-	debug("status = 0x%x\n", regs->irqstatus);
-	debug("raw    = 0x%x\n", regs->irqstatus_raw);
-	debug("buf    = 0x%x\n", regs->buf);
-	debug("sysc   = 0x%x\n", regs->sysc);
-	debug("syss   = 0x%x\n", regs->syss);
-	debug("con    = 0x%x\n", regs->con);
-	debug("&con    = 0x%x\n", &regs->con);
-	debug("&syss   = 0x%x\n", &regs->syss);
-	debug("&raw   = 0x%x\n", &regs->irqstatus_raw);
-
 	regs->con = 0;
 	udelay(50000);
 
 	regs->sysc = 2;
 
 	udelay(1000);
-	regs->con = 1<<15;
+	regs->con = I2C_CON_EN;
 	while (!regs->syss) {
 		debug("syss   = 0x%x\n", regs->syss);
 		udelay(1000);
@@ -105,14 +95,15 @@ i2c_init(int oa)
 	regs->sclh = 5;
 #endif
 
-	regs->con |= (1<<15);
-	regs->irqenable_set = (1<<4)|(1<<3)|(1<<0)|(1<<1);
+	regs->con = I2C_CON_EN;
+	regs->irqenable_set = I2C_IRQ_BB |
+		I2C_IRQ_XRDY |
+		I2C_IRQ_RRDY |
+		I2C_IRQ_ARDY |
+		I2C_IRQ_NACK;
 	regs->irqenable_clr = 0xffffffff;
 	
 	regs->oa = oa;
-
-	debug("oa = 0x%x\n", regs->oa);
-	debug("con = 0x%x\n", regs->con);
 
 	return OK;
 }
@@ -120,64 +111,122 @@ i2c_init(int oa)
 	int
 i2c_read(int slave, int sub, uint8_t *buf, size_t len)
 {
-	debug("wait for module ready\n");
+	size_t alen = 1;
+	uint32_t stat;
+
+	debug("read 0x%x . 0x%x %i\n", slave, sub, len);
 	regs->irqstatus = 0xffff;
-	while ((regs->irqstatus_raw & (1<<12))) {
+	udelay(1000);
+	while ((regs->irqstatus_raw & I2C_IRQ_BB)) {
 		debug("wr bb status = 0x%x\n", regs->irqstatus_raw);
 		regs->irqstatus = regs->irqstatus_raw;
-		udelay(1000);
 	}
 		
 	regs->irqstatus = 0xffff;
 
 	regs->sa = slave;
-	regs->cnt = 1;
-	regs->con = (1<<15) | (1<<10) | (1<<9) | 1; 
+	regs->cnt = alen;
+	regs->con = I2C_CON_EN |
+		I2C_CON_MST |
+		I2C_CON_TRX |
+		I2C_CON_STT;
 
-	while (true) {
-		debug("wr status = 0x%x\n", regs->irqstatus_raw);
+	while (1) {
+		stat = regs->irqstatus_raw;
+		debug("wa status = 0x%x\n", stat);
 
-		if (regs->irqstatus_raw & (1<<1)) {
-			debug("arb lost\n");
-			return -1;
-		} else if (regs->irqstatus_raw & (1<<2)) {
-			regs->irqstatus = (1<<2);
-			break;
-		} else if (regs->irqstatus_raw & (1<<4)) {
+		if (stat & I2C_IRQ_NACK) {
+			debug("wa error 0x%x\n", stat);
+			return ERR;
+		} else if (alen > 0 && (stat & I2C_IRQ_XRDY)) {
 			regs->data = sub;
-			regs->irqstatus = (1<<4);
+			regs->irqstatus = I2C_IRQ_XRDY;
+			alen--;
+		} else if (stat & I2C_IRQ_ARDY) {
+			regs->irqstatus = I2C_IRQ_ARDY;
+			break;
 		}
-
-		udelay(1000);
 	}
 
 	regs->sa = slave;
 	regs->cnt = len;
-	regs->con = (1<<15) | (1<<10) | (1<<1) | 1;
+	regs->con = I2C_CON_EN |
+		I2C_CON_MST |
+		I2C_CON_STP |
+		I2C_CON_STT;
 
-	while (true) {
-		debug("rd status = 0x%x\n", regs->irqstatus_raw);
+	while (len > 0) {
+		stat = regs->irqstatus_raw;
+		debug("rd status = 0x%x\n", stat);
 
-		if (regs->irqstatus_raw & (1<<1)) {
-			debug("arb lost\n");
-			return -1;
-		} else if (regs->irqstatus_raw & (1<<2)) {
-			regs->irqstatus = (1<<2);
+		if (stat & I2C_IRQ_NACK) {
+			debug("rd error 0x%x\n", stat);
+			return ERR;
+		} else if (stat & I2C_IRQ_ARDY) {
+			regs->irqstatus = I2C_IRQ_ARDY;
 			break;
-		} else if (regs->irqstatus_raw & (1<<3)) {
+		} else if (stat & I2C_IRQ_RRDY) {
 			*buf++ = regs->data;
-			regs->irqstatus  = (1<<3);
-
-			if (len-- == 0) {
-				break;
-			}
+			regs->irqstatus  = I2C_IRQ_RRDY;
 		}
-		
-		udelay(1000);
 	}
 
-	/* drain? */
-	return ERR;
+	return OK;
+}
+
+	int
+i2c_write(int slave, int sub, uint8_t *buf, size_t len)
+{
+	size_t alen = 1;
+	uint32_t stat;
+
+	debug("write 0x%x . 0x%x %i\n", slave, sub, len);
+	regs->irqstatus = 0xffff;
+	udelay(1000);
+	while ((regs->irqstatus_raw & I2C_IRQ_BB)) {
+		debug("wr bb status = 0x%x\n", regs->irqstatus_raw);
+		regs->irqstatus = regs->irqstatus_raw;
+	}
+		
+	regs->irqstatus = 0xffff;
+
+	regs->sa = slave;
+	regs->cnt = alen + len;
+	regs->con = I2C_CON_EN |
+		I2C_CON_MST |
+		I2C_CON_TRX |
+		I2C_CON_STP |
+		I2C_CON_STT;
+
+	while (alen > 0) {
+		stat = regs->irqstatus_raw;
+		debug("wa status = 0x%x\n", stat);
+
+		if (stat & I2C_IRQ_XRDY) {
+			regs->data = sub;
+			regs->irqstatus = I2C_IRQ_XRDY;
+			alen--;
+		} else if (stat & I2C_IRQ_NACK) {
+			debug("wa error 0x%x\n", stat);
+			return ERR;
+		}
+	}
+
+	while (len > 0) {
+		stat = regs->irqstatus_raw;
+		debug("wd status = 0x%x\n", stat);
+
+		if (stat & I2C_IRQ_XRDY) {
+			regs->data = *buf++;
+			regs->irqstatus  = I2C_IRQ_XRDY;
+			len--;
+		} else {
+			debug("wd error 0x%x\n", stat);
+			return ERR;
+		}
+	}
+
+	return OK;
 }
 
 	void
@@ -220,15 +269,51 @@ main(void)
 	i2c_init(0x40);
 	uint8_t buf[1];
 
-	if (strcmp(dev_name, "i2c0"))
+	if (strcmp(dev_name, "i2c0")) {
+		/* i2c0 0x24 is a tps65217 */
 		i2c_read(0x24, 0, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+		i2c_read(0x24, 0x07, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+		i2c_read(0x24, 0x08, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
 
-	else if (strcmp(dev_name, "i2c2")) {
+		buf[0] = (1<<3);
+		i2c_write(0x24, 0x07, buf, sizeof(buf));
+		i2c_read(0x24, 0x07, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+
+		/* Flashes the power led by enabling and
+			 disabling LDO2 */
+		bool on = false;
+		while (true) {
+			/* 0x13 is password protected level 2 
+				 so the dance must be danced */
+			buf[0] = 0x7d ^ 0x13;
+			i2c_write(0x24, 0x0b, buf, sizeof(buf));
+			buf[0] = on ? 0x3f : 0;
+			i2c_write(0x24, 0x13, buf, sizeof(buf));
+			buf[0] = 0x7d ^ 0x13;
+			i2c_write(0x24, 0x0b, buf, sizeof(buf));
+			buf[0] = on ? 0x3f : 0;
+			i2c_write(0x24, 0x13, buf, sizeof(buf));
+
+			i2c_read(0x24, 0x13, buf, sizeof(buf));
+			debug("read 0x%x\n", buf[0]);
+					
+			udelay(10000);
+			on = !on;
+		}
+
+	} else if (strcmp(dev_name, "i2c2")) {
+		/*
 		i2c_read(112, 0, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
 		i2c_read(52, 0, buf, sizeof(buf));
+		i2c_read(52, 0, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+		*/
 	}
-
-	debug("i2c read 0x%x\n", buf[0]);
 
 	drq.type = DEV_REG_register;
 	drq.reg.pid = pid();
