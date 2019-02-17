@@ -1,4 +1,4 @@
-PROG = lcd-am335x
+PROG = video-am335x
 
 SRC = \
 	main.c

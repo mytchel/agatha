@@ -14,7 +14,8 @@ struct dev {
 	char name[DEV_REG_name_len];
 };
 
-struct dev devs[16] = {0};
+#define MAX_DEVS 16
+struct dev devs[MAX_DEVS] = {0};
 
 struct find_waiting {
 	bool in_use;
@@ -26,7 +27,7 @@ struct find_waiting {
 struct find_waiting waiting[MAX_WAITING] = {0};
 
 struct find_waiting *
-get_find_waiting(void)
+get_free_find_waiting(void)
 {
 	int i;
 	for (i = 0; i < MAX_WAITING; i++) {
@@ -42,18 +43,18 @@ get_find_waiting(void)
 void
 check_waiting(int id)
 {
-	uint8_t rp_buf[MESSAGE_LEN];
-	union dev_reg_rsp *rp = (union dev_reg_rsp *) rp_buf;
+	union dev_reg_rsp rp;
 	int i;
-
-	rp->find.type = DEV_REG_find;
-	rp->find.pid = devs[id].pid;
-	rp->find.id = id;
-	rp->find.ret = OK;
 
 	for (i = 0; i < MAX_WAITING; i++) {
 		if (waiting[i].in_use && strcmp(waiting[i].name, devs[id].name)) {
-			send(waiting->pid, rp_buf);
+
+			rp.find.type = DEV_REG_find;
+			rp.find.pid = devs[id].pid;
+			rp.find.id = id;
+			rp.find.ret = OK;
+
+			send(waiting->pid, &rp);
 			waiting[i].in_use = false;
 		}
 	}
@@ -67,7 +68,7 @@ handle_find(int from,
 	struct find_waiting *w;
 	int i;
 
-	for (i = 0; i < 16 && devs[i].pid > 0; i++) {
+	for (i = 0; i < MAX_DEVS && devs[i].pid > 0; i++) {
 		if (strncmp(devs[i].name, rq->find.name, sizeof(devs[i].name))) {
 			rp->find.pid = devs[i].pid;
 			rp->find.id = i;
@@ -76,14 +77,14 @@ handle_find(int from,
 	}
 
 	if (rq->find.block) {
-		w = get_find_waiting();
+		w = get_free_find_waiting();
 		if (w != nil) {
 			w->pid = from;
 			memcpy(w->name, rq->find.name, DEV_REG_name_len);
 			return NO_RSP;
 		}
 	}
-		
+
 	return ERR;
 }
 
@@ -94,10 +95,10 @@ handle_register(int from,
 {
 	int i;
 
-	for (i = 0; i < 16 && devs[i].pid > 0; i++)
+	for (i = 0; i < MAX_DEVS && devs[i].pid > 0; i++)
 		;
 
-	if (i == 16)
+	if (i == MAX_DEVS)
 		return ERR;
 
 	devs[i].pid = from;

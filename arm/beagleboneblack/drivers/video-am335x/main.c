@@ -10,6 +10,7 @@
 #include <arm/am335x_lcd.h>
 
 static volatile struct am335x_lcd_regs *regs;
+static int i2c_pid;
 
 int
 get_device_pid(char *name)
@@ -92,6 +93,15 @@ TODO: make some protocol for this
 
 	debug("version %i.%i\n", major, minor);
 	debug("status 0x%x\n", regs->irqstatus_raw);
+
+	do {
+		i2c_pid = get_device_pid("i2c2");
+	} while (i2c_pid < 0);
+
+	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK) {
+		debug("failed to setup i2c\n");
+		exit();
+	}
 
 	size_t fb_size = PAGE_ALIGN(32 + 640*480+4);
 	size_t fb_pa = request_memory(fb_size);

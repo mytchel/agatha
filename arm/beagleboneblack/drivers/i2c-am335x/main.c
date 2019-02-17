@@ -8,9 +8,11 @@
 #include <proc0.h>
 #include <dev_reg.h>
 #include <arm/am335x_i2c.h>
+#include <i2c.h>
 
-static volatile struct am335x_i2c_regs *regs;
 static char dev_name[MESSAGE_LEN];
+static volatile struct am335x_i2c_regs *regs;
+static bool configured = false;
 
 int
 get_device_pid(char *name)
@@ -56,14 +58,15 @@ debug(char *fmt, ...)
 static void
 udelay(size_t us)
 {
-	size_t j;
-	while (us-- > 0)
-		for (j = 0; j < 100; j++)
+	while (us-- > 0) {
+		int j;
+		for (j = 0; j < 10; j++)
 			;
+	}
 }
 
 int
-i2c_init(int oa)
+i2c_init(int oa, size_t speed_kHz)
 {
 	regs->con = 0;
 	udelay(50000);
@@ -80,20 +83,16 @@ i2c_init(int oa)
 	/* disable */
 	regs->con = 0;
 
+	/* TODO: configurable speed */
+
 	/* prescaller to get 12 MHz module clock 
 	configure for 400 kHz from clock 
 	 tLow  = (SCLL + 7) * ICLK time period 
 	 tHigh = (SCLH + 5) * ICLK */
 
-#if 0	
 	regs->psc = 7;
 	regs->scll = 13;
 	regs->sclh = 5;
-#else
-	regs->psc = 7;
-	regs->scll = 13;
-	regs->sclh = 5;
-#endif
 
 	regs->con = I2C_CON_EN;
 	regs->irqenable_set = I2C_IRQ_BB |
@@ -229,9 +228,54 @@ i2c_write(int slave, int sub, uint8_t *buf, size_t len)
 	return OK;
 }
 
+static int
+handle_configure(int from, 
+		union i2c_req *irq, 
+		union i2c_rsp *irp)
+{
+	return i2c_init(irq->configure.addr,
+			irq->configure.speed_kHz);
+}
+
+static int
+handle_read(int from, 
+		union i2c_req *irq, 
+		union i2c_rsp *irp)
+{
+	int ret;
+
+	if (!configured) return ERR;
+
+	ret = i2c_read(irq->read.slave, irq->read.addr,
+		 irp->read.buf, irq->read.len);
+
+	return ret;
+}
+
+
+static int
+handle_write(int from, 
+		union i2c_req *irq, 
+		union i2c_rsp *irp)
+{
+	int ret;
+
+	if (!configured) return ERR;
+
+	ret = i2c_write(irq->write.slave, irq->write.addr,
+		 irq->write.buf, irq->write.len);
+
+	return ret;
+}
+
 	void
 main(void)
 {
+	uint8_t rq_buf[MESSAGE_LEN], rp_buf[MESSAGE_LEN];
+	union i2c_req *irq = (union i2c_req *) rq_buf;
+	union i2c_rsp *irp = (union i2c_rsp *) rp_buf;
+	int from;
+
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 
 	size_t regs_pa, regs_len;
@@ -245,8 +289,6 @@ main(void)
 
 	recv(0, dev_name);
 
-	debug("test\n");
-
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		debug("failed to map registers!\n");
@@ -258,18 +300,30 @@ main(void)
 	/* wait for prm to set up everything */
 	int prm_cm_pid;
 	do {
+		debug("get prm pid\n");
 		prm_cm_pid = get_device_pid("prm-cm0");
+		debug("prm pid %i\n", prm_cm_pid);
 	} while (prm_cm_pid < 0);
+
+	debug("message prm\n");
 
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
 
-	debug("try read something\n");
-
-	i2c_init(0x40);
-	uint8_t buf[1];
+	debug("starting\n");
 
 	if (strcmp(dev_name, "i2c0")) {
+		uint8_t buf[1];
+
+		i2c_init(0x40, 400);
+		
+		i2c_read(0x70, 0xff, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+		buf[0] = 0x10;
+		i2c_write(0x70, 0xff, buf, sizeof(buf));
+		i2c_read(0x70, 0xff, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+
 		/* i2c0 0x24 is a tps65217 */
 		i2c_read(0x24, 0, buf, sizeof(buf));
 		debug("read 0x%x\n", buf[0]);
@@ -286,7 +340,8 @@ main(void)
 		/* Flashes the power led by enabling and
 			 disabling LDO2 */
 		bool on = false;
-		while (true) {
+		int i;
+		for (i = 0; i < 10; i++) {
 			/* 0x13 is password protected level 2 
 				 so the dance must be danced */
 			buf[0] = 0x7d ^ 0x13;
@@ -304,15 +359,27 @@ main(void)
 			udelay(10000);
 			on = !on;
 		}
+	} else if (strcmp(dev_name, "i2c1")) {
+		uint8_t buf[1];
+
+		i2c_init(0x40, 400);
+		
+		i2c_read(0x70, 0xff, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+		buf[0] = 0x10;
+		i2c_write(0x70, 0xff, buf, sizeof(buf));
+		i2c_read(0x70, 0xff, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+
 
 	} else if (strcmp(dev_name, "i2c2")) {
-		/*
-		i2c_read(112, 0, buf, sizeof(buf));
+		uint8_t buf[1];
+		i2c_init(0x40, 400);
+		i2c_read(112, 0xff, buf, sizeof(buf));
 		debug("read 0x%x\n", buf[0]);
-		i2c_read(52, 0, buf, sizeof(buf));
-		i2c_read(52, 0, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
-		*/
+		buf[0] = 0x10;
+		i2c_write(112, 0xff, buf, sizeof(buf));
+		i2c_read(112, 0xff, buf, sizeof(buf));
 	}
 
 	drq.type = DEV_REG_register;
@@ -329,10 +396,30 @@ main(void)
 		exit();
 	}
 
-	debug("mapped and registered\n");
-
 	while (true) {
-		recv(-1, init_m);
+		if ((from = recv(-1, rq_buf)) < 0)
+			continue;
+
+		irp->untyped.type = irq->type;
+		switch (irq->type) {
+			case I2C_configure:
+				irp->untyped.ret = handle_configure(from, irq, irp);
+				break;
+
+			case I2C_read:
+				irp->untyped.ret = handle_read(from, irq, irp);
+				break;
+
+			case I2C_write:
+				irp->untyped.ret = handle_write(from, irq, irp);
+				break;
+
+			default:
+				irp->untyped.ret = ERR;
+				break;	
+		}
+
+		send(from, rp_buf);
 	}
 }
 

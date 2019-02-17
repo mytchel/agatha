@@ -38,6 +38,13 @@ recv(int from, uint8_t *raw)
 	message_t *m, n;
 	int f;
 	
+	char s[64] = ""; 	
+	for (n = up->messages; n != nil; n = n->next)
+		snprintf(s + strlen(s), sizeof(s) - strlen(s),
+				"%i ", n->from);
+
+	debug(DEBUG_INFO, "%i has messages from %s\n", up->pid, s);	
+	
   while (true) {
 		for (m = &up->messages; *m != nil; m = &(*m)->next) {
 			if (from != -1 && from != (*m)->from)
@@ -74,6 +81,14 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 
 	*p = m;
 
+	message_t n;
+	char s[64] = ""; 	
+	for (n = to->messages; n != nil; n = n->next)
+		snprintf(s + strlen(s), sizeof(s) - strlen(s),
+				"%i ", n->from);
+
+	debug(DEBUG_INFO, "%i now has messages from %s\n", to->pid, s);	
+	
 	if (to->state == PROC_recv && (to->recv_from == -1 || to->recv_from == up->pid)) {
 
 		if (recv_buf != nil)  {
@@ -100,7 +115,7 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 	int
 send(proc_t to, message_t m)
 {
-	return send_h(to, m, false);
+	return send_h(to, m, nil);
 }
 
 	size_t
@@ -125,6 +140,10 @@ sys_send(int pid, uint8_t *raw)
 	}
 
 	m = message_get();
+	if (m == nil) {
+		debug(DEBUG_WARN, "out of messages\n");
+		return ERR;
+	}
 
 	m->from = up->pid;
 	memcpy(m->body, raw, MESSAGE_LEN);

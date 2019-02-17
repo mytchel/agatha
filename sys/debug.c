@@ -38,7 +38,9 @@ debug(int code, const char *fmt, ...)
 	}
 
 	va_start(ap, fmt);
-	vsnprintf(str, sizeof(str), fmt, ap);
+	vsnprintf(str + strlen(str), 
+			sizeof(str) - strlen(str),
+		 	fmt, ap);
 	va_end(ap);
 
 	debug_puts(str);
