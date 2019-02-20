@@ -344,7 +344,7 @@ main(void)
 		exit();
 	}
 
-	debug("mapped 0x%x -> 0x%x\n", regs_pa, regs);
+	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
 
 	mmc.base = regs;
 	mmc.name = dev_name;

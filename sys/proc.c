@@ -113,12 +113,14 @@ next_proc(void)
 	void
 schedule(proc_t n)
 {
+	int passed = systick_passed() + 1;
+
 	if (up != nil) {
 		if (set_label(&up->label)) {
 			return;
 		}
 
-		up->ts -= systick_passed();
+		up->ts -= passed;
 		if (up->ts < 0) up->ts = 0;
 
 		if (n != nil) {

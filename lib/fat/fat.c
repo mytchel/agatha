@@ -15,14 +15,16 @@ int fat_debug_pid = 3;
 static void
 fat_debug(char *fmt, ...)
 {
-	uint8_t m[MESSAGE_LEN];
+	char m[MESSAGE_LEN] = "fat: ";
 	va_list a;
 
 	if (fat_debug_pid == 0) 
 		return;
 
 	va_start(a, fmt);
-	vsnprintf((char *) m, sizeof(m), fmt, a);
+	vsnprintf(m + strlen(m), 
+			sizeof(m) - strlen(m), 
+			fmt, a);
 	va_end(a);
 
 	send(fat_debug_pid, m);

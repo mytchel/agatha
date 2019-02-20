@@ -8,8 +8,68 @@
 #include <proc0.h>
 #include <dev_reg.h>
 #include <arm/am335x_lcd.h>
+#include <i2c.h>
+
+#define HDMI_ADDR           0x70
+
+#define HDMI_PAGELESS       0xff
+
+#define HDMI_CTRL_PAGE      0x00
+#define HDMI_PPL_PAGE       0x02
+#define HDMI_EDID_PAGE      0x09
+#define HDMI_INFO_PAGE      0x10
+#define HDMI_AUDIO_PAGE     0x11
+#define HDMI_HDCP_OTP_PAGE  0x12
+#define HDMI_GAMUT_PAGE     0x13
+
+#define HDMI_CTRL_REV_LO_REG      0x00
+#define HDMI_CTRL_REV_HI_REG      0x02
+#define HDMI_REV_TDA19988       0x0331
+
+#define HDMI_CTRL_RESET_REG       0x0a
+#define HDMI_CTRL_RESET_DDC_MASK  0x02
+
+#define HDMI_CTRL_DDC_CTRL_REG    0x0a
+#define HDMI_CTRL_DDC_EN_MASK     0x02
+
+#define HDMI_CTRL_DDC_CLK_REG     0x0c
+#define HDMI_CTRL_DDC_CLK_EN_MASK 0x01
+
+#define HDMI_CTRL_INTR_CLK_REG     0x0f
+#define HDMI_CTRL_INTR_EN_GLO_MASK 0x04
+
+#define HDMI_CTRL_INT_REG          0x11
+#define HDMI_CTRL_INT_EDID_MASK    0x02
+
+
+
+#define HDMI_EDID_DATA_REG         0x00
+
+#define HDMI_EDID_DEV_ADDR_REG     0xfb
+#define HDMI_EDID_DEV_ADDR         0xa0
+
+#define HDMI_EDID_OFFSET_REG       0xfc
+#define HDMI_EDID_OFFSET           0x00
+
+#define HDMI_EDID_SEG_PTR_ADDR_REG 0xfc
+#define HDMI_EDID_SEG_PTR_ADDR     0x00
+
+#define HDMI_EDID_SEG_ADDR_REG     0xfe
+#define HDMI_EDID_SEG_ADDR         0x00
+
+#define HDMI_EDID_REQ_REG          0xfa
+#define HDMI_EDID_REQ_READ_MASK    0x01
+
+
+
+#define HDMI_HDCP_OTP_DDC_CLK_REG  0x9a
+#define HDMI_HDCP_OTP_DDC_CLK_MASK 0x27
+
+#define HDMI_HDCP_OTP_SOME_REG     0x9b
+#define HDMI_HDCP_OTP_SOME_MASK    0x02
 
 static volatile struct am335x_lcd_regs *regs;
+static char dev_name[MESSAGE_LEN];
 static int i2c_pid;
 
 int
@@ -40,9 +100,10 @@ debug(char *fmt, ...)
 		pid = get_device_pid("serial0");
 	}
 
-	char s[MESSAGE_LEN] = "lcd0: ";
+	char s[MESSAGE_LEN];
 	va_list ap;
 
+	snprintf(s, sizeof(s), "%s: ", dev_name);
 	va_start(ap, fmt);
 	vsnprintf(s + strlen(s),
 			sizeof(s) - strlen(s),
@@ -56,24 +117,29 @@ debug(char *fmt, ...)
 main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-	char name[MESSAGE_LEN];
 
 	size_t regs_pa, regs_len;
 	union dev_reg_req drq;
 	union dev_reg_rsp drp;
+	union i2c_req i2c_rq;
+	union i2c_rsp i2c_rp;
 
 	recv(0, init_m);
 
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
 	
-	recv(0, name);
+	recv(0, dev_name);
+
+	debug("on pid %i\n", pid());
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		debug("failed to map registers!\n");
 		exit();
 	}
+
+	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
 
 	/* prm has to enable the lcd module.
 TODO: make some protocol for this 
@@ -83,25 +149,16 @@ TODO: make some protocol for this
 	 prm_cm_pid = get_device_pid("prm-cm0");
 	} while (prm_cm_pid < 0);
 
+	debug("video has prm pid %i\n", prm_cm_pid);
+
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
-
-	debug("mapped 0x%x -> 0x%x\n", regs_pa, regs);
 
 	uint32_t minor = regs->pid & ((1<<5)-1);
 	uint32_t major = (regs->pid >> 8) & ((1<<3)-1);
 
 	debug("version %i.%i\n", major, minor);
 	debug("status 0x%x\n", regs->irqstatus_raw);
-
-	do {
-		i2c_pid = get_device_pid("i2c0");
-	} while (i2c_pid < 0);
-
-	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK) {
-		debug("failed to setup i2c\n");
-		exit();
-	}
 
 	size_t fb_size = PAGE_ALIGN(32 + 640*480+4);
 	size_t fb_pa = request_memory(fb_size);
@@ -117,6 +174,62 @@ TODO: make some protocol for this
 	}
 
 	debug("frame buffer of size 0x%x mapped at 0x%x\n", fb_size, fb);
+
+	do {
+		i2c_pid = get_device_pid("i2c0");
+	} while (i2c_pid < 0);
+
+	i2c_rq.configure.type = I2C_configure;
+	i2c_rq.configure.addr = 0x00;
+	i2c_rq.configure.speed_kHz = 400;
+
+	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
+		debug("failed to setup i2c\n");
+		exit();
+	}
+
+	i2c_rq.write.type = I2C_write;
+	i2c_rq.write.slave = HDMI_ADDR;
+	i2c_rq.write.addr = HDMI_PAGELESS;
+	i2c_rq.write.len = 1;
+	i2c_rq.write.buf[0] = HDMI_CTRL_PAGE;
+
+	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
+		debug("failed to set hdmi page\n");
+		exit();
+	}
+
+	uint32_t rev;
+
+	i2c_rq.read.type = I2C_read;
+	i2c_rq.read.slave = HDMI_ADDR;
+	i2c_rq.read.addr = HDMI_CTRL_REV_LO_REG;
+	i2c_rq.read.len = 1;
+
+	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
+		debug("failed to read hdmi rev\n");
+		exit();
+	}
+
+	rev = i2c_rp.read.buf[0];
+
+	i2c_rq.read.type = I2C_read;
+	i2c_rq.read.slave = HDMI_ADDR;
+	i2c_rq.read.addr = HDMI_CTRL_REV_HI_REG;
+	i2c_rq.read.len = 1;
+
+	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
+		debug("failed to read hdmi rev\n");
+		exit();
+	}
+
+	rev |= ((uint32_t) i2c_rp.read.buf[0]) << 8;
+
+	debug("TDA19988 revision = 0x%x\n", rev);
+
+	if (rev != HDMI_REV_TDA19988) {
+		debug("unknown module\n");
+	}
 
 	debug("clear fb\n");
 	memset(fb, 0, 0x20);
@@ -195,13 +308,9 @@ TODO: make some protocol for this
 	drq.type = DEV_REG_register;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
-			"%s", name);
+			"%s", dev_name);
 
-	send(DEV_REG_PID, (uint8_t *) &drq);
-	while (recv(DEV_REG_PID, (uint8_t *) &drp) != DEV_REG_PID)
-		;
-
-	if (drp.reg.ret != OK) {
+	if (mesg(DEV_REG_PID, &drq, &drp) != OK || drp.reg.ret != OK) {
 		debug("failed to register with dev reg!\n");
 		exit();
 	}

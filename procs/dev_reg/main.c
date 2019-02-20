@@ -54,7 +54,7 @@ check_waiting(int id)
 			rp.find.id = id;
 			rp.find.ret = OK;
 
-			send(waiting->pid, &rp);
+			send(waiting[i].pid, &rp);
 			waiting[i].in_use = false;
 		}
 	}
@@ -147,7 +147,7 @@ main(void)
 				break;
 
 			default:
-				rp->untyped.ret = ERR;
+				rp->untyped.ret = NO_RSP;
 				break;
 		}
 

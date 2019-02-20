@@ -81,7 +81,7 @@ main(void)
 		exit();
 	}
 
-	debug("mapped 0x%x -> 0x%x\n", regs_pa, regs);
+	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
 
 	drq.type = DEV_REG_register;
 	drq.reg.pid = pid();
@@ -96,8 +96,6 @@ main(void)
 		debug("failed to register with dev reg!\n");
 		exit();
 	}
-
-	debug("test\n");
 
 	cm_perpll  = regs;
 	cm_wkup    = (void *) ((size_t) regs + 0x400);

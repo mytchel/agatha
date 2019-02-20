@@ -22,11 +22,15 @@ int fat_fs_pid = 6;
 void
 debug(char *fmt, ...)
 {
-	uint8_t m[MESSAGE_LEN];
+	char m[MESSAGE_LEN];
 	va_list a;
 
+	snprintf(m, sizeof(m), "init: ");
+
 	va_start(a, fmt);
-	vsnprintf((char *) m, sizeof(m), fmt, a);
+	vsnprintf(m + strlen(m), 
+			sizeof(m) - strlen(m), 
+			fmt, a);
 	va_end(a);
 
 	mesg(debug_pid, m, m);
@@ -226,13 +230,20 @@ map_init_file(char *file)
 	int
 read_init_file(char *f, size_t size)
 {
+	char line[50];
 	debug("processing init file\n");
 
-	debug("init file contains:\n---\n");
+	debug("---\n");
 
-	int i;
-	for (i = 0; i < init_size; i++)
-		debug("%c", init_file[i]);
+	int i, l = 0;
+	for (i = 0; i < init_size; i++) {
+		line[l++] = init_file[i];
+		
+		if (init_file[i] == '\n') {
+			debug("%s", line);
+			l = 0;
+		}
+	}
 
 	debug("---\n");
 

@@ -104,6 +104,8 @@ i2c_init(int oa, size_t speed_kHz)
 	
 	regs->oa = oa;
 
+	configured = true;
+
 	return OK;
 }
 
@@ -291,23 +293,18 @@ main(void)
 		exit();
 	}
 
-	debug("mapped 0x%x -> 0x%x\n", regs_pa, regs);
+	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
 
 	/* wait for prm to set up everything */
 	int prm_cm_pid;
 	do {
-		debug("get prm pid\n");
 		prm_cm_pid = get_device_pid("prm-cm0");
-		debug("prm pid %i\n", prm_cm_pid);
 	} while (prm_cm_pid < 0);
-
-	debug("message prm\n");
 
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
-
-	debug("starting\n");
-
+	
+#if 0
 	if (strcmp(dev_name, "i2c0")) {
 		uint8_t buf[1];
 		uint8_t addr;
@@ -365,17 +362,14 @@ main(void)
 			on = !on;
 		}
 	}
+#endif
 
 	drq.type = DEV_REG_register;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", dev_name);
 
-	send(DEV_REG_PID, (uint8_t *) &drq);
-	while (recv(DEV_REG_PID, (uint8_t *) &drp) != DEV_REG_PID)
-		;
-
-	if (drp.reg.ret != OK) {
+	if (mesg(DEV_REG_PID, &drq, &drp) != OK || drp.reg.ret != OK) {
 		debug("failed to register with dev reg!\n");
 		exit();
 	}

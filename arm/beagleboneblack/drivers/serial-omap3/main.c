@@ -67,9 +67,10 @@ main(void)
 		exit();
 	}
 
-	puts("serial_omap3 ready at ");
-	puts(name);
-	puts("\n");
+	char buf[64];
+	snprintf(buf, sizeof(buf),
+			"serial_omap3 ready at pid %i on %s\n", pid(), name);
+	puts(buf);
 	
 	while (true) {
 		from = recv(-1, m);
