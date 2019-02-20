@@ -132,7 +132,6 @@ i2c_read(int slave, int sub, uint8_t *buf, size_t len)
 
 	while (1) {
 		stat = regs->irqstatus_raw;
-		debug("wa status = 0x%x\n", stat);
 
 		if (stat & I2C_IRQ_NACK) {
 			debug("wa error 0x%x\n", stat);
@@ -156,7 +155,6 @@ i2c_read(int slave, int sub, uint8_t *buf, size_t len)
 
 	while (len > 0) {
 		stat = regs->irqstatus_raw;
-		debug("rd status = 0x%x\n", stat);
 
 		if (stat & I2C_IRQ_NACK) {
 			debug("rd error 0x%x\n", stat);
@@ -199,7 +197,6 @@ i2c_write(int slave, int sub, uint8_t *buf, size_t len)
 
 	while (alen > 0) {
 		stat = regs->irqstatus_raw;
-		debug("wa status = 0x%x\n", stat);
 
 		if (stat & I2C_IRQ_XRDY) {
 			regs->data = sub;
@@ -213,7 +210,6 @@ i2c_write(int slave, int sub, uint8_t *buf, size_t len)
 
 	while (len > 0) {
 		stat = regs->irqstatus_raw;
-		debug("wd status = 0x%x\n", stat);
 
 		if (stat & I2C_IRQ_XRDY) {
 			regs->data = *buf++;
@@ -314,16 +310,25 @@ main(void)
 
 	if (strcmp(dev_name, "i2c0")) {
 		uint8_t buf[1];
+		uint8_t addr;
 
 		i2c_init(0x40, 400);
-		
-		i2c_read(0x70, 0xff, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
-		buf[0] = 0x10;
-		i2c_write(0x70, 0xff, buf, sizeof(buf));
-		i2c_read(0x70, 0xff, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
 
+		/* i2c0 0x70 is a tda19988 */
+
+		addr = 0x70;
+		i2c_read(addr, 0xff, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+		buf[0] = 0x0;
+		i2c_write(addr, 0xff, buf, sizeof(buf));
+		i2c_read(addr, 0xff, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+	
+		i2c_read(addr, 0x00, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+		i2c_read(addr, 0x02, buf, sizeof(buf));
+		debug("read 0x%x\n", buf[0]);
+	
 		/* i2c0 0x24 is a tps65217 */
 		i2c_read(0x24, 0, buf, sizeof(buf));
 		debug("read 0x%x\n", buf[0]);
@@ -359,27 +364,6 @@ main(void)
 			udelay(10000);
 			on = !on;
 		}
-	} else if (strcmp(dev_name, "i2c1")) {
-		uint8_t buf[1];
-
-		i2c_init(0x40, 400);
-		
-		i2c_read(0x70, 0xff, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
-		buf[0] = 0x10;
-		i2c_write(0x70, 0xff, buf, sizeof(buf));
-		i2c_read(0x70, 0xff, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
-
-
-	} else if (strcmp(dev_name, "i2c2")) {
-		uint8_t buf[1];
-		i2c_init(0x40, 400);
-		i2c_read(112, 0xff, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
-		buf[0] = 0x10;
-		i2c_write(112, 0xff, buf, sizeof(buf));
-		i2c_read(112, 0xff, buf, sizeof(buf));
 	}
 
 	drq.type = DEV_REG_register;

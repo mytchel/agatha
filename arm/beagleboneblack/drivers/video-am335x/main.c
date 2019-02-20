@@ -95,7 +95,7 @@ TODO: make some protocol for this
 	debug("status 0x%x\n", regs->irqstatus_raw);
 
 	do {
-		i2c_pid = get_device_pid("i2c2");
+		i2c_pid = get_device_pid("i2c0");
 	} while (i2c_pid < 0);
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK) {
