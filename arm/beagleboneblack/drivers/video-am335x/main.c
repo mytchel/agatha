@@ -71,6 +71,9 @@
 static volatile struct am335x_lcd_regs *regs;
 static char dev_name[MESSAGE_LEN];
 static int i2c_pid;
+	
+static uint32_t *fb;
+static uint32_t fb_pa;
 
 int
 get_device_pid(char *name)
@@ -113,67 +116,11 @@ debug(char *fmt, ...)
 	mesg(pid, (uint8_t *) s, (uint8_t *) s);
 }
 
-	void
-main(void)
+int init_tda(void)
 {
-	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-
-	size_t regs_pa, regs_len;
-	union dev_reg_req drq;
-	union dev_reg_rsp drp;
 	union i2c_req i2c_rq;
 	union i2c_rsp i2c_rp;
-
-	recv(0, init_m);
-
-	regs_pa = init_m[0];
-	regs_len = init_m[1];
-	
-	recv(0, dev_name);
-
-	debug("on pid %i\n", pid());
-
-	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
-	if (regs == nil) {
-		debug("failed to map registers!\n");
-		exit();
-	}
-
-	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
-
-	/* prm has to enable the lcd module.
-TODO: make some protocol for this 
-	 */
-	int prm_cm_pid;
-	do {
-	 prm_cm_pid = get_device_pid("prm-cm0");
-	} while (prm_cm_pid < 0);
-
-	debug("video has prm pid %i\n", prm_cm_pid);
-
-	uint8_t m[MESSAGE_LEN];
-	mesg(prm_cm_pid, m, m);
-
-	uint32_t minor = regs->pid & ((1<<5)-1);
-	uint32_t major = (regs->pid >> 8) & ((1<<3)-1);
-
-	debug("version %i.%i\n", major, minor);
-	debug("status 0x%x\n", regs->irqstatus_raw);
-
-	size_t fb_size = PAGE_ALIGN(32 + 640*480+4);
-	size_t fb_pa = request_memory(fb_size);
-	if (fb_pa == nil) {
-		debug("failed to get memory for fb\n");
-		exit();
-	}
-
-	uint32_t *fb = map_addr(fb_pa, fb_size, MAP_RW|MAP_DEV);
-	if (fb == nil) {
-		debug("failed to map fp\n");
-		exit();
-	}
-
-	debug("frame buffer of size 0x%x mapped at 0x%x\n", fb_size, fb);
+	uint32_t rev;
 
 	do {
 		i2c_pid = get_device_pid("i2c0");
@@ -198,8 +145,6 @@ TODO: make some protocol for this
 		debug("failed to set hdmi page\n");
 		exit();
 	}
-
-	uint32_t rev;
 
 	i2c_rq.read.type = I2C_read;
 	i2c_rq.read.slave = HDMI_ADDR;
@@ -229,21 +174,40 @@ TODO: make some protocol for this
 
 	if (rev != HDMI_REV_TDA19988) {
 		debug("unknown module\n");
+		return ERR;
 	}
 
-	debug("clear fb\n");
-	memset(fb, 0, 0x20);
-	fb[0] = 0x4000;
-	memset(fb + 8, 0, fb_size - 0x20);
+	return OK;
+}
 
-	debug("fb cleared\n");
-
-	uint32_t clock_div = 2;
+int init_lcd(void)
+{
+	uint32_t clock_div = 4;
 	uint32_t burst_size = 16;
+
+	uint32_t minor = regs->pid & ((1<<5)-1);
+	uint32_t major = (regs->pid >> 8) & ((1<<3)-1);
+
+	debug("version %i.%i\n", major, minor);
+
+	debug("status 0x%x\n", regs->irqstatus_raw);
 
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
-	regs->irqenable_set = 0xffffffff;
+	regs->irqenable_clr = 0xffffffff;
+
+	/* TODO: set up clock.
+		 24.576 MHz from bbb reference?
+		 24 or 26 MHz in u-boot,
+		 need 25.175 MHz for the mode being set up.
+
+		 select input with CLKSEL_LCDC_PIXEL_CLK in CM_DPLL
+		 then in cm_wkup set registers 
+		 CLOCKMODE_DPLL_DISP, 
+		 IDLEST_DPLL_DISP,
+		 CLKSEL_DPLL_DISP,
+		 DIV_M2_DPLL_DISP
+	 */
 
 	regs->clkc_enable = 7;
 	regs->raster_ctrl = 0;
@@ -257,27 +221,27 @@ TODO: make some protocol for this
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
 	regs->raster_timing[0] = 
-		(0 << 24) | /* hbp horizontal back porch 7:0 */
-		(0 << 16) | /* hfp horizontal front porch 7:0 */
-		(0 << 10) | /* hswp horizontal sync pulse width */
+		(48 << 24) | /* hbp horizontal back porch 7:0 */
+		(16 << 16) | /* hfp horizontal front porch 7:0 */
+		(0  << 10) | /* hswp horizontal sync pulse width 5:0 */
 		(40 << 4)  | /* ppllsb pixels per line lsb */
 		(0 << 3);   /* pplmsb pixels per line msb */
 
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
 	regs->raster_timing[1] = 
-		(0 << 24) | /* vbp */
-		(0 << 16) | /* vfp */
-		(0 << 10) | /* vsw */
+		(33 << 24) | /* vbp */
+		(10 << 16) | /* vfp */
+		(2 << 10) | /* vsw */
 		(480 << 0);   /* lpp lines per panel */
 
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
 	regs->raster_timing[2] = 
-		(0 << 27) | /* horizontal sync width */
+		(3 << 27) | /* horizontal sync width 9:6 */
 		(0 << 26) | /* lines per panel bit 10 */
 		(0 << 25) | /* hsync/vsync pixel clock control */
-		(0 << 24) | /* program hsync/vsync rise of fall */
+		(0 << 24) | /* program hsync/vsync rise or fall */
 		(0 << 23) | /* invert output */
 		(0 << 22) | /* invert pixel clock */
 		(0 << 21) | /* invert hsync */
@@ -287,9 +251,9 @@ TODO: make some protocol for this
 		(0 << 4)  | /* horizontal back porch 9:8 */
 		(0 << 0)  | /* horizontal front porch 9:8 */
 		0xff00; /* just set the ac bias */
-	
+
 	debug("status now 0x%x\n", regs->irqstatus_raw);
-	
+
 	regs->raster_ctrl = 
 		(1 << 26) | /* unpacked 24 bit */
 		(1 << 25) | /* 24 bit */
@@ -299,11 +263,76 @@ TODO: make some protocol for this
 
 	debug("status now 0x%x\n", regs->irqstatus_raw);
 
-	/*
-	while (regs->irqstatus_raw == stat)
-		;
-		*/
-	debug("status now 0x%x\n", regs->irqstatus_raw);
+	return OK;
+}
+
+	void
+main(void)
+{
+	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+
+	size_t regs_pa, regs_len;
+	union dev_reg_req drq;
+	union dev_reg_rsp drp;
+
+	recv(0, init_m);
+
+	regs_pa = init_m[0];
+	regs_len = init_m[1];
+
+	recv(0, dev_name);
+
+	debug("on pid %i\n", pid());
+
+	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
+	if (regs == nil) {
+		debug("failed to map registers!\n");
+		exit();
+	}
+
+	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
+
+	/* prm has to enable the lcd module.
+TODO: make some protocol for this 
+	 */
+	int prm_cm_pid;
+	do {
+		prm_cm_pid = get_device_pid("prm-cm0");
+	} while (prm_cm_pid < 0);
+
+	debug("video has prm pid %i\n", prm_cm_pid);
+
+	uint8_t m[MESSAGE_LEN];
+	mesg(prm_cm_pid, m, m);
+
+	size_t fb_size = PAGE_ALIGN(32 + 640*480+4);
+	fb_pa = request_memory(fb_size);
+	if (fb_pa == nil) {
+		debug("failed to get memory for fb\n");
+		exit();
+	}
+
+	fb	= map_addr(fb_pa, fb_size, MAP_RW|MAP_DEV);
+	if (fb == nil) {
+		debug("failed to map fp\n");
+		exit();
+	}
+
+	debug("frame buffer of size 0x%x mapped at 0x%x\n", fb_size, fb);
+
+	if (init_tda() != OK) {
+		debug("error initializing TDA19988\n");
+		exit();
+	}
+
+	memset(fb, 0, 0x20);
+	fb[0] = 0x4000;
+	memset(fb + 8, 0, fb_size - 0x20);
+
+	if (init_lcd() != OK) {
+		debug("error initialising lcd\n");
+		exit();
+	}
 
 	drq.type = DEV_REG_register;
 	drq.reg.pid = pid();

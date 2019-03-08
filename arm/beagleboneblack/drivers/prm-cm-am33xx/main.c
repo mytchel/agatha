@@ -13,6 +13,7 @@ static volatile struct cm_perpll  *cm_perpll;
 static volatile struct cm_device  *cm_device;
 static volatile struct cm_mpu     *cm_mpu;
 static volatile struct cm_wkuppll *cm_wkup;
+static volatile struct cm_dpll    *cm_dpll;
 static volatile struct prm_wkup   *prm_wkup;
 static volatile struct prm_per    *prm_per;
 
@@ -99,6 +100,7 @@ main(void)
 
 	cm_perpll  = regs;
 	cm_wkup    = (void *) ((size_t) regs + 0x400);
+	cm_dpll    = (void *) ((size_t) regs + 0x500);
 	cm_mpu     = (void *) ((size_t) regs + 0x600);
 	cm_device  = (void *) ((size_t) regs + 0x700);
 	prm_per    = (void *) ((size_t) regs + 0xc00);
@@ -130,7 +132,76 @@ main(void)
 	cm_perpll->lcdclkctrl = 0x2;
 	while ((cm_perpll->lcdclkctrl >> 18) & 1)
 		;
-	debug("lcd enabled\n");
+
+	debug("lcd enabled module\n");
+
+	uint32_t temp, clksel, m, n;
+
+#if 1
+	m = 407;
+	n = 97;
+#elif 0
+	m = 275;
+	n = 71;
+#else
+	m = 84;
+	n = 41;
+/* d = 2 */
+#endif
+
+#define ST_MN_BYPASS_MASK      (1<<8)
+#define ST_DPLL_CLK_MASK       1
+#define CLKMOD_DPLL_EN_MASK    7
+#define CLKMOD_DPLL_EN_BYPASS  4
+#define CLKMOD_DPLL_EN_LOCK    7
+
+#define CLKSEL_DPLL_M_SHIFT    8
+#define CLKSEL_DPLL_M_MASK     (0x7ff << 8)
+#define CLKSEL_DPLL_N_SHIFT    0
+#define CLKSEL_DPLL_N_MASK     0x7f
+
+	clksel = cm_wkup->clksel_dpll_disp;
+
+	/* bypass dpll*/
+	temp = cm_wkup->clkmod_dpll_disp;
+	temp &= CLKMOD_DPLL_EN_MASK;
+	temp |= CLKMOD_DPLL_EN_BYPASS;
+	cm_wkup->clkmod_dpll_disp = temp;
+
+	debug("lcd wait for bypass\n");
+	while ((cm_wkup->idlest_dpll_disp & ST_DPLL_CLK_MASK))
+		yield();
+
+	debug("lcd setup\n");
+
+	/* set m & n */
+
+	clksel &= ~CLKSEL_DPLL_M_MASK;
+	clksel |= (m << CLKSEL_DPLL_M_SHIFT) & CLKSEL_DPLL_M_MASK;
+	clksel &= ~CLKSEL_DPLL_N_MASK;
+	clksel |= (n << CLKSEL_DPLL_N_SHIFT) & CLKSEL_DPLL_N_MASK;
+
+	cm_wkup->clksel_dpll_disp = clksel;
+
+	/* post dividers. No need? */
+	/* do dpll lock */
+
+	temp = cm_wkup->clkmod_dpll_disp;
+	temp &= ~CLKMOD_DPLL_EN_MASK;
+	temp |= CLKMOD_DPLL_EN_LOCK;
+	
+	cm_wkup->clkmod_dpll_disp = temp;
+
+	/* wait for lock */
+
+	debug("lcd wait for lock\n");
+	while (!(cm_wkup->idlest_dpll_disp & ST_DPLL_CLK_MASK))
+		yield();
+
+	/* use dpll_disp for pixel clk */
+	cm_dpll->clklcdcpixelclk = 0;
+
+	debug("lcd clocks enabled\n");
 
 	debug("enable i2c0\n");
 	cm_wkup->wkup_i2c0ctrl = 0x2;
@@ -150,10 +221,10 @@ main(void)
 		;
 	debug("enabled i2c2\n");
 	
-	uint8_t m[MESSAGE_LEN];
+	uint8_t buf[MESSAGE_LEN];
 	while (true) {
-		int pid = recv(-1, m);
-		send(pid, m);
+		int pid = recv(-1, buf);
+		send(pid, buf);
 	}
 }
 

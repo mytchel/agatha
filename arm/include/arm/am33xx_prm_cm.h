@@ -34,33 +34,35 @@ struct cm_wkuppll {
 	unsigned int idlestdpllmpu;	/* offset 0x20 */
 	unsigned int sscdeltamstepdllmpu; /* off  0x24 */
 	unsigned int sscmodfreqdivdpllmpu; /* off 0x28 */
-	unsigned int clkseldpllmpu;	/* offset 0x2c */
+	unsigned int clksel_dpll_mpu;	/* offset 0x2c */
 	unsigned int resv4[1];
-	unsigned int idlestdpllddr;	/* offset 0x34 */
+	unsigned int idlest_dpll_ddr;	/* offset 0x34 */
 	unsigned int resv5[2];
-	unsigned int clkseldpllddr;	/* offset 0x40 */
-	unsigned int resv6[4];
-	unsigned int clkseldplldisp;	/* offset 0x54 */
+	unsigned int clksel_dpll_ddr;	/* offset 0x40 */
+	unsigned int autoidle_dpll_disp;	/* offset 0x44 */
+	unsigned int idlest_dpll_disp;	/* offset 0x48 */
+	unsigned int resv6[2];
+	unsigned int clksel_dpll_disp;	/* offset 0x54 */
 	unsigned int resv7[1];
-	unsigned int idlestdpllcore;	/* offset 0x5c */
+	unsigned int idlest_dpll_core;	/* offset 0x5c */
 	unsigned int resv8[2];
-	unsigned int clkseldpllcore;	/* offset 0x68 */
+	unsigned int clksel_dpll_core;	/* offset 0x68 */
 	unsigned int resv9[1];
-	unsigned int idlestdpllper;	/* offset 0x70 */
+	unsigned int idlest_dpll_per;	/* offset 0x70 */
 	unsigned int resv10[2];
-	unsigned int clkdcoldodpllper;	/* offset 0x7c */
-	unsigned int divm4dpllcore;	/* offset 0x80 */
-	unsigned int divm5dpllcore;	/* offset 0x84 */
-	unsigned int clkmoddpllmpu;	/* offset 0x88 */
-	unsigned int clkmoddpllper;	/* offset 0x8c */
-	unsigned int clkmoddpllcore;	/* offset 0x90 */
-	unsigned int clkmoddpllddr;	/* offset 0x94 */
-	unsigned int clkmoddplldisp;	/* offset 0x98 */
-	unsigned int clkseldpllper;	/* offset 0x9c */
-	unsigned int divm2dpllddr;	/* offset 0xA0 */
-	unsigned int divm2dplldisp;	/* offset 0xA4 */
-	unsigned int divm2dpllmpu;	/* offset 0xA8 */
-	unsigned int divm2dpllper;	/* offset 0xAC */
+	unsigned int clkdcoldo_dpll_per;	/* offset 0x7c */
+	unsigned int div_m4_dpll_core;	/* offset 0x80 */
+	unsigned int div_m5_dpll_core;	/* offset 0x84 */
+	unsigned int clkmod_dpll_mpu;	/* offset 0x88 */
+	unsigned int clkmod_dpll_per;	/* offset 0x8c */
+	unsigned int clkmod_dpll_core;	/* offset 0x90 */
+	unsigned int clkmod_dpll_ddr;	/* offset 0x94 */
+	unsigned int clkmod_dpll_disp;	/* offset 0x98 */
+	unsigned int clksel_dpll_per;	/* offset 0x9c */
+	unsigned int div_m2_dpll_ddr;	/* offset 0xA0 */
+	unsigned int div_m2_dpll_disp;	/* offset 0xA4 */
+	unsigned int div_m2_dpll_mpu;	/* offset 0xA8 */
+	unsigned int div_m2_dpll_per;	/* offset 0xAC */
 	unsigned int resv11[1];
 	unsigned int wkup_uart0ctrl;	/* offset 0xB4 */
 	unsigned int wkup_i2c0ctrl;	/* offset 0xB8 */
