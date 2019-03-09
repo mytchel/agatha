@@ -137,7 +137,7 @@ main(void)
 
 	uint32_t temp, clksel, m, n;
 
-#if 1
+#if 0
 	m = 407;
 	n = 97;
 #elif 0

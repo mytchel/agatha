@@ -182,7 +182,7 @@ int init_tda(void)
 
 int init_lcd(void)
 {
-	uint32_t clock_div = 4;
+	uint32_t clock_div = 2;
 	uint32_t burst_size = 16;
 
 	uint32_t minor = regs->pid & ((1<<5)-1);
@@ -305,14 +305,16 @@ TODO: make some protocol for this
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
 
-	size_t fb_size = PAGE_ALIGN(32 + 640*480+4);
+	size_t fb_size = PAGE_ALIGN(0x20 + 640*480*4);
 	fb_pa = request_memory(fb_size);
 	if (fb_pa == nil) {
 		debug("failed to get memory for fb\n");
 		exit();
 	}
 
-	fb	= map_addr(fb_pa, fb_size, MAP_RW|MAP_DEV);
+	debug("have fb mem at 0x%x size 0x%x\n", fb_pa, fb_size);
+
+	fb = map_addr(fb_pa, fb_size, MAP_RW|MAP_DEV);
 	if (fb == nil) {
 		debug("failed to map fp\n");
 		exit();

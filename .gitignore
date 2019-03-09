@@ -2,6 +2,7 @@
 *.a
 *.bo
 *.swp
+*.swo
 *.bak
 *.elf
 *.bin
