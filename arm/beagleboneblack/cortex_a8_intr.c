@@ -70,7 +70,7 @@ irq_handler(void)
     kernel_handlers[irqn](irqn);
   } else if (user_handlers[irqn] != nil) {
 
-    mask_intr(irqn);
+		/* May need to mask interrupt */
 
 		m = message_get();
 		if (m != nil) {

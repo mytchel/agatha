@@ -1,29 +1,25 @@
 #define DEV_REG_PID       1
 
-#define DEV_REG_find      0
-#define DEV_REG_register  1
-#define DEV_REG_list      2
-
 #define DEV_REG_name_len 32
 
 union dev_reg_req {
 	uint8_t raw[MESSAGE_LEN];
-	int type;
+	uint32_t type;
 
 	struct {
-		int type;
+		uint32_t type;
 		char name[DEV_REG_name_len];
 		bool block;
 	} find;
 
 	struct {
-		int type;
+		uint32_t type;
 		int pid;
 		char name[DEV_REG_name_len];
 	} reg;
 
 	struct {
-		int type;
+		uint32_t type;
 		int id;
 	} list;
 };
@@ -32,25 +28,25 @@ union dev_reg_rsp {
 	uint8_t raw[MESSAGE_LEN];
 
 	struct {
-		int type;
+		uint32_t type;
 		int ret;
 	} untyped;
 
 	struct {
-		int type;
+		uint32_t type;
 		int ret;
 		int pid;
 		int id;
 	} find;
 
 	struct {
-		int type;
+		uint32_t type;
 		int ret;
 		int id;
 	} reg;
 
 	struct {
-		int type;
+		uint32_t type;
 		int ret;
 		int pid;
 		char name[DEV_REG_name_len];

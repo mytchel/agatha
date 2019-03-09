@@ -3,17 +3,18 @@
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
+#include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
-#include <block_dev.h>
+#include <block.h>
 #include <dev_reg.h>
 
 	int
 handle_info(struct block_dev *dev,
 		int from,
-		union block_dev_req *rq,
-		union block_dev_rsp *rp)
+		union block_req *rq,
+		union block_rsp *rp)
 {
 	rp->info.block_size = dev->block_size;
 	rp->info.nblocks = dev->nblocks;
@@ -24,8 +25,8 @@ handle_info(struct block_dev *dev,
 	int
 handle_read(struct block_dev *dev,
 		int from,
-		union block_dev_req *rq,
-		union block_dev_rsp *rp)
+		union block_req *rq,
+		union block_rsp *rp)
 {
 	void *addr;
 	int ret;
@@ -47,8 +48,8 @@ handle_read(struct block_dev *dev,
 	int
 handle_write(struct block_dev *dev,
 		int from,
-		union block_dev_req *rq,
-		union block_dev_rsp *rp)
+		union block_req *rq,
+		union block_rsp *rp)
 {
 	return ERR;
 }
@@ -59,8 +60,8 @@ block_dev_register(struct block_dev *dev)
 	uint8_t rq_buf[MESSAGE_LEN], rp_buf[MESSAGE_LEN];
 	union dev_reg_req *drq = (union dev_reg_req *) rq_buf;
 	union dev_reg_rsp *drp = (union dev_reg_rsp *) rp_buf;
-	union block_dev_req *brq = (union block_dev_req *) rq_buf;
-	union block_dev_rsp *brp = (union block_dev_rsp *) rp_buf;
+	union block_req *brq = (union block_req *) rq_buf;
+	union block_rsp *brp = (union block_rsp *) rp_buf;
 	int ret, from;
 
 	drq->type = DEV_REG_register;
@@ -80,15 +81,15 @@ block_dev_register(struct block_dev *dev)
 		brp->untyped.type = brq->type;
 
 		switch (brq->type) {
-			case BLOCK_DEV_info:
+			case BLOCK_info:
 				brp->untyped.ret = handle_info(dev, from, brq, brp);
 				break;
 
-			case BLOCK_DEV_read:
+			case BLOCK_read:
 				brp->untyped.ret = handle_read(dev, from, brq, brp);
 				break;
 
-			case BLOCK_DEV_write:
+			case BLOCK_write:
 				brp->untyped.ret = handle_write(dev, from, brq, brp);
 				break;
 

@@ -1,5 +1,7 @@
 PROG = prm-cm-am33xx
 
+LIBS = -llog
+
 SRC = \
 	main.c
 

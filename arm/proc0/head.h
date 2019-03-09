@@ -3,6 +3,7 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>

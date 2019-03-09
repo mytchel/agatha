@@ -2,39 +2,20 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <mesg.h>
 #include <mach.h>
 #include <stdarg.h>
 #include <string.h>
 #include <dev_reg.h>
-#include <block_dev.h>
+#include <block.h>
 #include <mbr.h>
-#include <fat.h>
 #include <fs.h>
-
-char *debug_name = "serial0";
-int debug_pid;
+#include <fat.h>
+#include <log.h>
 
 char *init = "sdmmc1a:test";
 char *init_file;
 size_t init_pa, init_m_len, init_size;
-int fat_fs_pid = 6;
-
-void
-debug(char *fmt, ...)
-{
-	char m[MESSAGE_LEN];
-	va_list a;
-
-	snprintf(m, sizeof(m), "init: ");
-
-	va_start(a, fmt);
-	vsnprintf(m + strlen(m), 
-			sizeof(m) - strlen(m), 
-			fmt, a);
-	va_end(a);
-
-	mesg(debug_pid, m, m);
-}
 
 int
 get_device_pid(char *name)
@@ -60,26 +41,26 @@ int
 read_blocks(int pid, size_t pa, size_t len,
 		size_t start, size_t r_len)
 {
-	union block_dev_req rq;
-	union block_dev_rsp rp;
+	union block_req rq;
+	union block_rsp rp;
 	int ret;
 
 	if ((ret = give_addr(pid, pa, len)) != OK) {
-		debug("block give_addr failed %i\n", ret);
+		log(LOG_FATAL, "block give_addr failed %i", ret);
 		return ERR;
 	}
 
-	rq.read.type = BLOCK_DEV_read;
+	rq.read.type = BLOCK_read;
 	rq.read.pa = pa;
 	rq.read.len = len;
 	rq.read.start = start;
 	rq.read.r_len = r_len;
 
 	if (mesg(pid, &rq, &rp) != OK) {
-		debug("block send mesg failed\n");
+		log(LOG_FATAL, "block send mesg failed");
 		return ERR;
 	} else if (rp.read.ret != OK) {
-		debug("block read response bad %i\n", rp.read.ret);
+		log(LOG_FATAL, "block read response bad %i", rp.read.ret);
 		return ERR;
 	}
 
@@ -89,38 +70,38 @@ read_blocks(int pid, size_t pa, size_t len,
 	int
 fat_local_init(struct fat *fat, int block_pid, int partition)
 {
-	union block_dev_req rq;
-	union block_dev_rsp rp;
+	union block_req rq;
+	union block_rsp rp;
 	struct mbr *mbr;
 	size_t pa, len, block_size;
 	int ret;
 
 	fat->block_pid = block_pid;
 
-	debug("reading mbr from %i\n", fat->block_pid);
+	log(LOG_INFO, "reading mbr from %i", fat->block_pid);
 
-	rq.info.type = BLOCK_DEV_info;
+	rq.info.type = BLOCK_info;
 	
 	if (mesg(block_pid, &rq, &rp) != OK) {
-		debug("block info mesg failed\n");
+		log(LOG_FATAL, "block info mesg failed");
 		return ERR;
 	} else if (rp.info.ret != OK) {
-		debug("block info returned bad %i\n", rp.info.ret);
+		log(LOG_FATAL, "block info returned bad %i", rp.info.ret);
 		return ERR;
 	}
 
 	block_size = rp.info.block_size;
 
-	debug("block size is 0x%x\n", block_size);
+	log(LOG_INFO, "block size is 0x%x", block_size);
 
 	len = PAGE_ALIGN(sizeof(struct mbr));
 	pa = request_memory(len);
 	if (pa == nil) {
-		debug("read mbr memory request failed\n");
+		log(LOG_FATAL, "read mbr memory request failed");
 		return ERR;
 	}
 
-	debug("read mbr\n");
+	log(LOG_INFO, "read mbr");
 
 	ret = read_blocks(block_pid, pa, len, 0, block_size);
 	if (ret != OK) {
@@ -134,14 +115,14 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 
 	int i;
 	for (i = 0; i < 4; i++) {
-		debug("partition %i\n", i);
-		debug("status = 0x%x\n", mbr->parts[i].status);
-		debug("type = 0x%x\n", mbr->parts[i].type);
-		debug("lba = 0x%x\n", mbr->parts[i].lba);
-		debug("len = 0x%x\n", mbr->parts[i].sectors);
+		log(LOG_INFO, "partition %i", i);
+		log(LOG_INFO, "status = 0x%x", mbr->parts[i].status);
+		log(LOG_INFO, "type = 0x%x", mbr->parts[i].type);
+		log(LOG_INFO, "lba = 0x%x", mbr->parts[i].lba);
+		log(LOG_INFO, "len = 0x%x", mbr->parts[i].sectors);
 	}
 
-	debug("partition %i starts at 0x%x and goes for 0x%x blocks\n",
+	log(LOG_INFO, "partition %i starts at 0x%x and goes for 0x%x blocks",
 			partition, 
 			mbr->parts[partition].lba,
 			mbr->parts[partition].sectors);
@@ -151,7 +132,7 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 			mbr->parts[partition].sectors);
 
 	if (ret != OK) {
-		debug("error %i reading fat fs\n", ret);
+		log(LOG_FATAL, "error %i reading fat fs", ret);
 	}
 
 	unmap_addr(mbr, len);	
@@ -168,7 +149,7 @@ map_init_file(char *file)
 	struct fat_file *root, *f;
 	struct fat fat;
 
-	debug("loading init file %s\n", init);
+	log(LOG_INFO, "load %s", init);
 
 	for (i = 0; init[i] && init[i] != ':'; i++)
 		block_dev[i] = init[i];
@@ -177,24 +158,24 @@ map_init_file(char *file)
 	file_name = &init[i+1];
 	partition = init[i-1] - 'a';
 
-	debug("find block device %s\n", block_dev);
+	log(LOG_INFO, "find block device %s", block_dev);
 
 	do {
 		block_pid = get_device_pid(block_dev);
 	} while (block_pid < 0);
 
-	debug("mount fat fs %s pid %i parititon %i to read %s\n",
+	log(LOG_INFO, "mount fat fs %s pid %i parititon %i to read %s",
 			block_dev, block_pid, partition, file_name);
 
 	if (fat_local_init(&fat, block_pid, partition) != OK) {
-		debug("fat_local_init failed\n");
+		log(LOG_FATAL, "fat_local_init failed");
 		return ERR;
 	}
 
 	root = &fat.files[FILE_root_fid];
 	fid = fat_file_find(&fat, root, file_name);
 	if (fid < 0) {
-		debug("failed to find %s\n", file_name);
+		log(LOG_FATAL, "failed to find %s", file_name);
 		return ERR;
 	}
 
@@ -205,20 +186,20 @@ map_init_file(char *file)
 
 	init_pa = request_memory(init_m_len);
 	if (init_pa == nil) {
-		debug("request for 0x%x bytes failed\n", init_m_len);
+		log(LOG_FATAL, "request for 0x%x bytes failed", init_m_len);
 		return ERR;
 	}
 
 	if (fat_file_read(&fat, f,
 				init_pa, init_m_len,
 				0, init_size) != OK) {
-		debug("error reading init file\n");
+		log(LOG_FATAL, "error reading init file");
 		return ERR;
 	}
 
 	init_file = map_addr(init_pa, init_m_len, MAP_RO);
 	if (file == nil) {
-		debug("failed to map init file\n");
+		log(LOG_FATAL, "failed to map init file");
 		return ERR;
 	}
 
@@ -231,21 +212,21 @@ map_init_file(char *file)
 read_init_file(char *f, size_t size)
 {
 	char line[50];
-	debug("processing init file\n");
+	log(LOG_INFO, "processing init file");
 
-	debug("---\n");
+	log(LOG_INFO, "---");
 
 	int i, l = 0;
 	for (i = 0; i < init_size; i++) {
 		line[l++] = init_file[i];
 		
 		if (init_file[i] == '\n') {
-			debug("%s", line);
+			log(LOG_INFO, "%s", line);
 			l = 0;
 		}
 	}
 
-	debug("---\n");
+	log(LOG_INFO, "---");
 
 	return OK;
 }
@@ -253,12 +234,8 @@ read_init_file(char *f, size_t size)
 	void
 main(void)
 {
-	do {
-		debug_pid = get_device_pid(debug_name);
-	} while (debug_pid < 0);
-
-	debug("init using %s for debug\n", debug_name);
-
+	log_init("init");
+	
 	if (map_init_file(init) != OK) {
 		raise();
 	}
@@ -270,8 +247,6 @@ main(void)
 	unmap_addr(init_file, init_m_len);
 	release_addr(init_pa, init_m_len);
 
-	uint8_t m[MESSAGE_LEN];
-	while (true)
-		recv(-1, m);
+	exit();
 }
 

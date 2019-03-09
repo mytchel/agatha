@@ -2,11 +2,13 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <mesg.h>
 #include <mach.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
 #include <dev_reg.h>
+#include <log.h>
 #include <arm/am33xx_prm_cm.h>
 
 static volatile struct cm_perpll  *cm_perpll;
@@ -16,46 +18,6 @@ static volatile struct cm_wkuppll *cm_wkup;
 static volatile struct cm_dpll    *cm_dpll;
 static volatile struct prm_wkup   *prm_wkup;
 static volatile struct prm_per    *prm_per;
-
-int
-get_device_pid(char *name)
-{
-	union dev_reg_req rq;
-	union dev_reg_rsp rp;
-
-	rq.find.type = DEV_REG_find;
-	rq.find.block = true;
-	snprintf(rq.find.name, sizeof(rq.find.name),
-			"%s", name);
-
-	if (mesg(DEV_REG_PID, &rq, &rp) != OK) {
-		return ERR;
-	} else if (rp.find.ret != OK) {
-		return ERR;
-	} else {
-		return rp.find.pid;
-	}
-}
-
-void
-debug(char *fmt, ...)
-{
-	static int pid = -1;
-	while (pid < 0) {
-		pid = get_device_pid("serial0");
-	}
-
-	char s[MESSAGE_LEN] = "prm-cm0: ";
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(s + strlen(s),
-			sizeof(s) - strlen(s),
-			fmt, ap);
-	va_end(ap);
-
-	mesg(pid, (uint8_t *) s, (uint8_t *) s);
-}
 
 	void
 main(void)
@@ -76,13 +38,15 @@ main(void)
 	
 	recv(0, name);
 
+	log_init(name);
+
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		debug("failed to map registers!\n");
+		log(LOG_FATAL, "failed to map registers!");
 		exit();
 	}
 
-	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
+	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x", pid(), regs_pa, regs);
 
 	drq.type = DEV_REG_register;
 	drq.reg.pid = pid();
@@ -94,7 +58,7 @@ main(void)
 		;
 
 	if (drp.reg.ret != OK) {
-		debug("failed to register with dev reg!\n");
+		log(LOG_FATAL, "failed to register with dev reg!");
 		exit();
 	}
 
@@ -106,34 +70,34 @@ main(void)
 	prm_per    = (void *) ((size_t) regs + 0xc00);
 	prm_wkup   = (void *) ((size_t) regs + 0xd00);
 
-	debug("per rst       = 0x%x\n", prm_per->rstctrl);
-	debug("per pwrstst   = 0x%x\n", prm_per->pwrstst);
-	debug("per pwrstctrl = 0x%x\n", prm_per->pwrstctrl);
+	log(LOG_INFO, "per rst       = 0x%x", prm_per->rstctrl);
+	log(LOG_INFO, "per pwrstst   = 0x%x", prm_per->pwrstst);
+	log(LOG_INFO, "per pwrstctrl = 0x%x", prm_per->pwrstctrl);
 
-	debug("per l4ls      = 0x%x\n", cm_perpll->l4lsclkstctrl);
-	debug("per l3s       = 0x%x\n", cm_perpll->l3sclkstctrl);
-	debug("per l3        = 0x%x\n", cm_perpll->l3clkstctrl);
-	debug("per l4ls      = 0x%x\n", cm_perpll->l4lsclkctrl);
+	log(LOG_INFO, "per l4ls      = 0x%x", cm_perpll->l4lsclkstctrl);
+	log(LOG_INFO, "per l3s       = 0x%x", cm_perpll->l3sclkstctrl);
+	log(LOG_INFO, "per l3        = 0x%x", cm_perpll->l3clkstctrl);
+	log(LOG_INFO, "per l4ls      = 0x%x", cm_perpll->l4lsclkctrl);
 
 	/* need to set bit 17 of l4ls for lcd */
 
-	debug("wkup rst       = 0x%x\n", prm_wkup->rstctrl);
-	debug("wkup pwrstctrl = 0x%x\n", prm_wkup->pwrstctrl);
-	debug("wkup pwrstst   = 0x%x\n", prm_wkup->pwrstst);
-	debug("wkup rstst     = 0x%x\n", prm_wkup->rstst);
+	log(LOG_INFO, "wkup rst       = 0x%x", prm_wkup->rstctrl);
+	log(LOG_INFO, "wkup pwrstctrl = 0x%x", prm_wkup->pwrstctrl);
+	log(LOG_INFO, "wkup pwrstst   = 0x%x", prm_wkup->pwrstst);
+	log(LOG_INFO, "wkup rstst     = 0x%x", prm_wkup->rstst);
 	
-	debug("cmdevice clkout = 0x%x\n", cm_device->clkout_ctrl);
+	log(LOG_INFO, "cmdevice clkout = 0x%x", cm_device->clkout_ctrl);
 
-	debug("mpu stctrl      = 0x%x\n", cm_mpu->clkstctrl);
-	debug("mpu clkctrl     = 0x%x\n", cm_mpu->clkctrl);
+	log(LOG_INFO, "mpu stctrl      = 0x%x", cm_mpu->clkstctrl);
+	log(LOG_INFO, "mpu clkctrl     = 0x%x", cm_mpu->clkctrl);
 
-	debug("enable lcd\n");
-	debug("enable lcd 0x%x\n", cm_perpll->lcdclkctrl);
+	log(LOG_INFO, "enable lcd");
+	log(LOG_INFO, "enable lcd 0x%x", cm_perpll->lcdclkctrl);
 	cm_perpll->lcdclkctrl = 0x2;
 	while ((cm_perpll->lcdclkctrl >> 18) & 1)
 		;
 
-	debug("lcd enabled module\n");
+	log(LOG_INFO, "lcd enabled module");
 
 	uint32_t temp, clksel, m, n;
 
@@ -168,11 +132,11 @@ main(void)
 	temp |= CLKMOD_DPLL_EN_BYPASS;
 	cm_wkup->clkmod_dpll_disp = temp;
 
-	debug("lcd wait for bypass\n");
+	log(LOG_INFO, "lcd wait for bypass");
 	while ((cm_wkup->idlest_dpll_disp & ST_DPLL_CLK_MASK))
 		yield();
 
-	debug("lcd setup\n");
+	log(LOG_INFO, "lcd setup");
 
 	/* set m & n */
 
@@ -194,32 +158,32 @@ main(void)
 
 	/* wait for lock */
 
-	debug("lcd wait for lock\n");
+	log(LOG_INFO, "lcd wait for lock");
 	while (!(cm_wkup->idlest_dpll_disp & ST_DPLL_CLK_MASK))
 		yield();
 
 	/* use dpll_disp for pixel clk */
 	cm_dpll->clklcdcpixelclk = 0;
 
-	debug("lcd clocks enabled\n");
+	log(LOG_INFO, "lcd clocks enabled");
 
-	debug("enable i2c0\n");
+	log(LOG_INFO, "enable i2c0");
 	cm_wkup->wkup_i2c0ctrl = 0x2;
 	while ((cm_wkup->wkup_i2c0ctrl >> 16) & 3)
 		;
-	debug("enabled i2c0\n");
+	log(LOG_INFO, "enabled i2c0");
 
-	debug("enable i2c1\n");
+	log(LOG_INFO, "enable i2c1");
 	cm_perpll->i2c1clkctrl = 0x2;
 	while ((cm_perpll->i2c1clkctrl >> 16) & 3)
 		;
-	debug("enabled i2c1\n");
+	log(LOG_INFO, "enabled i2c1");
 	
-	debug("enable i2c2\n");
+	log(LOG_INFO, "enable i2c2");
 	cm_perpll->i2c2clkctrl = 0x2;
 	while ((cm_perpll->i2c2clkctrl >> 16) & 3)
 		;
-	debug("enabled i2c2\n");
+	log(LOG_INFO, "enabled i2c2");
 	
 	uint8_t buf[MESSAGE_LEN];
 	while (true) {

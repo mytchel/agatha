@@ -4,10 +4,11 @@
 #include <c.h>
 #include <mach.h>
 #include <proc0.h>
+#include <log.h>
 #include <stdarg.h>
 #include <string.h>
 #include <sdmmc.h>
-#include <block_dev.h>
+#include <block.h>
 
 int
 mmc_go_idle(struct mmc *mmc)
@@ -18,7 +19,7 @@ mmc_go_idle(struct mmc *mmc)
 	cmd.cmdarg = 0;
 	cmd.resp_type = MMC_RSP_NONE;
 
-	mmc->debug("go idle\n");
+	log(LOG_INFO, "go idle");
 
 	return mmc->command(mmc, &cmd, nil);
 }
@@ -29,7 +30,7 @@ mmc_send_if_cond(struct mmc *mmc)
 	struct mmc_cmd cmd;
 	int ret;
 
-	mmc->debug("send if cond\n");
+	log(LOG_INFO, "send if cond");
 
 	cmd.cmdidx = SD_CMD_SEND_IF_COND;
 	cmd.cmdarg = (((mmc->voltages & 0xff8000) != 0) << 8) | 0xaa;
@@ -37,14 +38,14 @@ mmc_send_if_cond(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		mmc->debug("error sending mmc if cond\n");
+		log(LOG_INFO, "error sending mmc if cond");
 		return ret;
 	}
 
 	if ((cmd.response[0] & 0xff) != 0xaa) {
-		mmc->debug("bad response to if cond\n");
+		log(LOG_INFO, "bad response to if cond");
 	} else {
-		mmc->debug("This is a version 2 card\n");
+		log(LOG_INFO, "This is a version 2 card");
 		mmc->version = SD_VERSION_2;
 	}
 
@@ -69,7 +70,7 @@ mmc_send_op_cond_iter(struct mmc *mmc, bool use_arg)
 
 	err = mmc->command(mmc, &cmd, nil);
 	if (err != OK) {
-		mmc->debug("error sending mmc send op cond\n");
+		log(LOG_INFO, "error sending mmc send op cond");
 		return err;
 	}
 
@@ -82,7 +83,7 @@ mmc_send_op_cond(struct mmc *mmc)
 {
 	int i, ret;;
 
-	mmc->debug("mmc_send_op_cond\n");
+	log(LOG_INFO, "mmc_send_op_cond");
 
 	for (i = 0; i < 100; i++) {
 		ret = mmc_send_op_cond_iter(mmc, i > 0);
@@ -95,7 +96,7 @@ mmc_send_op_cond(struct mmc *mmc)
 	}
 
 	if (!(mmc->ocr & OCR_BUSY)) {
-		mmc->debug("mmc_send_op_cond timeout\n");
+		log(LOG_INFO, "mmc_send_op_cond timeout");
 		return ERR;
 	}
 	
@@ -125,24 +126,24 @@ sd_send_op_cond(struct mmc *mmc)
 		cmd.cmdarg |= OCR_HCS;
 
 	while (1) {
-		mmc->debug("sd_send_op_cond\n");
+		log(LOG_INFO, "sd_send_op_cond");
 
 		err = mmc->command(mmc, &app, nil);
 		if (err != OK) {
-			mmc->debug("error sending app cmd\n");
+			log(LOG_INFO, "error sending app cmd");
 			return err;
 		}
 
 		err = mmc->command(mmc, &cmd, nil);
 		if (err != OK) {
-			mmc->debug("error sending mmc send op cond\n");
+			log(LOG_INFO, "error sending mmc send op cond");
 			return err;
 		}
 
 		if (cmd.response[0] & OCR_BUSY) {
 			break;
 		} else if (timeout-- <= 0) {
-			mmc->debug("sd_send_op_cond timeout\n");
+			log(LOG_INFO, "sd_send_op_cond timeout");
 			return ERR;
 		}
 	}
@@ -163,14 +164,14 @@ mmc_send_all_cid(struct mmc *mmc)
 	struct mmc_cmd cmd;
 	int ret;
 
-	mmc->debug("send cid\n");
+	log(LOG_INFO, "send cid");
 	cmd.cmdidx = MMC_CMD_ALL_SEND_CID;
 	cmd.resp_type = MMC_RSP_R2;
 	cmd.cmdarg = 0;
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		mmc->debug("send_cid failed\n");
+		log(LOG_INFO, "send_cid failed");
 		return ERR;
 	}
 
@@ -191,7 +192,7 @@ mmc_set_addr(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		mmc->debug("mmc_set_addr failed!\n");
+		log(LOG_INFO, "mmc_set_addr failed!");
 		return ret;
 	}
 
@@ -216,7 +217,7 @@ mmc_send_csd(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		mmc->debug("mmc_send_csd failed\n");
+		log(LOG_INFO, "mmc_send_csd failed");
 		return ret;
 	}
 
@@ -225,10 +226,10 @@ mmc_send_csd(struct mmc *mmc)
 	mmc->csd[2] = cmd.response[2];
 	mmc->csd[3] = cmd.response[3];
 
-	mmc->debug("csd[0] = 0x%x\n", mmc->csd[0]);
-	mmc->debug("csd[] = 0x%x\n", mmc->csd[1]);
-	mmc->debug("csd[2] = 0x%x\n", mmc->csd[2]);
-	mmc->debug("csd[3] = 0x%x\n", mmc->csd[3]);
+	log(LOG_INFO, "csd[0] = 0x%x", mmc->csd[0]);
+	log(LOG_INFO, "csd[] = 0x%x", mmc->csd[1]);
+	log(LOG_INFO, "csd[2] = 0x%x", mmc->csd[2]);
+	log(LOG_INFO, "csd[3] = 0x%x", mmc->csd[3]);
 
 	if (mmc->version == MMC_VERSION_UNKNOWN) {
 		int version = (cmd.response[0] >> 26) & 0xf;
@@ -255,14 +256,14 @@ mmc_send_csd(struct mmc *mmc)
 	}
 
 	if (mmc->high_capacity) {
-		mmc->debug("high capacity\n");
+		log(LOG_INFO, "high capacity");
 		
 		mmc->block_size = 512;
 
 		csize = (mmc->csd[1] & 0x3f) << 16 
 			| (mmc->csd[2] & 0xffff0000) >> 16;
 		
-		mmc->debug("csize = %i\n", csize);
+		log(LOG_INFO, "csize = %i", csize);
 
 		mmc->nblocks = ((uint64_t) (csize + 1)) << 10;
 	} else {
@@ -273,7 +274,7 @@ mmc_send_csd(struct mmc *mmc)
 	
 		cmult = (mmc->csd[2] & 0x00038000) >> 15;
 	
-		mmc->debug("csize = %i, cmult = %i\n", csize, cmult);
+		log(LOG_INFO, "csize = %i, cmult = %i", csize, cmult);
 		mmc->nblocks = ((csize + 1) << (cmult + 2));
 	}
 
@@ -292,7 +293,7 @@ mmc_select_card(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		mmc->debug("mmc_select_card failed\n");
+		log(LOG_INFO, "mmc_select_card failed");
 		return ret;
 	}
 
@@ -306,7 +307,7 @@ mmc_send_ext_csd(struct mmc *mmc, uint8_t *ext_csd)
 	struct mmc_cmd cmd;
 	int err;
 
-	mmc->debug("send ext csd\n");
+	log(LOG_INFO, "send ext csd");
 
 	cmd.cmdidx = MMC_CMD_SEND_EXT_CSD;
 	cmd.resp_type = MMC_RSP_R1;
@@ -326,7 +327,7 @@ mmc_send_ext_csd(struct mmc *mmc, uint8_t *ext_csd)
 		| mmc->ext_csd[214] << 16
 		| mmc->ext_csd[215] << 24;
 
-	mmc->debug("ext cap = %i\n", cap);
+	log(LOG_INFO, "ext cap = %i", cap);
 	if (cap > 0) {
 		mmc->nblocks = cap;
 	}
@@ -381,21 +382,21 @@ mmc_startup(struct mmc *mmc)
 	if (ret != OK) return ret;
 
 	if (IS_SD(mmc)) {
-		mmc->debug("sd ready\n");
+		log(LOG_INFO, "sd ready");
 
 	} else if (IS_MMC(mmc)) {
 		ret = mmc_send_ext_csd(mmc, mmc->ext_csd);
 		if (ret != OK) return ret;
 
-		mmc->debug("mmc ready\n");
+		log(LOG_INFO, "mmc ready");
 	}
 
-	mmc->debug("block len = 0x%x\n", mmc->block_size);
+	log(LOG_INFO, "block len = 0x%x", mmc->block_size);
 
-	mmc->debug("nblocks = 0x%x * 1024\n", (uint32_t) (mmc->nblocks >> 10));
+	log(LOG_INFO, "nblocks = 0x%x * 1024", (uint32_t) (mmc->nblocks >> 10));
 
 	mmc->capacity = mmc->nblocks * mmc->block_size;
-	mmc->debug("capacity = %i Mb\n", (uint32_t) (mmc->capacity >> 20));
+	log(LOG_INFO, "capacity = %i Mb", (uint32_t) (mmc->capacity >> 20));
 
 	return OK;
 }
@@ -406,7 +407,7 @@ mmc_read_block(struct mmc *mmc, size_t off, void *buffer)
 	struct mmc_cmd cmd;
 	struct mmc_data data;
 
-	mmc->debug("reading 0x%x\n", off);
+	log(LOG_INFO, "reading 0x%x", off);
 
 	cmd.cmdidx = MMC_CMD_READ_SINGLE_BLOCK;
 	cmd.resp_type = MMC_RSP_R1;
@@ -457,7 +458,7 @@ read_blocks(struct block_dev *dev,
 	int i, ret;
 	uint8_t *b;
 
-	mmc->debug("read blocks 0x%x 0x%x\n", start, n);
+	log(LOG_INFO, "read blocks 0x%x 0x%x", start, n);
 
 	b = buf;
 	start = start / mmc->block_size;
@@ -484,7 +485,7 @@ write_blocks(struct block_dev *dev,
 	int i, ret;
 	uint8_t *b;
 
-	mmc->debug("write blocks 0x%x 0x%x\n", start, n);
+	log(LOG_INFO, "write blocks 0x%x 0x%x", start, n);
 
 	b = buf;
 	start = start / mmc->block_size;
@@ -508,10 +509,10 @@ mmc_start(struct mmc *mmc)
 	struct block_dev dev;
 	int ret;
 
-	mmc->debug("mmc startup\n");
+	log(LOG_INFO, "mmc startup");
 	ret = mmc_startup(mmc);
 	if (ret != OK) {
-		mmc->debug("mmc_startup failed\n");
+		log(LOG_INFO, "mmc_startup failed");
 		return ret;
 	}
 
@@ -523,11 +524,11 @@ mmc_start(struct mmc *mmc)
 	dev.read_blocks = &read_blocks;
 	dev.write_blocks = &write_blocks;
 
-	mmc->debug("waiting for requests\n");
+	log(LOG_INFO, "waiting for requests");
 
 	ret = block_dev_register(&dev);
 	if (ret != OK) {
-		mmc->debug("mmc block_dev_register failed\n");
+		log(LOG_INFO, "mmc block_dev_register failed");
 		return ret;	
 	}
 

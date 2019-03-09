@@ -116,21 +116,7 @@ handle_irq_reg(int from, union proc0_req *rq, union proc0_rsp *rp)
 
 	if (irq_owners[irqn] == -1) {
 		irq_owners[irqn] = from;
-		return OK;
-	} else {
-		return ERR;
-	}
-}
-
-	int
-handle_irq_req(int from, union proc0_req *rq, union proc0_rsp *rp)
-{
-	size_t irqn;
-
-	irqn = rq->irq_req.irqn;
-
-	if (irq_owners[irqn] == from) {
-		return intr_register(from, rq->irq_req.irqn);
+		return intr_register(from, irqn);
 	} else {
 		return ERR;
 	}
@@ -181,10 +167,6 @@ main(struct kernel_info *i)
 
 			case PROC0_irq_reg:
 				rp->untyped.ret = handle_irq_reg(from, rq, rp);
-				break;
-
-			case PROC0_irq_req:
-				rp->untyped.ret = handle_irq_req(from, rq, rp);
 				break;
 
 			case PROC0_proc:

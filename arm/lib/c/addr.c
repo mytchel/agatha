@@ -3,6 +3,7 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <mesg.h>
 #include <proc0.h>
 
 extern uint32_t *_data_end;

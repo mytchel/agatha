@@ -1,52 +1,48 @@
-#define BLOCK_DEV_info   0
-#define BLOCK_DEV_read   1
-#define BLOCK_DEV_write  2
-
-union block_dev_req {
+union block_req {
 	uint8_t raw[MESSAGE_LEN];
-	int type;
+	uint32_t type;
 
 	struct {
-		int type;
+		uint32_t type;
 	} info;
 
 	struct {
-		int type;
+		uint32_t type;
 		size_t pa, len;
 		size_t start;
 		size_t r_len;
 	} read;
 
 	struct {
-		int type;
+		uint32_t type;
 		size_t pa, len;
 		size_t start;
 		size_t w_len;
 	} write;
 };
 
-union block_dev_rsp {
+union block_rsp {
 	uint8_t raw[MESSAGE_LEN];
 
 	struct {
-		int type;
+		uint32_t type;
 		int ret;
 	} untyped;
 
 	struct {
-		int type;
+		uint32_t type;
 		int ret;
 		size_t block_size;
 		size_t nblocks;
 	} info;
 
 	struct {
-		int type;
+		uint32_t type;
 		int ret;
 	} read;
 
 	struct {
-		int type;
+		uint32_t type;
 		int ret;
 	} write;
 };

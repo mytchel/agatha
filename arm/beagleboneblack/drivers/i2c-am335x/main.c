@@ -2,6 +2,7 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <mesg.h>
 #include <mach.h>
 #include <stdarg.h>
 #include <string.h>
@@ -9,6 +10,7 @@
 #include <dev_reg.h>
 #include <arm/am335x_i2c.h>
 #include <i2c.h>
+#include <log.h>
 
 static char dev_name[MESSAGE_LEN];
 static volatile struct am335x_i2c_regs *regs;
@@ -34,27 +36,6 @@ get_device_pid(char *name)
 	}
 }
 
-void
-debug(char *fmt, ...)
-{
-	static int pid = -1;
-	while (pid < 0) {
-		pid = get_device_pid("serial0");
-	}
-
-	char s[MESSAGE_LEN];
-	va_list ap;
-
-	snprintf(s, sizeof(s), "%s: ", dev_name);
-	va_start(ap, fmt);
-	vsnprintf(s + strlen(s),
-			sizeof(s) - strlen(s),
-			fmt, ap);
-	va_end(ap);
-
-	mesg(pid, (uint8_t *) s, (uint8_t *) s);
-}
-
 static void
 udelay(size_t us)
 {
@@ -76,7 +57,7 @@ i2c_init(int oa, size_t speed_kHz)
 	udelay(1000);
 	regs->con = I2C_CON_EN;
 	while (!regs->syss) {
-		debug("syss   = 0x%x\n", regs->syss);
+		log(LOG_INFO, "syss   = 0x%x", regs->syss);
 		udelay(1000);
 	}
 
@@ -115,11 +96,11 @@ i2c_read(int slave, int sub, uint8_t *buf, size_t len)
 	size_t alen = 1;
 	uint32_t stat;
 
-	debug("read 0x%x . 0x%x %i\n", slave, sub, len);
+	log(LOG_INFO, "read 0x%x . 0x%x %i", slave, sub, len);
 	regs->irqstatus = 0xffff;
 	udelay(1000);
 	while ((regs->irqstatus_raw & I2C_IRQ_BB)) {
-		debug("wr bb status = 0x%x\n", regs->irqstatus_raw);
+		log(LOG_INFO, "wr bb status = 0x%x", regs->irqstatus_raw);
 		regs->irqstatus = regs->irqstatus_raw;
 	}
 		
@@ -136,7 +117,7 @@ i2c_read(int slave, int sub, uint8_t *buf, size_t len)
 		stat = regs->irqstatus_raw;
 
 		if (stat & I2C_IRQ_NACK) {
-			debug("wa error 0x%x\n", stat);
+			log(LOG_WARNING, "wa error 0x%x", stat);
 			return ERR;
 		} else if (alen > 0 && (stat & I2C_IRQ_XRDY)) {
 			regs->data = sub;
@@ -159,7 +140,7 @@ i2c_read(int slave, int sub, uint8_t *buf, size_t len)
 		stat = regs->irqstatus_raw;
 
 		if (stat & I2C_IRQ_NACK) {
-			debug("rd error 0x%x\n", stat);
+			log(LOG_WARNING, "rd error 0x%x", stat);
 			return ERR;
 		} else if (stat & I2C_IRQ_ARDY) {
 			regs->irqstatus = I2C_IRQ_ARDY;
@@ -179,11 +160,11 @@ i2c_write(int slave, int sub, uint8_t *buf, size_t len)
 	size_t alen = 1;
 	uint32_t stat;
 
-	debug("write 0x%x . 0x%x %i\n", slave, sub, len);
+	log(LOG_INFO, "write 0x%x . 0x%x %i", slave, sub, len);
 	regs->irqstatus = 0xffff;
 	udelay(1000);
 	while ((regs->irqstatus_raw & I2C_IRQ_BB)) {
-		debug("wr bb status = 0x%x\n", regs->irqstatus_raw);
+		log(LOG_INFO, "wr bb status = 0x%x", regs->irqstatus_raw);
 		regs->irqstatus = regs->irqstatus_raw;
 	}
 		
@@ -205,7 +186,7 @@ i2c_write(int slave, int sub, uint8_t *buf, size_t len)
 			regs->irqstatus = I2C_IRQ_XRDY;
 			alen--;
 		} else if (stat & I2C_IRQ_NACK) {
-			debug("wa error 0x%x\n", stat);
+			log(LOG_WARNING, "wa error 0x%x", stat);
 			return ERR;
 		}
 	}
@@ -218,7 +199,7 @@ i2c_write(int slave, int sub, uint8_t *buf, size_t len)
 			regs->irqstatus  = I2C_IRQ_XRDY;
 			len--;
 		} else {
-			debug("wd error 0x%x\n", stat);
+			log(LOG_WARNING, "wd error 0x%x", stat);
 			return ERR;
 		}
 	}
@@ -287,13 +268,15 @@ main(void)
 
 	recv(0, dev_name);
 
+	log_init(dev_name);
+
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		debug("failed to map registers!\n");
+		log(LOG_FATAL, "failed to map registers!");
 		exit();
 	}
 
-	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
+	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x", pid(), regs_pa, regs);
 
 	/* wait for prm to set up everything */
 	int prm_cm_pid;
@@ -315,29 +298,29 @@ main(void)
 
 		addr = 0x70;
 		i2c_read(addr, 0xff, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x\n", buf[0]);
 		buf[0] = 0x0;
 		i2c_write(addr, 0xff, buf, sizeof(buf));
 		i2c_read(addr, 0xff, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x\n", buf[0]);
 	
 		i2c_read(addr, 0x00, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x\n", buf[0]);
 		i2c_read(addr, 0x02, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x\n", buf[0]);
 	
 		/* i2c0 0x24 is a tps65217 */
 		i2c_read(0x24, 0, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x\n", buf[0]);
 		i2c_read(0x24, 0x07, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x\n", buf[0]);
 		i2c_read(0x24, 0x08, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x\n", buf[0]);
 
 		buf[0] = (1<<3);
 		i2c_write(0x24, 0x07, buf, sizeof(buf));
 		i2c_read(0x24, 0x07, buf, sizeof(buf));
-		debug("read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x\n", buf[0]);
 
 		/* Flashes the power led by enabling and
 			 disabling LDO2 */
@@ -356,7 +339,7 @@ main(void)
 			i2c_write(0x24, 0x13, buf, sizeof(buf));
 
 			i2c_read(0x24, 0x13, buf, sizeof(buf));
-			debug("read 0x%x\n", buf[0]);
+			log(LOG_INFO, "read 0x%x\n", buf[0]);
 					
 			udelay(10000);
 			on = !on;
@@ -370,7 +353,7 @@ main(void)
 			"%s", dev_name);
 
 	if (mesg(DEV_REG_PID, &drq, &drp) != OK || drp.reg.ret != OK) {
-		debug("failed to register with dev reg!\n");
+		log(LOG_WARNING, "failed to register with dev reg!");
 		exit();
 	}
 

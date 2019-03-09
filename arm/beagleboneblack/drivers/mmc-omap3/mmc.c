@@ -2,58 +2,15 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <mesg.h>
 #include <mach.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
+#include <log.h>
 #include <arm/omap3_mmc.h>
 #include <sdmmc.h>
 #include <dev_reg.h>
-
-static char dev_name[MESSAGE_LEN];
-
-int
-get_device_pid(char *name)
-{
-	union dev_reg_req rq;
-	union dev_reg_rsp rp;
-
-	rq.find.type = DEV_REG_find;
-	rq.find.block = true;
-	snprintf(rq.find.name, sizeof(rq.find.name),
-			"%s", name);
-
-	if (mesg(DEV_REG_PID, &rq, &rp) != OK) {
-		return ERR;
-	} else if (rp.find.ret != OK) {
-		return ERR;
-	} else {
-		return rp.find.pid;
-	}
-}
-
-void
-debug(char *fmt, ...)
-{
-	static int pid = -1;
-
-	while (pid < 0) {
-		pid = get_device_pid("serial0");
-	}
-
-	char s[MESSAGE_LEN];
-	va_list ap;
-
-	snprintf(s, sizeof(s), "%s: ", dev_name);
-
-	va_start(ap, fmt);
-	vsnprintf(s + strlen(s), 
-			sizeof(s) - strlen(s), 
-			fmt, ap);
-	va_end(ap);
-
-	mesg(pid, (uint8_t *) s, (uint8_t *) s);
-}
 
 static void
 udelay(size_t us)
@@ -95,7 +52,7 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	uint32_t send, stat;
 	size_t l;
 
-	debug("sending cmd 0x%x with arg 0x%x\n", cmd->cmdidx, cmd->cmdarg);
+	log(LOG_INFO, "sending cmd 0x%x with arg 0x%x", cmd->cmdidx, cmd->cmdarg);
 	send = MMCHS_SD_CMD_INDEX_CMD(cmd->cmdidx);
 
 	if (cmd->resp_type) {
@@ -151,7 +108,7 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	}
 
 	if (stat & MMCHS_SD_STAT_ERRI) {
-		debug("command failed stat = 0x%x\n", stat);
+		log(LOG_INFO, "command failed stat = 0x%x", stat);
 		return ERR;
 	}
 
@@ -209,7 +166,7 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	static int
 mmchs_set_ios(struct mmc *mmc)
 {
-	debug("set ios\n");
+	log(LOG_INFO, "set ios");
 
 	return OK;
 }
@@ -220,14 +177,14 @@ mmchs_reset(struct mmc *mmc)
 	volatile struct omap3_mmchs_regs *regs = mmc->base;
 	int i = 100;
 
-	debug("reset\n");
+	log(LOG_INFO, "reset");
 
 	regs->sysconfig |= MMCHS_SD_SYSCONFIG_SOFTRESET;
 
 	while (!(regs->sysstatus & MMCHS_SD_SYSSTATUS_RESETDONE)) {
 		udelay(1000);
 		if (i-- < 0) {
-			debug("reset failed!\n");
+			log(LOG_WARNING, "reset failed!");
 			return ERR;
 		}
 	}
@@ -256,7 +213,7 @@ mmchs_init(struct mmc *mmc)
 	while (!(regs->hctl & MMCHS_SD_HCTL_SDBP)) {
 		udelay(1000);
 		if (i-- < 0) {
-			debug("failed to power on card!\n");
+			log(LOG_WARNING, "failed to power on card!");
 			return ERR;
 		}
 	}
@@ -275,7 +232,7 @@ mmchs_init(struct mmc *mmc)
 	while (!(regs->sysctl & MMCHS_SD_SYSCTL_ICS)) {
 		udelay(100);
 		if (i-- < 0) {
-			debug("clock not stable!\n");
+			log(LOG_INFO, "clock not stable!");
 			return ERR;
 		}
 	}
@@ -325,6 +282,7 @@ mmchs_init(struct mmc *mmc)
 main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+	char dev_name[MESSAGE_LEN];
 
 	volatile struct omap3_mmchs_regs *regs;
 	size_t regs_pa, regs_len;
@@ -338,13 +296,15 @@ main(void)
 
 	recv(0, dev_name);
 
+	log_init(dev_name);
+
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		debug(nil, "mmc-omap3 failed to map registers!\n");
+		log(LOG_FATAL, "mmc-omap3 failed to map registers!");
 		exit();
 	}
 
-	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
+	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x", pid(), regs_pa, regs);
 
 	mmc.base = regs;
 	mmc.name = dev_name;
@@ -355,16 +315,14 @@ main(void)
 	mmc.set_ios = &mmchs_set_ios;
 	mmc.reset = &mmchs_reset;
 
-	mmc.debug = &debug;
-
 	ret = mmchs_init(&mmc);
 	if (ret != OK) {
-		debug("init failed!\n");
+		log(LOG_FATAL, "init failed!");
 		exit();
 	}
 
-	debug("mmc_start\n");
+	log(LOG_INFO, "mmc_start");
 	ret = mmc_start(&mmc);
-	debug("mmc_start returned %i\n", ret);
+	log(LOG_INFO, "mmc_start returned %i", ret);
 }
 

@@ -2,10 +2,12 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
+#include <mesg.h>
 #include <mach.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
+#include <log.h>
 #include <dev_reg.h>
 #include <arm/am335x_lcd.h>
 #include <i2c.h>
@@ -69,7 +71,6 @@
 #define HDMI_HDCP_OTP_SOME_MASK    0x02
 
 static volatile struct am335x_lcd_regs *regs;
-static char dev_name[MESSAGE_LEN];
 static int i2c_pid;
 	
 static uint32_t *fb;
@@ -95,27 +96,6 @@ get_device_pid(char *name)
 	}
 }
 
-void
-debug(char *fmt, ...)
-{
-	static int pid = -1;
-	while (pid < 0) {
-		pid = get_device_pid("serial0");
-	}
-
-	char s[MESSAGE_LEN];
-	va_list ap;
-
-	snprintf(s, sizeof(s), "%s: ", dev_name);
-	va_start(ap, fmt);
-	vsnprintf(s + strlen(s),
-			sizeof(s) - strlen(s),
-			fmt, ap);
-	va_end(ap);
-
-	mesg(pid, (uint8_t *) s, (uint8_t *) s);
-}
-
 int init_tda(void)
 {
 	union i2c_req i2c_rq;
@@ -131,7 +111,7 @@ int init_tda(void)
 	i2c_rq.configure.speed_kHz = 400;
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
-		debug("failed to setup i2c\n");
+		log(LOG_WARNING, "failed to setup i2c");
 		exit();
 	}
 
@@ -142,7 +122,7 @@ int init_tda(void)
 	i2c_rq.write.buf[0] = HDMI_CTRL_PAGE;
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
-		debug("failed to set hdmi page\n");
+		log(LOG_WARNING, "failed to set hdmi page");
 		exit();
 	}
 
@@ -152,7 +132,7 @@ int init_tda(void)
 	i2c_rq.read.len = 1;
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
-		debug("failed to read hdmi rev\n");
+		log(LOG_WARNING, "failed to read hdmi rev");
 		exit();
 	}
 
@@ -164,16 +144,16 @@ int init_tda(void)
 	i2c_rq.read.len = 1;
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
-		debug("failed to read hdmi rev\n");
+		log(LOG_WARNING, "failed to read hdmi rev");
 		exit();
 	}
 
 	rev |= ((uint32_t) i2c_rp.read.buf[0]) << 8;
 
-	debug("TDA19988 revision = 0x%x\n", rev);
+	log(LOG_INFO, "TDA19988 revision = 0x%x", rev);
 
 	if (rev != HDMI_REV_TDA19988) {
-		debug("unknown module\n");
+		log(LOG_WARNING, "unknown module");
 		return ERR;
 	}
 
@@ -188,11 +168,11 @@ int init_lcd(void)
 	uint32_t minor = regs->pid & ((1<<5)-1);
 	uint32_t major = (regs->pid >> 8) & ((1<<3)-1);
 
-	debug("version %i.%i\n", major, minor);
+	log(LOG_INFO, "version %i.%i", major, minor);
 
-	debug("status 0x%x\n", regs->irqstatus_raw);
+	log(LOG_INFO, "status 0x%x", regs->irqstatus_raw);
 
-	debug("status now 0x%x\n", regs->irqstatus_raw);
+	log(LOG_INFO, "status now 0x%x", regs->irqstatus_raw);
 
 	regs->irqenable_clr = 0xffffffff;
 
@@ -218,7 +198,7 @@ int init_lcd(void)
 	regs->lcddma_fb[1].ceiling = fb_pa + 32+640*480*4;
 	regs->lcddma_ctrl = (burst_size << 4);
 
-	debug("status now 0x%x\n", regs->irqstatus_raw);
+	log(LOG_INFO, "status now 0x%x", regs->irqstatus_raw);
 
 	regs->raster_timing[0] = 
 		(48 << 24) | /* hbp horizontal back porch 7:0 */
@@ -227,7 +207,7 @@ int init_lcd(void)
 		(40 << 4)  | /* ppllsb pixels per line lsb */
 		(0 << 3);   /* pplmsb pixels per line msb */
 
-	debug("status now 0x%x\n", regs->irqstatus_raw);
+	log(LOG_INFO, "status now 0x%x", regs->irqstatus_raw);
 
 	regs->raster_timing[1] = 
 		(33 << 24) | /* vbp */
@@ -235,7 +215,7 @@ int init_lcd(void)
 		(2 << 10) | /* vsw */
 		(480 << 0);   /* lpp lines per panel */
 
-	debug("status now 0x%x\n", regs->irqstatus_raw);
+	log(LOG_INFO, "status now 0x%x", regs->irqstatus_raw);
 
 	regs->raster_timing[2] = 
 		(3 << 27) | /* horizontal sync width 9:6 */
@@ -252,7 +232,7 @@ int init_lcd(void)
 		(0 << 0)  | /* horizontal front porch 9:8 */
 		0xff00; /* just set the ac bias */
 
-	debug("status now 0x%x\n", regs->irqstatus_raw);
+	log(LOG_INFO, "status now 0x%x", regs->irqstatus_raw);
 
 	regs->raster_ctrl = 
 		(1 << 26) | /* unpacked 24 bit */
@@ -261,7 +241,7 @@ int init_lcd(void)
 		(1 << 7) |  /* tft mode */
 		(1 << 0);   /* enable */
 
-	debug("status now 0x%x\n", regs->irqstatus_raw);
+	log(LOG_INFO, "status now 0x%x", regs->irqstatus_raw);
 
 	return OK;
 }
@@ -270,6 +250,7 @@ int init_lcd(void)
 main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+	char dev_name[MESSAGE_LEN];
 
 	size_t regs_pa, regs_len;
 	union dev_reg_req drq;
@@ -282,15 +263,17 @@ main(void)
 
 	recv(0, dev_name);
 
-	debug("on pid %i\n", pid());
+	log_init(dev_name);
+
+	log(LOG_INFO, "on pid %i", pid());
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		debug("failed to map registers!\n");
+		log(LOG_WARNING, "failed to map registers!");
 		exit();
 	}
 
-	debug("on pid %i mapped 0x%x -> 0x%x\n", pid(), regs_pa, regs);
+	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x", pid(), regs_pa, regs);
 
 	/* prm has to enable the lcd module.
 TODO: make some protocol for this 
@@ -300,7 +283,7 @@ TODO: make some protocol for this
 		prm_cm_pid = get_device_pid("prm-cm0");
 	} while (prm_cm_pid < 0);
 
-	debug("video has prm pid %i\n", prm_cm_pid);
+	log(LOG_INFO, "video has prm pid %i", prm_cm_pid);
 
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
@@ -308,22 +291,22 @@ TODO: make some protocol for this
 	size_t fb_size = PAGE_ALIGN(0x20 + 640*480*4);
 	fb_pa = request_memory(fb_size);
 	if (fb_pa == nil) {
-		debug("failed to get memory for fb\n");
+		log(LOG_WARNING, "failed to get memory for fb");
 		exit();
 	}
 
-	debug("have fb mem at 0x%x size 0x%x\n", fb_pa, fb_size);
+	log(LOG_INFO, "have fb mem at 0x%x size 0x%x", fb_pa, fb_size);
 
 	fb = map_addr(fb_pa, fb_size, MAP_RW|MAP_DEV);
 	if (fb == nil) {
-		debug("failed to map fp\n");
+		log(LOG_WARNING, "failed to map fp");
 		exit();
 	}
 
-	debug("frame buffer of size 0x%x mapped at 0x%x\n", fb_size, fb);
+	log(LOG_INFO, "frame buffer of size 0x%x mapped at 0x%x", fb_size, fb);
 
 	if (init_tda() != OK) {
-		debug("error initializing TDA19988\n");
+		log(LOG_WARNING, "error initializing TDA19988");
 		exit();
 	}
 
@@ -332,7 +315,7 @@ TODO: make some protocol for this
 	memset(fb + 8, 0, fb_size - 0x20);
 
 	if (init_lcd() != OK) {
-		debug("error initialising lcd\n");
+		log(LOG_WARNING, "error initialising lcd");
 		exit();
 	}
 
@@ -342,7 +325,7 @@ TODO: make some protocol for this
 			"%s", dev_name);
 
 	if (mesg(DEV_REG_PID, &drq, &drp) != OK || drp.reg.ret != OK) {
-		debug("failed to register with dev reg!\n");
+		log(LOG_WARNING, "failed to register with dev reg!");
 		exit();
 	}
 

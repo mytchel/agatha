@@ -1,6 +1,6 @@
 PROG = mmc-aml
 
-LIBS = -lsdmmc -lblock
+LIBS = -lsdmmc -lblock -llog
 SRC = \
 	mmc.c
 

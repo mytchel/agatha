@@ -3,32 +3,15 @@
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
+#include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
+#include <log.h>
 #include <dev_reg.h>
 #include <block_dev.h>
 #include <mbr.h>
 #include <fs.h>
 #include <fat.h>
-
-static char *fat_debug_name = "serial0";
-static int fat_debug_pid = 0;
-
-static void
-fat_debug(char *fmt, ...)
-{
-	uint8_t m[MESSAGE_LEN];
-	va_list a;
-
-	if (fat_debug_pid == 0)
-		return;
-
-	va_start(a, fmt);
-	vsnprintf((char *) m, sizeof(m), fmt, a);
-	va_end(a);
-
-	mesg(fat_debug_pid, m, m);
-}
 
 static int
 fat_get_device_pid(char *name)
@@ -56,16 +39,16 @@ handle_find(struct fat *fat, int from,
 {
 	struct fat_file *parent;
 
-	fat_debug("fat fs find %i %s\n", rq->find.fid, rq->find.name);
+	log(LOG_INFO, "fat fs find %i %s", rq->find.fid, rq->find.name);
 
 	if (0 > rq->find.fid || rq->find.fid > FIDSMAX) {
-		fat_debug("fid bad\n");
+		log(LOG_WARNING, "fid bad");
 	 return ERR;
 	}
 
 	parent = &fat->files[rq->find.fid];
 	if (parent->refs == 0) {
-		fat_debug("parent file bad\n");
+		log(LOG_WARNING, "parent file bad");
 		return ERR;
 	}
 
@@ -73,7 +56,7 @@ handle_find(struct fat *fat, int from,
 			parent, rq->find.name);
 
 	if (rp->find.fid > 0) {
-		fat_debug("found\n");
+		log(LOG_INFO, "found");
 		parent->refs++;
 		return OK;
 	} else {
@@ -219,24 +202,24 @@ main(void)
 		fat_debug_pid = fat_get_device_pid(fat_debug_name);
 	} while (fat_debug_pid < 0);
 
-	fat_debug("fatfs mounting %s.%i\n", block_dev, partition);
+	log(LOG_INFO, "fatfs mounting %s.%i", block_dev, partition);
 
 	do {
 		block_pid = fat_get_device_pid(block_dev);
 	} while (block_pid < 0);
 
-	fat_debug("mount fat fs %s pid %i parititon %i\n",
+	log(LOG_INFO, "mount fat fs %s pid %i parititon %i",
 			block_dev, block_pid, partition);
 
-	fat_debug("reading mbr from %i\n", block_pid);
+	log(LOG_INFO, "reading mbr from %i", block_pid);
 
 	rq.info.type = BLOCK_DEV_info;
 	
 	if (mesg(block_pid, &rq, &rp) != OK) {
-		fat_debug("block info mesg failed\n");
+		log(LOG_WARNING, "block info mesg failed");
 		return ERR;
 	} else if (rp.info.ret != OK) {
-		fat_debug("block info returned bad %i\n", rp.info.ret);
+		log(LOG_WARNING, "block info returned bad %i", rp.info.ret);
 		return ERR;
 	}
 
@@ -245,12 +228,12 @@ main(void)
 	len = PAGE_ALIGN(sizeof(struct mbr));
 	pa = request_memory(len);
 	if (pa == nil) {
-		fat_debug("read mbr memory request failed\n");
+		log(LOG_WARNING, "read mbr memory request failed");
 		return ERR;
 	}
 
 	if ((ret = give_addr(block_pid, pa, len)) != OK) {
-		fat_debug("give block addr failed\n");
+		log(LOG_WARNING, "give block addr failed");
 		return ERR;
 	}
 
@@ -261,10 +244,10 @@ main(void)
 	rq.read.r_len = block_size;
 
 	if (mesg(block_pid, &rq, &rp) != OK) {
-		fat_debug("block read mesg failed\n");
+		log(LOG_WARNING, "block read mesg failed");
 		return ERR;
 	} else if (rp.read.ret != OK) {
-		fat_debug("block read returned bad %i\n", rp.read.ret);
+		log(LOG_WARNING, "block read returned bad %i", rp.read.ret);
 		return ERR;
 	}
 
@@ -273,7 +256,7 @@ main(void)
 		return ERR;
 	}
 
-	fat_debug("partition %i starts at 0x%x and goes for 0x%x blocks\n",
+	log(LOG_INFO, "partition %i starts at 0x%x and goes for 0x%x blocks",
 				partition, 
 				mbr->parts[partition].lba,
 				mbr->parts[partition].sectors);
@@ -284,7 +267,7 @@ main(void)
 			mbr->parts[partition].sectors);
 	
 	if (ret != OK) {
-			fat_debug("error %i init fat fs\n", ret);
+			log(LOG_WARNING, "error %i init fat fs", ret);
 	}
 
 	unmap_addr(mbr, len);	
