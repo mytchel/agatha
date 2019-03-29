@@ -4,6 +4,7 @@
 #include <c.h>
 #include <mesg.h>
 #include <mach.h>
+#include <arm/mmu.h>
 #include <stdarg.h>
 #include <string.h>
 #include <dev_reg.h>

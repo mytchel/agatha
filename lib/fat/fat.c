@@ -3,6 +3,7 @@
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
+#include <arm/mmu.h>
 #include <mesg.h>
 #include <stdarg.h>
 #include <string.h>

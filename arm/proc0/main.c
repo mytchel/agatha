@@ -53,17 +53,17 @@ handle_addr_map(int from, union proc0_req *rq, union proc0_rsp *rp)
 
 	len = rq->addr_map.len;
 	if (len != PAGE_ALIGN(len)) {
-		return ERR;
+/*		return ERR; */
 	}
 	
 	pa = rq->addr_map.pa;
 	if (pa != PAGE_ALIGN(pa)) {
-		return ERR;
+/*		return ERR; */
 	}
 
 	va = rq->addr_map.va;
 	if (va != PAGE_ALIGN(va)) {
-		return ERR;
+/*		return ERR; */
 	}
 
 	return proc_map(from, 

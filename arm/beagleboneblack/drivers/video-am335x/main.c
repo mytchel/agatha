@@ -288,7 +288,7 @@ TODO: make some protocol for this
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
 
-	size_t fb_size = PAGE_ALIGN(0x20 + 640*480*4);
+	size_t fb_size = 0x20 + 640*480*4;
 	fb_pa = request_memory(fb_size);
 	if (fb_pa == nil) {
 		log(LOG_WARNING, "failed to get memory for fb");

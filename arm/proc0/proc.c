@@ -137,11 +137,12 @@ proc_map_table(int pid, struct addr_frame *f, size_t va)
 	size_t o;
 
 	if (f->table == 0 && f->mapped > 0) {
-		return ERR;
+		return 7;
 	}
 
 	addr = map_free(f->pa, f->len, AP_RW_RW, false);
 	if (addr == nil) {
+		return 6;
 		return ERR;
 	}
 
@@ -154,9 +155,9 @@ proc_map_table(int pid, struct addr_frame *f, size_t va)
 
 	map_l2(procs[pid].l1.table, f->pa, va, f->len);
 
-	for (o = 0; (o << PAGE_SHIFT) < f->len; o++) {
-		procs[pid].l1.mapped[L1X(va + (o << PAGE_SHIFT))]
-			= ((uint32_t) addr + (o << PAGE_SHIFT));
+	for (o = 0; (o << 10) < f->len; o++) {
+		procs[pid].l1.mapped[L1X(va) + o]
+			= ((uint32_t) addr) + (o << 10);
 	}
 
 	return OK;
@@ -173,7 +174,7 @@ proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 	if (flags & MAP_RW) {
 		ap = AP_RW_RW;
 		if (f->table > 0) {
-			return ERR;
+			return 5;
 		}
 	} else {
 		ap = AP_RW_RO;
@@ -186,13 +187,13 @@ proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 	} else if ((flags & MAP_TYPE_MASK) == MAP_SHARED) {
 		cache = false;
 	} else {
-		return ERR;
+		return 4;
 	}
 
 	for (o = 0; o < f->len; o += l) {
 		l2_va = (void *) procs[pid].l1.mapped[L1X(va + o)];
 		if (l2_va == nil) {
-			return ERR;
+			return 3;
 		}
 
 		f->mapped++;
@@ -221,12 +222,12 @@ proc_map(int pid,
 
 	/* Don't let procs map past kernel */
 	if (info->kernel_pa <= va + len) {
-		return ERR;
+		return 1;
 	}
 
 	frame = proc_get_frame(pid, pa, len);
 	if (frame == nil) {
-		return ERR;
+		return 2;
 	}
 
 	if ((flags & MAP_TYPE_MASK) == MAP_TABLE) {

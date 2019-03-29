@@ -19,16 +19,12 @@
 
 _start:
 	bl main
-	bl exit
 
 
 raise:
-	add pc, lr, #0xa0000000
-	b .
 
 
 panic:
-  b . 
 
 
 exit:
