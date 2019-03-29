@@ -1,5 +1,6 @@
 typedef enum {
 	PROC0_irq,
+
 	PROC0_irq_reg,
 	PROC0_proc,
 	PROC0_addr_req,
@@ -33,5 +34,4 @@ typedef enum {
 	FILE_clunk,
 
 } mesg_type_t;
-
 

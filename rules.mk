@@ -23,10 +23,3 @@ include ${BASE}/${ARCH}/rules.mk
 	@echo LIST $@
 	@$(OBJDUMP) -S $< > $@
 
-.bin.bo: 
-	@echo BO $@
-	@$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
-		--rename-section .data=.bundle \
-		$< $@
-
-

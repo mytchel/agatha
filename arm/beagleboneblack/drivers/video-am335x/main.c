@@ -299,7 +299,7 @@ TODO: make some protocol for this
 
 	fb = map_addr(fb_pa, fb_size, MAP_RW|MAP_DEV);
 	if (fb == nil) {
-		log(LOG_WARNING, "failed to map fp");
+		log(LOG_WARNING, "failed to map frame buffer");
 		exit();
 	}
 

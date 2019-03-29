@@ -35,7 +35,7 @@ fat_init(struct fat *fat, int block_pid,
 		return ERR;
 	}
 
-	log(LOG_INFO, "reading bs from block 0x%x into 0x%x, 0x%x", fat->start, pa, len);
+	log(LOG_INFO, "read bs block 0x%x into 0x%x, 0x%x", fat->start, pa, len);
 	
 	ret = fat_read_blocks(fat, pa, len, 0, fat->block_size);
 
@@ -59,7 +59,7 @@ fat_init(struct fat *fat, int block_pid,
 		fat->nsectors = intcopylittle32(bs->sc32);
   }
 
-	log(LOG_INFO, "fat bps = %i, spc = %i, nsectors = %i",
+	log(LOG_INFO, "fat bps %i spc %i nsectors %i",
 			fat->bps, fat->spc, fat->nsectors);
 
   fat->nft = bs->nft;
@@ -97,7 +97,7 @@ fat_init(struct fat *fat, int block_pid,
 			intcopylittle32(bs->ext.high.rootcluster);
 	}
 
-	log(LOG_INFO, "root dir dsize = 0x%x, start cluster= 0x%x",
+	log(LOG_INFO, "root dsize = 0x%x, start cluster= 0x%x",
 			fat->files[0].dsize, fat->files[0].start_cluster);
 	log(LOG_INFO, "root dir = 0x%x", fat->rootdir);
 
@@ -354,7 +354,7 @@ fat_copy_file_entry_name(struct fat_dir_entry *file, char *name)
 	}
 
 	while ((file->attr & FAT_ATTR_lfn) == FAT_ATTR_lfn) {
-		log(LOG_INFO, "This is a long file name entry, not sure what to do");
+		log(LOG_INFO, "lfn entry, not sure what to do");
 		return -2;
 	} 
 

@@ -21,3 +21,9 @@ LDFLAGS += \
 
 include ${BASE}/${ARCH}/${BOARD}/rules.mk
 
+.bin.bo:
+	@echo BO $@
+	@$(OBJCOPY) -B arm -O elf32-littlearm -I binary \
+		--rename-section .data=.bundle \
+		$< $@
+

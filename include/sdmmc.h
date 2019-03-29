@@ -396,8 +396,6 @@ struct mmc {
 			struct mmc_data *data);
 	int (*set_ios)(struct mmc *mmc);
 	int (*reset)(struct mmc *mmc);
-
-	void (*debug)(char *fmt, ...);
 };
 
 int

@@ -1,4 +1,4 @@
-all: out.elf out.bin out.list
+all: out.elf out.bin 
 
 include ${BASE}/rules.mk
 

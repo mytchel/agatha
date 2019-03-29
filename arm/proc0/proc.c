@@ -22,12 +22,8 @@ struct proc {
 
 	struct {
 		size_t pa, len;
-		/* 0x8000 long, 
-			 0-0x4000 is the l1 page table,
-			 0x4000-0x8000 is a mapping of 
-			 l2 page table virtual addresses
-			 for reading/writing. */
-		uint32_t *addr;	
+		uint32_t *table;	
+		uint32_t *mapped;	
 	} l1;
 };
 
@@ -156,10 +152,10 @@ proc_map_table(int pid, struct addr_frame *f, size_t va)
 		f->table++;
 	}
 
-	map_l2(procs[pid].l1.addr, f->pa, va, f->len);
+	map_l2(procs[pid].l1.table, f->pa, va, f->len);
 
 	for (o = 0; (o << PAGE_SHIFT) < f->len; o++) {
-		procs[pid].l1.addr[L1X(va + (o << PAGE_SHIFT)) + 0x1000]
+		procs[pid].l1.mapped[L1X(va + (o << PAGE_SHIFT))]
 			= ((uint32_t) addr + (o << PAGE_SHIFT));
 	}
 
@@ -169,9 +165,10 @@ proc_map_table(int pid, struct addr_frame *f, size_t va)
 static int
 proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 {
-	void *addr;
+	size_t l, o;
 	bool cache;
-	int ap;
+	int ap, r;
+	void *l2_va;
 
 	if (flags & MAP_RW) {
 		ap = AP_RW_RW;
@@ -192,14 +189,27 @@ proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 		return ERR;
 	}
 
-	addr = (void *) procs[pid].l1.addr[L1X(va) + 0x1000];
-	if (addr == nil) {
-		return ERR;
+	for (o = 0; o < f->len; o += l) {
+		l2_va = (void *) procs[pid].l1.mapped[L1X(va + o)];
+		if (l2_va == nil) {
+			return ERR;
+		}
+
+		f->mapped++;
+
+		l = f->len;
+		if (L1X(va + o) != L1X(va + o + l)) {
+			l = L1VA(L1X(va + o) + 1) - (va + o);
+		}
+
+		r = map_pages(l2_va, f->pa + o, va + o, 
+				l, ap, cache);
+	
+		if (r != OK) 
+			return r;
 	}
 
-	f->mapped++;
-
-	return map_pages(addr, f->pa, va, f->len, ap, cache);
+	return OK;
 }
 
 	int
@@ -209,11 +219,8 @@ proc_map(int pid,
 {
 	struct addr_frame *frame;
 
-	/* For now don't let mappings cross boundaries. */
-	if (L1X(va) != L1X(va + len - 1)) {
-		return ERR;
-
-	} else if (info->kernel_pa <= va + len) {
+	/* Don't let procs map past kernel */
+	if (info->kernel_pa <= va + len) {
 		return ERR;
 	}
 
@@ -237,7 +244,7 @@ proc_unmap(int pid, size_t va, size_t len)
 	return OK;
 }
 
-int
+	int
 init_bundled_proc(char *name,
 		size_t start, size_t len)
 {
@@ -290,13 +297,14 @@ init_bundled_proc(char *name,
 	if (stack_pa == nil) {
 		raise();
 	}
-	
+
 	pid = proc_new();
 	if (pid < 0) {
 		raise();
 	}
 
-	procs[pid].l1.addr = l1_va;
+	procs[pid].l1.table = l1_va;
+	procs[pid].l1.mapped = &l1_va[0x1000];
 	procs[pid].l1.pa = l1_pa;
 	procs[pid].l1.len = 0x8000;
 

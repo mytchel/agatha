@@ -38,12 +38,12 @@ mmc_send_if_cond(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		log(LOG_INFO, "error sending mmc if cond");
+		log(LOG_WARNING, "error sending mmc if cond");
 		return ret;
 	}
 
 	if ((cmd.response[0] & 0xff) != 0xaa) {
-		log(LOG_INFO, "bad response to if cond");
+		log(LOG_WARNING, "bad response to if cond");
 	} else {
 		log(LOG_INFO, "This is a version 2 card");
 		mmc->version = SD_VERSION_2;
@@ -70,7 +70,7 @@ mmc_send_op_cond_iter(struct mmc *mmc, bool use_arg)
 
 	err = mmc->command(mmc, &cmd, nil);
 	if (err != OK) {
-		log(LOG_INFO, "error sending mmc send op cond");
+		log(LOG_WARNING, "error sending mmc send op cond");
 		return err;
 	}
 
@@ -96,7 +96,7 @@ mmc_send_op_cond(struct mmc *mmc)
 	}
 
 	if (!(mmc->ocr & OCR_BUSY)) {
-		log(LOG_INFO, "mmc_send_op_cond timeout");
+		log(LOG_WARNING, "mmc_send_op_cond timeout");
 		return ERR;
 	}
 	
@@ -130,20 +130,20 @@ sd_send_op_cond(struct mmc *mmc)
 
 		err = mmc->command(mmc, &app, nil);
 		if (err != OK) {
-			log(LOG_INFO, "error sending app cmd");
+			log(LOG_WARNING, "error sending app cmd");
 			return err;
 		}
 
 		err = mmc->command(mmc, &cmd, nil);
 		if (err != OK) {
-			log(LOG_INFO, "error sending mmc send op cond");
+			log(LOG_WARNING, "error sending mmc send op cond");
 			return err;
 		}
 
 		if (cmd.response[0] & OCR_BUSY) {
 			break;
 		} else if (timeout-- <= 0) {
-			log(LOG_INFO, "sd_send_op_cond timeout");
+			log(LOG_WARNING, "sd_send_op_cond timeout");
 			return ERR;
 		}
 	}
@@ -171,7 +171,7 @@ mmc_send_all_cid(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		log(LOG_INFO, "send_cid failed");
+		log(LOG_WARNING, "send_cid failed");
 		return ERR;
 	}
 
@@ -192,7 +192,7 @@ mmc_set_addr(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		log(LOG_INFO, "mmc_set_addr failed!");
+		log(LOG_WARNING, "mmc_set_addr failed!");
 		return ret;
 	}
 
@@ -217,7 +217,7 @@ mmc_send_csd(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		log(LOG_INFO, "mmc_send_csd failed");
+		log(LOG_WARNING, "mmc_send_csd failed");
 		return ret;
 	}
 
@@ -293,7 +293,7 @@ mmc_select_card(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		log(LOG_INFO, "mmc_select_card failed");
+		log(LOG_WARNING, "mmc_select_card failed");
 		return ret;
 	}
 
@@ -512,7 +512,7 @@ mmc_start(struct mmc *mmc)
 	log(LOG_INFO, "mmc startup");
 	ret = mmc_startup(mmc);
 	if (ret != OK) {
-		log(LOG_INFO, "mmc_startup failed");
+		log(LOG_WARNING, "mmc_startup failed");
 		return ret;
 	}
 
@@ -528,7 +528,7 @@ mmc_start(struct mmc *mmc)
 
 	ret = block_dev_register(&dev);
 	if (ret != OK) {
-		log(LOG_INFO, "mmc block_dev_register failed");
+		log(LOG_WARNING, "mmc block_dev_register failed");
 		return ret;	
 	}
 

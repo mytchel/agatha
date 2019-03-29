@@ -13,6 +13,7 @@
 struct service {
 	int pid;
 	char name[LOG_SERVICE_NAME_LEN];
+	bool respond;
 };
 
 #define MAX_SERVICES    32
@@ -25,9 +26,8 @@ char *levels[] = {
 };
 
 static int log_output_pid = -1;
-static char *buf;
-static size_t buf_size;
-static size_t start, end;
+static char buf[2048];
+static size_t start = 0, end = 0;
 
 void
 send_logs(void)
@@ -43,13 +43,12 @@ send_logs(void)
 	rq.write.type = SERIAL_write;
 
 	rq.write.len = end - start;
-	/*
 	if (start < end) {
 		rq.write.len = end - start;
 	} else {
-		rq.write.len = buf_size - start;
+		rq.write.len = sizeof(buf) - start;
 	}
-*/
+
 	if (rq.write.len > sizeof(rq.write.data)) {
 		rq.write.len = sizeof(rq.write.data);
 	}
@@ -58,9 +57,7 @@ send_logs(void)
 
 	send(log_output_pid, &rq);
 
-	start += rq.write.len;
-	/*
-	start = (start + rq.write.len) % buf_size;*/
+	start = (start + rq.write.len) % sizeof(buf);
 }
 
 void
@@ -68,15 +65,11 @@ add_log(char *s, size_t len)
 {
 	size_t l;
 
-	memcpy(buf + end, s, len);
-	end += len;
-	return;
-
 	while (len > 0) {
 		if (end < start && end + len >= start) {
 			break;
-		} else if (end + len > buf_size) {
-			l = buf_size - end;
+		} else if (end + len > sizeof(buf)) {
+			l = sizeof(buf) - end;
 		} else {
 			l = len;
 		}
@@ -85,7 +78,7 @@ add_log(char *s, size_t len)
 
 		s += l;
 		len -= l;
-		end = (end + l) % buf_size;	
+		end = (end + l) % sizeof(buf);	
 	}
 }
 
@@ -111,6 +104,7 @@ handle_register(int from, union log_req *rq)
 			services[i].pid = from;
 			snprintf(services[i].name, sizeof(services[i].name),
 					"%s", rq->reg.name);
+			services[i].respond = rq->reg.respond;
 			rp.reg.ret = OK;
 			break;
 		}
@@ -188,7 +182,9 @@ handle_log(int from, union log_req *rq)
 	add_log(line, len);
 
 	rp.log.ret = OK;
-	send(from, &rp);
+
+	if (s->respond)
+		send(from, &rp);
 
 	send_logs();
 }
@@ -200,12 +196,13 @@ main(void)
 	union dev_reg_req *rq;
 	union dev_reg_rsp *rp;
 	uint32_t type;
-	size_t pa;
-	char s[64];
-	size_t len;
 	int from, i;
 
 	char *log_output = "serial0";
+
+	for (i = 0; i < MAX_SERVICES; i++) {
+		services[i].pid = -1;
+	}
 
 	rq = (void *) m_buf;
 	rq->find.type = DEV_REG_find;
@@ -214,29 +211,6 @@ main(void)
 			"%s", log_output);
 
 	send(DEV_REG_PID, rq);
-
-	start = 0;
-	end = 0;
-
-	buf_size = PAGE_ALIGN(0x2000);
-	pa = request_memory(buf_size);
-	if (pa == nil) {
-		exit();
-	}
-
-	buf = map_addr(pa, buf_size, MAP_RW|MAP_MEM);
-	if (buf == nil) {
-		exit();
-	}
-
-	len = snprintf(s, sizeof(s),
-			"logger using %i bytes mapped as 0x%x->0x%x\n",
-			buf_size, pa, buf);
-	add_log(s, len);
-
-	for (i = 0; i < MAX_SERVICES; i++) {
-		services[i].pid = -1;
-	}
 
 	while (true) {
 		from = recv(-1, m_buf);

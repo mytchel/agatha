@@ -16,6 +16,7 @@ log_init(char *name)
 	union log_rsp rp;
 
 	rq.reg.type = LOG_register;
+	rq.reg.respond = true;
 	snprintf(rq.reg.name, sizeof(rq.reg.name),
 		 	"%s", name);
 

@@ -9,7 +9,7 @@ A micro kernel.
 - Virtual memory handled outside of the kernel
   with support from the kernel.
 - Userspace device drivers for everything except
-  the interrupt controller, and system timer.
+  the interrupt controller, and the system timer.
   Currently the kernel also takes a serial device
   for debugging.
 
@@ -26,7 +26,8 @@ A micro kernel.
 It doesn't do much at the moment but it should start up and
 show you that it isn't doing much on the following devices:
 
-- qemu vexpress-a9 
+- beaglebone black
+- qemu vexpress-a9, this hasn't been tested in a while. 
 
 Currently the kernel is not portable between devices and
 relies on a board specific `device.c` file and kernel

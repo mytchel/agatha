@@ -10,9 +10,8 @@ map_l2(uint32_t *l1, size_t pa, size_t va, size_t len)
 {
 	size_t o;
 
-	/* TODO: is this right? */	
 	for (o = 0; (o << PAGE_SHIFT) < len; o++) {
-		l1[L1X(va + (o << SECTION_SHIFT))] = 
+		l1[L1X(va) + o] = 
 			(pa + (o << PAGE_SHIFT)) | L1_COARSE;
 	}
 
@@ -25,7 +24,7 @@ unmap_l2(uint32_t *l1, size_t va, size_t len)
 	size_t o;
 	
 	for (o = 0; (o << PAGE_SHIFT) < len; o++) {
-		l1[L1X(va + (o << SECTION_SHIFT))] = 0;
+		l1[L1X(va) + o] = 0;
 	}
 
 	return OK;
@@ -47,8 +46,8 @@ map_pages(uint32_t *l2, size_t pa, size_t va,
 		b = 1;
 	}
 
-	for (o = 0; o < len; o += PAGE_SIZE) {
-		l2[L2X(va + o)] = (pa + o) | L2_SMALL | 
+	for (o = 0; (o << PAGE_SHIFT) < len; o++) {
+		l2[L2X(va) + o] = (pa + (o << PAGE_SHIFT)) | L2_SMALL | 
 			tex << 6 | ap << 4 | c << 3 | b << 2;
 	}
 
@@ -60,8 +59,8 @@ unmap_pages(uint32_t *l2, size_t va, size_t len)
 {
 	uint32_t o;
 
-	for (o = 0; o < len; o += PAGE_SIZE) {
-		l2[L2X(va + o)] = L2_FAULT;
+	for (o = 0; (o << PAGE_SHIFT) < len; o++) {
+		l2[L2X(va) + o] = L2_FAULT;
 	}
 
 	return OK;
