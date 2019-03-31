@@ -222,6 +222,7 @@ read_init_file(char *f, size_t size)
 		line[l++] = init_file[i];
 		
 		if (init_file[i] == '\n') {
+			line[l-1] = 0;
 			log(LOG_INFO, "%s", line);
 			l = 0;
 		}

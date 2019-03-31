@@ -1,5 +1,15 @@
 #define PROC0_PID         0
 
+enum {
+	PROC0_ERR_INTERNAL,
+ 	PROC0_ERR_FLAG_INCOMPATABLE,
+ 	PROC0_ERR_FLAGS,
+ 	PROC0_ERR_ALIGNMENT,
+ 	PROC0_ERR_TABLE,
+ 	PROC0_ERR_PERMISSION_DENIED,
+ 	PROC0_ERR_ADDR_DENIED,
+};
+
 struct proc0_irq {
 	uint32_t type;
 	size_t irq;

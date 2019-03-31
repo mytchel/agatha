@@ -10,17 +10,17 @@ handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
 
 	len = rq->addr_req.len;
 	if (len != PAGE_ALIGN(len)) {
-		return ERR;
+		return PROC0_ERR_ALIGNMENT;
 	}
 	
 	pa = rq->addr_req.pa;
 	if (pa != PAGE_ALIGN(pa)) {
-		return ERR;
+		return PROC0_ERR_ALIGNMENT;
 	}
 
 	pa = get_ram(len, 0x1000);
 	if (pa == nil) {
-		return ERR;
+		return PROC0_ERR_ALIGNMENT;
 	}
 
 	rp->addr_req.pa = pa;
@@ -35,12 +35,12 @@ handle_addr_unmap(int from, union proc0_req *rq, union proc0_rsp *rp)
 
 	len = rq->addr_unmap.len;
 	if (len != PAGE_ALIGN(len)) {
-		return ERR;
+		return PROC0_ERR_ALIGNMENT;
 	}
 	
 	va = rq->addr_unmap.va;
 	if (va != PAGE_ALIGN(va)) {
-		return ERR;
+		return PROC0_ERR_ALIGNMENT;
 	}
 
 	return proc_unmap(from, va, len);
@@ -53,17 +53,17 @@ handle_addr_map(int from, union proc0_req *rq, union proc0_rsp *rp)
 
 	len = rq->addr_map.len;
 	if (len != PAGE_ALIGN(len)) {
-/*		return ERR; */
+		return PROC0_ERR_ALIGNMENT;
 	}
 	
 	pa = rq->addr_map.pa;
 	if (pa != PAGE_ALIGN(pa)) {
-/*		return ERR; */
+		return PROC0_ERR_ALIGNMENT;
 	}
 
 	va = rq->addr_map.va;
 	if (va != PAGE_ALIGN(va)) {
-/*		return ERR; */
+		return PROC0_ERR_ALIGNMENT;
 	}
 
 	return proc_map(from, 
@@ -81,12 +81,12 @@ handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
 
 	len = rq->addr_give.len;
 	if (len != PAGE_ALIGN(len)) {
-		return ERR;
+		return PROC0_ERR_ALIGNMENT;
 	}
 	
 	pa = rq->addr_give.pa;
 	if (pa != PAGE_ALIGN(pa)) {
-		return ERR;
+		return PROC0_ERR_ALIGNMENT;
 	}
 
 	/* TODO: Make sure it is not mapped */

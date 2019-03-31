@@ -8,7 +8,7 @@
 /* TODO: L1 tables need to be made less
 	 special so processes can map them 
 	 in the same way they can map L2 tables.
-	 */
+ */
 
 struct addr_frame {
 	struct addr_frame *next;
@@ -31,7 +31,7 @@ struct proc procs[MAX_PROCS] = { 0 };
 
 static struct pool *frame_pool;
 
-struct addr_frame *
+	struct addr_frame *
 frame_split(struct addr_frame *f, size_t off)
 {
 	struct addr_frame *n;
@@ -56,8 +56,8 @@ frame_split(struct addr_frame *f, size_t off)
 	 If a frame is split then multiple frames should
 	 be mapped, but this code will not do that.
 	 Probably has other bugs.
-	 */
-struct addr_frame *
+ */
+	struct addr_frame *
 proc_get_frame(int pid, size_t pa, size_t len)
 {
 	struct addr_frame **f, *m, *n;
@@ -90,7 +90,7 @@ proc_get_frame(int pid, size_t pa, size_t len)
 	return nil;
 }
 
-int
+	int
 proc_give_addr(int pid, size_t pa, size_t len)
 {
 	struct addr_frame *n;
@@ -113,7 +113,7 @@ proc_give_addr(int pid, size_t pa, size_t len)
 }
 
 /* This can be improved. */
-int
+	int
 proc_take_addr(int pid, size_t pa, size_t len)
 {
 	struct addr_frame **f, *m;
@@ -130,20 +130,19 @@ proc_take_addr(int pid, size_t pa, size_t len)
 	return ERR;
 }
 
-static int
+	static int
 proc_map_table(int pid, struct addr_frame *f, size_t va)
 {
 	void *addr;
 	size_t o;
 
 	if (f->table == 0 && f->mapped > 0) {
-		return 7;
+		return PROC0_ERR_FLAG_INCOMPATABLE;
 	}
 
 	addr = map_free(f->pa, f->len, AP_RW_RW, false);
 	if (addr == nil) {
-		return 6;
-		return ERR;
+		return PROC0_ERR_INTERNAL;
 	}
 
 	if (f->table == 0) {
@@ -163,18 +162,18 @@ proc_map_table(int pid, struct addr_frame *f, size_t va)
 	return OK;
 }
 
-static int
+	static int
 proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 {
 	size_t l, o;
-	bool cache;
-	int ap, r;
 	void *l2_va;
+	bool cache;
+	int ap;
 
 	if (flags & MAP_RW) {
 		ap = AP_RW_RW;
 		if (f->table > 0) {
-			return 5;
+			return PROC0_ERR_FLAG_INCOMPATABLE;
 		}
 	} else {
 		ap = AP_RW_RO;
@@ -187,13 +186,13 @@ proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 	} else if ((flags & MAP_TYPE_MASK) == MAP_SHARED) {
 		cache = false;
 	} else {
-		return 4;
+		return PROC0_ERR_FLAGS;
 	}
 
 	for (o = 0; o < f->len; o += l) {
 		l2_va = (void *) procs[pid].l1.mapped[L1X(va + o)];
 		if (l2_va == nil) {
-			return 3;
+			return PROC0_ERR_TABLE;
 		}
 
 		f->mapped++;
@@ -203,11 +202,8 @@ proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 			l = L1VA(L1X(va + o) + 1) - (va + o);
 		}
 
-		r = map_pages(l2_va, f->pa + o, va + o, 
+		map_pages(l2_va, f->pa + o, va + o, 
 				l, ap, cache);
-	
-		if (r != OK) 
-			return r;
 	}
 
 	return OK;
@@ -222,12 +218,12 @@ proc_map(int pid,
 
 	/* Don't let procs map past kernel */
 	if (info->kernel_pa <= va + len) {
-		return 1;
+		return PROC0_ERR_ADDR_DENIED;
 	}
 
 	frame = proc_get_frame(pid, pa, len);
 	if (frame == nil) {
-		return 2;
+		return PROC0_ERR_PERMISSION_DENIED;
 	}
 
 	if ((flags & MAP_TYPE_MASK) == MAP_TABLE) {
