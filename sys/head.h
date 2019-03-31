@@ -79,6 +79,7 @@ memset(void *dst, uint8_t v, size_t len);
 #define DEBUG_WARN    1
 #define DEBUG_INFO    2
 #define DEBUG_SCHED   3
+#define DEBUG_SCHED_V 4
 
 #ifndef DEBUG_LEVEL
 #define DEBUG_LEVEL DEBUG_ERR
@@ -86,6 +87,37 @@ memset(void *dst, uint8_t v, size_t len);
 
 void
 debug(int code, const char *fmt, ...);
+
+#if DEBUG_LEVEL >= DEBUG_ERR
+#define debug_err(X, ...) debug(DEBUG_ERR, X, ##__VA_ARGS__) 
+#else
+#define debug_err(X, ...)
+#endif
+
+#if DEBUG_LEVEL >= DEBUG_WARN
+#define debug_warn(X, ...) debug(DEBUG_WARN, X, ##__VA_ARGS__);
+#else
+#define debug_warn(X, ...)
+#endif
+
+#if DEBUG_LEVEL >= DEBUG_INFO
+#define debug_info(X, ...) debug(DEBUG_INFO, X, ##__VA_ARGS__);
+#else
+#define debug_info(X, ...)
+#endif
+
+#if DEBUG_LEVEL >= DEBUG_SCHED
+#define debug_sched(X, ...) debug(DEBUG_SCHED, X, ##__VA_ARGS__);
+#else
+#define debug_sched(X, ...)
+#endif
+
+#if DEBUG_LEVEL >= DEBUG_SCHED_V
+#define debug_sched_v(X, ...) debug(DEBUG_SCHED, X, ##__VA_ARGS__);
+#else
+#define debug_sched_v(X, ...)
+#endif
+
 
 void
 panic(const char *fmt, ...);
@@ -125,7 +157,7 @@ int
 mmu_switch(size_t va_pa);
 
 void
-set_systick(size_t ns);
+set_systick(size_t ticks);
 
 size_t
 systick_passed(void);
@@ -138,6 +170,9 @@ add_user_irq(size_t irqn, proc_t p);
 
 void
 fill_intr_m(uint8_t *, size_t irqn);
+
+void
+irq_clear(void);
 
 void
 irq_handler(void);

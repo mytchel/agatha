@@ -54,6 +54,13 @@ add_user_irq(size_t irqn, proc_t p)
 	}
 }
 
+void
+irq_clear(void)
+{
+  /* Allow new interrupts */
+	regs->control = 1;
+}
+
 	void
 irq_handler(void)
 {
@@ -61,9 +68,6 @@ irq_handler(void)
 	message_t m;
 	
   irqn = regs->sir_irq;
-
-  /* Allow new interrupts */
-	regs->control = 1;
 
   if (kernel_handlers[irqn] != nil) {
     /* Kernel handler */

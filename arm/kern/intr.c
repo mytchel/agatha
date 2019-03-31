@@ -8,7 +8,7 @@ trap(size_t pc, int type)
 	uint32_t fsr;
 	size_t addr;
 
-	debug(DEBUG_INFO, "trap at 0x%x, type %i\n", pc, type);
+	debug_info("trap at 0x%x, type %i\n", pc, type);
 
 	switch(type) {
 		case ABORT_INTERRUPT:
@@ -17,18 +17,18 @@ trap(size_t pc, int type)
 			return; /* Note the return. */
 
 		case ABORT_INSTRUCTION:
-			debug(DEBUG_WARN, "abort instruction at 0x%x\n", pc);
+			debug_warn("abort instruction at 0x%x\n", pc);
 			break;
 
 		case ABORT_PREFETCH:
-			debug(DEBUG_WARN, "prefetch instruction at 0x%x\n", pc);
+			debug_warn("prefetch instruction at 0x%x\n", pc);
 			break;
 
 		case ABORT_DATA:
 			addr = fault_addr();
 			fsr = fsr_status() & 0xf;
 
-			debug(DEBUG_WARN, "data abort at 0x%x for 0x%x type 0x%x\n", pc, addr, fsr);
+			debug_warn("data abort at 0x%x for 0x%x type 0x%x\n", pc, addr, fsr);
 
 			switch (fsr) {
 				case 0x5: /* section translation */
@@ -58,7 +58,7 @@ trap(size_t pc, int type)
 		panic("trap with no proc on cpu!!!\n");
 	}
 
-	debug(DEBUG_WARN, "killing proc %i\n", up->pid);
+	debug_warn("killing proc %i\n", up->pid);
 
 	up->state = PROC_dead;
 

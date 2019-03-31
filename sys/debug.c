@@ -28,6 +28,7 @@ debug(int code, const char *fmt, ...)
 					"KERNEL INFO: ");
 			break;
 		case DEBUG_SCHED:
+		case DEBUG_SCHED_V:
 			snprintf(str, sizeof(str),
 					"KERNEL SCHED: ");
 			break;

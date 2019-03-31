@@ -37,14 +37,16 @@ recv(int from, uint8_t *raw)
 {
 	message_t *m, n;
 	int f;
-	
+
+#if DEBUG_LEVEL >= DEBUG_INFO	
 	char s[64] = ""; 	
 	for (n = up->messages; n != nil; n = n->next)
 		snprintf(s + strlen(s), sizeof(s) - strlen(s),
 				"%i ", n->from);
 
-	debug(DEBUG_INFO, "%i has messages from %s\n", up->pid, s);	
-	
+	debug_info("%i has messages from %s\n", up->pid, s);	
+#endif
+
   while (true) {
 		for (m = &up->messages; *m != nil; m = &(*m)->next) {
 			if (from != -1 && from != (*m)->from)
@@ -87,7 +89,7 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 		snprintf(s + strlen(s), sizeof(s) - strlen(s),
 				"%i ", n->from);
 
-	debug(DEBUG_INFO, "%i now has messages from %s\n", to->pid, s);	
+	debug_info("%i now has messages from %s\n", to->pid, s);	
 	
 	if (to->state == PROC_recv && (to->recv_from == -1 || to->recv_from == up->pid)) {
 
@@ -132,7 +134,7 @@ sys_send(int pid, uint8_t *raw)
 	message_t m;
 	proc_t p;
 
-	debug(DEBUG_INFO, "%i send to %i\n", up->pid, pid);
+	debug_info("%i send to %i\n", up->pid, pid);
 
 	p = find_proc(pid);
 	if (p == nil) {
@@ -141,7 +143,7 @@ sys_send(int pid, uint8_t *raw)
 
 	m = message_get();
 	if (m == nil) {
-		debug(DEBUG_WARN, "out of messages\n");
+		debug_warn("out of messages\n");
 		return ERR;
 	}
 
@@ -156,9 +158,9 @@ sys_recv(int from, uint8_t *m)
 {
 	int ret;
 
-	debug(DEBUG_INFO, "%i receive from %i\n", up->pid, from);
+	debug_info("%i receive from %i\n", up->pid, from);
 	ret = recv(from, m);
-	debug(DEBUG_INFO, "%i received from %i\n", up->pid, ret);
+	debug_info("%i received from %i\n", up->pid, ret);
 	return ret;
 }
 
@@ -168,7 +170,7 @@ sys_mesg(int pid, uint8_t *send, uint8_t *recv)
 	message_t m;
 	proc_t p;
 
-	debug(DEBUG_INFO, "%i mesg to %i\n", up->pid, pid);
+	debug_info("%i mesg to %i\n", up->pid, pid);
 
 	p = find_proc(pid);
 	if (p == nil) {
@@ -186,7 +188,7 @@ sys_mesg(int pid, uint8_t *send, uint8_t *recv)
 	size_t
 sys_pid(void)
 {
-	debug(DEBUG_INFO, "%i get pid\n", up->pid);
+	debug_info("%i get pid\n", up->pid);
 
 	return up->pid;
 }
@@ -194,7 +196,7 @@ sys_pid(void)
 	size_t
 sys_exit(void)
 {
-	debug(DEBUG_INFO, "%i proc exiting\n", up->pid);
+	debug_info("%i proc exiting\n", up->pid);
 	up->state = PROC_dead;
 	schedule(nil);
 	panic("schedule returned to exit!\n");
@@ -206,20 +208,20 @@ sys_proc_new(void)
 {
 	proc_t p;
 
-	debug(DEBUG_INFO, "%i proc new\n", up->pid);
+	debug_info("%i proc new\n", up->pid);
 
 	if (up->pid != 0) {
-		debug(DEBUG_WARN, "proc %i is not proc0!\n", up->pid);
+		debug_warn("proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
 
 	p = proc_new();
 	if (p == nil) {
-		debug(DEBUG_INFO, "proc_new failed\n");
+		debug_warn("proc_new failed\n");
 		return ERR;
 	}
 
-	debug(DEBUG_INFO, "new proc %i\n", p->pid);
+	debug_info("new proc %i\n", p->pid);
 
 	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
 			(size_t) &proc_start);
@@ -234,16 +236,16 @@ sys_va_table(int p_id, size_t pa)
 {
 	proc_t p;
 
-	debug(DEBUG_INFO, "%i called sys va_table with %i, 0x%x\n", up->pid, p_id, pa);
+	debug_info("%i called sys va_table with %i, 0x%x\n", up->pid, p_id, pa);
 
 	if (up->pid != 0) {
-		debug(DEBUG_WARN, "proc %i is not proc0!\n", up->pid);
+		debug_warn("proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
 
 	p = find_proc(p_id);
 	if (p == nil) {
-		debug(DEBUG_INFO, "didnt find %i\n", p_id);
+		debug_info("didnt find %i\n", p_id);
 		return ERR;
 	}
 
@@ -257,16 +259,16 @@ sys_intr_register(int p_id, size_t irqn)
 {
 	proc_t p;
 
-	debug(DEBUG_INFO, "%i called sys intr_register with %i, %i\n", up->pid, p_id, irqn);
+	debug_info("%i called sys intr_register with %i, %i\n", up->pid, p_id, irqn);
 
 	if (up->pid != 0) {
-		debug(DEBUG_WARN, "proc %i is not proc0!\n", up->pid);
+		debug_warn("proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
 
 	p = find_proc(p_id);
 	if (p == nil) {
-		debug(DEBUG_INFO, "didnt find %i\n", p_id);
+		debug_info("didnt find %i\n", p_id);
 		return ERR;
 	}
 

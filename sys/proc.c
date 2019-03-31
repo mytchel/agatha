@@ -1,6 +1,6 @@
 #include "head.h"
 
-#define TIME_SLICE      1000
+#define TIME_SLICE     30000
 #define MIN_TIME_SLICE    10
 
 void add_to_list_tail(proc_list_t l, proc_t p);
@@ -58,20 +58,22 @@ next_proc(void)
 {
 	proc_t p, n;
 
-	debug(DEBUG_SCHED, "check ready queue %i\n", ready.q);
+#if DEBUG_LEVEL >= DEBUG_SCHED_V
+	debug_sched("check ready queue %i\n", ready.q);
 
 	int i;
 	for (i = 0; i < MAX_PROCS; i++) {
 		if (procs[i].state == PROC_dead) continue;
 		if (procs[i].list == nil) {
-			debug(DEBUG_SCHED, "proc %i in state %i\n", 
+			debug_sched_v("proc %i in state %i\n", 
 					procs[i].pid, procs[i].state);
 		} else {
 			int list = procs[i].list == &ready.queue[0] ? 0 : 1;
-			debug(DEBUG_SCHED, "proc %i in state %i in list %i\n", 
+			debug_sched_v("proc %i in state %i in list %i\n", 
 					procs[i].pid, procs[i].state, list);
 		}
 	}
+#endif
 
 	p = ready.queue[ready.q].head; 
 	while (p != nil) {
@@ -79,24 +81,24 @@ next_proc(void)
 
 		if (p->state == PROC_ready) {
 			if (p->ts > MIN_TIME_SLICE) {
-				debug(DEBUG_SCHED, "%i is ready\n", p->pid);
+				debug_sched_v("%i is ready\n", p->pid);
 				return p;
 
 			} else {
-				debug(DEBUG_SCHED, "put %i into other queue\n", p->pid);
+				debug_sched_v("put %i into other queue\n", p->pid);
 				remove_from_list(&ready.queue[ready.q], p);
 				add_to_list_tail(&ready.queue[(ready.q + 1) % 2], p);
 			}
 
 		} else {
-			debug(DEBUG_SCHED, "remove %i from ready\n", p->pid);
+			debug_sched_v("remove %i from ready\n", p->pid);
 			remove_from_list(&ready.queue[ready.q], p);
 		}
 
 		p = n;
 	}
 
-	debug(DEBUG_SCHED, "switch queues\n");
+	debug_sched("switch queues\n");
 
 	ready.q = (ready.q + 1) % 2;
 	if (ready.queue[ready.q].head == nil) {
@@ -116,6 +118,8 @@ schedule(proc_t n)
 	int passed = systick_passed() + 1;
 
 	if (up != nil) {
+		debug_sched("proc %i ran for %i ticks\n", up->pid, passed);
+
 		if (set_label(&up->label)) {
 			return;
 		}
@@ -137,14 +141,14 @@ schedule(proc_t n)
 
 	if (n != nil) {
 		if (n->ts > MIN_TIME_SLICE) {
-			debug(DEBUG_SCHED, "use given\n");
+			debug_sched("use given\n");
 			up = n;
 		} else if (n->list == nil) {
-			debug(DEBUG_SCHED, "put given on next queue\n");
+			debug_sched("put given on next queue\n");
 			add_to_list_tail(&ready.queue[(ready.q + 1) % 2], n);
 			up = next_proc();
 		} else {
-			debug(DEBUG_SCHED, "doing nothing with given\n");
+			debug_sched("doing nothing with given\n");
 			up = next_proc();
 		}
 	} else {
@@ -152,7 +156,7 @@ schedule(proc_t n)
 	}
 
 	if (up != nil) {
-		debug(DEBUG_SCHED, "switch to %i at 0x%x for %i\n", up->pid, up->label.pc, up->ts);
+		debug_sched("switch to %i at 0x%x for %i\n", up->pid, up->label.pc, up->ts);
 		mmu_switch(up->vspace);
 
 		set_systick(up->ts);
@@ -184,7 +188,7 @@ proc_new(void)
 void
 proc_ready(proc_t p)
 {
-	debug(DEBUG_SCHED, "ready %i\n", p->pid);
+	debug_sched("ready %i\n", p->pid);
 
 	p->state = PROC_ready;
 	add_to_list_tail(&ready.queue[(ready.q + 1) % 2], p);

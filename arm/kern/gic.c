@@ -118,7 +118,7 @@ add_kernel_irq(size_t irqn, void (*func)(size_t))
 int
 add_user_irq(size_t irqn, proc_t p)
 {
-	debug(DEBUG_INFO, "add user intr %i -> %i\n", irqn, p->pid);
+	debug_info("add user intr %i -> %i\n", irqn, p->pid);
 
 	if (user_handlers[irqn] == nil) {
 		user_handlers[irqn] = p;
@@ -134,7 +134,7 @@ irq_handler(void)
 	uint32_t irqn = cregs->ack;
 	message_t m;
 
-	debug(DEBUG_INFO, "irq: %i\n", irqn);
+	debug_info("irq: %i\n", irqn);
 
 	gic_clear_pending(irqn);
 
@@ -152,7 +152,7 @@ irq_handler(void)
 		}
 
 	} else {
-		debug(DEBUG_INFO, "got unhandled interrupt %i!\n", irqn);
+		debug_info("got unhandled interrupt %i!\n", irqn);
 		gic_disable_irq(irqn);
 	}
 	

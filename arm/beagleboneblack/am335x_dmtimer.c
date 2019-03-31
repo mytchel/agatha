@@ -7,29 +7,32 @@ static volatile struct am335x_dmtimer_regs *regs;
 static size_t time_set;
 
 	void
-set_systick(size_t ms)
+set_systick(size_t t)
 {
-	uint32_t t = ms * 32;
 	time_set = 0xffffffff - t;
+
 	regs->tcrr = time_set;
-	regs->irqstatus = 3;
 	regs->tclr = 1;
 }
 
 size_t
 systick_passed(void)
 {
-	uint32_t t, ms;
+	uint32_t t;
 
+	regs->irqstatus = 1<<1;
+	
 	t = regs->tcrr - time_set;
-	ms = t / 32;
 
-	return ms;
+	return t;
 }
 
 static void 
 systick(size_t irq)
 {
+	regs->irqstatus = 1<<1;
+	irq_clear();
+
 	schedule(nil);
 }
 
