@@ -8,6 +8,7 @@
 #include <string.h>
 #include <proc0.h>
 #include <arm/mmu.h>
+#include "kern.h"
 
 void
 init_mem(void);

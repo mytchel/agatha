@@ -1,4 +1,4 @@
 #!/bin/sh
 
-cp kern.umg /var/ftpd/
+doas cp kern.umg /var/ftpd/
 

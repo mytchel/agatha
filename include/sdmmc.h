@@ -375,6 +375,7 @@ struct mmc {
 	char *name;
 
 	volatile void *base;
+	int irqn;
 
 	struct mmc_cid cid;
 	

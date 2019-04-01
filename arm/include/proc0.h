@@ -49,6 +49,9 @@ union proc0_req {
 	struct {
 		uint32_t type;
 		size_t irqn;
+		void *func;
+		void *arg;
+		void *sp;
 	} irq_reg;
 
 	struct {

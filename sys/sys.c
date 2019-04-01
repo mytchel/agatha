@@ -63,9 +63,11 @@ recv(int from, uint8_t *raw)
 			return f;
 		}
 
+		debug_sched("%i waiting\n", up->pid);
 		up->recv_from = from;
 		up->state = PROC_recv;
 		schedule(nil);
+		debug_sched("%i back from waiting\n", up->pid);
 	}
 
 	return ERR;
@@ -77,12 +79,17 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 	message_t *p;
 	int r;
 
+	if (up->in_irq && recv_buf != nil) {
+		return ERR;
+	}
+
 	m->next = nil;
 	for (p = &to->messages; *p != nil; p = &(*p)->next)
 		;
 
 	*p = m;
 
+#if DEBUG_LEVEL >= DEBUG_INFO	
 	message_t n;
 	char s[64] = ""; 	
 	for (n = to->messages; n != nil; n = n->next)
@@ -90,8 +97,10 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 				"%i ", n->from);
 
 	debug_info("%i now has messages from %s\n", to->pid, s);	
-	
-	if (to->state == PROC_recv && (to->recv_from == -1 || to->recv_from == up->pid)) {
+#endif
+
+	if (to->state == PROC_recv && 
+			(to->recv_from == -1 || to->recv_from == up->pid)) {
 
 		if (recv_buf != nil)  {
 			up->state = PROC_recv;
@@ -99,7 +108,9 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 		}
 
 		to->state = PROC_ready;
-		schedule(to); 
+		if (!up->in_irq) {
+			schedule(to); 
+		}
 	}
 
 	if (recv_buf != nil) {
@@ -255,24 +266,22 @@ sys_va_table(int p_id, size_t pa)
 }
 
 	size_t
-sys_intr_register(int p_id, size_t irqn)
+sys_intr_register(struct intr_mapping *map)
 {
-	proc_t p;
-
-	debug_info("%i called sys intr_register with %i, %i\n", up->pid, p_id, irqn);
-
 	if (up->pid != 0) {
 		debug_warn("proc %i is not proc0!\n", up->pid);
 		return ERR;
 	}
 
-	p = find_proc(p_id);
-	if (p == nil) {
-		debug_info("didnt find %i\n", p_id);
-		return ERR;
-	}
+	return irq_add_user(map);
+}
 
-	return add_user_irq(irqn, p);
+	size_t
+sys_intr_exit(int irqn)
+{
+	debug_info("%i called sys intr_exit\n", up->pid);
+
+	return irq_exit();
 }
 
 void *systab[NSYSCALLS] = {
@@ -282,6 +291,7 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_MESG]             = (void *) &sys_mesg,
 	[SYSCALL_PID]              = (void *) &sys_pid,
 	[SYSCALL_EXIT]             = (void *) &sys_exit,
+	[SYSCALL_INTR_EXIT]        = (void *) &sys_intr_exit,
 	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
 	[SYSCALL_VA_TABLE]         = (void *) &sys_va_table,
 	[SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,

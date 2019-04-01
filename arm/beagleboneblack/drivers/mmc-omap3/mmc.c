@@ -12,7 +12,38 @@
 #include <sdmmc.h>
 #include <dev_reg.h>
 
-static void
+static void intr_handler(int irqn, void *arg)
+{
+	struct mmc *mmc = arg;
+	volatile struct omap3_mmchs_regs *regs;
+	uint8_t m[MESSAGE_LEN];
+
+	regs = mmc->base;
+	regs->ie = 0;
+	regs->ise = 0;
+
+	send(pid(), m);
+	intr_exit();
+}
+
+	static int
+wait_for_intr(volatile struct omap3_mmchs_regs *regs,
+		uint32_t mask)
+{
+	uint8_t m[MESSAGE_LEN];
+
+	regs->ie = mask	|
+		MMCHS_SD_STAT_DCRC |
+		MMCHS_SD_STAT_DTO |
+		MMCHS_SD_STAT_DEB |
+		MMCHS_SD_STAT_CIE |
+		MMCHS_SD_STAT_CCRC |
+		MMCHS_SD_STAT_CTO;
+
+	return recv(pid(), m);
+}
+
+	static void
 udelay(size_t us)
 {
 	size_t j;
@@ -22,7 +53,7 @@ udelay(size_t us)
 			;
 }
 
-void
+	void
 mmchs_reset_line(volatile struct omap3_mmchs_regs *regs, 
 		uint32_t line)
 {
@@ -37,15 +68,7 @@ mmchs_reset_line(volatile struct omap3_mmchs_regs *regs,
 		;
 }
 
-static void
-wait_for_intr(volatile struct omap3_mmchs_regs *regs,
-		uint32_t mask)
-{
-	while (!(regs->stat & mask))
-		;
-}
-
-static int 
+	static int 
 do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 {
 	volatile struct omap3_mmchs_regs *regs = mmc->base;
@@ -90,14 +113,15 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 	regs->arg = cmd->cmdarg;
 	regs->cmd = send;
 
-	wait_for_intr(regs, MMCHS_SD_STAT_CC | MMCHS_SD_STAT_ERRI);
+	wait_for_intr(regs, MMCHS_SD_STAT_CC);
 
 	stat = regs->stat;
 
 	regs->stat = MMCHS_SD_STAT_CC |
-			MMCHS_SD_STAT_CIE |
-			MMCHS_SD_STAT_CCRC |
-			MMCHS_SD_STAT_CTO;
+		MMCHS_SD_STAT_CIE |
+		MMCHS_SD_STAT_CCRC |
+		MMCHS_SD_STAT_CTO |
+		MMCHS_SD_STAT_DTO;
 
 	if (stat & MMCHS_SD_STAT_CTO) {
 		mmchs_reset_line(regs, MMCHS_SD_SYSCTL_SRC);
@@ -127,7 +151,8 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 		/* TODO: error handling */
 
 		if (data->flags == MMC_DATA_READ) {
-			wait_for_intr(regs, MMCHS_SD_STAT_ERRI | MMCHS_SD_STAT_BRR);
+			wait_for_intr(regs, MMCHS_SD_STAT_BRR);
+			stat = regs->stat;
 			if (stat & MMCHS_SD_STAT_ERRI) {
 				return ERR;
 			}
@@ -139,7 +164,8 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 			regs->stat = MMCHS_SD_STAT_BRR;
 
 		} else if (data->flags == MMC_DATA_WRITE && (stat & MMCHS_SD_STAT_BWR)) {
-			wait_for_intr(regs, MMCHS_SD_STAT_ERRI | MMCHS_SD_STAT_BWR);
+			wait_for_intr(regs, MMCHS_SD_STAT_BWR);
+			stat = regs->stat;
 			if (stat & MMCHS_SD_STAT_ERRI) {
 				return ERR;
 			}
@@ -154,7 +180,8 @@ do_command(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data *data)
 			return ERR;
 		}
 
-		wait_for_intr(regs, MMCHS_SD_STAT_ERRI | MMCHS_SD_STAT_TC);
+		wait_for_intr(regs, MMCHS_SD_STAT_TC);
+		stat = regs->stat;
 		if (stat & MMCHS_SD_STAT_ERRI) {
 			return ERR;
 		}
@@ -203,7 +230,7 @@ mmchs_init(struct mmc *mmc)
 	}
 
 	regs->con &= ~MMCHS_SD_CON_DW8;
-	
+
 	regs->hctl = MMCHS_SD_HCTL_SDVS_VS30;
 	regs->capa |= MMCHS_SD_CAPA_VS18 | MMCHS_SD_CAPA_VS30;
 
@@ -284,15 +311,20 @@ main(void)
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 	char dev_name[MESSAGE_LEN];
 
+	static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
+	struct mmc mmc = { 0 };
+
 	volatile struct omap3_mmchs_regs *regs;
-	size_t regs_pa, regs_len;
-	struct mmc mmc;
+	size_t regs_pa, regs_len, irqn;
+	union proc0_req rq;
+	union proc0_rsp rp;
 	int ret;
 
 	recv(0, init_m);
 
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
+	irqn = init_m[2];
 
 	recv(0, dev_name);
 
@@ -304,9 +336,8 @@ main(void)
 		exit();
 	}
 
-	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x", pid(), regs_pa, regs);
-
 	mmc.base = regs;
+	mmc.irqn = irqn;
 	mmc.name = dev_name;
 
 	mmc.voltages = OCR_VOLTAGE_MASK;
@@ -314,6 +345,21 @@ main(void)
 	mmc.command = &do_command;
 	mmc.set_ios = &mmchs_set_ios;
 	mmc.reset = &mmchs_reset;
+
+	rq.irq_reg.type = PROC0_irq_reg;
+	rq.irq_reg.irqn = irqn; 
+	rq.irq_reg.func = &intr_handler;
+	rq.irq_reg.arg = &mmc;
+	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack) - 4];
+
+	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
+		log(LOG_FATAL, "failed to register interrupt %i : %i", 
+				irqn, rp.irq_reg.ret);
+		exit();
+	}
+
+	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x with irq %i",
+			pid(), regs_pa, regs, irqn);
 
 	ret = mmchs_init(&mmc);
 	if (ret != OK) {

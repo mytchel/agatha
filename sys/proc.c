@@ -115,29 +115,41 @@ next_proc(void)
 	void
 schedule(proc_t n)
 {
-	int passed = systick_passed() + 1;
+	int passed = systick_passed();
 
 	if (up != nil) {
 		debug_sched("proc %i ran for %i ticks\n", up->pid, passed);
 
-		if (set_label(&up->label)) {
-			return;
-		}
+		if (up->in_irq) {
+			debug_sched("proc %i still handling irq\n", up->pid);
+			if (set_label(up->irq_label)) {
+				return;
+			}
 
-		up->ts -= passed;
-		if (up->ts < 0) up->ts = 0;
+		} else {
+			if (set_label(&up->label)) {
+				debug_sched("proc %i back up\n", up->pid);
+				debug_dump_label(&up->label);
+				return;
+			}
 
-		if (n != nil) {
-			n->ts += up->ts; 
-		}
+			up->ts -= passed;
+			if (up->ts < 0) up->ts = 0;
 
-		if (up->state != PROC_ready) {
-			up->ts = 0;
+			if (n != nil) {
+				n->ts += up->ts; 
+			}
 
-		} else if (up->state == PROC_ready && up->list == nil) {
-			add_to_list_tail(&ready.queue[ready.q], up);
+			if (up->state != PROC_ready) {
+				up->ts = 0;
+
+			} else if (up->state == PROC_ready && up->list == nil) {
+				add_to_list_tail(&ready.queue[ready.q], up);
+			}
 		}
 	}
+
+	irq_run_active();
 
 	if (n != nil) {
 		if (n->ts > MIN_TIME_SLICE) {
@@ -185,7 +197,7 @@ proc_new(void)
 	return p;
 }
 
-void
+	void
 proc_ready(proc_t p)
 {
 	debug_sched("ready %i\n", p->pid);

@@ -20,8 +20,6 @@ systick_passed(void)
 {
 	uint32_t t;
 
-	regs->irqstatus = 1<<1;
-	
 	t = regs->tcrr - time_set;
 
 	return t;
@@ -31,7 +29,7 @@ static void
 systick(size_t irq)
 {
 	regs->irqstatus = 1<<1;
-	irq_clear();
+	irq_clear_kernel(irq);
 
 	schedule(nil);
 }
@@ -46,6 +44,6 @@ init_am335x_systick(size_t base)
 
 	/* May have to set the timer speed with CM_DPLL */
 
-	add_kernel_irq(66, &systick);
+	irq_add_kernel(&systick, 66);
 }
 

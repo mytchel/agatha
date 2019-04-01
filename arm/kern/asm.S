@@ -90,9 +90,6 @@ goto_label:
 
 
 drop_to_user:
-	add r1, r1, r2
-	mov sp, r1
-
 	cpsid if, #MODE_SYS
 
 	ldmia r0!, {r1, sp, lr}

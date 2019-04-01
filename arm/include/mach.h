@@ -19,6 +19,14 @@ struct label {
   uint32_t pc;
 } __attribute__((__packed__));
 
+struct intr_mapping {
+	int pid;
+	int irqn;
+	void *func;
+	void *arg;
+	void *sp;
+};
+
 struct kernel_info {
 	size_t kernel_pa, kernel_len;
 	size_t bundle_pa, bundle_len;

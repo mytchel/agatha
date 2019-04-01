@@ -28,6 +28,7 @@ KERNEL_SRC_C = \
 								../kern/main.c               \
 								../kern/proc.c               \
 								../kern/intr.c               \
+								../kern/debug.c              \
 								../lib/c/mmu.c               \
 								../lib/c/util.c              \
 								../../sys/debug.c            \

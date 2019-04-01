@@ -45,7 +45,7 @@ proc0_start(void)
 	u.pc = info->proc0.prog_va;
 	u.regs[0] = info->proc0.info_va;
 
-	drop_to_user(&u, up->kstack, KSTACK_LEN);
+	drop_to_user(&u);
 }
 
 	static proc_t

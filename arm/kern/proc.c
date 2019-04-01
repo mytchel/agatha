@@ -34,7 +34,7 @@ proc_start(void)
 
 	debug(DEBUG_INFO, "proc %i got start regs at 0x%x 0x%x\n", up->pid, u.pc, u.sp);
 
-	drop_to_user(&u, up->kstack, KSTACK_LEN);
+	drop_to_user(&u);
 }
 
 	int

@@ -29,6 +29,9 @@ struct proc_list {
 
 struct proc {
 	label_t label;
+
+	bool in_irq;
+	label_t *irq_label;
 	
 	procstate_t state;
 	int pid;
@@ -102,8 +105,14 @@ debug(int code, const char *fmt, ...);
 
 #if DEBUG_LEVEL >= DEBUG_INFO
 #define debug_info(X, ...) debug(DEBUG_INFO, X, ##__VA_ARGS__);
+
+void
+debug_dump_label(label_t *l);
+
 #else
 #define debug_info(X, ...)
+#define debug_dump_label(X)
+
 #endif
 
 #if DEBUG_LEVEL >= DEBUG_SCHED
@@ -131,9 +140,7 @@ int
 goto_label(label_t *l) __attribute__((noreturn));
 
 void
-drop_to_user(label_t *l, 
-             void *kstack, 
-             size_t stacklen)
+drop_to_user(label_t *l)
 __attribute__((noreturn));
 
 void
@@ -163,16 +170,25 @@ size_t
 systick_passed(void);
 
 int
-add_kernel_irq(size_t irqn, void (*func)(size_t));
+irq_add_kernel(void (*func)(size_t), size_t irqn);
+
+void
+irq_clear_kernel(size_t irqn);
 
 int
-add_user_irq(size_t irqn, proc_t p);
+irq_add_user(struct intr_mapping *map);
+
+int
+irq_remove_user(size_t irqn);
+
+int
+irq_enter(size_t irqn);
+
+int
+irq_exit(void);
 
 void
-fill_intr_m(uint8_t *, size_t irqn);
-
-void
-irq_clear(void);
+irq_run_active(void);
 
 void
 irq_handler(void);

@@ -28,6 +28,7 @@ char *levels[] = {
 static int log_output_pid = -1;
 static char buf[2048];
 static size_t start = 0, end = 0;
+static bool waiting = false;
 
 void
 send_logs(void)
@@ -37,6 +38,8 @@ send_logs(void)
 	if (log_output_pid == -1) {
 		return;
 	} else if (start == end) {
+		return;
+	} else if (waiting) {
 		return;
 	}
 
@@ -55,6 +58,7 @@ send_logs(void)
 
 	memcpy(rq.write.data, buf + start, rq.write.len);
 
+	waiting = true;
 	send(log_output_pid, &rq);
 
 	start = (start + rq.write.len) % sizeof(buf);
@@ -85,6 +89,7 @@ add_log(char *s, size_t len)
 	void
 handle_write_response(union serial_rsp *rp)
 {
+	waiting = false;
 	send_logs();
 }
 

@@ -5,10 +5,25 @@
 
 #define nirq 128
 
+struct irq_handler {
+	bool registered;
+	struct intr_mapping map;
+	label_t label;
+
+	struct irq_handler *next;
+};
+
 static volatile struct cortex_a8_intr_regs *regs;
 
-static void (*kernel_handlers[nirq])(size_t) = { nil };
-static proc_t user_handlers[nirq] = { nil };
+static void (*kernel_handlers[nirq])(size_t) = { 
+	nil 
+};
+
+static struct irq_handler user_handlers[nirq] = {
+ 	{ false } 
+};
+
+static struct irq_handler *active_irq = nil;
 
 void
 mask_intr(uint32_t irqn)
@@ -33,7 +48,7 @@ unmask_intr(uint32_t irqn)
 }
 
 int
-add_kernel_irq(size_t irqn, void (*func)(size_t))
+irq_add_kernel(void (*func)(size_t), size_t irqn)
 {
   kernel_handlers[irqn] = func;
   unmask_intr(irqn);
@@ -41,75 +56,189 @@ add_kernel_irq(size_t irqn, void (*func)(size_t))
 	return OK;
 }
 
-int
-add_user_irq(size_t irqn, proc_t p)
+	void
+irq_clear_kernel(size_t irqn)
 {
-	debug(DEBUG_INFO, "add user intr %i -> %i\n", irqn, p->pid);
-
-	if (user_handlers[irqn] == nil) {
-		user_handlers[irqn] = p;
-		return OK;
-	} else {
-		return ERR;
-	}
+	unmask_intr(irqn);
 }
 
-void
-irq_clear(void)
+int
+irq_add_user(struct intr_mapping *m)
 {
-  /* Allow new interrupts */
-	regs->control = 1;
+	if (user_handlers[m->irqn].registered) {
+		return ERR;
+	}
+
+	memcpy(&user_handlers[m->irqn].map, m,
+		 	sizeof(struct intr_mapping));
+
+	user_handlers[m->irqn].registered = true;
+	
+	debug_info("adding irq %i for %i with func 0x%x, arg 0x%x, sp 0x%x\n",
+			m->irqn, m->pid, m->func, m->arg, m->sp);
+
+	unmask_intr(m->irqn);
+
+	return OK;
+}
+
+	int
+irq_remove_user(size_t irqn)
+{
+	user_handlers[irqn].registered = false;
+	mask_intr(irqn);
+
+	return OK;
+}
+
+	int
+irq_exit(void)
+{
+	if (active_irq == nil || 
+			active_irq->map.pid != up->pid) {
+	
+		return ERR;
+	}
+
+	up->in_irq = false;
+	up->irq_label = nil;
+
+	debug_sched("exiting irq %i on pid %i\n",
+			active_irq->map.irqn, up->pid);
+
+	unmask_intr(active_irq->map.irqn);
+
+	active_irq = active_irq->next;
+
+	schedule(nil);
+
+	return OK;
+}
+
+	int
+irq_enter(size_t irqn)
+{
+	proc_t p;
+
+	if (!user_handlers[irqn].registered) {
+		return ERR;
+	}
+
+	p = find_proc(user_handlers[irqn].map.pid);
+	if (p == nil) {
+		irq_remove_user(irqn);
+		return ERR;
+	}
+
+	/* Will need to change if we have priorities */
+	user_handlers[irqn].next = active_irq;
+	active_irq = &user_handlers[irqn];
+
+	p->irq_label = &user_handlers[irqn].label;
+
+	p->irq_label->psr = MODE_USR;
+	p->irq_label->regs[0] = irqn;
+
+	p->irq_label->regs[1] = 
+		(uint32_t) user_handlers[irqn].map.arg;
+	p->irq_label->pc = 
+		(uint32_t) user_handlers[irqn].map.func;
+	p->irq_label->sp = 
+		(uint32_t) user_handlers[irqn].map.sp;
+
+	debug_sched("entering irq %i on pid %i\n",
+			irqn, p->pid);
+
+	return OK;
+}
+
+	void
+irq_run_active(void)
+{
+	proc_t p;
+
+	while (active_irq != nil) {
+		if (!active_irq->registered) {
+			active_irq = active_irq->next;
+			continue;
+		}
+
+		p = find_proc(active_irq->map.pid);
+		if (p == nil) {
+			irq_remove_user(active_irq->map.irqn);
+
+			active_irq = active_irq->next;
+			continue;
+		}
+
+		up = p;
+
+		debug_sched("switch to %i at 0x%x to handle irq %i\n",
+				up->pid, active_irq->label.pc, active_irq->map.irqn);
+
+		mmu_switch(up->vspace);
+		set_systick(100000);
+	
+		if (up->in_irq) {	
+			debug_sched("re-enter\n");
+			goto_label(&active_irq->label);
+		} else {
+			debug_sched("first enter\n");
+
+			up->in_irq = true;
+			drop_to_user(&active_irq->label);
+			debug_sched("out from drop to user?\n");
+		}
+	}
 }
 
 	void
 irq_handler(void)
 {
-  uint32_t irqn;
-	message_t m;
-	
-  irqn = regs->sir_irq;
+	uint32_t irqn;
 
-  if (kernel_handlers[irqn] != nil) {
-    /* Kernel handler */
-    kernel_handlers[irqn](irqn);
-  } else if (user_handlers[irqn] != nil) {
+	irqn = regs->sir_irq;
 
-		/* May need to mask interrupt */
+	mask_intr(irqn);
 
-		m = message_get();
-		if (m != nil) {
-			m->from = -1;
-			((int *) m->body)[1] = irqn;
-			send(user_handlers[irqn], m);
-		}
+	/* Allow new interrupts */
+	regs->control = 1;
+
+	if (kernel_handlers[irqn] != nil) {
+		debug_sched("kernel int %i\n", irqn);
+		kernel_handlers[irqn](irqn);
+
+	} else if (irq_enter(irqn) == OK) {
+		schedule(nil);
+
+		debug_sched("irq handle %i returned, go back to user\n", irqn);
 	} else {
-		debug(DEBUG_INFO, "got unhandled interrupt %i!\n", irqn);
-    mask_intr(irqn);
+		debug_warn("got unhandled interrupt %i!\n", irqn);
 	}
 }
 
 	void
 init_cortex_a8_intr(size_t base)
 {
-  int i;
+	int i;
 
 	regs = kernel_map(base, 0x1000, AP_RW_NO, false);
 	if (regs == nil) {
 		panic("failed to map cortex_a8_intr!\n");
 	}
 
-  /* enable interface auto idle */
+	/* enable interface auto idle */
 	regs->sysconfig = 1;
 
-  /* mask all interrupts. */
-  for (i = 0; i < nirq / 32; i++) {
+	/* mask all interrupts. */
+	for (i = 0; i < nirq / 32; i++) {
 		regs->bank[i].mir = 0xffffffff;
-  }
-	
-  /* Set all interrupts to lowest priority. */
-  for (i = 0; i < nirq; i++) {
+	}
+
+	/* Set all interrupts to lowest priority. */
+	for (i = 0; i < nirq; i++) {
 		regs->ilr[i] = 63 << 2;
-  }
+	}
 
 	regs->control = 1;	
 }

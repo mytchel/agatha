@@ -8,6 +8,7 @@
 .global panic
 
 .global exit
+.global intr_exit
 .global yield
 .global send
 .global recv
@@ -30,6 +31,13 @@ panic:
 exit:
 	push {r12, lr}
 	mov r12, #SYSCALL_EXIT
+	svc 0
+	pop {r12, pc}
+
+
+intr_exit:
+	push {r12, lr}
+	mov r12, #SYSCALL_INTR_EXIT
 	svc 0
 	pop {r12, pc}
 

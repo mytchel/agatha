@@ -19,16 +19,8 @@ void
 exit(void)
 	__attribute__((noreturn));
 
-/* Proc0 only syscalls */
-
 int
-proc_new(void);
-
-int
-va_table(int p_id, size_t pa);
-
-int
-intr_register(int p_id, size_t irq);
+intr_exit(void);
 
 /* Utils */
 

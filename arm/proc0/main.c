@@ -105,21 +105,18 @@ handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
 	}
 }
 
-static int irq_owners[256] = { -1 };
-
 int
 handle_irq_reg(int from, union proc0_req *rq, union proc0_rsp *rp)
 {
-	size_t irqn;
+	struct intr_mapping map;
 
-	irqn = rq->irq_reg.irqn;
+	map.pid = from;
+	map.irqn = rq->irq_reg.irqn;
+	map.func = rq->irq_reg.func;
+	map.arg = rq->irq_reg.arg;
+	map.sp = rq->irq_reg.sp;
 
-	if (irq_owners[irqn] == -1) {
-		irq_owners[irqn] = from;
-		return intr_register(from, irqn);
-	} else {
-		return ERR;
-	}
+	return intr_register(&map);
 }
 
 	int
