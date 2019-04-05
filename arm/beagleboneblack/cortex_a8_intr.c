@@ -19,39 +19,39 @@ static volatile struct cortex_a8_intr_regs *regs;
 
 static void (*kernel_handlers[nirq])(size_t) = { nil };
 static struct irq_handler user_handlers[nirq] = {
- 	{ false } 
+	{ false } 
 };
 
 static struct irq_handler *active_irq = nil;
 
 
-void
+	void
 mask_intr(uint32_t irqn)
 {
-  uint32_t mask, bank;
+	uint32_t mask, bank;
 
-  bank = irqn / 32;
-  mask = 1 << (irqn % 32);
+	bank = irqn / 32;
+	mask = 1 << (irqn % 32);
 
 	regs->bank[bank].mir_set = mask;
 }
 
-static void
+	static void
 unmask_intr(uint32_t irqn)
 {
-  uint32_t mask, bank;
+	uint32_t mask, bank;
 
-  bank = irqn / 32;
-  mask = 1 << (irqn % 32);
+	bank = irqn / 32;
+	mask = 1 << (irqn % 32);
 
 	regs->bank[bank].mir_clear = mask;
 }
 
-int
+	int
 irq_add_kernel(void (*func)(size_t), size_t irqn)
 {
-  kernel_handlers[irqn] = func;
-  unmask_intr(irqn);
+	kernel_handlers[irqn] = func;
+	unmask_intr(irqn);
 
 	return OK;
 }
@@ -62,7 +62,7 @@ irq_clear_kernel(size_t irqn)
 	unmask_intr(irqn);
 }
 
-int
+	int
 irq_add_user(struct intr_mapping *m)
 {
 	if (user_handlers[m->irqn].registered) {
@@ -70,10 +70,10 @@ irq_add_user(struct intr_mapping *m)
 	}
 
 	memcpy(&user_handlers[m->irqn].map, m,
-		 	sizeof(struct intr_mapping));
+			sizeof(struct intr_mapping));
 
 	user_handlers[m->irqn].registered = true;
-	
+
 	debug_info("adding irq %i for %i with func 0x%x, arg 0x%x, sp 0x%x\n",
 			m->irqn, m->pid, m->func, m->arg, m->sp);
 
@@ -96,7 +96,7 @@ irq_exit(void)
 {
 	if (active_irq == nil || 
 			active_irq->map.pid != up->pid) {
-	
+
 		return ERR;
 	}
 
@@ -165,11 +165,11 @@ irq_run_active(void)
 			active_irq = active_irq->next;
 			continue;
 		} 
-		
+
 		if (active_irq->exiting) {
 			debug_sched("%i leaving irq\n", up->pid);
 			up->in_irq = false;
-	
+
 			unmask_intr(active_irq->map.irqn);
 
 			active_irq = active_irq->next;
@@ -181,7 +181,7 @@ irq_run_active(void)
 
 		mmu_switch(up->vspace);
 		set_systick(100000);
-	
+
 		if (up->in_irq) {	
 			debug_sched("re-enter\n");
 			goto_label(up->irq_label);
@@ -212,10 +212,20 @@ irq_handler(void)
 
 	} else if (irq_enter(irqn) == OK) {
 		schedule(nil);
-	
+
 	} else {
 		debug_warn("got unhandled interrupt %i!\n", irqn);
 	}
+}
+
+	void
+go_idle(void)
+{
+	debug_warn("going to idle\n");
+
+	set_intr(0);
+	while (true)
+		;
 }
 
 	void

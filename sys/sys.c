@@ -107,11 +107,9 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 			up->recv_from = to->pid;
 		}
 
+		proc_ready(to);
 		if (!up->in_irq) {
-			to->state = PROC_ready;
 			schedule(to);
-		} else {
-			proc_ready(to);
 		}
 	}
 

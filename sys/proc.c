@@ -115,9 +115,9 @@ next_proc(void)
 	void
 schedule(proc_t n)
 {
-	int passed = systick_passed();
-
 	if (up != nil) {
+		int passed = systick_passed();
+
 		debug_sched("proc %i ran for %i ticks\n", up->pid, passed);
 
 		if (up->in_irq) {
@@ -171,9 +171,12 @@ schedule(proc_t n)
 		mmu_switch(up->vspace);
 		set_systick(up->ts);
 		goto_label(&up->label);
-	}
 
-	panic("NO PROCS TO RUN!!\n");
+	} else {
+		debug_sched("no procs to run\n");
+
+		go_idle();
+	}
 }
 
 	proc_t
