@@ -125,11 +125,9 @@ schedule(proc_t n)
 			if (set_label(up->irq_label)) {
 				return;
 			}
-
 		} else {
 			if (set_label(&up->label)) {
 				debug_sched("proc %i back up\n", up->pid);
-				debug_dump_label(&up->label);
 				return;
 			}
 
@@ -169,10 +167,9 @@ schedule(proc_t n)
 
 	if (up != nil) {
 		debug_sched("switch to %i at 0x%x for %i\n", up->pid, up->label.pc, up->ts);
+	
 		mmu_switch(up->vspace);
-
 		set_systick(up->ts);
-
 		goto_label(&up->label);
 	}
 

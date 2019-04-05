@@ -11,12 +11,12 @@ LOAD_ADDR = 0x82000000
 
 PROCS = \
 	../../procs/dev_reg \
-	../../procs/log 
-#	../../procs/init
+	../../procs/log \
+	../../procs/init
 
 DRIVERS = \
 					drivers/serial-omap3 \
-					drivers/mmc-omap3 
+					drivers/mmc-omap3 \
 #					drivers/i2c-am335x \
 #					drivers/prm-cm-am33xx \
 #					drivers/video-am335x

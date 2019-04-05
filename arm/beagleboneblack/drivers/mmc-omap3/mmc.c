@@ -19,7 +19,6 @@ static void intr_handler(int irqn, void *arg)
 	uint8_t m[MESSAGE_LEN];
 
 	regs = mmc->base;
-	regs->ie = 0;
 	regs->ise = 0;
 
 	send(pid(), m);
@@ -32,7 +31,7 @@ wait_for_intr(volatile struct omap3_mmchs_regs *regs,
 {
 	uint8_t m[MESSAGE_LEN];
 
-	regs->ie = mask	|
+	regs->ise = mask	|
 		MMCHS_SD_STAT_DCRC |
 		MMCHS_SD_STAT_DTO |
 		MMCHS_SD_STAT_DEB |
@@ -225,6 +224,9 @@ mmchs_init(struct mmc *mmc)
 	volatile struct omap3_mmchs_regs *regs = mmc->base;
 	int i;
 
+	regs->ie = 0;
+	regs->ise = 0;
+
 	if (mmchs_reset(mmc) != 0) {
 		return ERR;
 	}
@@ -346,6 +348,12 @@ main(void)
 	mmc.set_ios = &mmchs_set_ios;
 	mmc.reset = &mmchs_reset;
 
+	ret = mmchs_init(&mmc);
+	if (ret != OK) {
+		log(LOG_FATAL, "init failed!");
+		exit();
+	}
+
 	rq.irq_reg.type = PROC0_irq_reg;
 	rq.irq_reg.irqn = irqn; 
 	rq.irq_reg.func = &intr_handler;
@@ -360,12 +368,6 @@ main(void)
 
 	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x with irq %i",
 			pid(), regs_pa, regs, irqn);
-
-	ret = mmchs_init(&mmc);
-	if (ret != OK) {
-		log(LOG_FATAL, "init failed!");
-		exit();
-	}
 
 	log(LOG_INFO, "mmc_start");
 	ret = mmc_start(&mmc);

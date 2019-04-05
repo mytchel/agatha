@@ -32,19 +32,19 @@ struct proc {
 
 	bool in_irq;
 	label_t *irq_label;
-	
+
 	procstate_t state;
 	int pid;
 
 	int ts;
 	proc_list_t list;		
 	proc_t prev, next;
-	
-  uint8_t kstack[KSTACK_LEN];
+
+	uint32_t kstack[KSTACK_LEN/sizeof(uint32_t)];
 
 	int recv_from;
 	message_t messages;
-	
+
 	size_t vspace;
 };
 
@@ -105,14 +105,8 @@ debug(int code, const char *fmt, ...);
 
 #if DEBUG_LEVEL >= DEBUG_INFO
 #define debug_info(X, ...) debug(DEBUG_INFO, X, ##__VA_ARGS__);
-
-void
-debug_dump_label(label_t *l);
-
 #else
 #define debug_info(X, ...)
-#define debug_dump_label(X)
-
 #endif
 
 #if DEBUG_LEVEL >= DEBUG_SCHED
@@ -140,22 +134,19 @@ int
 goto_label(label_t *l) __attribute__((noreturn));
 
 void
-drop_to_user(label_t *l)
-__attribute__((noreturn));
+drop_to_user(label_t *l) __attribute__((noreturn));
 
 void
-raise(void)
-__attribute__((noreturn));
+raise(void) __attribute__((noreturn));
 
 void
 func_label(label_t *l, 
-           size_t stack, 
-           size_t stacklen,
-           size_t pc);
+		size_t stack, 
+		size_t stacklen,
+		size_t pc);
 
 void
-proc_start(void)
-  __attribute__((noreturn));
+proc_start(void) __attribute__((noreturn));
 
 bool
 cas(void *addr, void *old, void *new);

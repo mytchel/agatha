@@ -7,6 +7,8 @@
 
 struct irq_handler {
 	bool registered;
+	bool exiting;
+
 	struct intr_mapping map;
 	label_t label;
 
@@ -15,15 +17,13 @@ struct irq_handler {
 
 static volatile struct cortex_a8_intr_regs *regs;
 
-static void (*kernel_handlers[nirq])(size_t) = { 
-	nil 
-};
-
+static void (*kernel_handlers[nirq])(size_t) = { nil };
 static struct irq_handler user_handlers[nirq] = {
  	{ false } 
 };
 
 static struct irq_handler *active_irq = nil;
+
 
 void
 mask_intr(uint32_t irqn)
@@ -100,15 +100,10 @@ irq_exit(void)
 		return ERR;
 	}
 
-	up->in_irq = false;
-	up->irq_label = nil;
+	active_irq->exiting = true;
 
 	debug_sched("exiting irq %i on pid %i\n",
 			active_irq->map.irqn, up->pid);
-
-	unmask_intr(active_irq->map.irqn);
-
-	active_irq = active_irq->next;
 
 	schedule(nil);
 
@@ -136,6 +131,8 @@ irq_enter(size_t irqn)
 
 	p->irq_label = &user_handlers[irqn].label;
 
+	user_handlers[irqn].exiting = false;
+
 	p->irq_label->psr = MODE_USR;
 	p->irq_label->regs[0] = irqn;
 
@@ -155,23 +152,29 @@ irq_enter(size_t irqn)
 	void
 irq_run_active(void)
 {
-	proc_t p;
-
 	while (active_irq != nil) {
 		if (!active_irq->registered) {
 			active_irq = active_irq->next;
 			continue;
 		}
 
-		p = find_proc(active_irq->map.pid);
-		if (p == nil) {
+		up = find_proc(active_irq->map.pid);
+		if (up == nil) {
 			irq_remove_user(active_irq->map.irqn);
 
 			active_irq = active_irq->next;
 			continue;
-		}
+		} 
+		
+		if (active_irq->exiting) {
+			debug_sched("%i leaving irq\n", up->pid);
+			up->in_irq = false;
+	
+			unmask_intr(active_irq->map.irqn);
 
-		up = p;
+			active_irq = active_irq->next;
+			continue;
+		}
 
 		debug_sched("switch to %i at 0x%x to handle irq %i\n",
 				up->pid, active_irq->label.pc, active_irq->map.irqn);
@@ -181,13 +184,12 @@ irq_run_active(void)
 	
 		if (up->in_irq) {	
 			debug_sched("re-enter\n");
-			goto_label(&active_irq->label);
+			goto_label(up->irq_label);
 		} else {
 			debug_sched("first enter\n");
 
 			up->in_irq = true;
-			drop_to_user(&active_irq->label);
-			debug_sched("out from drop to user?\n");
+			drop_to_user(up->irq_label);
 		}
 	}
 }
