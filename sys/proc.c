@@ -200,7 +200,9 @@ proc_ready(proc_t p)
 	debug_sched("ready %i\n", p->pid);
 
 	p->state = PROC_ready;
-	add_to_list_tail(&ready.queue[(ready.q + 1) % 2], p);
+	if (p->list == nil) {
+		add_to_list_tail(&ready.queue[(ready.q + 1) % 2], p);
+	}
 }
 
 	proc_t

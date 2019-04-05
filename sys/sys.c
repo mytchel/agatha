@@ -38,11 +38,12 @@ recv(int from, uint8_t *raw)
 	message_t *m, n;
 	int f;
 
-#if DEBUG_LEVEL >= DEBUG_INFO	
+#if DEBUG_LEVEL & DEBUG_INFO_V	
+	message_t pn;
 	char s[64] = ""; 	
-	for (n = up->messages; n != nil; n = n->next)
+	for (pn = up->messages; pn != nil; pn = pn->next)
 		snprintf(s + strlen(s), sizeof(s) - strlen(s),
-				"%i ", n->from);
+				"%i ", pn->from);
 
 	debug_info("%i has messages from %s\n", up->pid, s);	
 #endif
@@ -63,11 +64,9 @@ recv(int from, uint8_t *raw)
 			return f;
 		}
 
-		debug_sched("%i waiting\n", up->pid);
 		up->recv_from = from;
 		up->state = PROC_recv;
 		schedule(nil);
-		debug_sched("%i back from waiting\n", up->pid);
 	}
 
 	return ERR;
@@ -80,6 +79,7 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 	int r;
 
 	if (up->in_irq && recv_buf != nil) {
+		debug_warn("%i trying to recv in irq\n");
 		return ERR;
 	}
 
@@ -89,7 +89,7 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 
 	*p = m;
 
-#if DEBUG_LEVEL >= DEBUG_INFO	
+#if DEBUG_LEVEL & DEBUG_INFO_V	
 	message_t n;
 	char s[64] = ""; 	
 	for (n = to->messages; n != nil; n = n->next)
@@ -107,9 +107,11 @@ send_h(proc_t to, message_t m, uint8_t *recv_buf)
 			up->recv_from = to->pid;
 		}
 
-		to->state = PROC_ready;
 		if (!up->in_irq) {
-			schedule(to); 
+			to->state = PROC_ready;
+			schedule(to);
+		} else {
+			proc_ready(to);
 		}
 	}
 

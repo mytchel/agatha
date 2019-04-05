@@ -11,10 +11,12 @@ struct device devices[] = {
 		0x44e09000, 0x1000,
 		72	
 	},
+	/*
  	 { "sdmmc0", "drivers/mmc-omap3",
 		0x48060000, 0x1000,
 		64
 	},
+	*/
 	{ "sdmmc1", "drivers/mmc-omap3",
 		0x481d8000, 0x1000,
 		28

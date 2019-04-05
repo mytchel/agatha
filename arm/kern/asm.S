@@ -112,9 +112,10 @@ fault_addr:
 
 
 cache_disable:
-	@ Disable cache and mmu
 	mrc p15, 0, r0, c1, c0, 0
-	bic r0, r0, #(1<<2) @ unified cache
+	bic r0, r0, #(1<<12) @ i cache
+	bic r0, r0, #(1<<2) @ d cache
+	bic r0, r0, #(1<<11) @ branch prediction
 	mcr p15, 0, r0, c1, c0, 0
 	mov pc, lr
 
@@ -151,6 +152,8 @@ mmu_invalidate:
 
 mmu_enable:
 	mrc p15, 0, r0, c1, c0, 0
+	bic r0, r0, #(1<<12) @ disable i cache
+	bic r0, r0, #(1<< 2) @ disable d cache
 	orr r0, r0, #1
 	mcr p15, 0, r0, c1, c0, 0
 	mov pc, lr

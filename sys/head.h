@@ -78,11 +78,12 @@ memcpy(void *dst, const void *src, size_t len);
 void
 memset(void *dst, uint8_t v, size_t len);
 
-#define DEBUG_ERR     0
-#define DEBUG_WARN    1
-#define DEBUG_INFO    2
-#define DEBUG_SCHED   3
-#define DEBUG_SCHED_V 4
+#define DEBUG_ERR       1
+#define DEBUG_WARN      2
+#define DEBUG_INFO      4
+#define DEBUG_SCHED     8
+#define DEBUG_SCHED_V  16
+#define DEBUG_INFO_V   32
 
 #ifndef DEBUG_LEVEL
 #define DEBUG_LEVEL DEBUG_ERR
@@ -91,31 +92,31 @@ memset(void *dst, uint8_t v, size_t len);
 void
 debug(int code, const char *fmt, ...);
 
-#if DEBUG_LEVEL >= DEBUG_ERR
+#if DEBUG_LEVEL & DEBUG_ERR
 #define debug_err(X, ...) debug(DEBUG_ERR, X, ##__VA_ARGS__) 
 #else
 #define debug_err(X, ...)
 #endif
 
-#if DEBUG_LEVEL >= DEBUG_WARN
+#if DEBUG_LEVEL & DEBUG_WARN
 #define debug_warn(X, ...) debug(DEBUG_WARN, X, ##__VA_ARGS__);
 #else
 #define debug_warn(X, ...)
 #endif
 
-#if DEBUG_LEVEL >= DEBUG_INFO
+#if DEBUG_LEVEL & DEBUG_INFO
 #define debug_info(X, ...) debug(DEBUG_INFO, X, ##__VA_ARGS__);
 #else
 #define debug_info(X, ...)
 #endif
 
-#if DEBUG_LEVEL >= DEBUG_SCHED
+#if DEBUG_LEVEL & DEBUG_SCHED
 #define debug_sched(X, ...) debug(DEBUG_SCHED, X, ##__VA_ARGS__);
 #else
 #define debug_sched(X, ...)
 #endif
 
-#if DEBUG_LEVEL >= DEBUG_SCHED_V
+#if DEBUG_LEVEL & DEBUG_SCHED_V
 #define debug_sched_v(X, ...) debug(DEBUG_SCHED, X, ##__VA_ARGS__);
 #else
 #define debug_sched_v(X, ...)

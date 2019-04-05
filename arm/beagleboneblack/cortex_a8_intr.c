@@ -212,8 +212,7 @@ irq_handler(void)
 
 	} else if (irq_enter(irqn) == OK) {
 		schedule(nil);
-
-		debug_sched("irq handle %i returned, go back to user\n", irqn);
+	
 	} else {
 		debug_warn("got unhandled interrupt %i!\n", irqn);
 	}

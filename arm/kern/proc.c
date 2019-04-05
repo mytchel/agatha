@@ -40,8 +40,8 @@ proc_start(void)
 	int
 mmu_switch(size_t pa)
 {
-	mmu_load_ttb((uint32_t *) pa);
 	mmu_invalidate();
+	mmu_load_ttb((uint32_t *) pa);
 
 	return OK;
 }

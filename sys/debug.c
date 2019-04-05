@@ -10,7 +10,7 @@ debug(int code, const char *fmt, ...)
 
 	if (debug_puts == nil) {
 		return;
-	} else if (code > DEBUG_LEVEL) {
+	} else if (!(code & DEBUG_LEVEL)) {
 		return;
 	}
 
@@ -24,6 +24,7 @@ debug(int code, const char *fmt, ...)
 					"KERNEL WARNING: ");
 			break;
 		case DEBUG_INFO:
+		case DEBUG_INFO_V:
 			snprintf(str, sizeof(str),
 					"KERNEL INFO: ");
 			break;

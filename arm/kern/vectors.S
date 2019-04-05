@@ -35,13 +35,14 @@ _start:
 	cmp r0, r1
 	blt 1b
 
-	bl cache_disable
-	bl mmu_disable
-
 	mov r0, #0
 	mrc p15, 0, r0, c1, c0, 0
-	#orr r0, r0, #(1<<1) @ enable branch prediction
-	bic r0, r0, #(1<<1) @ disable branch prediction
+	bic r0, r0, #(1<< 0) @ disable mmu
+	bic r0, r0, #(1<< 2) @ disable d cache
+	bic r0, r0, #(1<< 3) @ disable write buffer
+	bic r0, r0, #(1<<11) @ disable branch prediction
+	bic r0, r0, #(1<<12) @ disable i cache
+	bic r0, r0, #(1<<26) @ disable unified cache
 	mcr p15, 0, r0, c1, c0, 0
 	
 	cps #MODE_IRQ

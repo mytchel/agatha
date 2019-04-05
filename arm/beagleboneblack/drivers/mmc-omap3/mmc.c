@@ -12,6 +12,7 @@
 #include <sdmmc.h>
 #include <dev_reg.h>
 
+bool irq = false;
 static void intr_handler(int irqn, void *arg)
 {
 	struct mmc *mmc = arg;
@@ -22,6 +23,7 @@ static void intr_handler(int irqn, void *arg)
 	regs->ise = 0;
 
 	send(pid(), m);
+
 	intr_exit();
 }
 
@@ -39,7 +41,11 @@ wait_for_intr(volatile struct omap3_mmchs_regs *regs,
 		MMCHS_SD_STAT_CCRC |
 		MMCHS_SD_STAT_CTO;
 
-	return recv(pid(), m);
+	int r = recv(pid(), m);
+
+	log(LOG_INFO, "got intr, stat = 0x%x", regs->stat);
+
+	return r;
 }
 
 	static void
@@ -267,18 +273,6 @@ mmchs_init(struct mmc *mmc)
 	}
 
 	regs->ie = 
-		MMCHS_SD_STAT_DCRC |
-		MMCHS_SD_STAT_DTO |
-		MMCHS_SD_STAT_DEB |
-		MMCHS_SD_STAT_CIE |
-		MMCHS_SD_STAT_CCRC |
-		MMCHS_SD_STAT_CTO |
-		MMCHS_SD_IE_CC |
-		MMCHS_SD_IE_TC |
-		MMCHS_SD_IE_BRR |
-		MMCHS_SD_IE_BWR;
-
-	regs->ise =  
 		MMCHS_SD_STAT_DCRC |
 		MMCHS_SD_STAT_DTO |
 		MMCHS_SD_STAT_DEB |
