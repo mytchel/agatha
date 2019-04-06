@@ -12,7 +12,6 @@
 #include <sdmmc.h>
 #include <dev_reg.h>
 
-bool irq = false;
 static void intr_handler(int irqn, void *arg)
 {
 	struct mmc *mmc = arg;
@@ -352,7 +351,7 @@ main(void)
 	rq.irq_reg.irqn = irqn; 
 	rq.irq_reg.func = &intr_handler;
 	rq.irq_reg.arg = &mmc;
-	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack) - 4];
+	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack)];
 
 	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
 		log(LOG_FATAL, "failed to register interrupt %i : %i", 

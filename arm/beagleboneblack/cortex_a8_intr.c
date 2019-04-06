@@ -221,8 +221,6 @@ irq_handler(void)
 	void
 go_idle(void)
 {
-	debug_warn("going to idle\n");
-
 	set_intr(0);
 	while (true)
 		;

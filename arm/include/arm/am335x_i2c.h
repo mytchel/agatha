@@ -5,6 +5,7 @@
 #define I2C_CON_STT   (1<<0)
 
 #define I2C_IRQ_BB    (1<<12)
+#define I2C_IRQ_BF    (1<<8)
 #define I2C_IRQ_XRDY  (1<<4)
 #define I2C_IRQ_RRDY  (1<<3)
 #define I2C_IRQ_ARDY  (1<<2)

@@ -16,9 +16,9 @@ PROCS = \
 
 DRIVERS = \
 					drivers/serial-omap3 \
-					drivers/mmc-omap3 \
-					drivers/i2c-am335x \
 					drivers/prm-cm-am33xx \
+					drivers/i2c-am335x \
+					drivers/mmc-omap3 \
 					drivers/video-am335x
 
 BOARD_KERNEL_SRC_C =  \

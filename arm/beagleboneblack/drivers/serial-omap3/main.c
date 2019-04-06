@@ -13,7 +13,7 @@
 
 static volatile struct omap3_uart_regs *regs;
 
-  static void
+	static void
 putc(char c)
 {
 	if (c == '\n')
@@ -25,14 +25,14 @@ putc(char c)
 	regs->hr = c; 
 }
 
-  void
+	void
 puts(const char *c)
 {
-  while (*c)
-    putc(*c++);
+	while (*c)
+		putc(*c++);
 }
 
-void
+	void
 handle_write(int from, union serial_req *rq)
 {
 	union serial_rsp rp;
@@ -47,7 +47,7 @@ handle_write(int from, union serial_req *rq)
 	send(from, &rp);
 }
 
-void
+	void
 handle_read(int from, union serial_req *rq)
 {
 	union serial_rsp rp;
@@ -63,7 +63,7 @@ main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 	char name[MESSAGE_LEN];
-	
+
 	size_t regs_pa, regs_len;
 	union dev_reg_req drq;
 	union dev_reg_rsp drp;
@@ -74,7 +74,7 @@ main(void)
 
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
-	
+
 	recv(0, name);
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
@@ -105,13 +105,13 @@ main(void)
 		if (from < 0) continue;
 
 		switch (rq.type) {
-		case SERIAL_write:
-			handle_write(from, &rq);
-			break;
+			case SERIAL_write:
+				handle_write(from, &rq);
+				break;
 
-		case SERIAL_read:
-			handle_read(from, &rq);
-			break;
+			case SERIAL_read:
+				handle_read(from, &rq);
+				break;
 		}
 	}
 }

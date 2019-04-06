@@ -10,6 +10,9 @@ void
 intc_reset(void);
 
 void
+set_intr(int code);
+
+void
 mmu_invalidate(void);
 
 void
