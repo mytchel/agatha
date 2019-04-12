@@ -193,9 +193,7 @@ int init_lcd(void)
 	regs->raster_ctrl = 0;
 	regs->ctrl = (clock_div << 8) | 1;
 	regs->lcddma_fb[0].base = fb_pa;
-	regs->lcddma_fb[0].ceiling = fb_pa + 32+640*480*4;
-	regs->lcddma_fb[1].base = fb_pa;
-	regs->lcddma_fb[1].ceiling = fb_pa + 32+640*480*4;
+	regs->lcddma_fb[0].ceiling = fb_pa + 32 + 4 * (640 * 480);
 	regs->lcddma_ctrl = (burst_size << 4);
 
 	log(LOG_INFO, "status now 0x%x", regs->irqstatus_raw);
@@ -288,7 +286,7 @@ TODO: make some protocol for this
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
 
-	size_t fb_size = 0x20 + 640*480*4;
+	size_t fb_size = 32 + 4 * (640 * 480);
 	fb_pa = request_memory(fb_size);
 	if (fb_pa == nil) {
 		log(LOG_WARNING, "failed to get memory for fb");
@@ -310,9 +308,9 @@ TODO: make some protocol for this
 		exit();
 	}
 
-	memset(fb, 0, 0x20);
+	memset(fb, 0, 32);
 	fb[0] = 0x4000;
-	memset(fb + 8, 0, fb_size - 0x20);
+	memset(fb + 32, 0xff, fb_size - 32);
 
 	if (init_lcd() != OK) {
 		log(LOG_WARNING, "error initialising lcd");
@@ -329,8 +327,14 @@ TODO: make some protocol for this
 		exit();
 	}
 
+	exit();
+
+	uint32_t stat = regs->irqstatus_raw;
 	while (true) {
-		recv(-1, init_m);
+		if (regs->irqstatus_raw != stat) {
+			stat = regs->irqstatus_raw;
+			log(LOG_INFO, "status now 0x%x", stat);
+		}
 	}
 }
 

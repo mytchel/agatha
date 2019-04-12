@@ -38,7 +38,6 @@ mmc_send_if_cond(struct mmc *mmc)
 
 	ret = mmc->command(mmc, &cmd, nil);
 	if (ret != OK) {
-		log(LOG_WARNING, "error sending mmc if cond");
 		return ret;
 	}
 
@@ -70,7 +69,6 @@ mmc_send_op_cond_iter(struct mmc *mmc, bool use_arg)
 
 	err = mmc->command(mmc, &cmd, nil);
 	if (err != OK) {
-		log(LOG_WARNING, "error sending mmc send op cond");
 		return err;
 	}
 
@@ -130,13 +128,11 @@ sd_send_op_cond(struct mmc *mmc)
 
 		err = mmc->command(mmc, &app, nil);
 		if (err != OK) {
-			log(LOG_WARNING, "error sending app cmd");
 			return err;
 		}
 
 		err = mmc->command(mmc, &cmd, nil);
 		if (err != OK) {
-			log(LOG_WARNING, "error sending mmc send op cond");
 			return err;
 		}
 
