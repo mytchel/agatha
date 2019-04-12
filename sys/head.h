@@ -174,16 +174,10 @@ int
 irq_remove_user(size_t irqn);
 
 int
-irq_enter(size_t irqn);
-
-int
 irq_exit(void);
 
 void
 irq_run_active(void);
-
-void
-irq_handler(void);
 
 void
 go_idle(void);

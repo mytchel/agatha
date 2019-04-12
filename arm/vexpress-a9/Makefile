@@ -11,6 +11,7 @@ LOAD_ADDR = 0x62008000
 
 PROCS = \
 				../../procs/dev_reg \
+				../../procs/log \
 				../../procs/init
 
 DRIVERS = \

@@ -30,6 +30,6 @@ init_pl01x(size_t regs_pa)
 
 	debug_puts = &puts;
 
-	debug("kernel pl01x ready\n");
+	debug(DEBUG_INFO, "kernel pl01x ready\n");
 }
 

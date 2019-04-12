@@ -17,7 +17,7 @@ struct device devices[] = {
 	},
 	{ "eth0", "drivers/ethernet-lan9118",
 		0x4e000000, 0x10000,
-		0xf
+		15
 	},
 	{ "lcd0", "drivers/video-pl111",
 		0x101f0000, 0x1000,
