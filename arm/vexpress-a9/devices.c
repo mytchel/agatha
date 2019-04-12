@@ -7,7 +7,7 @@ struct device devices[] = {
 		0x10000000, 0x1000,
 		0
 	},
-	{ "mmc0", "drivers/mmc-pl18x",
+	{ "sdmmc0", "drivers/mmc-pl18x",
 		0x10005000, 0x1000,
 		41
 	},
@@ -54,6 +54,9 @@ board_init_bundled_drivers(size_t off)
 			init_m[1] = devices[d].len;
 			init_m[2] = devices[d].irqn;
 		
+			send(pid, init_m);	
+		
+			strlcpy((char *) init_m, devices[d].name, sizeof(init_m));	
 			send(pid, init_m);	
 		}
 

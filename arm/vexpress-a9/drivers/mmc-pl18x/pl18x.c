@@ -19,23 +19,10 @@
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
+#include <log.h>
+#include <dev_reg.h>
 #include <arm/pl18x.h>
 #include <sdmmc.h>
-
-void
-debug(struct mmc *mmc, char *fmt, ...)
-{
-	char s[MESSAGE_LEN] = "pl18x:0: ";
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(s + strlen(s), 
-			sizeof(s) - strlen(s), 
-			fmt, ap);
-	va_end(ap);
-
-	mesg(3, (uint8_t *) s, (uint8_t *) s);
-}
 
 static void
 udelay(size_t us)
@@ -67,11 +54,11 @@ wait_for_command_end(struct mmc *mmc,
 
 	regs->clear = statusmask;
 	if (hoststatus & SDI_STA_CTIMEOUT) {
-		debug(mmc, "mmc cmd %i timed out\n", cmd->cmdidx);
+		log(LOG_WARNING, "mmc cmd %i timed out", cmd->cmdidx);
 		return -1;
 	} else if ((hoststatus & SDI_STA_CCRCFAIL) &&
 		   (cmd->resp_type & MMC_RSP_CRC)) {
-		debug(mmc, "mmc cmd %i crc error\n", cmd->cmdidx);
+		log(LOG_WARNING, "mmc cmd %i crc error", cmd->cmdidx);
 		return -1;
 	}
 
@@ -264,10 +251,10 @@ pl18x_set_ios(struct mmc *mmc)
 	sdi_clkcr &= ~(SDI_CLKCR_WIDBUS_MASK);
 	sdi_clkcr |= SDI_CLKCR_WIDBUS_1;
 
-	debug(mmc, "setting clock to 0x%x\n", sdi_clkcr);
+	log(LOG_INFO, "setting clock to 0x%x", sdi_clkcr);
 	regs->clock = sdi_clkcr;
 	udelay(CLK_CHANGE_DELAY);
-	debug(mmc, "clock now 0x%x\n", regs->clock);
+	log(LOG_INFO, "clock now 0x%x", regs->clock);
 
 	return 0;
 }
@@ -303,31 +290,37 @@ pl18x_init(volatile struct pl18x_regs *regs)
 main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+	char dev_name[MESSAGE_LEN];
 
 	volatile struct pl18x_regs *regs;
-	char *name = "sdmmc0";
-	size_t regs_pa, regs_len;
+	size_t regs_pa, regs_len, irqn;
 	struct mmc mmc;
 	int ret;
 
 	recv(0, init_m);
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
+	irqn = init_m[2];
+
+	recv(0, dev_name);
+
+	log_init(dev_name);
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		debug(nil, "pl18x failed to map registers!\n");
-		raise();
+		log(LOG_FATAL, "pl18x failed to map registers!");
+		exit();
 	}
 
 	ret = pl18x_init(regs);
 	if (ret != OK) {
-		debug(nil, "pl18x init failed!\n");
-		raise();
+		log(LOG_FATAL, "pl18x init failed!");
+		exit();
 	}
 
 	mmc.base = regs;
-	mmc.name = name;
+	mmc.irqn = irqn;
+	mmc.name = dev_name;
 
 	mmc.voltages = 0xff8080;
 
@@ -335,10 +328,7 @@ main(void)
 	mmc.set_ios = &pl18x_set_ios;
 	mmc.reset = &pl18x_reset;
 
-	mmc.debug = &debug;
-
 	ret = mmc_start(&mmc);
-	debug(nil, "mmc_start returned %i\n", ret);
-	raise();
+	log(LOG_WARNING, "mmc_start returned %i!", ret);
 }
 

@@ -87,9 +87,9 @@ main(void)
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", name);
 
-	send(DEV_REG_PID, (uint8_t *) &drq);
-	while (recv(DEV_REG_PID, (uint8_t *) &drp) != DEV_REG_PID)
-		;
+	if (mesg(DEV_REG_PID, (uint8_t *) &drq) != OK) {
+		exit();
+	}
 
 	if (drp.reg.ret != OK) {
 		exit();

@@ -5,7 +5,7 @@
 #include <arm/gic.h>
 #include <arm/cortex_a9_pt_wd.h>
 
-#define irqn 256
+#define nirq 256
 
 void (*kernel_handlers[nirq])(size_t) = { nil };
 struct irq_handler user_handlers[nirq] = { { false } };
@@ -139,13 +139,13 @@ irq_handler(void)
 static void
 gic_dst_init(void)
 {
-	uint32_t nirq, i;
+	uint32_t irqn, i;
 
 	dregs->dcr &= ~1;
 
-	nirq = 32 * ((dregs->ictr & 0x1f) + 1);
+	irqn = 32 * ((dregs->ictr & 0x1f) + 1);
 
-	for (i = 32; i < nirq; i++) {
+	for (i = 32; i < irqn; i++) {
 		irq_disable(i);
 		gic_set_priority(i, 0xff / 2);
 		gic_set_target(i, 0xf);
@@ -195,6 +195,7 @@ static void
 systick(size_t irq)
 {
 	pt_regs->t_intr = 1;
+
 	irq_clear_kernel(irq);
 
 	schedule(nil);
