@@ -9,13 +9,15 @@
  * Ported to drivers/mmc/ by: Matt Waddel <matt.waddel@linaro.org>
  */
 
-/* Taken and modified from U-Boot */
+/* Taken and modified from U-Boot.
+	 Probably only works if U-Boot has already set it up for us */
 
 #include <types.h>
 #include <err.h>
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
+#include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
@@ -23,6 +25,19 @@
 #include <dev_reg.h>
 #include <arm/pl18x.h>
 #include <sdmmc.h>
+
+static void intr_handler(int irqn, void *arg)
+{
+	struct mmc *mmc = arg;
+	volatile struct pl18x_regs *regs = mmc->base;
+	uint8_t m[MESSAGE_LEN];
+
+	regs->mask[0] = 0;
+
+	send(pid(), m);
+
+	intr_exit();
+}
 
 static void
 udelay(size_t us)
@@ -39,7 +54,7 @@ wait_for_command_end(struct mmc *mmc,
 		struct mmc_cmd *cmd)
 {
 	volatile struct pl18x_regs *regs = mmc->base;
-	u32 hoststatus, statusmask;
+	uint32_t hoststatus, statusmask;
 
 	statusmask = SDI_STA_CTIMEOUT | SDI_STA_CCRCFAIL;
 	if ((cmd->resp_type & MMC_RSP_PRESENT)) {
@@ -48,9 +63,11 @@ wait_for_command_end(struct mmc *mmc,
 		statusmask |= SDI_STA_CMDSENT;
 	}
 
-	do {
-		hoststatus = regs->status & statusmask;
-	} while (!hoststatus);
+	uint8_t m[MESSAGE_LEN];
+	regs->mask[0] = statusmask;
+	recv(pid(), m);
+
+	hoststatus = regs->status & statusmask;
 
 	regs->clear = statusmask;
 	if (hoststatus & SDI_STA_CTIMEOUT) {
@@ -83,11 +100,11 @@ read_bytes(volatile struct pl18x_regs *regs,
 	status = regs->status;
 	status_err = status & (SDI_STA_DCRCFAIL | SDI_STA_DTIMEOUT |
 			       SDI_STA_RXOVERR);
-	while ((!status_err) && (xfercount >= sizeof(u32))) {
+	while ((!status_err) && (xfercount >= sizeof(uint32_t))) {
 		if (status & SDI_STA_RXDAVL) {
 			*(tempbuff) = *regs->fifo;
 			tempbuff++;
-			xfercount -= sizeof(u32);
+			xfercount -= sizeof(uint32_t);
 		}
 		status = regs->status;
 		status_err = status & (SDI_STA_DCRCFAIL | SDI_STA_DTIMEOUT |
@@ -134,16 +151,16 @@ write_bytes(volatile struct pl18x_regs *regs,
 	status_err = status & (SDI_STA_DCRCFAIL | SDI_STA_DTIMEOUT);
 	while (!status_err && xfercount) {
 		if (status & SDI_STA_TXFIFOBW) {
-			if (xfercount >= SDI_FIFO_BURST_SIZE * sizeof(u32)) {
+			if (xfercount >= SDI_FIFO_BURST_SIZE * sizeof(uint32_t)) {
 				for (i = 0; i < SDI_FIFO_BURST_SIZE; i++)
 					*regs->fifo = *(tempbuff + i);
 				tempbuff += SDI_FIFO_BURST_SIZE;
-				xfercount -= SDI_FIFO_BURST_SIZE * sizeof(u32);
+				xfercount -= SDI_FIFO_BURST_SIZE * sizeof(uint32_t);
 			} else {
-				while (xfercount >= sizeof(u32)) {
+				while (xfercount >= sizeof(uint32_t)) {
 					*regs->fifo = *(tempbuff);
 					tempbuff++;
-					xfercount -= sizeof(u32);
+					xfercount -= sizeof(uint32_t);
 				}
 			}
 		}
@@ -272,16 +289,13 @@ pl18x_reset(struct mmc *mmc)
 	static int 
 pl18x_init(volatile struct pl18x_regs *regs)
 {
-	u32 sdi_u32;
-
 	regs->power = INIT_PWR;
 	regs->clock = SDI_CLKCR_CLKDIV_INIT_V1 | SDI_CLKCR_CLKEN;
 
 	udelay(CLK_CHANGE_DELAY);
 
 	/* Disable mmc interrupts */
-	sdi_u32 = regs->mask[0] & ~SDI_MASK0_MASK;
-	regs->mask[0] = sdi_u32;
+	regs->mask[0] = 0;
 
 	return 0;
 }
@@ -292,9 +306,13 @@ main(void)
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 	char dev_name[MESSAGE_LEN];
 
+	static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
+	struct mmc mmc = { 0 };
+
 	volatile struct pl18x_regs *regs;
 	size_t regs_pa, regs_len, irqn;
-	struct mmc mmc;
+	union proc0_req rq;
+	union proc0_rsp rp;
 	int ret;
 
 	recv(0, init_m);
@@ -327,6 +345,17 @@ main(void)
 	mmc.command = &do_command;
 	mmc.set_ios = &pl18x_set_ios;
 	mmc.reset = &pl18x_reset;
+
+	rq.irq_reg.type = PROC0_irq_reg;
+	rq.irq_reg.irqn = irqn;
+	rq.irq_reg.func = &intr_handler;
+	rq.irq_reg.arg = &mmc;
+	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack)];
+
+	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
+		log(LOG_FATAL, "failed to register interrupt %i", irqn);
+		exit();
+	}
 
 	ret = mmc_start(&mmc);
 	log(LOG_WARNING, "mmc_start returned %i!", ret);
