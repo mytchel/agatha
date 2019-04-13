@@ -19,7 +19,7 @@ struct pl111_regs {
 	uint32_t crcr_palette1;
 	uint32_t crsr_xy;
 	uint32_t crsr_clip;
-	uint32_t pad2[1];
+	uint32_t pad2[2];
 	uint32_t crsr_imsc;
 	uint32_t crsr_icr;
 	uint32_t crsr_ris;

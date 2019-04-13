@@ -6,8 +6,9 @@ doas cp kern.umg /var/ftpd/
 export ETHER=vether0
 export BRIDGE=bridge0
 
-doas qemu-system-arm -M vexpress-a9 -nographic \
+doas qemu-system-arm -M vexpress-a9 \
 	-kernel u-boot \
 	-net nic -net tap \
-	-sd disk.iso
+	-sd disk.iso \
+#	-nographic 
 
