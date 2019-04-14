@@ -5,7 +5,8 @@
 #include <arm/gic.h>
 #include <arm/cortex_a9_pt_wd.h>
 
-#define nirq 256
+/* maximum. will probably be lower as in dst_init */
+#define nirq 1020
 
 void (*kernel_handlers[nirq])(size_t) = { nil };
 struct irq_handler user_handlers[nirq] = { { false } };
@@ -14,57 +15,44 @@ static volatile struct gic_dst_regs *dregs;
 static volatile struct gic_cpu_regs *cregs;
 static volatile struct cortex_a9_pt_wd_regs *pt_regs;
 
-void
-gic_set_priority(size_t irqn, uint32_t p)
+	void
+gic_set_group(size_t irqn, uint32_t g)
 {
-	uint8_t *f = (uint8_t *) &dregs->ipr[irqn / 4] + (irqn % 4);
-	*f = p;
+	dregs->group[irqn / 32] &= 1 << (irqn % 32);
+	dregs->group[irqn / 32] |= g << (irqn % 32);
 }
 
-/*
-static uint8_t
-gic_get_priority(size_t irqn)
+	void
+gic_set_priority(size_t irqn, uint8_t p)
 {
-	uint8_t *f = (uint8_t *) &dregs->ipr[irqn / 4] + (irqn % 4);
-	return (*f) & 0xff;
-}
-*/
-
-void
-gic_set_target(size_t irqn, size_t t)
-{
-	uint8_t *f = (uint8_t *) &dregs->spi[irqn / 4] + (irqn % 4);
-	*f = t;
+	((uint8_t *) &dregs->ipriority[irqn / 4])[irqn % 4] = p;
 }
 
-/*
-	static uint8_t
-gic_get_target(size_t irqn, size_t t)
+	void
+gic_set_target(size_t irqn, uint8_t t)
 {
-	uint8_t *f = (uint8_t *) &dregs->spi[irqn / 4] + (irqn % 4);
-	return (*f) & 0xff;
+	((uint8_t *) &dregs->itargets[irqn / 4])[irqn % 4] = t;
 }
-*/
 
-void
+	void
 irq_disable(size_t irqn)
 {
-	dregs->ice[irqn / 32] = 1 << (irqn % 32);
+	dregs->icenable[irqn / 32] = 1 << (irqn % 32);
 }
 
-void
+	void
 irq_enable(size_t irqn)
 {
-	dregs->ise[irqn / 32] = 1 << (irqn % 32);
+	dregs->isenable[irqn / 32] = 1 << (irqn % 32);
 }
 
-void
+	void
 irq_clear(size_t irqn)
 {
-	dregs->icp[irqn / 32] = 1 << (irqn % 32);
+	dregs->icpend[irqn / 32] = 1 << (irqn % 32);
 }
 
-void
+	void
 irq_end(size_t irqn)
 {
 	cregs->eoi = irqn;
@@ -80,7 +68,7 @@ irq_add_kernel(void (*func)(size_t), size_t irqn)
 }
 
 	void
-irq_clear_kernel(size_t irqn)
+irq_end_kernel(size_t irqn)
 {
 	irq_end(irqn);
 }
@@ -121,7 +109,10 @@ irq_handler(void)
 
 	debug_info("irq: %i\n", irqn);
 
-	irq_clear(irqn);
+	if (irqn == 1023) {
+		debug_warn("interrupt de-asserted before we could handle it!");
+		return;
+	}
 
 	if (kernel_handlers[irqn] != nil) {
 		debug_sched("kernel int %i\n", irqn);
@@ -136,47 +127,38 @@ irq_handler(void)
 	}
 }
 
-static void
+	static void
 gic_dst_init(void)
 {
 	uint32_t irqn, i;
 
-	dregs->dcr &= ~1;
+	dregs->control &= ~1;
 
-	irqn = 32 * ((dregs->ictr & 0x1f) + 1);
+	irqn = 32 * ((dregs->type & 0x1f) + 1);
 
-	for (i = 32; i < irqn; i++) {
+	for (i = 0; i < irqn; i++) {
 		irq_disable(i);
-		gic_set_priority(i, 0xff / 2);
-		gic_set_target(i, 0xf);
+		gic_set_priority(i, 0);
+		gic_set_target(i, 1);
+		gic_set_group(i, 0);
 	}
 
 	/* May have to set icr values here. */
 
-	dregs->dcr |= 1;
+	dregs->control |= 1;
 }
 
 	static void
 gic_cpu_init(void)
 {
-	uint32_t i;
-
-	cregs->control &= ~1;
-
-	for (i = 0; i < 32; i++) {
-		irq_disable(i);
-		gic_set_priority(i, 0xff / 2);
-	}
-
 	cregs->control |= 1;
-
 	cregs->bin_pt = 0;
 	cregs->priority = 0xff;
 }
 
 static size_t systick_set;
 
-void
+	void
 set_systick(size_t t)
 {
 	systick_set = t;
@@ -185,18 +167,18 @@ set_systick(size_t t)
 	pt_regs->t_control |= 1;
 }
 
-size_t
+	size_t
 systick_passed(void)
 {
 	return systick_set - pt_regs->t_count;
 }
 
-static void 
+	static void 
 systick(size_t irq)
 {
 	pt_regs->t_intr = 1;
 
-	irq_clear_kernel(irq);
+	irq_end_kernel(irq);
 
 	schedule(nil);
 }

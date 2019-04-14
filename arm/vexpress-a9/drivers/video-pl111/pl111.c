@@ -136,22 +136,12 @@ main(void)
 		exit();
 	}
 
-	int i;
-
-	for (i = 0; i < 0xfffffff; i++)
-		;
-
-	for (x = 92; x < 150; x++) {
-		for (y = 13; y < 200; y++) {
-			fb[y * width + x] = 0x000000c0;
-		}
-	}
-
 	while (true) {
 		uint8_t m[MESSAGE_LEN];
 		
 		regs->imsc = 0x1e;
-		log(LOG_INFO, "wait for irq, status = 0x%x", regs->ris);
+		regs->imsc = 0xffffffff;
+		log(LOG_INFO, "wait for irq, status = 0x%x, mask = 0x%x", regs->ris, regs->imsc);
 
 		recv(pid(), m);
 

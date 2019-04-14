@@ -165,7 +165,7 @@ int
 irq_add_kernel(void (*func)(size_t), size_t irqn);
 
 void
-irq_clear_kernel(size_t irqn);
+irq_end_kernel(size_t irqn);
 
 int
 irq_add_user(struct intr_mapping *map);

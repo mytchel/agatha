@@ -330,6 +330,9 @@ main(void)
 		exit();
 	}
 
+	log(LOG_INFO, "pl18x mapped from 0x%x -> 0x%x with irq %i",
+			regs_pa, regs, irqn);
+
 	ret = pl18x_init(regs);
 	if (ret != OK) {
 		log(LOG_FATAL, "pl18x init failed!");

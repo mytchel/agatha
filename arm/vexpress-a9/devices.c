@@ -29,11 +29,6 @@ struct device devices[] = {
 		44
 	},
 
-	{ "lcd1", "drivers/video-pl111",
-		0x1001f000, 0x1000,
-		14
-	},
-
 };
 
 	void
