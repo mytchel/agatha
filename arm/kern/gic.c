@@ -62,6 +62,7 @@ irq_end(size_t irqn)
 irq_add_kernel(void (*func)(size_t), size_t irqn)
 {
 	kernel_handlers[irqn] = func;
+
 	irq_enable(irqn);
 
 	return OK;
@@ -142,8 +143,6 @@ gic_dst_init(void)
 		gic_set_target(i, 1);
 		gic_set_group(i, 0);
 	}
-
-	/* May have to set icr values here. */
 
 	dregs->control |= 1;
 }

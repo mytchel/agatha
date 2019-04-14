@@ -2,6 +2,10 @@
 #include "../bundle.h"
 #include "../dev.h"
 
+/* Interrupts from daughterboard start at 32?
+	 so pl111 is pic[44] -> int 76 
+ */
+
 struct device devices[] = {
 
 	{ "sysreg", "drivers/sysreg-sp810",
@@ -26,7 +30,7 @@ struct device devices[] = {
 
 	{ "lcd0", "drivers/video-pl111",
 		0x10020000, 0x1000,
-		44
+		76
 	},
 
 };

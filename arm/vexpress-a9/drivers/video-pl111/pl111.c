@@ -23,7 +23,7 @@ static void intr_handler(int irqn, void *arg)
 	uint8_t m[MESSAGE_LEN];
 	volatile struct pl111_regs *regs = arg;
 
-	regs->imsc &= ~regs->ris;
+	regs->imsc &= ~regs->mis;
 
 	send(pid(), m);
 
@@ -34,8 +34,6 @@ static void intr_handler(int irqn, void *arg)
 pl111_init(volatile struct pl111_regs *regs)
 {
 	regs->imsc = 0;
-
-	regs->upbase = fb_pa;
 
 	/* There are other fields that will be needed for real displays
 		 but qemu does not use them. */
@@ -136,17 +134,27 @@ main(void)
 		exit();
 	}
 
+	uint32_t i = 0;
 	while (true) {
 		uint8_t m[MESSAGE_LEN];
 		
 		regs->imsc = 0x1e;
-		regs->imsc = 0xffffffff;
 		log(LOG_INFO, "wait for irq, status = 0x%x, mask = 0x%x", regs->ris, regs->imsc);
 
 		recv(pid(), m);
 
 		log(LOG_INFO, "got interrupt 0x%x", regs->ris);
 		log(LOG_INFO, "masked interrupt 0x%x", regs->mis);
+
+		i += 5;
+		for (x = 32 + i; x < i + 200 && x < width; x++) {
+			for (y = 43 + i; y < i + 100 && y < height; y++) {
+				fb[y * width + x] = i * 0x70;
+			}
+		}
+
+		regs->icr = regs->ris;
+		regs->upbase = fb_pa;
 	}	
 }
 
