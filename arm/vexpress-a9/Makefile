@@ -12,7 +12,8 @@ LOAD_ADDR = 0x62008000
 PROCS = \
 				../../procs/dev_reg \
 				../../procs/log \
-				../../procs/init
+				../../procs/init \
+				../../procs/video
 
 DRIVERS = \
 					drivers/serial-pl01x \

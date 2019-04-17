@@ -29,3 +29,8 @@ struct pl111_regs {
 	uint32_t pcell_id[4];
 };
 
+#define CLCD_INT_ERROR  (1<<4)
+#define CLCD_INT_VCOMP  (1<<3)
+#define CLCD_INT_BASE   (1<<2)
+#define CLCD_INT_FIFO   (1<<1)
+

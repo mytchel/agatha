@@ -30,6 +30,9 @@ typedef enum {
 	FILE_read,
 	FILE_write,
 	FILE_clunk,
+	
+	VIDEO_connect,
+	VIDEO_update,
 
 } mesg_type_t;
 

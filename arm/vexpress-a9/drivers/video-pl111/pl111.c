@@ -3,6 +3,7 @@
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
+#include <arm/mmu.h>
 #include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
@@ -10,13 +11,18 @@
 #include <log.h>
 #include <dev_reg.h>
 #include <arm/pl111.h>
-#include <sdmmc.h>
+#include <video.h>
 
 static size_t width = 640;
 static size_t height = 480;
+static size_t fb_size = 0;
+static bool frame_drawing = false;
+static bool frame_waiting = false;
+static size_t fb_pa_ind = 0;
+static size_t fb_pa[2];
+static int connected_pid = -1;
 	
-static size_t fb_size, fb_pa;
-static uint32_t *fb;
+static volatile struct pl111_regs *regs;
 
 static void intr_handler(int irqn, void *arg)
 {
@@ -31,7 +37,7 @@ static void intr_handler(int irqn, void *arg)
 }
 
 	static int 
-pl111_init(volatile struct pl111_regs *regs)
+pl111_init(void)
 {
 	regs->imsc = 0;
 
@@ -59,9 +65,77 @@ pl111_init(volatile struct pl111_regs *regs)
 		(1 <<  5) | /* tft */
 		(0 <<  4) | /* mono again (no meaning in tft) */
 		(5 <<  1) | /* bpp (24bpp)*/
-		(1 <<  0);  /* enable */
+		(0 <<  0);  /* disable */
+
+	regs->imsc = CLCD_INT_ERROR | CLCD_INT_BASE;
 
 	return 0;
+}
+
+static void
+handle_connect(int from, union video_req *rq)
+{
+	union video_rsp rp;
+
+	connected_pid = from;
+
+	rp.connect.type = VIDEO_connect;
+	rp.connect.frame_pa = fb_pa[(fb_pa_ind + 1) % 2];
+	rp.connect.frame_size = fb_size;
+
+	rp.connect.ret = give_addr(from, fb_pa[(fb_pa_ind + 1) % 2], fb_size);
+	if (rp.connect.ret != OK) {
+		send(from, &rp);
+		return;
+	}
+
+	rp.connect.width = width;
+	rp.connect.height = height;
+
+	frame_drawing = true;
+	regs->upbase = fb_pa[fb_pa_ind];
+
+	/* enable */
+	regs->control |= 1;
+
+	send(from, &rp);
+}
+
+static void
+frame_update(void)
+{
+	union video_rsp rp;
+
+	fb_pa_ind = (fb_pa_ind + 1) % 2;
+	regs->upbase = fb_pa[fb_pa_ind];
+
+	rp.update.type = VIDEO_update;
+	rp.update.frame_pa = fb_pa[(fb_pa_ind + 1) % 2];
+	rp.update.frame_size = fb_size;
+
+	rp.update.ret = give_addr(connected_pid, fb_pa[(fb_pa_ind + 1) % 2], fb_size);
+	send(connected_pid, &rp);
+}
+
+	static void
+handle_update(int from, union video_req *rq)
+{
+	union video_rsp rp;
+
+	rp.update.type = VIDEO_update;
+
+	if (rq->update.frame_pa != fb_pa[(fb_pa_ind + 1) % 2]) {
+		rp.update.ret = ERR;
+		send(from, &rp);
+		return;
+	}
+
+	/* update */
+	if (!frame_drawing) {
+		frame_update();
+	} else {
+		frame_waiting = true;
+	}
 }
 
 	void
@@ -71,11 +145,12 @@ main(void)
 	static uint32_t intr_stack[64];
 	char dev_name[MESSAGE_LEN];
 
-	volatile struct pl111_regs *regs;
 	size_t regs_pa, regs_len, irqn;
+	uint8_t m[MESSAGE_LEN];
 	union proc0_req rq;
 	union proc0_rsp rp;
-	int ret;
+	int ret, from;
+	uint32_t *fb;
 
 	recv(0, init_m);
 	regs_pa = init_m[0];
@@ -95,7 +170,7 @@ main(void)
 	rq.irq_reg.type = PROC0_irq_reg;
 	rq.irq_reg.irqn = irqn;
 	rq.irq_reg.func = &intr_handler;
-	rq.irq_reg.arg = regs;
+	rq.irq_reg.arg = (void *) regs;
 	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack)];
 
 	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
@@ -106,14 +181,17 @@ main(void)
 	log(LOG_INFO, "pl111 mapped 0x%x -> 0x%x with irq %i", 
 			regs_pa, regs, irqn);
 
-	fb_size = 4 * (width * height);
-	fb_pa = request_memory(fb_size);
-	if (fb_pa == nil) {
+	fb_size = PAGE_ALIGN(4 * (width * height));
+
+	fb_pa[0] = request_memory(fb_size);
+	fb_pa[1] = request_memory(fb_size);
+
+	if (fb_pa[0] == nil || fb_pa[1] == nil) {
 		log(LOG_FATAL, "failed to get memory for fb");
 		exit();
 	}
 
-	fb = map_addr(fb_pa, fb_size, MAP_RW|MAP_DEV);
+	fb = map_addr(fb_pa[fb_pa_ind], fb_size, MAP_RW|MAP_DEV);
 	if (fb == nil) {
 		log(LOG_FATAL, "failed to map frame buffer");
 		exit();
@@ -121,40 +199,59 @@ main(void)
 
 	memset(fb, 0, fb_size);
 
-	int x, y;
-	for (x = 32; x < 200; x++) {
-		for (y = 43; y < 100; y++) {
-			fb[y * width + x] = 0x00fa00c0;
-		}
-	}
+	unmap_addr(fb, fb_size);
 
-	ret = pl111_init(regs);
+	ret = pl111_init();
 	if (ret != OK) {
 		log(LOG_FATAL, "pl111 init failed!");
 		exit();
 	}
 
-	uint32_t i = 0;
+	union dev_reg_req drq;
+	union dev_reg_rsp drp;
+
+	drq.type = DEV_REG_register;
+	drq.reg.pid = pid();
+	memcpy(drq.reg.name, dev_name, sizeof(drq.reg.name));
+
+	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
+		log(LOG_FATAL, "failed to message dev reg at pid %i", DEV_REG_PID);
+		exit();
+	}
+
+	if (drp.reg.ret != OK) {
+		log(LOG_FATAL, "failed to register to dev reg");
+		exit();
+	}
+
 	while (true) {
-		uint8_t m[MESSAGE_LEN];
-		
-		regs->imsc = 0x1e;
-		log(LOG_INFO, "wait for irq, status = 0x%x, mask = 0x%x", regs->ris, regs->imsc);
+		from = recv(-1, m);
 
-		recv(pid(), m);
+		if (from == pid()) {
+			frame_drawing = false;
 
-		log(LOG_INFO, "got interrupt 0x%x", regs->ris);
-		log(LOG_INFO, "masked interrupt 0x%x", regs->mis);
+			if (frame_waiting) {
+				frame_waiting = false;
+				frame_drawing = true;
+				frame_update();
+			}
 
-		i += 5;
-		for (x = 32 + i; x < i + 200 && x < width; x++) {
-			for (y = 43 + i; y < i + 100 && y < height; y++) {
-				fb[y * width + x] = i * 0x70;
+			regs->icr = regs->ris;
+			regs->imsc = CLCD_INT_ERROR | CLCD_INT_BASE;
+
+		} else if (connected_pid == -1 || from == connected_pid) {
+			union video_req *rq = (void *) m;
+
+			switch (rq->type) {
+				case VIDEO_connect:
+					handle_connect(from, rq);
+					break;
+
+				case VIDEO_update:
+					handle_update(from, rq);
+					break;
 			}
 		}
-
-		regs->icr = regs->ris;
-		regs->upbase = fb_pa;
 	}	
 }
 
