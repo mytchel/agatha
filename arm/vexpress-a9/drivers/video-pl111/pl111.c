@@ -16,10 +16,8 @@
 static size_t width = 640;
 static size_t height = 480;
 static size_t fb_size = 0;
-static bool frame_drawing = false;
-static bool frame_waiting = false;
-static size_t fb_pa_ind = 0;
-static size_t fb_pa[2];
+static size_t fb_pending = nil;
+static size_t fb_using = nil;
 static int connected_pid = -1;
 	
 static volatile struct pl111_regs *regs;
@@ -79,62 +77,34 @@ handle_connect(int from, union video_req *rq)
 
 	connected_pid = from;
 
+	log(LOG_INFO, "%i has connected", from);
+
 	rp.connect.type = VIDEO_connect;
-	rp.connect.frame_pa = fb_pa[(fb_pa_ind + 1) % 2];
 	rp.connect.frame_size = fb_size;
-
-	rp.connect.ret = give_addr(from, fb_pa[(fb_pa_ind + 1) % 2], fb_size);
-	if (rp.connect.ret != OK) {
-		send(from, &rp);
-		return;
-	}
-
 	rp.connect.width = width;
 	rp.connect.height = height;
-
-	frame_drawing = true;
-	regs->upbase = fb_pa[fb_pa_ind];
-
-	/* enable */
-	regs->control |= 1;
+	rp.connect.ret = OK;
 
 	send(from, &rp);
-}
-
-static void
-frame_update(void)
-{
-	union video_rsp rp;
-
-	fb_pa_ind = (fb_pa_ind + 1) % 2;
-	regs->upbase = fb_pa[fb_pa_ind];
-
-	rp.update.type = VIDEO_update;
-	rp.update.frame_pa = fb_pa[(fb_pa_ind + 1) % 2];
-	rp.update.frame_size = fb_size;
-
-	rp.update.ret = give_addr(connected_pid, fb_pa[(fb_pa_ind + 1) % 2], fb_size);
-	send(connected_pid, &rp);
 }
 
 	static void
 handle_update(int from, union video_req *rq)
 {
-	union video_rsp rp;
+	log(LOG_INFO, "update");
 
-	rp.update.type = VIDEO_update;
+	if (fb_using == nil) {
+		fb_using = rq->update.frame_pa;
+		log(LOG_INFO, "start update 0x%x", fb_using);
+		regs->upbase = fb_using;
+		regs->control |= 1;
+	
+		regs->icr = regs->ris;
+		regs->imsc = CLCD_INT_ERROR | CLCD_INT_BASE;
 
-	if (rq->update.frame_pa != fb_pa[(fb_pa_ind + 1) % 2]) {
-		rp.update.ret = ERR;
-		send(from, &rp);
-		return;
-	}
-
-	/* update */
-	if (!frame_drawing) {
-		frame_update();
 	} else {
-		frame_waiting = true;
+		fb_pending = rq->update.frame_pa;
+		log(LOG_INFO, "update pending 0x%x", fb_pending);
 	}
 }
 
@@ -150,7 +120,6 @@ main(void)
 	union proc0_req rq;
 	union proc0_rsp rp;
 	int ret, from;
-	uint32_t *fb;
 
 	recv(0, init_m);
 	regs_pa = init_m[0];
@@ -183,24 +152,6 @@ main(void)
 
 	fb_size = PAGE_ALIGN(4 * (width * height));
 
-	fb_pa[0] = request_memory(fb_size);
-	fb_pa[1] = request_memory(fb_size);
-
-	if (fb_pa[0] == nil || fb_pa[1] == nil) {
-		log(LOG_FATAL, "failed to get memory for fb");
-		exit();
-	}
-
-	fb = map_addr(fb_pa[fb_pa_ind], fb_size, MAP_RW|MAP_DEV);
-	if (fb == nil) {
-		log(LOG_FATAL, "failed to map frame buffer");
-		exit();
-	}
-
-	memset(fb, 0, fb_size);
-
-	unmap_addr(fb, fb_size);
-
 	ret = pl111_init();
 	if (ret != OK) {
 		log(LOG_FATAL, "pl111 init failed!");
@@ -228,19 +179,37 @@ main(void)
 		from = recv(-1, m);
 
 		if (from == pid()) {
-			frame_drawing = false;
+			union video_rsp rp;
 
-			if (frame_waiting) {
-				frame_waiting = false;
-				frame_drawing = true;
-				frame_update();
+			log(LOG_INFO, "got intr 0x%x", regs->ris);
+
+			if (fb_using) {
+				log(LOG_INFO, "update finished for 0x%x", fb_using);
+				rp.update.type = VIDEO_update;
+				rp.update.frame_pa = fb_using;
+				rp.update.frame_size = fb_size;
+
+				give_addr(connected_pid, fb_using, fb_size);
+				send(connected_pid, &rp);
+
+				fb_using = nil;
 			}
 
-			regs->icr = regs->ris;
-			regs->imsc = CLCD_INT_ERROR | CLCD_INT_BASE;
+			if (fb_pending) {
+				log(LOG_INFO, "start pending 0x%x", fb_pending);
+
+				fb_using = fb_pending;
+				fb_pending = nil;
+				regs->upbase = fb_using;
+
+				regs->icr = regs->ris;
+				regs->imsc = CLCD_INT_ERROR | CLCD_INT_BASE;
+			}
 
 		} else if (connected_pid == -1 || from == connected_pid) {
 			union video_req *rq = (void *) m;
+
+			log(LOG_INFO, "got message");
 
 			switch (rq->type) {
 				case VIDEO_connect:

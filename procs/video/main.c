@@ -31,15 +31,66 @@ get_device_pid(char *name)
 	return rp.find.pid;
 }
 
+void
+frame_update(int dev_pid,
+		size_t frame_pa, size_t frame_size,
+		size_t width, size_t height)
+{
+	static size_t i = 0;
+	union video_req rq;
+	uint32_t *frame;
+	size_t x, y;
+
+	log(LOG_INFO, "update and send 0x%x", frame_pa);
+
+	frame = map_addr(frame_pa, frame_size, MAP_RW|MAP_MEM);
+	if (frame == nil) {
+		log(LOG_FATAL, "failed to map frame buffer 0x%x", frame_pa);
+		exit();
+	}
+
+	log(LOG_INFO, "mapped frame 0x%x -> 0x%x", frame_pa, frame);
+
+	memset(frame, 0, frame_size);
+	for (x = 0; x < 50; x++) {
+		for (y = 0; y < 50; y++) {
+			frame[(y + i) * width + (x + i)] = 0x00aa88;
+		}
+	}
+
+	i++;
+	if (i == width - 50 || i == height - 50)
+		i = 0;
+
+	unmap_addr(frame, frame_size);
+
+	log(LOG_INFO, "send update");
+
+	if (give_addr(dev_pid, frame_pa, frame_size) != OK) {
+		log(LOG_FATAL, "failed to give driver new frame");
+		exit();
+	}
+
+	rq.update.type = VIDEO_update;
+	rq.update.frame_pa = frame_pa;
+	rq.update.frame_size = frame_size;
+
+	if (send(dev_pid, &rq) != OK) {
+		log(LOG_FATAL, "failed to update frame!");
+		exit();
+	}
+}
+
 	void
 main(void)
 {
-	union video_req rq;
-	union video_rsp rp;
+	size_t frame_pas[2], frame_size, frame_pa;
+	uint8_t m[MESSAGE_LEN];
+	union video_req crq;
+	union video_rsp crp;
 	size_t width, height;
-	size_t frame_pa, frame_size;
-	uint32_t *frame;
-	int dev_pid;
+	bool frame_ready[2] = { true, true };
+	int dev_pid, from;
 
 	log_init("display");
 
@@ -54,65 +105,84 @@ main(void)
 
 	log(LOG_INFO, "%s on pid %i", dev_name, dev_pid);
 
-	rq.connect.type = VIDEO_connect;
-	if (mesg(dev_pid, &rq, &rp) != OK || rp.connect.ret != OK) {
+	crq.connect.type = VIDEO_connect;
+	if (mesg(dev_pid, &crq, &crp) != OK || crp.connect.ret != OK) {
 		log(LOG_FATAL, "failed to connect to video driver %s", dev_name);
 		exit();
 	}
 
-	width = rp.connect.width;
-	height = rp.connect.height;
+	width = crp.connect.width;
+	height = crp.connect.height;
+	frame_size = crp.connect.frame_size;
 	log(LOG_INFO, "starting display on %s %ix%i", dev_name, width, height);
 
-	frame_size = rp.connect.frame_size;
-	frame_pa = rp.connect.frame_pa;
+	frame_pas[0] = request_memory(frame_size);
+	frame_pas[1] = request_memory(frame_size);
+	if (frame_pas[0] == nil || frame_pas[1] == nil) {
+		log(LOG_FATAL, "failed to get memory for frame buffer");
+		exit();
+	}
 
-	size_t x, y;
-	size_t i = 0;
+	frame_pa = frame_pas[0];
+	frame_ready[0] = false;
+	frame_update(dev_pid, frame_pa, frame_size, width, height);
 
 	while (true) {
-		log(LOG_INFO, "update frame");
+		log(LOG_INFO, "display something");
 
-		frame = map_addr(frame_pa, frame_size, MAP_RW|MAP_MEM);
-		if (frame == nil) {
-			log(LOG_FATAL, "failed to map frame buffer 0x%x", frame_pa);
-			exit();
+		if (frame_ready[0]) {
+			frame_pa = frame_pas[0];
+			frame_ready[0] = false;
+		} else if (frame_ready[1]) {
+			frame_pa = frame_pas[1];
+			frame_ready[1] = false;
+		} else {
+			frame_pa = nil;
 		}
 
-		log(LOG_INFO, "mapped frame 0x%x -> 0x%x", frame_pa, frame);
+		if (frame_pa != nil) {
+			frame_update(dev_pid, frame_pa, frame_size, width, height);
+		} else {
+			log(LOG_INFO, "no frame to work with");
+		}
 
-		memset(frame, 0, frame_size);
-		for (x = 0; x < 50; x++) {
-			for (y = 0; y < 50; y++) {
-				frame[(y + i) * width + (x + i)] = 0x00aa88;
+		from = recv(-1, m);
+
+		if (from == dev_pid) {
+			log(LOG_INFO, "message from display");
+
+			union video_rsp *rsp = (void *) m;
+
+			switch (rsp->untyped.type) {
+				case VIDEO_update:
+					if (rsp->update.ret != OK) {
+						log(LOG_FATAL, "display got error %i", rsp->update.ret);
+						break;
+					}
+
+					size_t i;
+					if (rsp->update.frame_pa == frame_pas[0]) {
+						i = 0;
+					} else if (rsp->update.frame_pa == frame_pas[1]) {
+						i = 1;
+
+					} else {
+						log(LOG_FATAL, "bad address from display 0x%x!", rsp->update.frame_pa);
+						exit();
+					}
+
+					frame_ready[i] = true;
+
+					break;
+
+				default:
+					log(LOG_WARNING, "bad message from display");
+					break;
 			}
+
+		} else {
+			log(LOG_INFO, "display got message from %i", from);
 		}
-
-		i++;
-		if (i == width - 50 || i == height - 50)
-			i = 0;
-
-		unmap_addr(frame, frame_size);
-
-		log(LOG_INFO, "send update");
-
-		if (give_addr(dev_pid, frame_pa, frame_size) != OK) {
-			log(LOG_FATAL, "failed to give driver new frame");
-			exit();
-		}
-
-		rq.update.type = VIDEO_update;
-		rq.update.frame_pa = frame_pa;
-		rq.update.frame_size = frame_size;
-		
-		if (mesg(dev_pid, &rq, &rp) != OK || rp.update.ret != OK) {
-			log(LOG_FATAL, "failed to update frame!");
-			exit();
-		}
-		
-		log(LOG_INFO, "received update");
-
-		frame_pa = rp.update.frame_pa;
 	}
 
 	exit();

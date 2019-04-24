@@ -24,7 +24,7 @@ union video_rsp {
 		uint32_t type;
 		int ret;
 		size_t width, height;
-		size_t frame_pa, frame_size;
+		size_t frame_size;
 	} connect;
 
 	struct {
