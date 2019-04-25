@@ -2,8 +2,6 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
-#include <mach.h>
-#include <proc0.h>
 #include <log.h>
 #include <stdarg.h>
 #include <string.h>

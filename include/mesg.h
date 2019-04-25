@@ -3,7 +3,6 @@ typedef enum {
 	PROC0_proc,
 	PROC0_addr_req,
 	PROC0_addr_map,
-	PROC0_addr_unmap,
 	PROC0_addr_give,
 
 	DEV_REG_find,

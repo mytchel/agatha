@@ -29,24 +29,6 @@ handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
 }
 
 	int
-handle_addr_unmap(int from, union proc0_req *rq, union proc0_rsp *rp)
-{
-	size_t va, len;
-
-	len = rq->addr_unmap.len;
-	if (len != PAGE_ALIGN(len)) {
-		return PROC0_ERR_ALIGNMENT;
-	}
-	
-	va = rq->addr_unmap.va;
-	if (va != PAGE_ALIGN(va)) {
-		return PROC0_ERR_ALIGNMENT;
-	}
-
-	return proc_unmap(from, va, len);
-}
-
-	int
 handle_addr_map(int from, union proc0_req *rq, union proc0_rsp *rp)
 {
 	size_t pa, va, len;
@@ -152,10 +134,6 @@ main(struct kernel_info *i)
 
 			case PROC0_addr_map:
 				rp->untyped.ret = handle_addr_map(from, rq, rp);
-				break;
-
-			case PROC0_addr_unmap:
-				rp->untyped.ret = handle_addr_unmap(from, rq, rp);
 				break;
 
 			case PROC0_addr_give:

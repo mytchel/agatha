@@ -32,6 +32,12 @@ puts(const char *c)
     putc(*c++);
 }
 
+void
+log(void)
+{
+
+}
+
 	void
 handle_write(int from, union serial_req *rq)
 {

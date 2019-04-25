@@ -1,5 +1,4 @@
 #include <types.h>
-#include <mach.h>
 #include <err.h>
 #include <c.h>
 #include <stdarg.h>

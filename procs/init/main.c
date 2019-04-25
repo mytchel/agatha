@@ -3,8 +3,8 @@
 #include <sys.h>
 #include <c.h>
 #include <mesg.h>
-#include <mach.h>
-#include <arm/mmu.h>
+#include <proc0.h>
+#include <mmu.h>
 #include <stdarg.h>
 #include <string.h>
 #include <dev_reg.h>

@@ -1,5 +1,18 @@
 #define PROC0_PID         0
 
+#define MAP_RO         (0<<0)
+#define MAP_RW         (1<<0)
+
+#define MAP_TYPE_MASK  (7<<1) 
+
+#define MAP_MEM        (0<<1)
+#define MAP_DEV        (1<<1) 
+#define MAP_SHARED     (2<<1) 
+#define MAP_TABLE      (3<<1) 
+
+#define MAP_REMOVE_LEAF  (4<<1) 
+#define MAP_REMOVE_TABLE (5<<1) 
+
 enum {
 	PROC0_ERR_INTERNAL,
  	PROC0_ERR_FLAG_INCOMPATABLE,
@@ -32,12 +45,6 @@ union proc0_req {
 		size_t len;
 		int flags;
 	} addr_map;
-
-	struct {
-		uint32_t type;
-		size_t va;
-		size_t len;
-	} addr_unmap;
 
 	struct {
 		uint32_t type;
@@ -78,11 +85,6 @@ union proc0_rsp {
 		uint32_t type;
 		int ret;
 	} addr_map;
-
-	struct {
-		uint32_t type;
-		int ret;
-	} addr_unmap;
 
 	struct {
 		uint32_t type;

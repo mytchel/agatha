@@ -189,13 +189,13 @@ proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 		return PROC0_ERR_FLAGS;
 	}
 
+	f->mapped++;
+
 	for (o = 0; o < f->len; o += l) {
 		l2_va = (void *) procs[pid].l1.mapped[L1X(va + o)];
 		if (l2_va == nil) {
 			return PROC0_ERR_TABLE;
 		}
-
-		f->mapped++;
 
 		l = f->len;
 		if (L1X(va + o) != L1X(va + o + l)) {
@@ -209,36 +209,58 @@ proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 	return OK;
 }
 
+int
+proc_unmap_table(int pid,
+		size_t va, size_t len)
+{
+	return ERR;
+}
+
+int
+proc_unmap_leaf(int pid,
+		size_t va, size_t len)
+{
+	return ERR;
+}
+
 	int
 proc_map(int pid, 
 		size_t pa, size_t va, 
 		size_t len, int flags)
 {
 	struct addr_frame *frame;
+	int type;
 
 	/* Don't let procs map past kernel */
 	if (info->kernel_pa <= va + len) {
 		return PROC0_ERR_ADDR_DENIED;
 	}
 
-	frame = proc_get_frame(pid, pa, len);
-	if (frame == nil) {
-		return PROC0_ERR_PERMISSION_DENIED;
+	if (pa != nil) {
+		frame = proc_get_frame(pid, pa, len);
+		if (frame == nil) {
+			return PROC0_ERR_PERMISSION_DENIED;
+		}
 	}
 
-	if ((flags & MAP_TYPE_MASK) == MAP_TABLE) {
-		return proc_map_table(pid, frame, va);
-	} else { 
-		return proc_map_normal(pid, frame, va, flags);
+	type = flags & MAP_TYPE_MASK;
+	switch (type) {
+		case MAP_REMOVE_TABLE:
+			return proc_unmap_table(pid, va, len);
+
+		case MAP_REMOVE_LEAF:
+			return proc_unmap_leaf(pid, va, len);
+
+		case MAP_TABLE:
+			return proc_map_table(pid, frame, va);
+
+		case MAP_MEM:
+		case MAP_DEV:
+			return proc_map_normal(pid, frame, va, flags);
+
+		case MAP_SHARED:
+			return ERR;
 	}
-}
-
-	int
-proc_unmap(int pid, size_t va, size_t len)
-{
-	/* TODO */
-
-	return OK;
 }
 
 	int

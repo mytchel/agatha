@@ -17,7 +17,6 @@ PROCS = \
 
 DRIVERS = \
 					drivers/serial-pl01x \
-					drivers/sysreg-sp810 \
 					drivers/mmc-pl18x    \
 					drivers/ethernet-lan9118 \
 					drivers/video-pl111

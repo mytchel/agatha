@@ -3,8 +3,7 @@
 #include <sys.h>
 #include <c.h>
 #include <mesg.h>
-#include <mach.h>
-#include <arm/mmu.h>
+#include <proc0.h>
 #include <stdarg.h>
 #include <string.h>
 #include <dev_reg.h>
@@ -74,6 +73,8 @@ frame_update(int dev_pid,
 	rq.update.type = VIDEO_update;
 	rq.update.frame_pa = frame_pa;
 	rq.update.frame_size = frame_size;
+
+	log(LOG_INFO, "sending frame %i", i); 
 
 	if (send(dev_pid, &rq) != OK) {
 		log(LOG_FATAL, "failed to update frame!");

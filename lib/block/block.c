@@ -2,11 +2,10 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
-#include <mach.h>
 #include <mesg.h>
+#include <proc0.h>
 #include <stdarg.h>
 #include <string.h>
-#include <proc0.h>
 #include <block.h>
 #include <dev_reg.h>
 

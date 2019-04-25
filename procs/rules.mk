@@ -11,7 +11,7 @@ CLEAN += $(OBJECTS)
 LIBS += -lc -lstring -lgcc
 
 out.elf: $(USER.LD) $(OBJECTS)
-	@echo LD $@
+	@echo LD $@ $(OBJECTS) $(LIBS)
 	@$(LD) $(LDFLAGS) \
 		-T $(USER.LD) \
 		-Ttext ${USER_ADDR} \

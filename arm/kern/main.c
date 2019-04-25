@@ -148,8 +148,7 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 }
 
 	void
-main(size_t kernel_start, 
-		size_t dtb_start, size_t dtb_len)
+main(size_t kernel_start)
 {
 	proc_t p0;
 
@@ -165,9 +164,6 @@ main(size_t kernel_start,
 
 	info->info_pa = (size_t) kernel_info;
 	info->info_len = sizeof(kernel_info);
-
-	info->dtb_pa = dtb_start;
-	info->dtb_len = dtb_len;
 
 	map_l2(kernel_l1, (size_t) kernel_l2, 
 			info->kernel_pa, 0x1000);

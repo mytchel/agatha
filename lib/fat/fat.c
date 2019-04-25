@@ -2,9 +2,9 @@
 #include <err.h>
 #include <sys.h>
 #include <c.h>
-#include <mach.h>
-#include <arm/mmu.h>
 #include <mesg.h>
+#include <proc0.h>
+#include <mmu.h>
 #include <stdarg.h>
 #include <string.h>
 #include <log.h>
