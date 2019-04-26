@@ -53,6 +53,8 @@ give_addr(int to, size_t pa, size_t len)
 	union proc0_req rq;
 	union proc0_rsp rp;
 
+	log(LOG_INFO, "give %i 0x%x . 0x%x", to, pa, len);
+
 	rq.addr_give.type = PROC0_addr_give;
 	rq.addr_give.to = to;
 	rq.addr_give.pa = pa;
@@ -71,6 +73,8 @@ unmap_addr(void *va, size_t len)
 	union proc0_req rq;
 	union proc0_rsp rp;
 
+	log(LOG_INFO, "unmap 0x%x . 0x%x", va, len);
+
 	if (PAGE_ALIGN(va) != (size_t) va) {
 		return nil;
 	}
@@ -81,11 +85,13 @@ unmap_addr(void *va, size_t len)
 	rq.addr_map.len = len;
 	rq.addr_map.va = (size_t) va;
 	rq.addr_map.pa = 0;
-	rq.addr_map.flags = 0;
+	rq.addr_map.flags = MAP_REMOVE_LEAF;
 
 	if (mesg(PROC0_PID, &rq, &rp) != OK) {
-		return nil;
+		return ERR;
 	}
+
+	log(LOG_INFO, "unmap got %i", rp.addr_map.ret);
 
 	return rp.addr_map.ret;
 }

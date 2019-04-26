@@ -4,6 +4,11 @@
 #define L1VA(x)          (((uint32_t) x) << 20)
 #define L2VA(x)          (((uint32_t) x) << 12)
 
+/* These are probably wrong but should work as long
+	 as nothing else here or in any mmu code changes */
+#define L1PA(r)          (((uint32_t) r) & (~3))
+#define L2PA(r)          (((uint32_t) r) & (~0x1ff))
+
 #define L1_TYPE      0b11
 #define L1_FAULT     0b00
 #define L1_COARSE    0b01

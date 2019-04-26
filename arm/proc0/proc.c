@@ -1,13 +1,19 @@
 #include "head.h"
 #include "../bundle.h"
+#include <arm/mmu.h>
 
-/* TODO: Most of this file needs improvements.
-	 Frames should be objects that can contains a number
-	 of address ranges and but can be treated as one piece? */
+/* 
 
-/* TODO: L1 tables need to be made less
-	 special so processes can map them 
-	 in the same way they can map L2 tables.
+TODO: Most of this file needs improvements.
+Frames should be objects that can contains a number
+of address ranges and but can be treated as one piece? 
+
+TODO: Frames should be able to be split.
+
+TODO: L1 tables need to be made less
+special so processes can map them 
+in the same way they can map L2 tables.
+
  */
 
 struct addr_frame {
@@ -52,38 +58,18 @@ frame_split(struct addr_frame *f, size_t off)
 	return n;
 }
 
-/* TODO: This will have some problems.
-	 If a frame is split then multiple frames should
-	 be mapped, but this code will not do that.
-	 Probably has other bugs.
- */
 	struct addr_frame *
 proc_get_frame(int pid, size_t pa, size_t len)
 {
-	struct addr_frame **f, *m, *n;
+	struct addr_frame *f;
 
-	for (f = &procs[pid].frames; *f != nil; f = &(*f)->next) {
-		if ((*f)->pa <= pa && pa < (*f)->pa + (*f)->len) {
-			if ((*f)->pa + (*f)->len < pa + len) {
+	for (f = procs[pid].frames; f != nil; f = f->next) {
+		if (f->pa <= pa && pa < f->pa + f->len) {
+			if (f->pa + f->len < pa + len) {
 				return nil;
 			}
 
-			if ((*f)->pa < pa) {
-				m = frame_split(*f, pa - (*f)->pa);
-				if (m == nil) {
-					return nil;
-				}
-			} else {
-				m = *f;
-			}
-
-			if (len < m->len) { 
-				n = frame_split(m, len);
-				n->next = m->next;
-				m->next = n;
-			}
-
-			return m;
+			return f;
 		}
 	}
 
@@ -105,22 +91,25 @@ proc_give_addr(int pid, size_t pa, size_t len)
 	n->table = false;
 	n->mapped = 0;
 
-	/* Should order this. */
 	n->next = procs[pid].frames;
 	procs[pid].frames = n;
 
 	return OK;
 }
 
-/* This can be improved. */
 	int
 proc_take_addr(int pid, size_t pa, size_t len)
 {
 	struct addr_frame **f, *m;
 
 	for (f = &procs[pid].frames; *f != nil; f = &(*f)->next) {
-		if ((*f)->pa <= pa && pa < (*f)->pa + (*f)->len) {
+		if ((*f)->pa == pa && (*f)->len == len) {
 			m = *f;
+
+			if (m->mapped > 0 || m->table > 0) {
+				return ERR;
+			}
+
 			*f = (*f)->next;
 			pool_free(frame_pool, m);
 			return OK;
@@ -130,14 +119,29 @@ proc_take_addr(int pid, size_t pa, size_t len)
 	return ERR;
 }
 
+/* This makes multiple proc0 mappings for tables
+	 if they are mapped multiple times */
 	static int
-proc_map_table(int pid, struct addr_frame *f, size_t va)
+proc_map_table(int pid, 
+		size_t pa, size_t va, 
+		size_t len, int flags)
 {
-	void *addr;
+	struct addr_frame *f;
+	uint32_t *addr;
 	size_t o;
+
+	f = proc_get_frame(pid, pa, len);
+	if (f == nil) {
+		return PROC0_ERR_PERMISSION_DENIED;
+	}
 
 	if (f->table == 0 && f->mapped > 0) {
 		return PROC0_ERR_FLAG_INCOMPATABLE;
+	}
+
+	if (f->pa != pa || f->len != len) {
+		/* TODO: should allow mappings to parts of frames */
+		return ERR;
 	}
 
 	addr = map_free(f->pa, f->len, AP_RW_RW, false);
@@ -146,15 +150,13 @@ proc_map_table(int pid, struct addr_frame *f, size_t va)
 	}
 
 	if (f->table == 0) {
-		f->table = 1;
 		memset(addr, 0, f->len);
-	} else {
-		f->table++;
 	}
 
 	map_l2(procs[pid].l1.table, f->pa, va, f->len);
 
 	for (o = 0; (o << 10) < f->len; o++) {
+		f->table++;
 		procs[pid].l1.mapped[L1X(va) + o]
 			= ((uint32_t) addr) + (o << 10);
 	}
@@ -163,12 +165,20 @@ proc_map_table(int pid, struct addr_frame *f, size_t va)
 }
 
 	static int
-proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
+proc_map_normal(int pid, 
+		size_t pa, size_t va, 
+		size_t len, int flags)
 {
-	size_t l, o;
-	void *l2_va;
+	struct addr_frame *f;
+	size_t l, o, fo;
+	uint32_t *l2_va;
 	bool cache;
 	int ap;
+
+	f = proc_get_frame(pid, pa, len);
+	if (f == nil) {
+		return PROC0_ERR_PERMISSION_DENIED;
+	}
 
 	if (flags & MAP_RW) {
 		ap = AP_RW_RW;
@@ -189,38 +199,77 @@ proc_map_normal(int pid, struct addr_frame *f, size_t va, int flags)
 		return PROC0_ERR_FLAGS;
 	}
 
-	f->mapped++;
-
+	fo = pa - f->pa;
 	for (o = 0; o < f->len; o += l) {
 		l2_va = (void *) procs[pid].l1.mapped[L1X(va + o)];
 		if (l2_va == nil) {
 			return PROC0_ERR_TABLE;
 		}
 
-		l = f->len;
+		l = len - o;
 		if (L1X(va + o) != L1X(va + o + l)) {
 			l = L1VA(L1X(va + o) + 1) - (va + o);
 		}
 
-		map_pages(l2_va, f->pa + o, va + o, 
+		f->mapped++;
+		map_pages(l2_va, f->pa + fo + o, va + o, 
 				l, ap, cache);
 	}
 
 	return OK;
 }
 
-int
+	int
 proc_unmap_table(int pid,
 		size_t va, size_t len)
 {
-	return ERR;
+	struct addr_frame *f;
+	size_t o, pa;
+
+	for (o = 0; (o << 10) < len; o++) {
+		if (procs[pid].l1.mapped[L1X(va) + o] == nil)
+			continue;
+
+		pa = L1PA(procs[pid].l1.table[L1X(va) + o]);
+		f = proc_get_frame(pid, pa, TABLE_SIZE);
+		if (f == nil) {
+			return PROC0_ERR_PERMISSION_DENIED;
+		}
+
+		f->table--;
+		procs[pid].l1.mapped[L1X(va) + o] = nil;
+	}
+
+	return OK;
 }
 
-int
-proc_unmap_leaf(int pid,
+	int
+proc_unmap_leaf(int pid, 
 		size_t va, size_t len)
 {
-	return ERR;
+	struct addr_frame *f;
+	size_t o, l, pa;
+	uint32_t *l2_va;
+
+	for (o = 0; o < len; o += l) {
+		l2_va = (uint32_t *) procs[pid].l1.mapped[L1X(va + o)];
+		if (l2_va == nil) {
+			return PROC0_ERR_TABLE;
+		}
+
+		l = PAGE_SIZE;
+		pa = L2PA(l2_va[L2X(va + o)]);
+
+		f = proc_get_frame(pid, pa, l);
+		if (f == nil) {
+			return PROC0_ERR_PERMISSION_DENIED;
+		}
+
+		f->mapped--;
+		unmap_pages(l2_va, va + o, l);
+	}
+
+	return OK;
 }
 
 	int
@@ -228,19 +277,11 @@ proc_map(int pid,
 		size_t pa, size_t va, 
 		size_t len, int flags)
 {
-	struct addr_frame *frame;
 	int type;
 
 	/* Don't let procs map past kernel */
 	if (info->kernel_pa <= va + len) {
 		return PROC0_ERR_ADDR_DENIED;
-	}
-
-	if (pa != nil) {
-		frame = proc_get_frame(pid, pa, len);
-		if (frame == nil) {
-			return PROC0_ERR_PERMISSION_DENIED;
-		}
 	}
 
 	type = flags & MAP_TYPE_MASK;
@@ -252,13 +293,16 @@ proc_map(int pid,
 			return proc_unmap_leaf(pid, va, len);
 
 		case MAP_TABLE:
-			return proc_map_table(pid, frame, va);
+			return proc_map_table(pid, pa, va, len, flags);
 
 		case MAP_MEM:
 		case MAP_DEV:
-			return proc_map_normal(pid, frame, va, flags);
+			return proc_map_normal(pid, pa, va, len, flags);
 
 		case MAP_SHARED:
+			return ERR;
+
+		default:
 			return ERR;
 	}
 }
