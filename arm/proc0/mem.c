@@ -156,6 +156,11 @@ free_addr(size_t pa, size_t len)
 	/* TODO */
 }
 
+/* TODO:
+	 there are bugs here and i don't think we get any
+	 more than one page of l2's 
+ */
+
 static size_t next_l2_va, next_l2_pa;
 static void *next_l2_addr;
 

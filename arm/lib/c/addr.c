@@ -134,7 +134,9 @@ prepare_l2s(size_t to)
 	}
 
 	log(LOG_INFO, "map l2 at 0x%x %i tables", bottom, tables);
-	return map_to(pa, bottom, tables * TABLE_SIZE, MAP_TABLE);
+	int r = map_to(pa, bottom, tables * TABLE_SIZE, MAP_TABLE);
+	log(LOG_INFO, "l2 map got %i", r);
+	return r;
 }
 
 size_t
