@@ -6,9 +6,7 @@ int
 pool_init(struct pool *p, size_t obj_size)
 {
 	obj_size += sizeof(struct pool_obj);
-	if (obj_size % 4 != 0) {
-		obj_size += 4 - (obj_size % 4);
-	}
+	obj_size = (obj_size + 3) & ~3;
 
 	p->obj_size = obj_size;
 	p->frames = nil;

@@ -1,4 +1,5 @@
 #include "head.h"
+#include <mmu.h>
 #include "../dev.h"
 
 struct kernel_info *info;
@@ -122,7 +123,6 @@ main(struct kernel_info *i)
 
 	info = i;
 
-	init_pools();	
 	init_mem();
 	init_procs();
 

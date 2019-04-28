@@ -1,6 +1,5 @@
 PROC0_SRC = \
 	../proc0/main.c              \
-	../proc0/pool.c              \
 	../proc0/proc.c              \
 	../proc0/mem.c               \
 	devices.c                    \
@@ -21,6 +20,6 @@ CLEAN += \
 		-Ttext $(USER_ADDR) \
 		-o $@ \
 	 	$(PROC0_OBJECTS) \
-		-lc -lstring -lgcc
+		-lc -lpool -lstring -lgcc
 
 

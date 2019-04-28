@@ -1,6 +1,6 @@
 #include "head.h"
-#include "../bundle.h"
 #include <arm/mmu.h>
+#include "../bundle.h"
 
 /* 
 
@@ -24,14 +24,17 @@ in the same way they can map L2 tables.
 
 struct proc procs[MAX_PROCS] = { 0 };
 
-struct pool *frame_pool;
+static uint8_t frame_pool_initial[sizeof(struct pool_frame)
+	+ (sizeof(struct addr_frame) + sizeof(struct pool_obj)) * 1024];
+
+static struct pool frame_pool;
 
 	struct addr_frame *
 frame_new(size_t pa, size_t len)
 {
 	struct addr_frame *n;
 
-	n = pool_alloc(frame_pool);
+	n = pool_alloc(&frame_pool);
 	if (n == nil) {
 		return nil;
 	}
@@ -50,7 +53,7 @@ frame_free(struct addr_frame *f)
 {
 	free_addr(f->pa, f->len);
 
-	pool_free(frame_pool, f);
+	pool_free(&frame_pool, f);
 }
 
 	int
@@ -417,8 +420,11 @@ init_procs(void)
 	size_t off;
 	int i;
 
-	frame_pool = pool_new(sizeof(struct addr_frame));
-	if (frame_pool == nil) {
+	if (pool_init(&frame_pool, sizeof(struct addr_frame)) != OK) {
+		raise();
+	}
+
+	if (pool_load(&frame_pool, frame_pool_initial, sizeof(frame_pool_initial)) != OK) {
 		raise();
 	}
 

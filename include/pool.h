@@ -1,13 +1,13 @@
 struct pool_obj {
 	struct pool_obj *next;
 	bool in_use;
-	uint8_t body[];
+	uint8_t body[]__attribute__((__aligned__(4)));
 };
 
 struct pool_frame {
 	struct pool_frame *next;
 	size_t len, nobj;
-	uint8_t body[];
+	uint8_t body[]__attribute__((__aligned__(4)));
 };
 
 struct pool {

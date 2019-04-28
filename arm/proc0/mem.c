@@ -1,4 +1,5 @@
 #include "head.h"
+#include <arm/mmu.h>
 #include "../dev.h"
 
 struct {
@@ -18,13 +19,13 @@ struct addr_range {
 	struct addr_range *next;
 };
 
-uint8_t addr_pool_init_frame[0x1000]
-__attribute__((__aligned__(0x1000))) = { 0 };
+static uint8_t addr_pool_initial[sizeof(struct pool_frame)
+	+ (sizeof(struct addr_range) + sizeof(struct pool_obj)) * 1024];
 
-struct pool *addr_pool = nil;
+static struct pool addr_pool;
 
-struct addr_range *ram_free = nil;
-struct addr_range *free_space = nil;
+static struct addr_range *ram_free = nil;
+static struct addr_range *free_space = nil;
 
 extern uint32_t *_data_end;
 
@@ -40,7 +41,7 @@ addr_range_split(struct addr_range *f, size_t off)
 {
 	struct addr_range *n;
 
-	n = pool_alloc(addr_pool);
+	n = pool_alloc(&addr_pool);
 	if (n == nil) {
 		return nil;
 	}
@@ -145,7 +146,7 @@ get_ram(size_t len, size_t align)
 
 	pa = m->start;
 
-	pool_free(addr_pool, m);
+	pool_free(&addr_pool, m);
 
 	return pa;
 }
@@ -170,7 +171,7 @@ put_next_l2(size_t *nva, size_t len)
 	struct addr_range *m;
 	uint32_t *tva;
 
-	m = pool_alloc(addr_pool);
+	m = pool_alloc(&addr_pool);
 	if (m == nil) {
 		raise();
 	}
@@ -220,7 +221,7 @@ map_free(size_t pa, size_t len, int ap, bool cache)
 		va = m->start;
 		l2 = proc0_l1.va.addr[L1X(va)];
 
-		pool_free(addr_pool, m);
+		pool_free(&addr_pool, m);
 	} else {
 		l2 = put_next_l2(&va, len);
 	}
@@ -245,7 +246,7 @@ add_ram(size_t start, size_t len)
 {
 	struct addr_range *m;
 
-	m = pool_alloc(addr_pool);
+	m = pool_alloc(&addr_pool);
 	if (m == nil) {
 		raise();
 	}
@@ -261,15 +262,14 @@ init_mem(void)
 {
 	struct addr_range *m;
 
-	addr_pool = 
-		pool_new_with_frame(sizeof(struct addr_range), 
-				addr_pool_init_frame, 
-				sizeof(addr_pool_init_frame));
-
-	if (addr_pool == nil) {
+	if (pool_init(&addr_pool, sizeof(struct addr_range)) != OK) {
 		raise();
 	}
 
+	if (pool_load(&addr_pool, addr_pool_initial, sizeof(addr_pool_initial)) != OK) {
+		raise();
+	}
+	
 	board_init_ram();
 
 	if (ram_free == nil) {
@@ -282,7 +282,7 @@ init_mem(void)
 		raise();
 	}
 
-	pool_free(addr_pool, m);
+	pool_free(&addr_pool, m);
 
 	proc0_l1.mmu.pa = info->proc0.l1_pa;
 	proc0_l1.mmu.len = info->proc0.l1_len;
@@ -325,7 +325,7 @@ init_mem(void)
 	memset(next_l2_addr, 0, 0x1000);
 
 	/* Add remaining mappings from init l2 as free */
-	m = pool_alloc(addr_pool);
+	m = pool_alloc(&addr_pool);
 	if (m == nil) {
 		raise();
 	}
