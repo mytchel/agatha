@@ -10,6 +10,12 @@ of address ranges and but can be treated as one piece?
 
 TODO: Frames should be able to be split.
 
+TODO: L2 tables makes multiple proc0 mappings 
+if they are mapped multiple times 
+
+TODO: It is not very efficient and could be easily
+improved.
+
 TODO: L1 tables need to be made less
 special so processes can map them 
 in the same way they can map L2 tables.
@@ -119,8 +125,6 @@ proc_take_addr(int pid, size_t pa, size_t len)
 	return ERR;
 }
 
-/* This makes multiple proc0 mappings for tables
-	 if they are mapped multiple times */
 	static int
 proc_map_table(int pid, 
 		size_t pa, size_t va, 
@@ -153,10 +157,16 @@ proc_map_table(int pid,
 		memset(addr, 0, f->len);
 	}
 
-	map_l2(procs[pid].l1.table, f->pa, va, f->len);
-
 	for (o = 0; (o << 10) < f->len; o++) {
 		f->table++;
+
+		if (procs[pid].l1.table[L1X(va) + o] != L1_FAULT) {
+			return PROC0_ERR_ADDR_DENIED;
+		}
+
+		procs[pid].l1.table[L1X(va) + o]
+			= (pa + (o << 10)) | L1_COARSE;
+
 		procs[pid].l1.mapped[L1X(va) + o]
 			= ((uint32_t) addr) + (o << 10);
 	}
@@ -170,7 +180,7 @@ proc_map_normal(int pid,
 		size_t len, int flags)
 {
 	struct addr_frame *f;
-	size_t l, o, fo;
+	uint32_t tex, c, b, o;
 	uint32_t *l2_va;
 	bool cache;
 	int ap;
@@ -199,21 +209,30 @@ proc_map_normal(int pid,
 		return PROC0_ERR_FLAGS;
 	}
 
-	fo = pa - f->pa;
-	for (o = 0; o < f->len; o += l) {
+	if (cache) {
+		tex = 7;
+		c = 1;
+		b = 0;
+	} else {
+		tex = 0;
+		c = 0;
+		b = 1;
+	}
+
+	for (o = 0; o < len; o += PAGE_SIZE) {
 		l2_va = (void *) procs[pid].l1.mapped[L1X(va + o)];
 		if (l2_va == nil) {
 			return PROC0_ERR_TABLE;
 		}
 
-		l = len - o;
-		if (L1X(va + o) != L1X(va + o + l)) {
-			l = L1VA(L1X(va + o) + 1) - (va + o);
+		if (l2_va[L2X(va + o)] != L2_FAULT) {
+			return PROC0_ERR_ADDR_DENIED;
 		}
 
 		f->mapped++;
-		map_pages(l2_va, f->pa + fo + o, va + o, 
-				l, ap, cache);
+
+		l2_va[L2X(va + o)] = (pa + o)
+			| L2_SMALL | tex << 6 | ap << 4 | c << 3 | b << 2;
 	}
 
 	return OK;
@@ -248,25 +267,24 @@ proc_unmap_leaf(int pid,
 		size_t va, size_t len)
 {
 	struct addr_frame *f;
-	size_t o, l, pa;
 	uint32_t *l2_va;
+	size_t o, pa;
 
-	for (o = 0; o < len; o += l) {
+	for (o = 0; o < len; o += PAGE_SIZE) {
 		l2_va = (uint32_t *) procs[pid].l1.mapped[L1X(va + o)];
 		if (l2_va == nil) {
 			return PROC0_ERR_TABLE;
 		}
 
-		l = PAGE_SIZE;
 		pa = L2PA(l2_va[L2X(va + o)]);
 
-		f = proc_get_frame(pid, pa, l);
+		f = proc_get_frame(pid, pa, PAGE_SIZE);
 		if (f == nil) {
 			return PROC0_ERR_PERMISSION_DENIED;
 		}
 
 		f->mapped--;
-		unmap_pages(l2_va, va + o, l);
+		l2_va[L2X(va + o)] = L2_FAULT;
 	}
 
 	return OK;

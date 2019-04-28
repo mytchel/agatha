@@ -205,9 +205,9 @@ sys_pid(void)
 }
 
 	size_t
-sys_exit(void)
+sys_exit(size_t code)
 {
-	debug_info("%i proc exiting\n", up->pid);
+	debug_info("%i proc exiting with 0x%x\n", up->pid, code);
 	up->state = PROC_dead;
 	schedule(nil);
 	panic("schedule returned to exit!\n");

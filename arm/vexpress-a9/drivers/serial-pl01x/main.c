@@ -16,13 +16,13 @@ static volatile struct pl01x_regs *regs;
   static void
 putc(char c)
 {
+	if (c == '\n')
+		putc('\r');
+
 	while ((regs->fr & UART_PL01x_FR_TXFF))
 		;
 
 	regs->dr = c;  
-
-	if (c == '\n')
-		putc('\r');
 }
 
   void
