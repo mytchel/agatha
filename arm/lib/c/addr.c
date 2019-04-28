@@ -115,9 +115,6 @@ take_span(struct l1_span *l, struct span *fs, size_t len)
 	if (len < fs->len) {
 		/* Split span */
 
-		log(LOG_INFO, "split span from 0x%x to 0x%x and 0x%x",
-				fs->len, len, fs->len - len);
-
 		s = pool_alloc(&span_pool);
 		if (s == nil) {
 			log(LOG_INFO, "out of spans");
@@ -134,9 +131,6 @@ take_span(struct l1_span *l, struct span *fs, size_t len)
 		fs->len = len;
 	}
 	
-	log(LOG_INFO, "putting it into l1 0x%x 0x%x at 0x%x 0x%x",
-			l->va, l->len, fs->va, fs->len);
-
 	ts = fs->holder;
 	*ts = fs->next;
 	if (*ts != nil) {
@@ -168,18 +162,10 @@ take_free_addr(size_t len,
 	size_t pa, tlen;
 	int r;
 
-	log(LOG_INFO, "find slot for 0x%x", len);
-
 	fs = nil;
 	for (l = l1_mapped; l != nil; l = l->next) {
-		log(LOG_INFO, "check l1   0x%x to 0x%x", l->va, l->va + l->len);
 		for (s = l->free; s != nil; s = s->next) {
-			log(LOG_INFO, "check span 0x%x to 0x%x", s->va, s->va + s->len);
 			if (len <= s->len && (fs == nil || s->len < fs->len)) {
-				if (fs == nil)
-					log(LOG_INFO, "this is first that would work");
-				else 
-					log(LOG_INFO, "this is better 0x%x < 0x%x", s->len, fs->len);
 				*taken_l1_span = l;
 				fs = s;
 			}
@@ -285,8 +271,6 @@ map_addr(size_t pa, size_t len, int flags)
 	if (!initialized)
 		addr_init();
 
-	log(LOG_INFO, "map 0x%x 0x%x", pa, len);
-
 	if (PAGE_ALIGN(pa) != pa) return nil;
 
 	len = PAGE_ALIGN(len);
@@ -295,13 +279,9 @@ map_addr(size_t pa, size_t len, int flags)
 		return nil;
 	}
 
-	log(LOG_INFO, "map 0x%x -> 0x%x 0x%x", pa, s->va, len);
-
 	if ((r = addr_map(pa, s->va, len, flags)) != OK) {
 		/* TODO: put span into free */
 		log(LOG_INFO, "addr map failed %i for 0x%x -> 0x%x 0x%x", r, pa, s->va, len);
-		if (r == 4) exit_r(s->va);
-		exit_r(r);
 		return nil;
 	}
 
@@ -314,8 +294,6 @@ unmap_addr(void *addr, size_t len)
 	size_t va = (size_t) addr;
 	struct span *s, **f;
 	struct l1_span *l;
-
-	log(LOG_INFO, "unmapping 0x%x 0x%x", va, len);
 
 	for (l = l1_mapped; l != nil; l = l->next) {
 		if (l->va <= va && va + len <= l->va + l->len) {
@@ -361,8 +339,6 @@ unmap_addr(void *addr, size_t len)
 	s->next = *f;
 	*f = s;
 	s->holder = f;
-
-	log(LOG_INFO, "unmap going ok, unmap 0x%x 0x%x", s->va, s->len);
 
 	return addr_unmap(s->va, s->len);
 }
