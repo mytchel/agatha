@@ -4,9 +4,9 @@
 #include <sys.h>
 #include <c.h>
 #include <mesg.h>
-#include <arm/mmu.h>
-#include <arm/mmu.h>
 #include <log.h>
+#include <pool.h>
+#include <arm/mmu.h>
 
 struct span {
 	uint32_t pa, va, len;
@@ -21,27 +21,14 @@ struct l1_span {
 	struct l1_span **holder, *next;
 };
 
-struct span_pool {
-	struct span_pool *next;
-	size_t pa, len;
-	size_t nspans;
-	struct span spans[];
-};
+static uint8_t l1_span_pool_initial[sizeof(struct pool_frame) 
+	+ (sizeof(struct l1_span) + sizeof(struct pool_obj)) * 4];
 
-struct l1_span_pool {
-	struct l1_span_pool *next;
-	size_t nspans;
-	size_t nfree_spans;
-	struct l1_span spans[];
-};
+static uint8_t span_pool_initial[sizeof(struct pool_frame) 
+	+ (sizeof(struct span) + sizeof(struct pool_obj)) * 8];
 
-static struct l1_span l1_span_initial[4];
-static struct span span_initial[8];
-
-static size_t n_spans_free;
-static size_t n_l1_spans_free;
-static struct span *spans_free;
-static struct l1_span *l1_spans_free;
+static struct pool l1_span_pool;
+static struct pool span_pool;
 
 static bool initialized = false;
 
@@ -63,77 +50,24 @@ addr_map(size_t pa, size_t va, size_t len, int flags);
 int
 addr_map_l2s(size_t pa, size_t va, size_t table_len);
 
-	struct span *
-span_new(void)
-{
-	struct span *s;
-
-	if (spans_free == nil) {
-		return nil;
-	}
-
-	s = spans_free;
-	spans_free = s->next;
-	n_spans_free--;
-
-	return s;
-}
-
-void
-span_free(struct span *s)
-{
-	s->next = spans_free;
-	spans_free = s;
-	n_spans_free++;
-}
-
-struct l1_span *
-l1_span_new(void)
-{
-	struct l1_span *s;
-
-	if (l1_spans_free == nil) {
-		return nil;
-	}
-
-	s = l1_spans_free;
-	l1_spans_free = s->next;
-	n_l1_spans_free--;
-
-	return s;
-}
-
-void
-l1_span_free(struct l1_span *l)
-{
-	l->next = l1_spans_free;
-	l1_spans_free = l;
-	n_l1_spans_free++;
-}
-
 void
 addr_init(void)
 {
-	struct span *m, *f, *s;
-	struct l1_span *l;
-	size_t i;
+	struct span *m, *f;
 
-	for (i = 0; i < sizeof(span_initial)/sizeof(span_initial[0]); i++) {
-		s = &span_initial[i];
-		s->next = spans_free;
-		spans_free = s;
-		n_spans_free++;
-	}
+	pool_init(&l1_span_pool, sizeof(struct l1_span));
+	pool_init(&span_pool, sizeof(struct span));
 
-	for (i = 0; i < sizeof(l1_span_initial)/sizeof(l1_span_initial[0]); i++) {
-		l = &l1_span_initial[i];
-		l->next = l1_spans_free;
-		l1_spans_free = l;
-		n_l1_spans_free++;
-	}
+	pool_load(&l1_span_pool, 
+			&l1_span_pool_initial,
+			sizeof(l1_span_pool_initial));
 
-	l1_mapped = l1_span_new();
-	l1_free = l1_span_new();
+	pool_load(&span_pool, 
+			&span_pool_initial,
+			sizeof(span_pool_initial));
+
+	l1_mapped = pool_alloc(&l1_span_pool);
+	l1_free = pool_alloc(&l1_span_pool);
 
 	/* TODO: ignores space before text start (this 
 		 is currently where proc0 maps the stack
@@ -146,7 +80,7 @@ addr_init(void)
 	l1_mapped->va = TABLE_ALIGN_DN(&_text_start);
 	l1_mapped->len = TABLE_ALIGN(&_data_end) - l1_mapped->va;
 
-	m = span_new();
+	m = pool_alloc(&span_pool);
 	l1_mapped->mapped = m;
 	m->holder = &l1_mapped->mapped;
 	m->va = PAGE_ALIGN_DN(&_text_start);
@@ -154,7 +88,7 @@ addr_init(void)
 	m->pa = nil;
 	m->next = nil;
 
-	f = span_new();
+	f = pool_alloc(&span_pool);
 	l1_mapped->free = f;
 	f->holder = &l1_mapped->free;
 	f->va = m->va + m->len;
@@ -177,12 +111,16 @@ int
 take_span(struct l1_span *l, struct span *fs, size_t len)
 {
 	struct span *s, **ts;
-	
-	if (fs->len > len) {
+
+	if (len < fs->len) {
 		/* Split span */
 
-		s = span_new();
+		log(LOG_INFO, "split span from 0x%x to 0x%x and 0x%x",
+				fs->len, len, fs->len - len);
+
+		s = pool_alloc(&span_pool);
 		if (s == nil) {
+			log(LOG_INFO, "out of spans");
 			return ERR;
 		}
 
@@ -195,6 +133,9 @@ take_span(struct l1_span *l, struct span *fs, size_t len)
 
 		fs->len = len;
 	}
+	
+	log(LOG_INFO, "putting it into l1 0x%x 0x%x at 0x%x 0x%x",
+			l->va, l->len, fs->va, fs->len);
 
 	ts = fs->holder;
 	*ts = fs->next;
@@ -227,10 +168,18 @@ take_free_addr(size_t len,
 	size_t pa, tlen;
 	int r;
 
+	log(LOG_INFO, "find slot for 0x%x", len);
+
 	fs = nil;
 	for (l = l1_mapped; l != nil; l = l->next) {
+		log(LOG_INFO, "check l1   0x%x to 0x%x", l->va, l->va + l->len);
 		for (s = l->free; s != nil; s = s->next) {
-			if (s->len > len && (fs == nil || s->len < fs->len)) {
+			log(LOG_INFO, "check span 0x%x to 0x%x", s->va, s->va + s->len);
+			if (len <= s->len && (fs == nil || s->len < fs->len)) {
+				if (fs == nil)
+					log(LOG_INFO, "this is first that would work");
+				else 
+					log(LOG_INFO, "this is better 0x%x < 0x%x", s->len, fs->len);
 				*taken_l1_span = l;
 				fs = s;
 			}
@@ -254,7 +203,7 @@ take_free_addr(size_t len,
 		return ERR;
 	}
 
-	s = span_new();
+	s = pool_alloc(&span_pool);
 	if (s == nil) {
 		return ERR;
 	}
@@ -262,22 +211,22 @@ take_free_addr(size_t len,
 	tlen = (TABLE_ALIGN(len) >> TABLE_SHIFT) * TABLE_SIZE;
 	pa = request_memory(tlen);
 	if (pa == nil) {
-		span_free(s);
+		pool_free(&span_pool, s);
 		return ERR;
 	}
 
 	r = addr_map_l2s(pa, fl->va, tlen);
 	if (r != OK) {
 		release_addr(pa, tlen);
-		span_free(s);
+		pool_free(&span_pool, s);
 		return ERR;
 	}
 
 	if (fl->len > TABLE_ALIGN(len)) {
-		l = l1_span_new();
+		l = pool_alloc(&l1_span_pool);
 		if (l == nil) {
 			/* TODO: unmap and free table */
-			span_free(s);
+			pool_free(&span_pool, s);
 			return ERR;
 		}
 
@@ -346,8 +295,12 @@ map_addr(size_t pa, size_t len, int flags)
 		return nil;
 	}
 
+	log(LOG_INFO, "map 0x%x -> 0x%x 0x%x", pa, s->va, len);
+
 	if ((r = addr_map(pa, s->va, len, flags)) != OK) {
 		/* TODO: put span into free */
+		log(LOG_INFO, "addr map failed %i for 0x%x -> 0x%x 0x%x", r, pa, s->va, len);
+		if (r == 4) exit_r(s->va);
 		exit_r(r);
 		return nil;
 	}
@@ -358,8 +311,60 @@ map_addr(size_t pa, size_t len, int flags)
 int
 unmap_addr(void *addr, size_t len)
 {
-	addr_unmap((size_t) addr, len);
-	return ERR;
+	size_t va = (size_t) addr;
+	struct span *s, **f;
+	struct l1_span *l;
+
+	log(LOG_INFO, "unmapping 0x%x 0x%x", va, len);
+
+	for (l = l1_mapped; l != nil; l = l->next) {
+		if (l->va <= va && va + len <= l->va + l->len) {
+			break;
+		}
+	}
+
+	if (l == nil) {
+		log(LOG_INFO, "error unmapping, l1 not mapped");
+		return ERR;
+	}
+
+	for (s = l->mapped; s != nil; s = s->next) {
+		if (s->va <= va && va + len <= s->va + s->len) {
+			break;
+		}
+	}
+
+	if (s == nil) {
+		log(LOG_INFO, "error unmapping, pages not mapped");
+		return ERR;
+	}
+
+	if (s->va != va || s->len != len) {
+		log(LOG_INFO, "error unmapping, cannot unmap across mappings");
+		/* TODO: support unmapping parts of mapped space */
+		return ERR;
+	}
+
+	for (f = &l->free; *f != nil; f = &(*f)->next) {
+		if (s->va < (*f)->va) {
+			break;
+		}
+	}
+
+	/* Remove from mapped */
+	*s->holder = s->next;
+	if (s->next) s->next->holder = s->holder;
+
+	/* Add to free */
+	s->pa = nil;
+	
+	s->next = *f;
+	*f = s;
+	s->holder = f;
+
+	log(LOG_INFO, "unmap going ok, unmap 0x%x 0x%x", s->va, s->len);
+
+	return addr_unmap(s->va, s->len);
 }
 
 

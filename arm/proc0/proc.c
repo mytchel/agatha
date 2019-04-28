@@ -22,29 +22,12 @@ in the same way they can map L2 tables.
 
  */
 
-struct addr_frame {
-	struct addr_frame *next;
-	size_t pa, len;
-	int table;
-	int mapped;
-};
-
-struct proc {
-	struct addr_frame *frames;
-
-	struct {
-		size_t pa, len;
-		uint32_t *table;	
-		uint32_t *mapped;	
-	} l1;
-};
-
 struct proc procs[MAX_PROCS] = { 0 };
 
-static struct pool *frame_pool;
+struct pool *frame_pool;
 
 	struct addr_frame *
-frame_split(struct addr_frame *f, size_t off)
+frame_new(size_t pa, size_t len)
 {
 	struct addr_frame *n;
 
@@ -54,14 +37,32 @@ frame_split(struct addr_frame *f, size_t off)
 	}
 
 	n->next = nil;
-	n->pa = f->pa + off;
-	n->len = f->len - off;
+	n->pa = pa;
+	n->len = len;
 	n->table = false;
 	n->mapped = 0;
 
-	f->len = off;
-
 	return n;
+}
+
+void
+frame_free(struct addr_frame *f)
+{
+	free_addr(f->pa, f->len);
+
+	pool_free(frame_pool, f);
+}
+
+	int
+proc_give_addr(int pid, struct addr_frame *f)
+{
+	f->table = false;
+	f->mapped = 0;
+
+	f->next = procs[pid].frames;
+	procs[pid].frames = f;
+
+	return OK;
 }
 
 	struct addr_frame *
@@ -82,28 +83,7 @@ proc_get_frame(int pid, size_t pa, size_t len)
 	return nil;
 }
 
-	int
-proc_give_addr(int pid, size_t pa, size_t len)
-{
-	struct addr_frame *n;
-
-	n = pool_alloc(frame_pool);
-	if (n == nil) {
-		return ERR;
-	}
-
-	n->pa = pa;
-	n->len = len;
-	n->table = false;
-	n->mapped = 0;
-
-	n->next = procs[pid].frames;
-	procs[pid].frames = n;
-
-	return OK;
-}
-
-	int
+struct addr_frame *
 proc_take_addr(int pid, size_t pa, size_t len)
 {
 	struct addr_frame **f, *m;
@@ -113,16 +93,15 @@ proc_take_addr(int pid, size_t pa, size_t len)
 			m = *f;
 
 			if (m->mapped > 0 || m->table > 0) {
-				return ERR;
+				return nil;
 			}
 
 			*f = (*f)->next;
-			pool_free(frame_pool, m);
-			return OK;
+			return m;
 		}
 	}
 
-	return ERR;
+	return nil;
 }
 
 	static int
@@ -332,6 +311,7 @@ init_bundled_proc(char *name,
 	uint32_t m[MESSAGE_LEN/sizeof(uint32_t)] = { 0 };
 	size_t l1_pa, l2_pa, stack_pa, code_pa;
 	uint32_t *l1_va, *code_va, *start_va;
+	struct addr_frame *f;
 	int pid;
 
 	code_pa = get_ram(len, 0x1000);
@@ -389,17 +369,17 @@ init_bundled_proc(char *name,
 	procs[pid].l1.pa = l1_pa;
 	procs[pid].l1.len = 0x8000;
 
-	if (proc_give_addr(pid, l2_pa, 0x1000) != OK) {
-		raise();
-	}
+	f = frame_new(l2_pa, 0x1000);
+	if (f == nil) raise();
+	if (proc_give_addr(pid, f) != OK) raise();
 
-	if (proc_give_addr(pid, stack_pa, 0x2000) != OK) {
-		raise();
-	}
+	f = frame_new(stack_pa, 0x2000);
+	if (f == nil) raise();
+	if (proc_give_addr(pid, f) != OK) raise();
 
-	if (proc_give_addr(pid, code_pa, len) != OK) {
-		raise();
-	}
+	f = frame_new(code_pa, len);
+	if (f == nil) raise();
+	if (proc_give_addr(pid, f) != OK) raise();
 
 	if (proc_map(pid, l2_pa, 
 				0, 0x1000, 

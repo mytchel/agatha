@@ -122,6 +122,9 @@ trap(size_t pc, int type)
 	uint32_t fsr;
 	size_t addr;
 
+	if (up != nil)
+		debug_info("trap proc %i\n", up->pid);
+
 	debug_info("trap at 0x%x, type %i\n", pc, type);
 
 	switch(type) {

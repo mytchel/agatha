@@ -6,6 +6,7 @@ struct kernel_info *info;
 	int
 handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
 {
+	struct addr_frame *f;
 	size_t pa, len;
 
 	len = rq->addr_req.len;
@@ -25,7 +26,12 @@ handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
 
 	rp->addr_req.pa = pa;
 
-	return proc_give_addr(from, pa, len);
+	f = frame_new(pa, len);
+	if (f == nil) {
+		return ERR;
+	}
+
+	return proc_give_addr(from, f);
 }
 
 	int
@@ -56,8 +62,9 @@ handle_addr_map(int from, union proc0_req *rq, union proc0_rsp *rp)
 	int
 handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
 {
+	struct addr_frame *f;
 	size_t pa, len;
-	int to, ret;
+	int to;
 
 	to = rq->addr_give.to;
 
@@ -71,19 +78,17 @@ handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
 		return PROC0_ERR_ALIGNMENT;
 	}
 
-	/* TODO: Make sure it is not mapped */
-
-	ret = proc_take_addr(from, pa, len);
-	if (ret != OK) {
-		return ret;
+	f = proc_take_addr(from, pa, len);
+	if (f == nil) {
+		return ERR;
 	}
 
 	if (to == PROC0_PID) {
-		free_addr(pa, len);
+		frame_free(f);
 		return OK;
 
 	} else {
-		return proc_give_addr(to, pa, len);
+		return proc_give_addr(to, f);
 	}
 }
 

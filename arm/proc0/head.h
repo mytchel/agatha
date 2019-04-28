@@ -10,6 +10,23 @@
 #include <arm/mmu.h>
 #include "kern.h"
 
+struct addr_frame {
+	struct addr_frame *next;
+	size_t pa, len;
+	int table;
+	int mapped;
+};
+
+struct proc {
+	struct addr_frame *frames;
+
+	struct {
+		size_t pa, len;
+		uint32_t *table;
+		uint32_t *mapped;
+	} l1;
+};
+
 void
 init_mem(void);
 
@@ -38,6 +55,8 @@ struct pool {
 	struct pool *next;
 };
 
+extern struct pool *frame_pool;
+
 void
 init_pools(void);
 
@@ -60,10 +79,19 @@ pool_free(struct pool *s, void *p);
 void
 init_procs(void);
 
-int
-proc_give_addr(int pid, size_t pa, size_t len);
+struct addr_frame *
+frame_new(size_t pa, size_t len);
+
+void
+frame_free(struct addr_frame *f);
 
 int
+proc_give_addr(int pid, struct addr_frame *f);
+
+struct addr_frame *
+proc_get_addr(int pid, size_t pa, size_t len);
+
+struct addr_frame *
 proc_take_addr(int pid, size_t pa, size_t len);
 
 int
@@ -86,8 +114,6 @@ board_init_ram(void);
 
 void
 board_init_bundled_drivers(size_t offset_into_bundle);
-
-
 
 
 extern struct kernel_info *info;

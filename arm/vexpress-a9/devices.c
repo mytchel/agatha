@@ -45,6 +45,7 @@ board_init_ram(void)
 board_init_bundled_drivers(size_t off)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+	struct addr_frame *f;
 	int b, d, pid;
 
 	for (b = 0; b < nbundled_drivers; b++) {
@@ -57,8 +58,9 @@ board_init_bundled_drivers(size_t off)
 			pid = init_bundled_proc(devices[d].name,
 					off, 
 					bundled_drivers[b].len);
-			
-			proc_give_addr(pid, devices[d].reg, devices[d].len);
+
+			f = frame_new(devices[d].reg, devices[d].len);
+			proc_give_addr(pid, f);
 
 			init_m[0] = devices[d].reg;
 			init_m[1] = devices[d].len;

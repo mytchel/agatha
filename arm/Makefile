@@ -1,6 +1,7 @@
 LIBS = \
 			 ../lib/c \
 			 ../../lib/string \
+			 ../../lib/pool \
 			 ../../lib/log \
 			 ../../lib/sdmmc \
 			 ../../lib/block \

@@ -61,6 +61,7 @@ give_addr(int to, size_t pa, size_t len)
 		return ERR;
 	}
 
+	log(LOG_INFO, "give got %i", rp.addr_give.ret);
 	return rp.addr_give.ret;
 }
 
