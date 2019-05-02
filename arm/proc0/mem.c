@@ -2,16 +2,13 @@
 #include <arm/mmu.h>
 #include "../dev.h"
 
-struct {
+static struct {
 	struct {
 		size_t pa, len;
 		uint32_t *addr;
 	} mmu;
 
-	struct {
-		size_t pa, len;
-		uint32_t **addr;
-	} va;
+	uint32_t *va[0x1000];
 } proc0_l1;
 
 struct addr_range {
@@ -25,7 +22,6 @@ static uint8_t addr_pool_initial[sizeof(struct pool_frame)
 static struct pool addr_pool;
 
 static struct addr_range *ram_free = nil;
-static struct addr_range *free_space = nil;
 
 extern uint32_t *_data_end;
 
@@ -151,94 +147,100 @@ get_ram(size_t len, size_t align)
 	return pa;
 }
 
-	void
-free_addr(size_t pa, size_t len)
+	size_t
+request_memory(size_t len)
+{
+	return get_ram(len, 0x1000);
+}
+
+	int
+release_addr(size_t pa, size_t len)
 {
 	/* TODO */
+	return ERR;
 }
 
-/* TODO:
-	 there are bugs here and i don't think we get any
-	 more than one page of l2's 
- */
-
-static size_t next_l2_va, next_l2_pa;
-static void *next_l2_addr;
-
-static uint32_t *
-put_next_l2(size_t *nva, size_t len)
+	int
+addr_map_l2s(size_t pa, size_t va, size_t tlen)
 {
-	struct addr_range *m;
-	uint32_t *tva;
+	uint32_t o, *addr;
 
-	m = pool_alloc(&addr_pool);
-	if (m == nil) {
-		raise();
+	addr = map_addr(pa, tlen, MAP_RW|MAP_DEV);
+	if (addr == nil) {
+		return PROC0_ERR_INTERNAL;
 	}
 
-	/* Add remaining mappings from l2 as free */
-	m->start = next_l2_va + 0x1000 + len;
-	m->len = SECTION_SIZE - 0x1000 - len;
-	addr_range_insert(&free_space, m);
+	memset(addr, 0, tlen);
 
-	proc0_l1.mmu.addr[L1X(next_l2_va)] = next_l2_pa | L1_COARSE;
-	proc0_l1.va.addr[L1X(next_l2_va)] = next_l2_addr;
+	for (o = 0; (o << 10) < tlen; o++) {
+		if (proc0_l1.mmu.addr[L1X(va) + o] != L1_FAULT) {
+			return PROC0_ERR_ADDR_DENIED;
+		}
 
-	tva = next_l2_addr;
-	*nva = next_l2_va + 0x1000;
-	
-	next_l2_pa = get_ram(0x1000, 0x1000);
-	if (next_l2_pa == nil) {
-		raise();
+		proc0_l1.mmu.addr[L1X(va) + o]
+			= (pa + (o << 10)) | L1_COARSE;
+
+		proc0_l1.va[L1X(va) + o]
+			= (uint32_t *) (((uint32_t) addr) + (o << 10));
 	}
 
-	next_l2_addr = (void *) next_l2_va;
-	next_l2_va += SECTION_SIZE;
-
-	map_pages(tva, 
-			next_l2_pa, 
-			(size_t) next_l2_addr, 
-			0x1000, AP_RW_RW, false);
-
-	memset(next_l2_addr, 0, 0x1000);
-
-	return tva;
+	return OK;
 }
 
-	void *
-map_free(size_t pa, size_t len, int ap, bool cache)
+int
+addr_map(size_t pa, size_t va, size_t len, int flags)
 {
-	struct addr_range *m;
+	uint32_t tex, c, b, ap, o;
 	uint32_t *l2;
-	size_t va;
+	bool cache;
 
-	if (len > 0xff000) {
-		return nil;
-	}
-
-	m = addr_range_get_any(&free_space, len, 0x1000);
-	if (m != nil) {
-		va = m->start;
-		l2 = proc0_l1.va.addr[L1X(va)];
-
-		pool_free(&addr_pool, m);
+	if (flags & MAP_RW) {
+		ap = AP_RW_RW;
 	} else {
-		l2 = put_next_l2(&va, len);
+		ap = AP_RW_RO;
 	}
 
-	if (l2 == nil) {
-		raise();
+	if ((flags & MAP_TYPE_MASK) == MAP_MEM) {
+		cache = true;
+	} else if ((flags & MAP_TYPE_MASK) == MAP_DEV) {
+		cache = false;
+	} else if ((flags & MAP_TYPE_MASK) == MAP_SHARED) {
+		cache = false;
+	} else {
+		return PROC0_ERR_FLAGS;
 	}
 
-	map_pages(l2, pa, va, len, ap, cache);
+	if (cache) {
+		tex = 7;
+		c = 1;
+		b = 0;
+	} else {
+		tex = 0;
+		c = 0;
+		b = 1;
+	}
 
-	return (void *) va;
+	for (o = 0; o < len; o += PAGE_SIZE) {
+		l2 = proc0_l1.va[L1X(va + o)];
+		if (l2 == nil) {
+			return PROC0_ERR_TABLE;
+		}
+
+		if (l2[L2X(va + o)] != L2_FAULT) {
+			return PROC0_ERR_ADDR_DENIED;
+		}
+
+		l2[L2X(va + o)] = (pa + o)
+			| L2_SMALL | tex << 6 | ap << 4 | c << 3 | b << 2;
+	}
+
+	return OK;
 }
 
-	void
-unmap(void *addr, size_t len)
+int
+addr_unmap(void *addr, size_t len)
 {
-
+	return ERR;
 }
 
 void
@@ -261,6 +263,7 @@ add_ram(size_t start, size_t len)
 init_mem(void)
 {
 	struct addr_range *m;
+	uint32_t o;
 
 	if (pool_init(&addr_pool, sizeof(struct addr_range)) != OK) {
 		raise();
@@ -288,50 +291,11 @@ init_mem(void)
 	proc0_l1.mmu.len = info->proc0.l1_len;
 	proc0_l1.mmu.addr = info->proc0.l1_va;
 
-	proc0_l1.va.len = 0x4000;
-	proc0_l1.va.addr = (uint32_t **) PAGE_ALIGN(&_data_end);
-	proc0_l1.va.pa = get_ram(0x4000, 0x1000);
-	if (proc0_l1.va.pa == nil) {
-		raise();
+	memset(proc0_l1.va, 0, sizeof(proc0_l1.va));
+
+	for (o = 0; (o << 10) < info->proc0.l2_len; o++) {
+		proc0_l1.va[L1X(info->proc0.l2_va) + o]
+			= (uint32_t *) ((info->proc0.l2_va) + (o << 10));
 	}
-
-	map_pages(info->proc0.l2_va,
-			proc0_l1.va.pa,
-			(size_t) proc0_l1.va.addr,
-			0x4000,
-			AP_RW_RW, true);
-
-	proc0_l1.va.addr[L1X(info->proc0.l2_va)] =
-		info->proc0.l2_va;
-
-	next_l2_pa = get_ram(0x1000, 0x1000);
-	if (next_l2_pa == nil) {
-		raise();
-	}
-
-	next_l2_addr = (void *) 
-		(PAGE_ALIGN(&_data_end) + 0x4000);
-
-	next_l2_va = SECTION_ALIGN(
-			PAGE_ALIGN(&_data_end) 
-			+ 0x4000 + 0x1000);
-
-	map_pages(info->proc0.l2_va, 
-			next_l2_pa, 
-			(size_t) next_l2_addr, 
-			0x1000, 
-			AP_RW_RW, false);
-
-	memset(next_l2_addr, 0, 0x1000);
-
-	/* Add remaining mappings from init l2 as free */
-	m = pool_alloc(&addr_pool);
-	if (m == nil) {
-		raise();
-	}
-
-	m->start = PAGE_ALIGN(&_data_end) + 0x4000 + 0x1000;
-	m->len = SECTION_SIZE - (0x4000 + 0x1000);
-	addr_range_insert(&free_space, m);
 }
 

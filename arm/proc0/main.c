@@ -4,6 +4,12 @@
 
 struct kernel_info *info;
 
+void
+log(int level, char *fmt, ...)
+{
+
+}
+
 	int
 handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
 {

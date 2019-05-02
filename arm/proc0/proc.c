@@ -51,7 +51,7 @@ frame_new(size_t pa, size_t len)
 void
 frame_free(struct addr_frame *f)
 {
-	free_addr(f->pa, f->len);
+	release_addr(f->pa, f->len);
 
 	pool_free(&frame_pool, f);
 }
@@ -130,7 +130,7 @@ proc_map_table(int pid,
 		return ERR;
 	}
 
-	addr = map_free(f->pa, f->len, AP_RW_RW, false);
+	addr = map_addr(f->pa, f->len, MAP_RW|MAP_DEV);
 	if (addr == nil) {
 		return PROC0_ERR_INTERNAL;
 	}
@@ -319,31 +319,36 @@ init_bundled_proc(char *name,
 
 	code_pa = get_ram(len, 0x1000);
 	if (code_pa == nil) {
+		exit_r(1);
 		raise();
 	}
 
-	code_va = map_free(code_pa, len, AP_RW_RW, false);
+	code_va = map_addr(code_pa, len, MAP_RW|MAP_DEV);
 	if (code_va == nil) {
+		exit_r(2);
 		raise();
 	}
 
-	start_va = map_free(start, len, AP_RW_RW, true);
+	start_va = map_addr(start, len, MAP_RW|MAP_DEV);
 	if (start_va == nil) {
+		exit_r(3);
 		raise();
 	}
 
 	memcpy(code_va, start_va, len);
 
-	unmap(code_va, len);
-	unmap(start_va, len);
+	unmap_addr(code_va, len);
+	unmap_addr(start_va, len);
 
 	l1_pa = get_ram(0x8000, 0x4000);
 	if (l1_pa == nil) {
+		exit_r(4);
 		raise();
 	}
 
-	l1_va = map_free(l1_pa, 0x8000, AP_RW_RW, false);
+	l1_va = map_addr(l1_pa, 0x8000, MAP_RW|MAP_DEV);
 	if (l1_va == nil) {
+		exit_r(5);
 		raise();
 	}
 
@@ -354,16 +359,19 @@ init_bundled_proc(char *name,
 
 	l2_pa = get_ram(0x1000, 0x1000);
 	if (l2_pa == nil) {
+		exit_r(6);
 		raise();
 	}
 
 	stack_pa = get_ram(0x2000, 0x1000); 
 	if (stack_pa == nil) {
+		exit_r(7);
 		raise();
 	}
 
 	pid = proc_new();
 	if (pid < 0) {
+		exit_r(8);
 		raise();
 	}
 

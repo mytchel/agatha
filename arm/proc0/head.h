@@ -33,15 +33,6 @@ init_mem(void);
 size_t
 get_ram(size_t len, size_t align);
 
-void
-free_addr(size_t pa, size_t len);
-
-void *
-map_free(size_t pa, size_t len, int ap, bool cache);
-
-void
-unmap(void *va, size_t len);
-
 
 void
 init_procs(void);

@@ -24,12 +24,13 @@ _start:
 
 
 raise:
-
-
+	mov r0, #-1
+	bl exit_r
 panic:
-
-
+	mov r0, #-2
+	bl exit_r
 exit:
+	mov r0, #0
 exit_r:
 	push {r12, lr}
 	mov r12, #SYSCALL_EXIT
@@ -77,27 +78,5 @@ pid:
 	mov r12, #SYSCALL_PID
 	svc 0
 	pop {r12, pc}
-
-
-va_table:
-	push {r12, lr}
-	mov r12, #SYSCALL_VA_TABLE
-	svc 0
-	pop {r12, pc}
-
-	
-proc_new:
-	push {r12, lr}
-	mov r12, #SYSCALL_PROC_NEW
-	svc 0
-	pop {r12, pc}
-
-
-intr_register:
-	push {r12, lr}
-	mov r12, #SYSCALL_INTR_REGISTER
-	svc 0
-	pop {r12, pc}
-
 
 

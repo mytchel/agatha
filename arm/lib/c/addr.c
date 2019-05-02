@@ -16,7 +16,7 @@ struct span {
 
 struct l1_span {
 	uint32_t pa, va, len;
-	
+
 	struct span *free, *mapped;
 
 	struct l1_span **holder, *next;
@@ -28,12 +28,12 @@ static uint8_t l1_span_pool_initial[sizeof(struct pool_frame)
 static uint8_t span_pool_initial[sizeof(struct pool_frame) 
 	+ (sizeof(struct span) + sizeof(struct pool_obj)) * 16];
 
-static struct pool l1_span_pool;
-static struct pool span_pool;
+	static struct pool l1_span_pool;
+	static struct pool span_pool;
 
-static bool initialized = false;
+	static bool initialized = false;
 
-static struct l1_span 
+	static struct l1_span 
 	*l1_free = nil, 
 	*l1_mapped = nil;
 
@@ -51,7 +51,7 @@ addr_map(size_t pa, size_t va, size_t len, int flags);
 int
 addr_map_l2s(size_t pa, size_t va, size_t table_len);
 
-void
+	void
 addr_init(void)
 {
 	struct span *m, *f;
@@ -108,7 +108,7 @@ addr_init(void)
 	initialized = true;
 }
 
-int
+	int
 take_span(struct l1_span *l, struct span *fs, size_t len)
 {
 	struct span *s, **ts;
@@ -131,7 +131,7 @@ take_span(struct l1_span *l, struct span *fs, size_t len)
 
 		fs->len = len;
 	}
-	
+
 	ts = fs->holder;
 	*ts = fs->next;
 	if (*ts != nil) {
@@ -236,7 +236,7 @@ take_free_addr(size_t len,
 	if (fl->next != nil) {
 		fl->next->holder = tl;
 	}
-	
+
 	fl->next = nil;
 
 	for (tl = &l1_mapped; *tl != nil; tl = &(*tl)->next) {
@@ -262,7 +262,7 @@ take_free_addr(size_t len,
 	return take_span(fl, fl->free, len);
 }
 
-static bool
+	static bool
 grow_pool(struct pool *p)
 {
 	size_t pa, len;
@@ -272,11 +272,13 @@ grow_pool(struct pool *p)
 
 	pa = request_memory(len);
 	if (pa == nil) {
+		exit_r(0xa);
 		return false;
 	}
 
 	va = map_addr(pa, len, MAP_RW|MAP_MEM);
 	if (va == nil) {
+		exit_r(0xb);
 		release_addr(pa, len);
 		return false;
 	}
@@ -284,7 +286,7 @@ grow_pool(struct pool *p)
 	return pool_load(p, va, len) == OK;
 }
 
-static bool
+	static bool
 check_pools(void)
 {
 	static bool checking = false;	
@@ -302,7 +304,7 @@ check_pools(void)
 		checking = false;
 	}
 
-	if (r && pool_n_free(&span_pool) < 5) {
+	if (r && pool_n_free(&span_pool) < 8) {
 		log(LOG_INFO, "growing span pool");
 		checking = true;
 		r = grow_pool(&span_pool);
@@ -346,12 +348,15 @@ map_addr(size_t pa, size_t len, int flags)
 	return (void *) s->va;
 }
 
-int
+	int
 unmap_addr(void *addr, size_t len)
 {
 	size_t va = (size_t) addr;
 	struct span *s, **f;
 	struct l1_span *l;
+
+	if (!initialized)
+		return ERR;
 
 	for (l = l1_mapped; l != nil; l = l->next) {
 		if (l->va <= va && va + len <= l->va + l->len) {
@@ -393,11 +398,11 @@ unmap_addr(void *addr, size_t len)
 
 	/* Add to free */
 	s->pa = nil;
-	
+
 	s->next = *f;
 	*f = s;
 	s->holder = f;
+
 	return addr_unmap(s->va, s->len);
 }
-
 
