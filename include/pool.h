@@ -30,6 +30,9 @@ pool_load(struct pool *p, void *f, size_t len);
 size_t
 pool_n_free(struct pool *p);
 
+size_t
+pool_obj_size(struct pool *p);
+
 void *
 pool_alloc(struct pool *p);
 

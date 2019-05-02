@@ -57,6 +57,12 @@ pool_n_free(struct pool *p)
 	return p->n_free;
 }
 
+size_t
+pool_obj_size(struct pool *p)
+{
+	return p->obj_size;
+}
+
 	void *
 pool_alloc(struct pool *p)
 {

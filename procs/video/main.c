@@ -35,12 +35,11 @@ frame_update(int dev_pid,
 		size_t frame_pa, size_t frame_size,
 		size_t width, size_t height)
 {
-	static size_t i = 0;
+	static size_t i = 2;
+	static size_t j = 2;
 	union video_req rq;
 	uint32_t *frame;
 	size_t x, y;
-
-	log(LOG_INFO, "update and send 0x%x", frame_pa);
 
 	frame = map_addr(frame_pa, frame_size, MAP_RW|MAP_MEM);
 	if (frame == nil) {
@@ -48,22 +47,26 @@ frame_update(int dev_pid,
 		exit();
 	}
 
-	log(LOG_INFO, "mapped frame 0x%x -> 0x%x", frame_pa, frame);
+	for (x = 2; x < 50; x++) {
+		for (y = 2; y < 50; y++) {
+			frame[(y + i - 2) * width + (x + j - 2)] = 0x004433;
+		}
+	}
 
-	memset(frame, 0, frame_size);
-	for (x = 0; x < 50; x++) {
-		for (y = 0; y < 50; y++) {
-			frame[(y + i) * width + (x + i)] = 0x00aa88;
+	for (x = 2; x < 50; x++) {
+		for (y = 2; y < 50; y++) {
+			frame[(y + i) * width + (x + j)] = 0x00aa88;
 		}
 	}
 
 	i++;
-	if (i == width - 50 || i == height - 50)
-		i = 0;
+	j++;
+	if (j == width - 50)
+		j = 2;
+	if (i == height - 50)
+		i = 2;
 
 	unmap_addr(frame, frame_size);
-
-	log(LOG_INFO, "send update");
 
 	if (give_addr(dev_pid, frame_pa, frame_size) != OK) {
 		log(LOG_FATAL, "failed to give driver new frame");
@@ -73,8 +76,6 @@ frame_update(int dev_pid,
 	rq.update.type = VIDEO_update;
 	rq.update.frame_pa = frame_pa;
 	rq.update.frame_size = frame_size;
-
-	log(LOG_INFO, "sending frame %i", i); 
 
 	if (send(dev_pid, &rq) != OK) {
 		log(LOG_FATAL, "failed to update frame!");
@@ -129,8 +130,6 @@ main(void)
 	frame_update(dev_pid, frame_pa, frame_size, width, height);
 
 	while (true) {
-		log(LOG_INFO, "display something");
-
 		if (frame_ready[0]) {
 			frame_pa = frame_pas[0];
 			frame_ready[0] = false;
@@ -143,15 +142,11 @@ main(void)
 
 		if (frame_pa != nil) {
 			frame_update(dev_pid, frame_pa, frame_size, width, height);
-		} else {
-			log(LOG_INFO, "no frame to work with");
 		}
 
 		from = recv(-1, m);
 
 		if (from == dev_pid) {
-			log(LOG_INFO, "message from display");
-
 			union video_rsp *rsp = (void *) m;
 
 			switch (rsp->untyped.type) {

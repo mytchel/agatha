@@ -6,6 +6,7 @@
 #include <mesg.h>
 #include <log.h>
 #include <pool.h>
+#include <proc0.h>
 #include <arm/mmu.h>
 
 struct span {
@@ -22,10 +23,10 @@ struct l1_span {
 };
 
 static uint8_t l1_span_pool_initial[sizeof(struct pool_frame) 
-	+ (sizeof(struct l1_span) + sizeof(struct pool_obj)) * 4];
+	+ (sizeof(struct l1_span) + sizeof(struct pool_obj)) * 6];
 
 static uint8_t span_pool_initial[sizeof(struct pool_frame) 
-	+ (sizeof(struct span) + sizeof(struct pool_obj)) * 8];
+	+ (sizeof(struct span) + sizeof(struct pool_obj)) * 16];
 
 static struct pool l1_span_pool;
 static struct pool span_pool;
@@ -261,6 +262,57 @@ take_free_addr(size_t len,
 	return take_span(fl, fl->free, len);
 }
 
+static bool
+grow_pool(struct pool *p)
+{
+	size_t pa, len;
+	void *va;
+
+	len = PAGE_ALIGN(sizeof(struct pool_frame) + pool_obj_size(p) * 64);
+
+	pa = request_memory(len);
+	if (pa == nil) {
+		return false;
+	}
+
+	va = map_addr(pa, len, MAP_RW|MAP_MEM);
+	if (va == nil) {
+		release_addr(pa, len);
+		return false;
+	}
+
+	return pool_load(p, va, len) == OK;
+}
+
+static bool
+check_pools(void)
+{
+	static bool checking = false;	
+	bool r = true;
+
+	if (checking) {
+		return true;
+	}
+
+	if (pool_n_free(&l1_span_pool) < 3) {
+		log(LOG_INFO, "growing l1 span pool");
+		checking = true;
+		r = grow_pool(&l1_span_pool);
+		log(LOG_INFO, "pool grown ? %i", r);
+		checking = false;
+	}
+
+	if (r && pool_n_free(&span_pool) < 5) {
+		log(LOG_INFO, "growing span pool");
+		checking = true;
+		r = grow_pool(&span_pool);
+		log(LOG_INFO, "pool grown ? %i", r);
+		checking = false;
+	}
+
+	return r;
+}
+
 	void *
 map_addr(size_t pa, size_t len, int flags)
 {
@@ -271,7 +323,13 @@ map_addr(size_t pa, size_t len, int flags)
 	if (!initialized)
 		addr_init();
 
-	if (PAGE_ALIGN(pa) != pa) return nil;
+	if (PAGE_ALIGN(pa) != pa) {
+		return nil;
+	}
+
+	if (!check_pools()) {
+		return nil;
+	}
 
 	len = PAGE_ALIGN(len);
 
@@ -339,7 +397,6 @@ unmap_addr(void *addr, size_t len)
 	s->next = *f;
 	*f = s;
 	s->holder = f;
-
 	return addr_unmap(s->va, s->len);
 }
 
