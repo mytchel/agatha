@@ -13,6 +13,12 @@
 
 static volatile struct omap3_uart_regs *regs;
 
+void
+log(void)
+{
+
+}
+
 	static void
 putc(char c)
 {
@@ -87,7 +93,7 @@ main(void)
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", name);
 
-	if (mesg(DEV_REG_PID, (uint8_t *) &drq) != OK) {
+	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
 		exit();
 	}
 

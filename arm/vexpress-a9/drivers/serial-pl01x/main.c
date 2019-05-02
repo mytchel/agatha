@@ -92,7 +92,7 @@ main(void)
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", dev_name);
 
-	if (mesg(DEV_REG_PID, (uint8_t *) &drq, &drp) != OK) {
+	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
 		exit();
 	}
 
