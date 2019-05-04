@@ -21,7 +21,7 @@ struct proc {
 	struct addr_frame *frames;
 
 	struct {
-		size_t pa, len;
+		size_t table_pa, mapped_pa;
 		uint32_t *table;
 		uint32_t *mapped;
 	} l1;
@@ -32,6 +32,9 @@ init_mem(void);
 
 size_t
 get_ram(size_t len, size_t align);
+
+void
+proc_init_l1(uint32_t *l1);
 
 
 void

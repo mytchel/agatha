@@ -32,7 +32,6 @@ struct kernel_info {
 		
 		size_t stack_pa, stack_va, stack_len;
 		size_t prog_pa, prog_va, prog_len;
-		size_t info_va;
 	} proc0;
 };
 

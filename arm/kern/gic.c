@@ -68,12 +68,6 @@ irq_add_kernel(void (*func)(size_t), size_t irqn)
 	return OK;
 }
 
-	void
-irq_end_kernel(size_t irqn)
-{
-	irq_end(irqn);
-}
-
 	int
 irq_add_user(struct intr_mapping *m)
 {
@@ -177,7 +171,7 @@ systick(size_t irq)
 {
 	pt_regs->t_intr = 1;
 
-	irq_end_kernel(irq);
+	irq_end(irq);
 
 	schedule(nil);
 }

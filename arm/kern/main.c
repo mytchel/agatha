@@ -23,6 +23,12 @@ proc0_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 static uint32_t
 proc0_stack[1024*4]__attribute__((__aligned__(0x1000))) = { 0 };
 
+#define proc0_l1_va      0x01000
+#define proc0_l2_va      0x05000
+#define proc0_info_va    0x06000
+#define proc0_stack_va   0x1c000
+#define proc0_code_va    USER_ADDR
+
 extern uint32_t *_binary_proc0_bin_start;
 extern uint32_t *_binary_proc0_bin_end;
 extern uint32_t *_binary_bundle_bin_start;
@@ -39,11 +45,9 @@ proc0_start(void)
 	label_t u = {0};
 
 	u.psr = MODE_USR;
-	u.sp = info->proc0.stack_va 
-		+ info->proc0.stack_len;
-
-	u.pc = info->proc0.prog_va;
-	u.regs[0] = info->proc0.info_va;
+	u.sp = proc0_stack_va + sizeof(proc0_stack);
+	u.pc = proc0_code_va;
+	u.regs[0] = proc0_info_va;
 
 	drop_to_user(&u);
 }
@@ -68,8 +72,10 @@ init_proc0(void)
 	map_l2(proc0_l1, (size_t) proc0_l2,
 			0, 0x1000);
 
+	/*memset(proc0_l2, 0, sizeof(proc0_l2));*/
+
 	info->proc0.l1_pa = (size_t) proc0_l1;
-	info->proc0.l1_va = (uint32_t *) 0x1000;
+	info->proc0.l1_va = (uint32_t *) proc0_l1_va;
 	info->proc0.l1_len = 0x4000;
 
 	map_pages(proc0_l2, 
@@ -79,7 +85,7 @@ init_proc0(void)
 			AP_RW_RW, true);
 
 	info->proc0.l2_pa = (size_t) proc0_l2;
-	info->proc0.l2_va = (uint32_t *) 0x5000;
+	info->proc0.l2_va = (uint32_t *) proc0_l2_va;
 	info->proc0.l2_len = 0x1000;
 
 	map_pages(proc0_l2, 
@@ -88,11 +94,9 @@ init_proc0(void)
 			info->proc0.l2_len,
 			AP_RW_RW, true);
 
-	info->proc0.info_va = 0x6000;
-
 	map_pages(proc0_l2, 
 			info->info_pa,
-			info->proc0.info_va, 
+			proc0_info_va,
 			info->info_len,
 			AP_RW_RW, true);
 
@@ -109,7 +113,7 @@ init_proc0(void)
 			AP_RW_RW, true);
 
 	info->proc0.stack_pa = (size_t) proc0_stack;
-	info->proc0.stack_va = USER_ADDR - sizeof(proc0_stack);
+	info->proc0.stack_va = proc0_stack_va;
 	info->proc0.stack_len = sizeof(proc0_stack);
 
 	map_pages(proc0_l2, 

@@ -1,6 +1,7 @@
 #include "../../sys/head.h"
 #include "../kern/fns.h"
 #include "../kern/trap.h"
+#include "../kern/intr.h"
 #include <arm/am335x_dmtimer.h>
 
 static volatile struct am335x_dmtimer_regs *regs;
@@ -29,7 +30,8 @@ static void
 systick(size_t irq)
 {
 	regs->irqstatus = 1<<1;
-	irq_clear_kernel(irq);
+
+	irq_end(irq);
 
 	schedule(nil);
 }

@@ -22,18 +22,26 @@ struct l1_span {
 	struct l1_span **holder, *next;
 };
 
-static uint8_t l1_span_pool_initial[sizeof(struct pool_frame) 
-	+ (sizeof(struct l1_span) + sizeof(struct pool_obj)) * 6];
+#define l1_span_initial_size \
+		(sizeof(struct pool_frame) + \
+		 (sizeof(struct l1_span) + \
+			sizeof(struct pool_obj)) * 6)
 
-static uint8_t span_pool_initial[sizeof(struct pool_frame) 
-	+ (sizeof(struct span) + sizeof(struct pool_obj)) * 16];
+static uint8_t l1_span_pool_initial[l1_span_initial_size];
 
-	static struct pool l1_span_pool;
-	static struct pool span_pool;
+#define span_initial_size \
+		(sizeof(struct pool_frame) + \
+		 (sizeof(struct span) + \
+			sizeof(struct pool_obj)) * 16)
 
-	static bool initialized = false;
+static uint8_t span_pool_initial[span_initial_size];
 
-	static struct l1_span 
+static struct pool l1_span_pool;
+static struct pool span_pool;
+
+static bool initialized = false;
+
+static struct l1_span 
 	*l1_free = nil, 
 	*l1_mapped = nil;
 
@@ -272,13 +280,11 @@ grow_pool(struct pool *p)
 
 	pa = request_memory(len);
 	if (pa == nil) {
-		exit_r(0xa);
 		return false;
 	}
 
 	va = map_addr(pa, len, MAP_RW|MAP_MEM);
 	if (va == nil) {
-		exit_r(0xb);
 		release_addr(pa, len);
 		return false;
 	}
@@ -301,6 +307,7 @@ check_pools(void)
 		checking = true;
 		r = grow_pool(&l1_span_pool);
 		log(LOG_INFO, "pool grown ? %i", r);
+		if (!r) exit_r(0xff00);
 		checking = false;
 	}
 
@@ -309,6 +316,7 @@ check_pools(void)
 		checking = true;
 		r = grow_pool(&span_pool);
 		log(LOG_INFO, "pool grown ? %i", r);
+		if (!r) exit_r(0xff01);
 		checking = false;
 	}
 
@@ -354,6 +362,11 @@ unmap_addr(void *addr, size_t len)
 	size_t va = (size_t) addr;
 	struct span *s, **f;
 	struct l1_span *l;
+	
+	if (addr_unmap(va, len) != OK) {
+		exit_r(0x123456);
+		return ERR;
+	}
 
 	if (!initialized)
 		return ERR;
@@ -366,6 +379,8 @@ unmap_addr(void *addr, size_t len)
 
 	if (l == nil) {
 		log(LOG_INFO, "error unmapping, l1 not mapped");
+
+		exit_r(0x1236);
 		return ERR;
 	}
 
@@ -377,14 +392,20 @@ unmap_addr(void *addr, size_t len)
 
 	if (s == nil) {
 		log(LOG_INFO, "error unmapping, pages not mapped");
+		exit_r(0x1235);
 		return ERR;
 	}
 
 	if (s->va != va || s->len != len) {
 		log(LOG_INFO, "error unmapping, cannot unmap across mappings");
 		/* TODO: support unmapping parts of mapped space */
+		exit_r(0x1234);
 		return ERR;
 	}
+
+	/* Remove from mapped */
+	*s->holder = s->next;
+	if (s->next) s->next->holder = s->holder;
 
 	for (f = &l->free; *f != nil; f = &(*f)->next) {
 		if (s->va < (*f)->va) {
@@ -392,17 +413,15 @@ unmap_addr(void *addr, size_t len)
 		}
 	}
 
-	/* Remove from mapped */
-	*s->holder = s->next;
-	if (s->next) s->next->holder = s->holder;
-
 	/* Add to free */
-	s->pa = nil;
-
 	s->next = *f;
+	if (s->next) s->next->holder = &s->next;
+
 	*f = s;
 	s->holder = f;
 
-	return addr_unmap(s->va, s->len);
+	/* Unmap */
+	s->pa = nil;
+	return OK;
 }
 

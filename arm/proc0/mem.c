@@ -160,6 +160,9 @@ release_addr(size_t pa, size_t len)
 	return ERR;
 }
 
+/* TODO: should make this use the code in proc.c
+	 and manage itself like the other procs. */
+
 	int
 addr_map_l2s(size_t pa, size_t va, size_t tlen)
 {
@@ -167,6 +170,7 @@ addr_map_l2s(size_t pa, size_t va, size_t tlen)
 
 	addr = map_addr(pa, tlen, MAP_RW|MAP_DEV);
 	if (addr == nil) {
+		exit_r(0xaa001);
 		return PROC0_ERR_INTERNAL;
 	}
 
@@ -174,6 +178,7 @@ addr_map_l2s(size_t pa, size_t va, size_t tlen)
 
 	for (o = 0; (o << 10) < tlen; o++) {
 		if (proc0_l1.mmu.addr[L1X(va) + o] != L1_FAULT) {
+			exit_r(0xaa002);
 			return PROC0_ERR_ADDR_DENIED;
 		}
 
@@ -207,6 +212,7 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	} else if ((flags & MAP_TYPE_MASK) == MAP_SHARED) {
 		cache = false;
 	} else {
+		exit_r(0xaa003);
 		return PROC0_ERR_FLAGS;
 	}
 
@@ -223,10 +229,12 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	for (o = 0; o < len; o += PAGE_SIZE) {
 		l2 = proc0_l1.va[L1X(va + o)];
 		if (l2 == nil) {
+			exit_r(0xaa004);
 			return PROC0_ERR_TABLE;
 		}
 
 		if (l2[L2X(va + o)] != L2_FAULT) {
+			exit_r(0xaa005);
 			return PROC0_ERR_ADDR_DENIED;
 		}
 
@@ -238,9 +246,32 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 }
 
 int
-addr_unmap(void *addr, size_t len)
+addr_unmap(size_t va, size_t len)
 {
-	return ERR;
+	uint32_t *l2;
+	size_t o;
+
+	for (o = 0; o < len; o += PAGE_SIZE) {
+		l2 = proc0_l1.va[L1X(va + o)];
+		if (l2 == nil) {
+			exit_r(0xaa004);
+			return PROC0_ERR_TABLE;
+		}
+
+		l2[L2X(va + o)] = L2_FAULT;
+	}
+
+	return OK;
+}
+
+void
+proc_init_l1(uint32_t *l1)
+{
+	memset(l1, 0, 0x4000);
+
+	memcpy(&l1[L1X(info->kernel_pa)],
+			&proc0_l1.mmu.addr[L1X(info->kernel_pa)],
+			(0x1000 - L1X(info->kernel_pa)) * sizeof(uint32_t));
 }
 
 void
@@ -295,7 +326,7 @@ init_mem(void)
 
 	for (o = 0; (o << 10) < info->proc0.l2_len; o++) {
 		proc0_l1.va[L1X(info->proc0.l2_va) + o]
-			= (uint32_t *) ((info->proc0.l2_va) + (o << 10));
+			= (uint32_t *) (((uint32_t) info->proc0.l2_va) + (o << 10));
 	}
 }
 

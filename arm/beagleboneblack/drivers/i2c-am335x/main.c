@@ -287,7 +287,7 @@ main(void)
 	uint8_t m[MESSAGE_LEN];
 	mesg(prm_cm_pid, m, m);
 	
-#if 0
+#if 1
 	if (strcmp(dev_name, "i2c0")) {
 		uint8_t buf[1];
 		uint8_t addr;

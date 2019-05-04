@@ -254,6 +254,8 @@ main(void)
 	union dev_reg_req drq;
 	union dev_reg_rsp drp;
 
+	exit_r(1);
+
 	recv(0, init_m);
 
 	regs_pa = init_m[0];
