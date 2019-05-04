@@ -1,5 +1,6 @@
 #include "head.h"
 #include <arm/mmu.h>
+#include <log.h>
 #include "../dev.h"
 
 static struct {
@@ -17,7 +18,7 @@ struct addr_range {
 };
 
 static uint8_t addr_pool_initial[sizeof(struct pool_frame)
-	+ (sizeof(struct addr_range) + sizeof(struct pool_obj)) * 1024];
+	+ (sizeof(struct addr_range) + sizeof(struct pool_obj)) * 2048];
 
 static struct pool addr_pool;
 
@@ -227,13 +228,17 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	}
 
 	for (o = 0; o < len; o += PAGE_SIZE) {
+		log(LOG_INFO, "map 0x%x -> 0x%x", va + o, pa + o);
+
 		l2 = proc0_l1.va[L1X(va + o)];
 		if (l2 == nil) {
+			log(LOG_INFO, "l1 nil");
 			exit_r(0xaa004);
 			return PROC0_ERR_TABLE;
 		}
 
 		if (l2[L2X(va + o)] != L2_FAULT) {
+			log(LOG_INFO, "l2 already mapped 0x%x", l2[L2X(va + o)]);
 			exit_r(0xaa005);
 			return PROC0_ERR_ADDR_DENIED;
 		}
@@ -252,8 +257,11 @@ addr_unmap(size_t va, size_t len)
 	size_t o;
 
 	for (o = 0; o < len; o += PAGE_SIZE) {
+		log(LOG_INFO, "unmap 0x%x", va + o);
+
 		l2 = proc0_l1.va[L1X(va + o)];
 		if (l2 == nil) {
+			log(LOG_INFO, "l1 nil");
 			exit_r(0xaa004);
 			return PROC0_ERR_TABLE;
 		}

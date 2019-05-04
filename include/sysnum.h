@@ -11,5 +11,7 @@
 #define SYSCALL_VA_TABLE          8
 #define SYSCALL_INTR_REGISTER     9
 
-#define NSYSCALLS                10
+#define SYSCALL_DEBUG            10
+
+#define NSYSCALLS                11
 

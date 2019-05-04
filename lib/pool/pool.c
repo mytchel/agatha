@@ -2,13 +2,15 @@
 #include <err.h>
 #include <pool.h>
 
+#include <sys.h>
+#include <log.h>
+
 int
 pool_init(struct pool *p, size_t obj_size)
 {
-	obj_size += sizeof(struct pool_obj);
-	obj_size = (obj_size + 3) & ~3;
+	p->obj_size = sizeof(struct pool_obj) + 
+		((obj_size + 3) & ~3);
 
-	p->obj_size = obj_size;
 	p->frames = nil;
 	p->objs = nil;
 	p->n_free = 0;
@@ -29,6 +31,8 @@ pool_load(struct pool *p, void *a, size_t len)
 	struct pool_obj *o;
 	size_t i;
 
+	log(LOG_INFO, "loading pool with 0x%x 0x%x", a, len);
+
 	if (len < p->obj_size + sizeof(struct pool_frame)) {
 		return ERR;
 	}
@@ -38,7 +42,9 @@ pool_load(struct pool *p, void *a, size_t len)
 
 	for (i = 0; i < f->nobj; i++) {
 		o = (struct pool_obj *) &f->body[p->obj_size * i];
+		log(LOG_INFO, "init new obj 0x%x", o);
 		o->in_use = false;
+
 		o->next = p->objs;
 		p->objs = o;
 	}
@@ -77,6 +83,8 @@ pool_alloc(struct pool *p)
 	o->in_use = true;
 	p->n_free--;
 
+	log(LOG_INFO, "pool alloc, now have %i free", p->n_free);
+
 	return o->body;
 }
 
@@ -92,5 +100,6 @@ pool_free(struct pool *p, void *v)
 	o->next = p->objs;
 	p->objs = o;
 	p->n_free++;
+	log(LOG_INFO, "pool free, now have %i free", p->n_free);
 }
 

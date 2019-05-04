@@ -1,6 +1,7 @@
 #include "head.h"
 #include <arm/mmu.h>
 #include "../bundle.h"
+#include <log.h>
 
 /* 
 
@@ -324,6 +325,8 @@ init_bundled_proc(char *name,
 	struct addr_frame *f;
 	int pid, r;
 
+	log(LOG_INFO, "init bundled proc %s", name);
+
 	code_pa = get_ram(len, 0x1000);
 	if (code_pa == nil) {
 		exit_r(1);
@@ -336,23 +339,30 @@ init_bundled_proc(char *name,
 		raise();
 	}
 
-	start_va = map_addr(start, len, MAP_RW|MAP_MEM);
+	start_va = map_addr(start, len, MAP_RW|MAP_DEV);
 	if (start_va == nil) {
 		exit_r(3);
 		raise();
 	}
 
+	log(LOG_INFO, "copy 0x%x from 0x%x / 0x%x to 0x%x / 0x%x",
+			len, start, start_va, code_pa, code_va);
+
 	memcpy(code_va, start_va, len);
 
+	log(LOG_INFO, "unmap code");
 	if ((r = unmap_addr(code_va, len)) != OK) {
 		exit_r(r);
 		raise();
 	}
 
+	log(LOG_INFO, "unmap start");
 	if ((r = unmap_addr(start_va, len)) != OK) {
 		exit_r(r);
 		raise();
 	}
+
+	log(LOG_INFO, "get l1");
 
 	l1_table_pa = get_ram(0x4000, 0x4000);
 	if (l1_table_pa == nil) {
@@ -414,6 +424,13 @@ init_bundled_proc(char *name,
 		raise();
 	}
 
+	if ((r = proc_map(pid, l2_pa, 
+				0, 0x1000, 
+				MAP_TABLE)) != OK) {
+		exit_r(0xf);
+		raise();
+	}
+
 	if ((f = frame_new(stack_pa, 0x2000)) == nil) {
 		exit_r(0xb);
 		raise();
@@ -424,6 +441,13 @@ init_bundled_proc(char *name,
 		raise();
 	}
 
+	if ((r = proc_map(pid, stack_pa, 
+				USER_ADDR - 0x2000, 0x2000, 
+				MAP_MEM|MAP_RW)) != OK) {
+		exit_r(0x10);
+		raise();
+	}
+
 	if ((f = frame_new(code_pa, len)) == nil) {
 		exit_r(0xd);
 		raise();
@@ -431,20 +455,6 @@ init_bundled_proc(char *name,
 
 	if ((r = proc_give_addr(pid, f)) != OK) {
 		exit_r(0xe);
-		raise();
-	}
-
-	if ((r = proc_map(pid, l2_pa, 
-				0, 0x1000, 
-				MAP_TABLE)) != OK) {
-		exit_r(0xf);
-		raise();
-	}
-
-	if ((r = proc_map(pid, stack_pa, 
-				USER_ADDR - 0x2000, 0x2000, 
-				MAP_MEM|MAP_RW)) != OK) {
-		exit_r(0x10);
 		raise();
 	}
 
@@ -462,6 +472,8 @@ init_bundled_proc(char *name,
 
 	m[0] = USER_ADDR;
 	m[1] = USER_ADDR;
+
+	log(LOG_INFO, "start bundled proc pid %i %s", pid, name);
 
 	send(pid, (uint8_t *) m);
 

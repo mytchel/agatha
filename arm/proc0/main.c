@@ -7,7 +7,15 @@ struct kernel_info *info;
 void
 log(int level, char *fmt, ...)
 {
+	char buf[256];
+	va_list a;
 
+	va_start(a, fmt);
+	vsnprintf(buf, sizeof(buf),
+			fmt, a);
+	va_end(a);
+
+	kern_debug(buf);
 }
 
 	int

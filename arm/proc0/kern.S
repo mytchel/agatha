@@ -5,6 +5,7 @@
 .global proc_new
 .global va_table
 .global intr_register
+.global kern_debug
 
 
 va_table:
@@ -26,6 +27,14 @@ intr_register:
 	mov r12, #SYSCALL_INTR_REGISTER
 	svc 0
 	pop {r12, pc}
+
+
+kern_debug:
+	push {r12, lr}
+	mov r12, #SYSCALL_DEBUG
+	svc 0
+	pop {r12, pc}
+
 
 
 

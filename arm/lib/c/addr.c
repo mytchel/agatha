@@ -25,14 +25,14 @@ struct l1_span {
 #define l1_span_initial_size \
 		(sizeof(struct pool_frame) + \
 		 (sizeof(struct l1_span) + \
-			sizeof(struct pool_obj)) * 6)
+			sizeof(struct pool_obj)) * 32)
 
 static uint8_t l1_span_pool_initial[l1_span_initial_size];
 
 #define span_initial_size \
 		(sizeof(struct pool_frame) + \
 		 (sizeof(struct span) + \
-			sizeof(struct pool_obj)) * 16)
+			sizeof(struct pool_obj)) * 1024)
 
 static uint8_t span_pool_initial[span_initial_size];
 
@@ -116,49 +116,133 @@ addr_init(void)
 	initialized = true;
 }
 
-	int
-take_span(struct l1_span *l, struct span *fs, size_t len)
+void
+take_add_span(struct span *s, struct span **nl)
 {
-	struct span *s, **ts;
+	*s->holder = s->next;
+	if (s->next) s->next->holder = s->holder;
 
-	if (len < fs->len) {
-		/* Split span */
-
-		s = pool_alloc(&span_pool);
-		if (s == nil) {
-			log(LOG_INFO, "out of spans");
-			return ERR;
-		}
-
-		s->pa = fs->pa + len;
-		s->va = fs->va + len;
-		s->len = fs->len - len;
-		s->next = fs->next;
-		fs->next = s;
-		s->holder = &fs->next;
-
-		fs->len = len;
-	}
-
-	ts = fs->holder;
-	*ts = fs->next;
-	if (*ts != nil) {
-		(*ts)->holder = ts;
-	}
-
-	fs->next = nil;
-
-	for (ts = &l->mapped; *ts != nil; ts = &(*ts)->next) {
-		if (fs->va < (*ts)->va) {
+	while (*nl != nil) {
+		if (s->va < (*nl)->va) {
 			break;
 		}
+
+		nl = &(*nl)->next;
+	}
+	
+	s->next = *nl;
+	if (s->next) s->next->holder = &s->next;
+
+	*nl = s;
+	s->holder = nl;
+}
+
+int
+split_span(struct span *s, size_t len)
+{
+	struct span *n;
+
+	log(LOG_INFO, "splitting span 0x%x 0x%x to len 0x%x",
+			s->va, s->len, len);
+
+	n = pool_alloc(&span_pool);
+	if (n == nil) {
+		log(LOG_INFO, "out of spans");
+		return ERR;
 	}
 
-	fs->holder = ts;
-	fs->next = *ts;
-	*ts = fs;
+	n->pa = s->pa + len;
+	n->va = s->va + len;
+	n->len = s->len - len;
+
+	n->next = s->next;
+	if (n->next) n->next->holder = &n->next;
+
+	s->next = n;
+	n->holder = &s->next;
+
+	s->len = len;
+
+	log(LOG_INFO, "now have 0x%x 0x%x and 0x%x 0x%x",
+			s->va, s->len, n->va, n->len);
 
 	return OK;
+}
+
+void
+take_add_l1_span(struct l1_span *s, struct l1_span **nl)
+{
+	*s->holder = s->next;
+	if (s->next) s->next->holder = s->holder;
+
+	while (*nl != nil) {
+		if (s->va < (*nl)->va) {
+			break;
+		}
+
+		nl = &(*nl)->next;
+	}
+	
+	s->next = *nl;
+	if (s->next) s->next->holder = &s->next;
+
+	*nl = s;
+	s->holder = nl;
+}
+
+int
+split_l1_span(struct l1_span *s, size_t len)
+{
+	struct l1_span *n;
+
+	n = pool_alloc(&l1_span_pool);
+	if (n == nil) {
+		log(LOG_INFO, "out of l1_spans");
+		return ERR;
+	}
+
+	n->pa = s->pa + len;
+	n->va = s->va + len;
+	n->len = s->len - len;
+
+	n->next = s->next;
+	if (n->next) n->next->holder = &n->next;
+
+	s->next = n;
+	n->holder = &s->next;
+
+	s->len = len;
+
+	n->mapped = nil;
+	n->free = nil;
+
+	return OK;
+}
+
+	void
+dump_mappings(void)
+{
+	struct l1_span *l;
+	struct span *s;
+
+	log(LOG_INFO, "currently mapped:");
+
+	for (l = l1_mapped; l != nil; l = l->next) {
+		log(LOG_INFO, "l1 0x%x to 0x%x", l->va, l->va + l->len);
+		for (s = l->mapped; s != nil; s = s->next) {
+			log(LOG_INFO, "m  0x%x to 0x%x", s->va, s->va + s->len);
+		}
+
+		for (s = l->free; s != nil; s = s->next) {
+			log(LOG_INFO, "f  0x%x to 0x%x", s->va, s->va + s->len);
+		}
+	}
+
+	log(LOG_INFO, "currently free:");
+
+	for (l = l1_free; l != nil; l = l->next) {
+		log(LOG_INFO, "l1 0x%x to 0x%x", l->va, l->va + l->len);
+	}
 }
 
 	int	
@@ -166,10 +250,14 @@ take_free_addr(size_t len,
 		struct l1_span **taken_l1_span,
 		struct span **taken_span)
 {
-	struct l1_span *l, *fl, **tl;
+	struct l1_span *l, *fl;
 	struct span *s, *fs;
 	size_t pa, tlen;
 	int r;
+
+	log(LOG_INFO, "find addr for 0x%x bytes", len);
+
+	dump_mappings();
 
 	fs = nil;
 	for (l = l1_mapped; l != nil; l = l->next) {
@@ -182,9 +270,21 @@ take_free_addr(size_t len,
 	}
 
 	if (fs != nil) {
+		if (len < fs->len) {
+			if ((r = split_span(fs, len)) != OK) {
+				return r;
+			}
+		}
+
 		*taken_span = fs;
-		return take_span(*taken_l1_span, fs, len);
+		take_add_span(fs, &(*taken_l1_span)->mapped);
+
+		log(LOG_INFO, "giving 0x%x", fs->va);
+
+		return OK;
 	}
+
+	log(LOG_INFO, "need a new l1 span");
 
 	/* Need new l1 span */
 	fl = nil;
@@ -218,44 +318,13 @@ take_free_addr(size_t len,
 	}
 
 	if (fl->len > TABLE_ALIGN(len)) {
-		l = pool_alloc(&l1_span_pool);
-		if (l == nil) {
-			/* TODO: unmap and free table */
-			pool_free(&span_pool, s);
-			return ERR;
+		if ((r = split_l1_span(fl, TABLE_ALIGN(len))) != OK) {
+			return r;
 		}
-
-		l->pa = nil;
-		l->va = fl->va + TABLE_ALIGN(len);
-		l->len = fl->len - TABLE_ALIGN(len);
-		l->mapped = nil;
-		l->free = nil;
-		l->next = fl->next;
-		fl->next = l;
-		l->holder = &fl->next;
-
-		fl->len = TABLE_ALIGN(len);
 	}
 
 	fl->pa = pa;
-
-	tl = fl->holder;
-	*tl = fl->next;
-	if (fl->next != nil) {
-		fl->next->holder = tl;
-	}
-
-	fl->next = nil;
-
-	for (tl = &l1_mapped; *tl != nil; tl = &(*tl)->next) {
-		if (fl->va < (*tl)->va) {
-			break;
-		}
-	}
-
-	fl->holder = tl;
-	fl->next = *tl;
-	*tl = fl;
+	take_add_l1_span(fl, &l1_mapped);
 
 	s->pa = nil;
 	s->va = fl->va;
@@ -264,10 +333,18 @@ take_free_addr(size_t len,
 	s->holder = &fl->free;
 	fl->free = s;
 
-	*taken_l1_span = fl;
-	*taken_span = fl->free;
+	if (len < s->len) {
+		if ((r = split_span(s, len)) != OK) {
+			return r;
+		}
+	}
 
-	return take_span(fl, fl->free, len);
+	*taken_l1_span = fl;
+	*taken_span = s;
+
+	take_add_span(s, &fl->mapped);
+
+	return OK;
 }
 
 	static bool
@@ -360,9 +437,13 @@ map_addr(size_t pa, size_t len, int flags)
 unmap_addr(void *addr, size_t len)
 {
 	size_t va = (size_t) addr;
-	struct span *s, **f;
 	struct l1_span *l;
-	
+	struct span *s;
+
+	log(LOG_INFO, "unmap_addr 0x%x 0x%x", addr, len);
+
+	dump_mappings();
+
 	if (addr_unmap(va, len) != OK) {
 		exit_r(0x123456);
 		return ERR;
@@ -372,7 +453,9 @@ unmap_addr(void *addr, size_t len)
 		return ERR;
 
 	for (l = l1_mapped; l != nil; l = l->next) {
+		log(LOG_INFO, "is it in 0x%x 0x%x?", l->va, l->len);
 		if (l->va <= va && va + len <= l->va + l->len) {
+			log(LOG_INFO, "yes");
 			break;
 		}
 	}
@@ -384,8 +467,11 @@ unmap_addr(void *addr, size_t len)
 		return ERR;
 	}
 
+	log(LOG_INFO, "find span in 0x%x 0x%x?", l->va, l->len);
 	for (s = l->mapped; s != nil; s = s->next) {
+		log(LOG_INFO, "is it in 0x%x 0x%x?", s->va, s->len);
 		if (s->va <= va && va + len <= s->va + s->len) {
+			log(LOG_INFO, "yes");
 			break;
 		}
 	}
@@ -403,25 +489,11 @@ unmap_addr(void *addr, size_t len)
 		return ERR;
 	}
 
-	/* Remove from mapped */
-	*s->holder = s->next;
-	if (s->next) s->next->holder = s->holder;
-
-	for (f = &l->free; *f != nil; f = &(*f)->next) {
-		if (s->va < (*f)->va) {
-			break;
-		}
-	}
-
-	/* Add to free */
-	s->next = *f;
-	if (s->next) s->next->holder = &s->next;
-
-	*f = s;
-	s->holder = f;
-
 	/* Unmap */
 	s->pa = nil;
+
+	take_add_span(s, &l->free);
+
 	return OK;
 }
 

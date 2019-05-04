@@ -284,6 +284,14 @@ sys_intr_exit(int irqn)
 	return irq_exit();
 }
 
+size_t
+sys_debug(char *m)
+{
+	debug_info("%i debug %s\n", up->pid, m);
+
+	return OK;
+}
+
 void *systab[NSYSCALLS] = {
 	[SYSCALL_YIELD]            = (void *) &sys_yield,
 	[SYSCALL_SEND]             = (void *) &sys_send,
@@ -295,5 +303,6 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
 	[SYSCALL_VA_TABLE]         = (void *) &sys_va_table,
 	[SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
+	[SYSCALL_DEBUG]            = (void *) &sys_debug,
 };
 

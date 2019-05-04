@@ -1,7 +1,7 @@
 #include "head.h"
 
-#define TIME_SLICE    3000000
-#define MIN_TIME_SLICE    10
+#define TIME_SLICE      100000000
+#define MIN_TIME_SLICE        10
 
 void add_to_list_tail(proc_list_t l, proc_t p);
 void remove_from_list(proc_list_t l, proc_t p);
