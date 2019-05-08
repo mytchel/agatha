@@ -9,6 +9,8 @@
 #include <proc0.h>
 #include <arm/mmu.h>
 
+#define log(X, ...) {}
+
 struct span {
 	uint32_t pa, va, len;
 	struct span **holder, *next;
@@ -25,14 +27,14 @@ struct l1_span {
 #define l1_span_initial_size \
 		(sizeof(struct pool_frame) + \
 		 (sizeof(struct l1_span) + \
-			sizeof(struct pool_obj)) * 32)
+			sizeof(struct pool_obj)) * 4)
 
 static uint8_t l1_span_pool_initial[l1_span_initial_size];
 
 #define span_initial_size \
 		(sizeof(struct pool_frame) + \
 		 (sizeof(struct span) + \
-			sizeof(struct pool_obj)) * 1024)
+			sizeof(struct pool_obj)) * 8)
 
 static uint8_t span_pool_initial[span_initial_size];
 
@@ -406,7 +408,7 @@ check_pools(void)
 		checking = false;
 	}
 
-	if (r && pool_n_free(&span_pool) < 8) {
+	if (r && pool_n_free(&span_pool) < 4) {
 		log(LOG_INFO, "growing span pool");
 		checking = true;
 		r = grow_pool(&span_pool);

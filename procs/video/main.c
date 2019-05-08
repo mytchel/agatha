@@ -35,8 +35,9 @@ frame_update(int dev_pid,
 		size_t frame_pa, size_t frame_size,
 		size_t width, size_t height)
 {
-	static size_t i = 2;
-	static size_t j = 2;
+	static int i = 2;
+	static int j = 2;
+	static int dx = 1, dy = 1;
 	union video_req rq;
 	uint32_t *frame;
 	size_t x, y;
@@ -47,11 +48,15 @@ frame_update(int dev_pid,
 		exit();
 	}
 
+#if 1
+	memset(frame, 0, width * height * 4);
+#else
 	for (x = 2; x < 50; x++) {
 		for (y = 2; y < 50; y++) {
 			frame[(y + i - 2) * width + (x + j - 2)] = 0x004433;
 		}
 	}
+#endif
 
 	for (x = 2; x < 50; x++) {
 		for (y = 2; y < 50; y++) {
@@ -59,12 +64,20 @@ frame_update(int dev_pid,
 		}
 	}
 
-	i++;
-	j++;
-	if (j == width - 50)
-		j = 2;
-	if (i == height - 50)
-		i = 2;
+	j += dx;
+	i += dy;
+	
+	if (j == width - 50) {
+		dx = -1;
+	} else if (j == 2) {
+		dx = 1;
+	}
+
+	if (i == height - 50) {
+		dy = -1;
+	} else if (i == 2) {
+		dy = 1;
+	}
 
 	unmap_addr(frame, frame_size);
 
