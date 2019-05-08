@@ -215,7 +215,7 @@ sys_exit(size_t code)
 }
 
 	size_t
-sys_proc_new(void)
+sys_proc_new(size_t vspace)
 {
 	proc_t p;
 
@@ -232,37 +232,16 @@ sys_proc_new(void)
 		return ERR;
 	}
 
-	debug_info("new proc %i\n", p->pid);
+	debug_info("new proc %i with vspace 0x%x\n", p->pid, vspace);
 
 	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
 			(size_t) &proc_start);
 
+	p->vspace = vspace;
+
 	proc_ready(p);
 
 	return p->pid;
-}
-
-	size_t
-sys_va_table(int p_id, size_t pa)
-{
-	proc_t p;
-
-	debug_info("%i called sys va_table with %i, 0x%x\n", up->pid, p_id, pa);
-
-	if (up->pid != 0) {
-		debug_warn("proc %i is not proc0!\n", up->pid);
-		return ERR;
-	}
-
-	p = find_proc(p_id);
-	if (p == nil) {
-		debug_info("didnt find %i\n", p_id);
-		return ERR;
-	}
-
-	p->vspace = pa;
-
-	return OK;
 }
 
 	size_t
@@ -301,7 +280,6 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_EXIT]             = (void *) &sys_exit,
 	[SYSCALL_INTR_EXIT]        = (void *) &sys_intr_exit,
 	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
-	[SYSCALL_VA_TABLE]         = (void *) &sys_va_table,
 	[SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
 	[SYSCALL_DEBUG]            = (void *) &sys_debug,
 };

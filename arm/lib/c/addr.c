@@ -201,7 +201,12 @@ split_l1_span(struct l1_span *s, size_t len)
 		return ERR;
 	}
 
-	n->pa = s->pa + len;
+	if (s->pa != nil) {
+		n->pa = s->pa + len;
+	} else {
+		n->pa = nil;
+	}
+
 	n->va = s->va + len;
 	n->len = s->len - len;
 
@@ -230,7 +235,7 @@ dump_mappings(void)
 	for (l = l1_mapped; l != nil; l = l->next) {
 		log(LOG_INFO, "l1 0x%x to 0x%x", l->va, l->va + l->len);
 		for (s = l->mapped; s != nil; s = s->next) {
-			log(LOG_INFO, "m  0x%x to 0x%x", s->va, s->va + s->len);
+			log(LOG_INFO, "m  0x%x to 0x%x -> 0x%x", s->va, s->va + s->len, s->pa);
 		}
 
 		for (s = l->free; s != nil; s = s->next) {
@@ -245,14 +250,12 @@ dump_mappings(void)
 	}
 }
 
-	int	
-take_free_addr(size_t len, 
-		struct l1_span **taken_l1_span,
-		struct span **taken_span)
+struct span *
+map_free_addr(size_t pa, size_t len, int flags)
 {
 	struct l1_span *l, *fl;
 	struct span *s, *fs;
-	size_t pa, tlen;
+	size_t l1_pa, tlen;
 	int r;
 
 	log(LOG_INFO, "find addr for 0x%x bytes", len);
@@ -260,10 +263,11 @@ take_free_addr(size_t len,
 	dump_mappings();
 
 	fs = nil;
+	fl = nil;
 	for (l = l1_mapped; l != nil; l = l->next) {
 		for (s = l->free; s != nil; s = s->next) {
 			if (len <= s->len && (fs == nil || s->len < fs->len)) {
-				*taken_l1_span = l;
+				fl = l;
 				fs = s;
 			}
 		}
@@ -272,16 +276,23 @@ take_free_addr(size_t len,
 	if (fs != nil) {
 		if (len < fs->len) {
 			if ((r = split_span(fs, len)) != OK) {
-				return r;
+				return nil;
 			}
 		}
 
-		*taken_span = fs;
-		take_add_span(fs, &(*taken_l1_span)->mapped);
+		take_add_span(fs, &(fl)->mapped);
 
 		log(LOG_INFO, "giving 0x%x", fs->va);
 
-		return OK;
+		fs->pa = pa;
+
+		if ((r = addr_map(pa, fs->va, len, flags)) != OK) {
+			/* TODO: put span into free */
+			log(LOG_INFO, "addr map failed %i for 0x%x -> 0x%x 0x%x", r, pa, fs->va, len);
+			return nil;
+		}
+
+		return fs;
 	}
 
 	log(LOG_INFO, "need a new l1 span");
@@ -295,56 +306,63 @@ take_free_addr(size_t len,
 	}
 
 	if (fl == nil) {
-		return ERR;
+		return nil;
 	}
 
-	s = pool_alloc(&span_pool);
+	fs = pool_alloc(&span_pool);
 	if (s == nil) {
-		return ERR;
+		return nil;
 	}
 
 	tlen = (TABLE_ALIGN(len) >> TABLE_SHIFT) * TABLE_SIZE;
-	pa = request_memory(tlen);
-	if (pa == nil) {
-		pool_free(&span_pool, s);
-		return ERR;
+	l1_pa = request_memory(tlen);
+	if (l1_pa == nil) {
+		pool_free(&span_pool, fs);
+		return nil;
 	}
 
-	r = addr_map_l2s(pa, fl->va, tlen);
+	r = addr_map_l2s(l1_pa, fl->va, tlen);
 	if (r != OK) {
-		release_addr(pa, tlen);
-		pool_free(&span_pool, s);
-		return ERR;
+		release_addr(l1_pa, tlen);
+		pool_free(&span_pool, fs);
+		return nil;
 	}
 
 	if (fl->len > TABLE_ALIGN(len)) {
 		if ((r = split_l1_span(fl, TABLE_ALIGN(len))) != OK) {
-			return r;
+			return nil;
 		}
 	}
 
-	fl->pa = pa;
+	fl->pa = l1_pa;
 	take_add_l1_span(fl, &l1_mapped);
 
-	s->pa = nil;
-	s->va = fl->va;
-	s->len = fl->len;
-	s->next = nil;
-	s->holder = &fl->free;
+	fs->pa = nil;
+	fs->va = fl->va;
+	fs->len = fl->len;
+	fs->next = nil;
+	fs->holder = &fl->free;
 	fl->free = s;
 
-	if (len < s->len) {
-		if ((r = split_span(s, len)) != OK) {
-			return r;
+	if (len < fs->len) {
+		if ((r = split_span(fs, len)) != OK) {
+			return nil;
 		}
 	}
 
-	*taken_l1_span = fl;
-	*taken_span = s;
+	take_add_span(fs, &fl->mapped);
 
-	take_add_span(s, &fl->mapped);
+	log(LOG_INFO, "giving 0x%x", fs->va);
 
-	return OK;
+	fs->pa = pa;
+
+	if ((r = addr_map(pa, fs->va, len, flags)) != OK) {
+		/* TODO: put span into free */
+		log(LOG_INFO, "addr map failed %i for 0x%x -> 0x%x 0x%x", r, pa, fs->va, len);
+		return nil;
+	}
+
+	return fs;
 }
 
 	static bool
@@ -403,9 +421,7 @@ check_pools(void)
 	void *
 map_addr(size_t pa, size_t len, int flags)
 {
-	struct l1_span *l;
 	struct span *s;
-	int r;
 
 	if (!initialized)
 		addr_init();
@@ -420,13 +436,8 @@ map_addr(size_t pa, size_t len, int flags)
 
 	len = PAGE_ALIGN(len);
 
-	if (take_free_addr(len, &l, &s) != OK) {
-		return nil;
-	}
-
-	if ((r = addr_map(pa, s->va, len, flags)) != OK) {
-		/* TODO: put span into free */
-		log(LOG_INFO, "addr map failed %i for 0x%x -> 0x%x 0x%x", r, pa, s->va, len);
+	s = map_free_addr(pa, len, flags);
+	if (s == nil) {
 		return nil;
 	}
 

@@ -1,6 +1,6 @@
 #include "head.h"
 
-#define TIME_SLICE      100000000
+#define TIME_SLICE      10000000
 #define MIN_TIME_SLICE        10
 
 void add_to_list_tail(proc_list_t l, proc_t p);
@@ -80,7 +80,7 @@ next_proc(void)
 		n = p->next;
 
 		if (p->state == PROC_ready) {
-			if (p->ts > MIN_TIME_SLICE) {
+			if (p->ts > MIN_TIME_SLICE && p->vspace != nil) {
 				debug_sched_v("%i is ready\n", p->pid);
 				return p;
 
@@ -155,6 +155,10 @@ schedule(proc_t n)
 			up = n;
 		} else if (n->list == nil) {
 			debug_sched("put given on next queue\n");
+			add_to_list_tail(&ready.queue[(ready.q + 1) % 2], n);
+			up = next_proc();
+		} else if (n->vspace == nil) {
+			debug_sched("given %i is not set up yet\n", n->pid);
 			add_to_list_tail(&ready.queue[(ready.q + 1) % 2], n);
 			up = next_proc();
 		} else {

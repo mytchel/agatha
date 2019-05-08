@@ -25,7 +25,7 @@ proc_start(void)
 
 	debug(DEBUG_INFO, "proc %i starting\n", up->pid);
 
-  while ((p = recv(-1, (uint8_t *) m)) < 0) 
+  while ((p = recv(0, (uint8_t *) m)) < 0) 
 		;
 
   u.psr = MODE_USR;
@@ -33,6 +33,11 @@ proc_start(void)
   u.sp = m[1];
 
 	debug(DEBUG_INFO, "proc %i got start regs at 0x%x 0x%x\n", up->pid, u.pc, u.sp);
+
+	int i;
+	for (i = 0; i < 100; i += sizeof(uint32_t))
+		debug(DEBUG_INFO, "proc code[0x%x] = 0x%x\n",
+				i, *((uint32_t *) (m[0] + i)));
 
 	drop_to_user(&u);
 }
