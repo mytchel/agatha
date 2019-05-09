@@ -117,7 +117,7 @@ i2c_read(int slave, int sub, uint8_t *buf, size_t len)
 		stat = regs->irqstatus_raw;
 
 		if (stat & I2C_IRQ_NACK) {
-			log(LOG_WARNING, "wa error 0x%x", stat);
+			log(LOG_WARNING, "ra error 0x%x", stat);
 			return ERR;
 		} else if (alen > 0 && (stat & I2C_IRQ_XRDY)) {
 			regs->data = sub;
@@ -295,32 +295,35 @@ main(void)
 		i2c_init(0x40, 400);
 
 		/* i2c0 0x70 is a tda19988 */
+#if 0
+		/* This doesn't work for some reason */
 
 		addr = 0x70;
 		i2c_read(addr, 0xff, buf, sizeof(buf));
-		log(LOG_INFO, "read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x", buf[0]);
 		buf[0] = 0x0;
 		i2c_write(addr, 0xff, buf, sizeof(buf));
 		i2c_read(addr, 0xff, buf, sizeof(buf));
-		log(LOG_INFO, "read 0x%x\n", buf[0]);
-	
+		log(LOG_INFO, "read 0x%x", buf[0]);
+
 		i2c_read(addr, 0x00, buf, sizeof(buf));
-		log(LOG_INFO, "read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x", buf[0]);
 		i2c_read(addr, 0x02, buf, sizeof(buf));
-		log(LOG_INFO, "read 0x%x\n", buf[0]);
-	
+		log(LOG_INFO, "read 0x%x", buf[0]);
+	#endif
+
 		/* i2c0 0x24 is a tps65217 */
 		i2c_read(0x24, 0, buf, sizeof(buf));
-		log(LOG_INFO, "read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x", buf[0]);
 		i2c_read(0x24, 0x07, buf, sizeof(buf));
-		log(LOG_INFO, "read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x", buf[0]);
 		i2c_read(0x24, 0x08, buf, sizeof(buf));
-		log(LOG_INFO, "read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x", buf[0]);
 
 		buf[0] = (1<<3);
 		i2c_write(0x24, 0x07, buf, sizeof(buf));
 		i2c_read(0x24, 0x07, buf, sizeof(buf));
-		log(LOG_INFO, "read 0x%x\n", buf[0]);
+		log(LOG_INFO, "read 0x%x", buf[0]);
 
 		/* Flashes the power led by enabling and
 			 disabling LDO2 */
@@ -329,19 +332,22 @@ main(void)
 		for (i = 0; i < 10; i++) {
 			/* 0x13 is password protected level 2 
 				 so the dance must be danced */
+			log(LOG_INFO, "flash led %i", on);
+
 			buf[0] = 0x7d ^ 0x13;
 			i2c_write(0x24, 0x0b, buf, sizeof(buf));
 			buf[0] = on ? 0x3f : 0;
 			i2c_write(0x24, 0x13, buf, sizeof(buf));
+			
 			buf[0] = 0x7d ^ 0x13;
 			i2c_write(0x24, 0x0b, buf, sizeof(buf));
 			buf[0] = on ? 0x3f : 0;
 			i2c_write(0x24, 0x13, buf, sizeof(buf));
 
 			i2c_read(0x24, 0x13, buf, sizeof(buf));
-			log(LOG_INFO, "read 0x%x\n", buf[0]);
+			log(LOG_INFO, "read 0x%x", buf[0]);
 					
-			udelay(10000);
+			udelay(100000);
 			on = !on;
 		}
 	}

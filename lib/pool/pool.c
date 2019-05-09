@@ -42,7 +42,6 @@ pool_load(struct pool *p, void *a, size_t len)
 
 	for (i = 0; i < f->nobj; i++) {
 		o = (struct pool_obj *) &f->body[p->obj_size * i];
-		log(LOG_INFO, "init new obj 0x%x", o);
 		o->in_use = false;
 
 		o->next = p->objs;
