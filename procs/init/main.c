@@ -24,7 +24,7 @@ get_device_pid(char *name)
 	union dev_reg_req rq;
 	union dev_reg_rsp rp;
 
-	rq.find.type = DEV_REG_find;
+	rq.find.type = DEV_REG_find_req;
 	rq.find.block = true;
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
@@ -51,7 +51,7 @@ read_blocks(int pid, size_t pa, size_t len,
 		return ERR;
 	}
 
-	rq.read.type = BLOCK_read;
+	rq.read.type = BLOCK_read_req;
 	rq.read.pa = pa;
 	rq.read.len = len;
 	rq.read.start = start;
@@ -81,7 +81,7 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 
 	log(LOG_INFO, "reading mbr from %i", fat->block_pid);
 
-	rq.info.type = BLOCK_info;
+	rq.info.type = BLOCK_info_req;
 	
 	if (mesg(block_pid, &rq, &rp) != OK) {
 		log(LOG_FATAL, "block info mesg failed");

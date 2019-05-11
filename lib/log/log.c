@@ -15,7 +15,7 @@ log_init(char *name)
 	union log_req rq;
 	union log_rsp rp;
 
-	rq.reg.type = LOG_register;
+	rq.reg.type = LOG_register_req;
 	rq.reg.respond = true;
 	snprintf(rq.reg.name, sizeof(rq.reg.name),
 		 	"%s", name);
@@ -42,7 +42,7 @@ log(int level, char *fmt, ...)
 			fmt, a);
 	va_end(a);
 
-	rq.log.type = LOG_log;
+	rq.log.type = LOG_log_req;
 	rq.log.level = level;
 
 	if (mesg(LOG_PID, &rq, &rp) != OK || rp.log.ret != OK) {

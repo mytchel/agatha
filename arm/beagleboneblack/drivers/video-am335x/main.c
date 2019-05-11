@@ -82,7 +82,7 @@ get_device_pid(char *name)
 	union dev_reg_req rq;
 	union dev_reg_rsp rp;
 
-	rq.find.type = DEV_REG_find;
+	rq.find.type = DEV_REG_find_req;
 	rq.find.block = true;
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
@@ -106,7 +106,7 @@ int init_tda(void)
 		i2c_pid = get_device_pid("i2c0");
 	} while (i2c_pid < 0);
 
-	i2c_rq.configure.type = I2C_configure;
+	i2c_rq.configure.type = I2C_configure_req;
 	i2c_rq.configure.addr = 0x00;
 	i2c_rq.configure.speed_kHz = 400;
 
@@ -115,7 +115,7 @@ int init_tda(void)
 		exit();
 	}
 
-	i2c_rq.write.type = I2C_write;
+	i2c_rq.write.type = I2C_write_req;
 	i2c_rq.write.slave = HDMI_ADDR;
 	i2c_rq.write.addr = HDMI_PAGELESS;
 	i2c_rq.write.len = 1;
@@ -126,7 +126,7 @@ int init_tda(void)
 		exit();
 	}
 
-	i2c_rq.read.type = I2C_read;
+	i2c_rq.read.type = I2C_read_req;
 	i2c_rq.read.slave = HDMI_ADDR;
 	i2c_rq.read.addr = HDMI_CTRL_REV_LO_REG;
 	i2c_rq.read.len = 1;
@@ -138,7 +138,7 @@ int init_tda(void)
 
 	rev = i2c_rp.read.buf[0];
 
-	i2c_rq.read.type = I2C_read;
+	i2c_rq.read.type = I2C_read_req;
 	i2c_rq.read.slave = HDMI_ADDR;
 	i2c_rq.read.addr = HDMI_CTRL_REV_HI_REG;
 	i2c_rq.read.len = 1;
@@ -319,7 +319,7 @@ TODO: make some protocol for this
 		exit();
 	}
 
-	drq.type = DEV_REG_register;
+	drq.type = DEV_REG_register_req;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", dev_name);

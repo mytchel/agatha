@@ -22,7 +22,7 @@ request_memory(size_t len)
 
 	len = PAGE_ALIGN(len);
 
-	rq.addr_req.type = PROC0_addr_req;
+	rq.addr_req.type = PROC0_addr_req_req;
 	rq.addr_req.pa = nil;
 	rq.addr_req.len = len;
 
@@ -52,7 +52,7 @@ give_addr(int to, size_t pa, size_t len)
 
 	log(LOG_INFO, "give %i 0x%x . 0x%x", to, pa, len);
 
-	rq.addr_give.type = PROC0_addr_give;
+	rq.addr_give.type = PROC0_addr_give_req;
 	rq.addr_give.to = to;
 	rq.addr_give.pa = pa;
 	rq.addr_give.len = len;
@@ -79,7 +79,7 @@ addr_unmap(size_t va, size_t len)
 	
 	len = PAGE_ALIGN(len);
 
-	rq.addr_map.type = PROC0_addr_map;
+	rq.addr_map.type = PROC0_addr_map_req;
 	rq.addr_map.len = len;
 	rq.addr_map.va = va;
 	rq.addr_map.pa = 0;
@@ -101,7 +101,7 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	union proc0_rsp rp;
 	int r;
 
-	rq.addr_map.type = PROC0_addr_map;
+	rq.addr_map.type = PROC0_addr_map_req;
 	rq.addr_map.pa = pa;
 	rq.addr_map.len = len;
 	rq.addr_map.va = va;

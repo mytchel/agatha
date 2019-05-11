@@ -43,7 +43,7 @@ send_logs(void)
 		return;
 	}
 
-	rq.write.type = SERIAL_write;
+	rq.write.type = SERIAL_write_req;
 
 	rq.write.len = end - start;
 	if (start < end) {
@@ -101,7 +101,7 @@ handle_register(int from, union log_req *rq)
 	size_t len;
 	int i;
 
-	rp.reg.type = LOG_register;
+	rp.reg.type = LOG_register_rsp;
 	rp.reg.ret = ERR;
 	
 	for (i = 0; i < MAX_SERVICES; i++) {
@@ -161,7 +161,7 @@ handle_log(int from, union log_req *rq)
 	char *level;
 	size_t len;
 
-	rp.log.type = LOG_log;
+	rp.log.type = LOG_log_rsp;
 
 	s = find_service(from);
 	if (s == nil) {
@@ -210,7 +210,7 @@ main(void)
 	}
 
 	rq = (void *) m_buf;
-	rq->find.type = DEV_REG_find;
+	rq->find.type = DEV_REG_find_req;
 	rq->find.block = true;
 	snprintf(rq->find.name, sizeof(rq->find.name),
 			"%s", log_output);
@@ -224,7 +224,7 @@ main(void)
 		type = *((uint32_t *) m_buf);
 
 		switch (type) {
-			case DEV_REG_find:
+			case DEV_REG_find_rsp:
 				rp = (void *) m_buf;
 				if (from == DEV_REG_PID 
 						&& rp->find.ret == OK 
@@ -237,15 +237,15 @@ main(void)
 
 				break;
 
-			case SERIAL_write:
+			case SERIAL_write_rsp:
 				handle_write_response((void *) m_buf);
 				break;
 
-			case LOG_register:
+			case LOG_register_req:
 				handle_register(from, (void *) m_buf);
 				break;
 
-			case LOG_log:
+			case LOG_log_req:
 				handle_log(from, (void *) m_buf);
 				break;
 

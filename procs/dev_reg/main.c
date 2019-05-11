@@ -49,7 +49,7 @@ check_waiting(int id)
 	for (i = 0; i < MAX_WAITING; i++) {
 		if (waiting[i].in_use && strcmp(waiting[i].name, devs[id].name)) {
 
-			rp.find.type = DEV_REG_find;
+			rp.find.type = DEV_REG_find_rsp;
 			rp.find.pid = devs[id].pid;
 			rp.find.id = id;
 			rp.find.ret = OK;
@@ -62,17 +62,20 @@ check_waiting(int id)
 
 	int
 handle_find(int from, 
-		union dev_reg_req *rq,
-		union dev_reg_rsp *rp)
+		union dev_reg_req *rq)
 {
+	union dev_reg_rsp rp;
 	struct find_waiting *w;
 	int i;
 
+	rp.find.type = DEV_REG_find_rsp;
+
 	for (i = 0; i < MAX_DEVS && devs[i].pid > 0; i++) {
 		if (strncmp(devs[i].name, rq->find.name, sizeof(devs[i].name))) {
-			rp->find.pid = devs[i].pid;
-			rp->find.id = i;
-			return OK;
+			rp.find.pid = devs[i].pid;
+			rp.find.id = i;
+			rp.find.ret = OK;
+			return send(from, &rp);
 		}
 	}
 
@@ -85,74 +88,77 @@ handle_find(int from,
 		}
 	}
 
-	return ERR;
+	rp.find.ret = ERR;
+	return send(from, &rp);
 }
 
 	int
 handle_register(int from, 
-		union dev_reg_req *rq,
-		union dev_reg_rsp *rp)
+		union dev_reg_req *rq)
 {
+	union dev_reg_rsp rp;
 	int i;
+
+	rp.reg.type = DEV_REG_register_rsp;
 
 	for (i = 0; i < MAX_DEVS && devs[i].pid > 0; i++)
 		;
 
-	if (i == MAX_DEVS)
-		return ERR;
+	if (i == MAX_DEVS) {
+		rp.reg.ret = ERR;
+		return send(from, &rp);
+	}
 
 	devs[i].pid = from;
 	memcpy(devs[i].name, rq->reg.name, sizeof(devs[i].name));
 
-	rp->reg.id = i;
+	rp.reg.id = i;
 
 	check_waiting(i);
 
-	return OK;
+	rp.reg.ret = OK;
+
+	return send(from, &rp);
 }
 
 	int
 handle_list(int from, 
-		union dev_reg_req *rq,
-		union dev_reg_rsp *rp)
+		union dev_reg_req *rq)
 {
-	return ERR;
+	union dev_reg_rsp rp;
+
+	rp.list.type = DEV_REG_list_rsp;
+	rp.list.ret = ERR;
+
+	return send(from, &rp);
 }
 
 	void
 main(void)
 {
-	uint8_t rq_buf[MESSAGE_LEN], rp_buf[MESSAGE_LEN];
-	union dev_reg_req *rq = (union dev_reg_req *) rq_buf;
-	union dev_reg_rsp *rp = (union dev_reg_rsp *) rp_buf;
+	union dev_reg_req rq;
 	int from;
 
 	while (true) {
-		if ((from = recv(-1, rq_buf)) < 0)
+		if ((from = recv(-1, &rq)) < 0)
 			continue;
 
-		rp->untyped.type = rq->type;
-
-		switch (rq->type) {
-			case DEV_REG_find:
-				rp->untyped.ret = handle_find(from, rq, rp);
+		switch (rq.type) {
+			case DEV_REG_find_req:
+				handle_find(from, &rq);
 				break;
 
-			case DEV_REG_register:
-				rp->untyped.ret = handle_register(from, rq, rp);
+			case DEV_REG_register_req:
+				handle_register(from, &rq);
 				break;
 
-			case DEV_REG_list:
-				rp->untyped.ret = handle_list(from, rq, rp);
+			case DEV_REG_list_req:
+				handle_list(from, &rq);
 				break;
 
 			default:
-				rp->untyped.ret = NO_RSP;
 				break;
 		}
-
-		if (rp->untyped.ret != NO_RSP)
-			send(from, rp_buf);
 	}
 }
 

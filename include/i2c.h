@@ -33,7 +33,7 @@ union i2c_rsp {
 	struct {
 		uint32_t type;
 		int ret;
-	} info;
+	} configure;
 
 	struct {
 		uint32_t type;

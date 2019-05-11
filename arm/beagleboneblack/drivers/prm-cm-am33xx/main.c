@@ -48,7 +48,7 @@ main(void)
 
 	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x", pid(), regs_pa, regs);
 
-	drq.type = DEV_REG_register;
+	drq.type = DEV_REG_register_req;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", name);

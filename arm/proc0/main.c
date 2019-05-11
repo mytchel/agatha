@@ -19,98 +19,123 @@ log(int level, char *fmt, ...)
 }
 
 	int
-handle_addr_req(int from, union proc0_req *rq, union proc0_rsp *rp)
+handle_addr_req(int from, union proc0_req *rq)
 {
 	struct addr_frame *f;
+	union proc0_rsp rp;
 	size_t pa, len;
+
+	rp.addr_req.type = PROC0_addr_req_rsp;
 
 	len = rq->addr_req.len;
 	if (len != PAGE_ALIGN(len)) {
-		return PROC0_ERR_ALIGNMENT;
+		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
+		return send(from, &rp);	
 	}
 	
 	pa = rq->addr_req.pa;
 	if (pa != PAGE_ALIGN(pa)) {
-		return PROC0_ERR_ALIGNMENT;
+		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
+		return send(from, &rp);	
 	}
 
 	pa = get_ram(len, 0x1000);
 	if (pa == nil) {
-		return PROC0_ERR_ALIGNMENT;
+		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
+		return send(from, &rp);	
 	}
 
-	rp->addr_req.pa = pa;
+	rp.addr_req.pa = pa;
 
 	f = frame_new(pa, len);
 	if (f == nil) {
-		return ERR;
+		rp.addr_req.ret = ERR;
+		return send(from, &rp);
 	}
 
-	return proc_give_addr(from, f);
+	rp.addr_req.ret = proc_give_addr(from, f);
+	return send(from, &rp);
 }
 
 	int
-handle_addr_map(int from, union proc0_req *rq, union proc0_rsp *rp)
+handle_addr_map(int from, union proc0_req *rq)
 {
 	size_t pa, va, len;
+	union proc0_rsp rp;
+
+	rp.addr_map.type = PROC0_addr_map_rsp;
 
 	len = rq->addr_map.len;
 	if (len != PAGE_ALIGN(len)) {
-		return PROC0_ERR_ALIGNMENT;
+		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
+		return send(from, &rp);
 	}
 	
 	pa = rq->addr_map.pa;
 	if (pa != PAGE_ALIGN(pa)) {
-		return PROC0_ERR_ALIGNMENT;
+		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
+		return send(from, &rp);
 	}
 
 	va = rq->addr_map.va;
 	if (va != PAGE_ALIGN(va)) {
-		return PROC0_ERR_ALIGNMENT;
+		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
+		return send(from, &rp);
 	}
 
-	return proc_map(from, 
+	rp.addr_map.ret = proc_map(from, 
 			pa, va, len, 
 			rq->addr_map.flags);
+		
+	return send(from, &rp);
 }
 
 	int
-handle_addr_give(int from, union proc0_req *rq, union proc0_rsp *rp)
+handle_addr_give(int from, union proc0_req *rq)
 {
+	union proc0_rsp rp;
 	struct addr_frame *f;
 	size_t pa, len;
 	int to;
+
+	rp.addr_give.type = PROC0_addr_give_rsp;
 
 	to = rq->addr_give.to;
 
 	len = rq->addr_give.len;
 	if (len != PAGE_ALIGN(len)) {
-		return PROC0_ERR_ALIGNMENT;
+		rp.addr_give.ret = PROC0_ERR_ALIGNMENT;
+		return send(from, &rp);
 	}
 	
 	pa = rq->addr_give.pa;
 	if (pa != PAGE_ALIGN(pa)) {
-		return PROC0_ERR_ALIGNMENT;
+		rp.addr_give.ret = PROC0_ERR_ALIGNMENT;
+		return send(from, &rp);
 	}
 
 	f = proc_take_addr(from, pa, len);
 	if (f == nil) {
-		return ERR;
+		rp.addr_give.ret = ERR;
+		return send(from, &rp);
 	}
 
 	if (to == PROC0_PID) {
 		frame_free(f);
-		return OK;
+		rp.addr_give.ret = OK;
 
 	} else {
-		return proc_give_addr(to, f);
+		rp.addr_give.ret = proc_give_addr(to, f);
 	}
+	
+	return send(from, &rp);
 }
 
 int
-handle_irq_reg(int from, union proc0_req *rq, union proc0_rsp *rp)
+handle_irq_reg(int from, union proc0_req *rq)
 {
 	struct intr_mapping map;
+	union proc0_rsp rp;
 
 	map.pid = from;
 	map.irqn = rq->irq_reg.irqn;
@@ -118,21 +143,25 @@ handle_irq_reg(int from, union proc0_req *rq, union proc0_rsp *rp)
 	map.arg = rq->irq_reg.arg;
 	map.sp = rq->irq_reg.sp;
 
-	return intr_register(&map);
+	rp.irq_reg.type = PROC0_irq_reg_rsp;
+	rp.irq_reg.ret = intr_register(&map);
+	return send(from, &rp);
 }
 
 	int
-handle_proc(int from, union proc0_req *rq, union proc0_rsp *rp)
+handle_proc(int from, union proc0_req *rq)
 {
-	return ERR;
+	union proc0_rsp rp;
+
+	rp.proc.type = PROC0_proc_rsp;
+	rp.proc.ret = ERR;
+	return send(from, &rp);
 }
 
 	void
 main(struct kernel_info *i)
 {
-	uint8_t rq_buf[MESSAGE_LEN], rp_buf[MESSAGE_LEN];
-	union proc0_req *rq = (union proc0_req *) rq_buf;
-	union proc0_rsp *rp = (union proc0_rsp *) rp_buf;
+	union proc0_req rq;
 	int from;
 
 	info = i;
@@ -141,38 +170,30 @@ main(struct kernel_info *i)
 	init_procs();
 
 	while (true) {
-		if ((from = recv(-1, rq_buf)) < 0)
+		if ((from = recv(-1, &rq)) < 0)
 			continue;
 
-		rp->untyped.type = rq->type;
-
-		switch (rq->type) {
-			case PROC0_addr_req:
-				rp->untyped.ret = handle_addr_req(from, rq, rp);
+		switch (rq.type) {
+			case PROC0_addr_req_req:
+				handle_addr_req(from, &rq);
 				break;
 
-			case PROC0_addr_map:
-				rp->untyped.ret = handle_addr_map(from, rq, rp);
+			case PROC0_addr_map_req:
+				handle_addr_map(from, &rq);
 				break;
 
-			case PROC0_addr_give:
-				rp->untyped.ret = handle_addr_give(from, rq, rp);
+			case PROC0_addr_give_req:
+				handle_addr_give(from, &rq);
 				break;
 
-			case PROC0_irq_reg:
-				rp->untyped.ret = handle_irq_reg(from, rq, rp);
+			case PROC0_irq_reg_req:
+				handle_irq_reg(from, &rq);
 				break;
 
-			case PROC0_proc:
-				rp->untyped.ret = handle_proc(from, rq, rp);
-				break;
-
-			default:
-				rp->untyped.ret = ERR;
+			case PROC0_proc_req:
+				handle_proc(from, &rq);
 				break;
 		};
-
-		send(from, rp_buf);
 	}
 }
 

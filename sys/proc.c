@@ -1,6 +1,5 @@
 #include "head.h"
 
-#define TIME_SLICE      10000000
 #define MIN_TIME_SLICE        10
 
 void add_to_list_tail(proc_list_t l, proc_t p);
@@ -106,7 +105,7 @@ next_proc(void)
 	} 
 
 	for (p = ready.queue[ready.q].head; p != nil; p = p->next) {
-		p->ts = TIME_SLICE;
+		p->ts = SYSTICK;
 	}
 
 	return next_proc();

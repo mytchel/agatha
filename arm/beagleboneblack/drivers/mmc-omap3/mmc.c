@@ -347,7 +347,7 @@ main(void)
 		exit();
 	}
 
-	rq.irq_reg.type = PROC0_irq_reg;
+	rq.irq_reg.type = PROC0_irq_reg_req;
 	rq.irq_reg.irqn = irqn; 
 	rq.irq_reg.func = &intr_handler;
 	rq.irq_reg.arg = &mmc;

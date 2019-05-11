@@ -349,7 +349,7 @@ main(void)
 	mmc.set_ios = &pl18x_set_ios;
 	mmc.reset = &pl18x_reset;
 
-	rq.irq_reg.type = PROC0_irq_reg;
+	rq.irq_reg.type = PROC0_irq_reg_req;
 	rq.irq_reg.irqn = irqn;
 	rq.irq_reg.func = &intr_handler;
 	rq.irq_reg.arg = &mmc;

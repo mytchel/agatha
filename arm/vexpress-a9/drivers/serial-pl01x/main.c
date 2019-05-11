@@ -44,7 +44,7 @@ handle_write(int from, union serial_req *rq)
 	union serial_rsp rp;
 	size_t i;
 
-	rp.write.type = SERIAL_write;
+	rp.write.type = SERIAL_write_rsp;
 	rp.write.ret = OK;
 
 	for (i = 0; i < rq->write.len; i++)
@@ -58,7 +58,7 @@ handle_read(int from, union serial_req *rq)
 {
 	union serial_rsp rp;
 
-	rp.read.type = SERIAL_read;
+	rp.read.type = SERIAL_read_rsp;
 	rp.read.ret = ERR;
 
 	send(from, &rp);
@@ -87,7 +87,7 @@ main(void)
 		exit();
 	}
 
-	drq.type = DEV_REG_register;
+	drq.type = DEV_REG_register_req;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", dev_name);
@@ -109,11 +109,11 @@ main(void)
 		if (from < 0) continue;
 
 		switch (rq.type) {
-			case SERIAL_write:
+			case SERIAL_write_req:
 				handle_write(from, &rq);
 				break;
 
-			case SERIAL_read:
+			case SERIAL_read_req:
 				handle_read(from, &rq);
 				break;
 		}

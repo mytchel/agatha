@@ -52,7 +52,7 @@ main(void)
 
 	lan9118_init();
 
-	drq.type = DEV_REG_register;
+	drq.type = DEV_REG_register_req;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", dev_name);

@@ -12,27 +12,33 @@
 	int
 handle_info(struct block_dev *dev,
 		int from,
-		union block_req *rq,
-		union block_rsp *rp)
+		union block_req *rq)
 {
-	rp->info.block_size = dev->block_size;
-	rp->info.nblocks = dev->nblocks;
+	union block_rsp rp;
 
-	return OK;
+	rp.info.type = BLOCK_info_rsp;
+	rp.info.ret = OK;
+	rp.info.block_size = dev->block_size;
+	rp.info.nblocks = dev->nblocks;
+
+	return send(from, &rp);
 }
 
 	int
 handle_read(struct block_dev *dev,
 		int from,
-		union block_req *rq,
-		union block_rsp *rp)
+		union block_req *rq)
 {
+	union block_rsp rp;
 	void *addr;
 	int ret;
 
+	rp.read.type = BLOCK_read_rsp;
+
 	addr = map_addr(rq->read.pa, rq->read.len, MAP_RW);
 	if (addr == nil) {
-		return ERR;
+		rp.read.ret = ERR;
+		return send(from, &rp);
 	}
 
 	ret = dev->read_blocks(dev, addr, 
@@ -41,63 +47,63 @@ handle_read(struct block_dev *dev,
 	unmap_addr(addr, rq->read.len);
 	give_addr(from, rq->read.pa, rq->read.len);
 
-	return ret;
+	rp.read.type = BLOCK_read_rsp;
+	rp.read.ret = ret;
+
+	return send(from, &rp);
 }
 
 	int
 handle_write(struct block_dev *dev,
 		int from,
-		union block_req *rq,
-		union block_rsp *rp)
+		union block_req *rq)
 {
-	return ERR;
+	union block_rsp rp;
+
+	rp.write.type = BLOCK_write_rsp;
+	rp.write.ret = ERR;
+
+	return send(from, &rp);
 }
 
 	int
 block_dev_register(struct block_dev *dev)
 {
-	uint8_t rq_buf[MESSAGE_LEN], rp_buf[MESSAGE_LEN];
-	union dev_reg_req *drq = (union dev_reg_req *) rq_buf;
-	union dev_reg_rsp *drp = (union dev_reg_rsp *) rp_buf;
-	union block_req *brq = (union block_req *) rq_buf;
-	union block_rsp *brp = (union block_rsp *) rp_buf;
+	union dev_reg_req drq;
+	union dev_reg_rsp drp;
+	union block_req brq;
 	int ret, from;
 
-	drq->type = DEV_REG_register;
-	drq->reg.pid = pid();
-	memcpy(drq->reg.name, dev->name, sizeof(drq->reg.name));
+	drq.reg.type = DEV_REG_register_req;
+	drq.reg.pid = pid();
+	memcpy(drq.reg.name, dev->name, sizeof(drq.reg.name));
 
-	if ((ret = mesg(DEV_REG_PID, rq_buf, rp_buf)) != OK)
+	if ((ret = mesg(DEV_REG_PID, &drq, &drp)) != OK)
 		return ret;
 
-	if (drp->reg.ret != OK)
-		return drp->reg.ret;
+	if (drp.reg.ret != OK)
+		return drp.reg.ret;
 
 	while (true) {
-		if ((from = recv(-1, rq_buf)) < 0)
+		if ((from = recv(-1, &brq)) < 0)
 			continue;
 
-		brp->untyped.type = brq->type;
-
-		switch (brq->type) {
-			case BLOCK_info:
-				brp->untyped.ret = handle_info(dev, from, brq, brp);
+		switch (brq.type) {
+			case BLOCK_info_req:
+				handle_info(dev, from, &brq);
 				break;
 
-			case BLOCK_read:
-				brp->untyped.ret = handle_read(dev, from, brq, brp);
+			case BLOCK_read_req:
+				handle_read(dev, from, &brq);
 				break;
 
-			case BLOCK_write:
-				brp->untyped.ret = handle_write(dev, from, brq, brp);
+			case BLOCK_write_req:
+				handle_write(dev, from, &brq);
 				break;
 
 			default:
-				brp->untyped.ret = ERR;
 				break;
 		}
-
-		send(from, rp_buf);
 	}
 
 	return OK;

@@ -16,7 +16,7 @@ get_device_pid(char *name)
 	union dev_reg_req rq;
 	union dev_reg_rsp rp;
 
-	rq.find.type = DEV_REG_find;
+	rq.find.type = DEV_REG_find_req;
 	rq.find.block = true;
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
@@ -86,7 +86,7 @@ frame_update(int dev_pid,
 		exit();
 	}
 
-	rq.update.type = VIDEO_update;
+	rq.update.type = VIDEO_update_req;
 	rq.update.frame_pa = frame_pa;
 	rq.update.frame_size = frame_size;
 
@@ -120,7 +120,7 @@ main(void)
 
 	log(LOG_INFO, "%s on pid %i", dev_name, dev_pid);
 
-	crq.connect.type = VIDEO_connect;
+	crq.connect.type = VIDEO_connect_req;
 	if (mesg(dev_pid, &crq, &crp) != OK || crp.connect.ret != OK) {
 		log(LOG_FATAL, "failed to connect to video driver %s", dev_name);
 		exit();
@@ -163,7 +163,7 @@ main(void)
 			union video_rsp *rsp = (void *) m;
 
 			switch (rsp->untyped.type) {
-				case VIDEO_update:
+				case VIDEO_update_rsp:
 					if (rsp->update.ret != OK) {
 						log(LOG_FATAL, "display got error %i", rsp->update.ret);
 						break;

@@ -79,7 +79,7 @@ handle_connect(int from, union video_req *rq)
 
 	log(LOG_INFO, "%i has connected", from);
 
-	rp.connect.type = VIDEO_connect;
+	rp.connect.type = VIDEO_connect_rsp;
 	rp.connect.frame_size = fb_size;
 	rp.connect.width = width;
 	rp.connect.height = height;
@@ -136,7 +136,7 @@ main(void)
 		exit();
 	}
 
-	rq.irq_reg.type = PROC0_irq_reg;
+	rq.irq_reg.type = PROC0_irq_reg_req;
 	rq.irq_reg.irqn = irqn;
 	rq.irq_reg.func = &intr_handler;
 	rq.irq_reg.arg = (void *) regs;
@@ -161,7 +161,7 @@ main(void)
 	union dev_reg_req drq;
 	union dev_reg_rsp drp;
 
-	drq.type = DEV_REG_register;
+	drq.type = DEV_REG_register_req;
 	drq.reg.pid = pid();
 	memcpy(drq.reg.name, dev_name, sizeof(drq.reg.name));
 
@@ -185,7 +185,7 @@ main(void)
 
 			if (fb_using) {
 				log(LOG_INFO, "update finished for 0x%x", fb_using);
-				rp.update.type = VIDEO_update;
+				rp.update.type = VIDEO_update_rsp;
 				rp.update.frame_pa = fb_using;
 				rp.update.frame_size = fb_size;
 
@@ -212,11 +212,11 @@ main(void)
 			log(LOG_INFO, "got message");
 
 			switch (rq->type) {
-				case VIDEO_connect:
+				case VIDEO_connect_req:
 					handle_connect(from, rq);
 					break;
 
-				case VIDEO_update:
+				case VIDEO_update_req:
 					handle_update(from, rq);
 					break;
 			}

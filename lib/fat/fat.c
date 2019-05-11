@@ -496,7 +496,7 @@ fat_read_blocks(struct fat *fat, size_t pa, size_t len,
 		return ERR;
 	}
 
-	rq.read.type = BLOCK_read;
+	rq.read.type = BLOCK_read_req;
 	rq.read.pa = pa;
 	rq.read.len = len;
 	rq.read.start = fat->start * fat->block_size + start;

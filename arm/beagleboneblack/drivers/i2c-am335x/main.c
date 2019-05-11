@@ -22,7 +22,7 @@ get_device_pid(char *name)
 	union dev_reg_req rq;
 	union dev_reg_rsp rp;
 
-	rq.find.type = DEV_REG_find;
+	rq.find.type = DEV_REG_find_req;
 	rq.find.block = true;
 	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", name);
@@ -209,50 +209,57 @@ i2c_write(int slave, int sub, uint8_t *buf, size_t len)
 
 static int
 handle_configure(int from, 
-		union i2c_req *irq, 
-		union i2c_rsp *irp)
+		union i2c_req *rq)
 {
-	return i2c_init(irq->configure.addr,
-			irq->configure.speed_kHz);
+	union i2c_rsp rp;
+
+	rp.configure.type = I2C_configure_rsp;
+	rp.configure.ret = i2c_init(rq->configure.addr,
+			rq->configure.speed_kHz);
+
+	return send(from, &rp);
 }
 
 static int
 handle_read(int from, 
-		union i2c_req *irq, 
-		union i2c_rsp *irp)
+		union i2c_req *rq) 
 {
-	int ret;
+	union i2c_rsp rp;
 
-	if (!configured) return ERR;
+	rp.read.type = I2C_read_rsp;
+	if (!configured) {
+		rp.read.ret = ERR;
+		return send(from, &rp);
+	}
 
-	ret = i2c_read(irq->read.slave, irq->read.addr,
-		 irp->read.buf, irq->read.len);
+	rp.read.ret = i2c_read(rq->read.slave, rq->read.addr,
+			rp.read.buf, rq->read.len);
 
-	return ret;
+	return send(from, &rp);
 }
 
 
 static int
 handle_write(int from, 
-		union i2c_req *irq, 
-		union i2c_rsp *irp)
+		union i2c_req *rq)
 {
-	int ret;
+	union i2c_rsp rp;
 
-	if (!configured) return ERR;
+	rp.write.type = I2C_write_rsp;
+	if (!configured) {
+		rp.write.ret = ERR;
+		return send(from, &rp);
+	}
 
-	ret = i2c_write(irq->write.slave, irq->write.addr,
-		 irq->write.buf, irq->write.len);
+	rp.write.ret = i2c_write(rq->write.slave, rq->write.addr,
+		 rq->write.buf, rq->write.len);
 
-	return ret;
+	return send(from, &rp);
 }
 
 	void
 main(void)
 {
-	uint8_t rq_buf[MESSAGE_LEN], rp_buf[MESSAGE_LEN];
-	union i2c_req *irq = (union i2c_req *) rq_buf;
-	union i2c_rsp *irp = (union i2c_rsp *) rp_buf;
 	int from;
 
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
@@ -290,7 +297,6 @@ main(void)
 #if 1
 	if (strcmp(dev_name, "i2c0")) {
 		uint8_t buf[1];
-		uint8_t addr;
 
 		i2c_init(0x40, 400);
 
@@ -298,7 +304,7 @@ main(void)
 #if 0
 		/* This doesn't work for some reason */
 
-		addr = 0x70;
+		uint8_t addr = 0x70;
 		i2c_read(addr, 0xff, buf, sizeof(buf));
 		log(LOG_INFO, "read 0x%x", buf[0]);
 		buf[0] = 0x0;
@@ -347,13 +353,13 @@ main(void)
 			i2c_read(0x24, 0x13, buf, sizeof(buf));
 			log(LOG_INFO, "read 0x%x", buf[0]);
 					
-			udelay(100000);
+			udelay(50000);
 			on = !on;
 		}
 	}
 #endif
 
-	drq.type = DEV_REG_register;
+	drq.type = DEV_REG_register_req;
 	drq.reg.pid = pid();
 	snprintf(drq.reg.name, sizeof(drq.reg.name),
 			"%s", dev_name);
@@ -364,29 +370,24 @@ main(void)
 	}
 
 	while (true) {
-		if ((from = recv(-1, rq_buf)) < 0)
+		union i2c_req rq;
+
+		if ((from = recv(-1, &rq)) < 0)
 			continue;
 
-		irp->untyped.type = irq->type;
-		switch (irq->type) {
-			case I2C_configure:
-				irp->untyped.ret = handle_configure(from, irq, irp);
+		switch (rq.type) {
+			case I2C_configure_req:
+				handle_configure(from, &rq);
 				break;
 
-			case I2C_read:
-				irp->untyped.ret = handle_read(from, irq, irp);
+			case I2C_read_req:
+				handle_read(from, &rq);
 				break;
 
-			case I2C_write:
-				irp->untyped.ret = handle_write(from, irq, irp);
+			case I2C_write_req:
+				handle_write(from, &rq);
 				break;
-
-			default:
-				irp->untyped.ret = ERR;
-				break;	
 		}
-
-		send(from, rp_buf);
 	}
 }
 
