@@ -19,25 +19,28 @@ void
 __attribute__((noreturn))
 proc_start(void)
 {
-  uint32_t m[MESSAGE_LEN/sizeof(uint32_t)];
+	union proc_msg m;
   label_t u = {0};
   int p;
 
 	debug(DEBUG_INFO, "proc %i starting\n", up->pid);
 
-  while ((p = recv(0, (uint8_t *) m)) < 0) 
-		;
+  while (true) {
+		p = recv(0, (uint8_t *) &m);
+		if (p != 0) {
+			continue;
+		} else if (m.start.type == PROC_start_msg) {
+			break;
+		}
+	}	
 
   u.psr = MODE_USR;
-  u.pc = m[0];
-  u.sp = m[1];
+  u.pc = m.start.pc;
+  u.sp = m.start.sp;
+  u.regs[0] = m.start.arg;
 
-	debug(DEBUG_INFO, "proc %i got start regs at 0x%x 0x%x\n", up->pid, u.pc, u.sp);
-
-	int i;
-	for (i = 0; i < 100; i += sizeof(uint32_t))
-		debug(DEBUG_INFO, "proc code[0x%x] = 0x%x\n",
-				i, *((uint32_t *) (m[0] + i)));
+	debug(DEBUG_INFO, "proc %i got start regs at 0x%x 0x%x with arg 0x%x\n", 
+			up->pid, u.pc, u.sp, u.regs[0]);
 
 	drop_to_user(&u);
 }

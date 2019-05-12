@@ -158,10 +158,32 @@ handle_proc(int from, union proc0_req *rq)
 	return send(from, &rp);
 }
 
+int
+handle_fault(int from, union proc_msg *m)
+{
+	log(0, "proc %i fault flags %i at pc 0x%x", 
+			from, m->fault.fault_flags, m->fault.pc);
+
+	if ((m->fault.fault_flags & 3) == 3) {
+		log(0, "for addr 0x%x", m->fault.data_addr);
+	}
+
+	return OK;
+}
+
+int
+handle_exit(int from, union proc_msg *m)
+{
+	log(0, "proc %i exit with 0x%x",
+			from, m->exit.code);
+
+	return OK;
+}
+
 	void
 main(struct kernel_info *i)
 {
-	union proc0_req rq;
+	uint8_t m[MESSAGE_LEN];
 	int from;
 
 	info = i;
@@ -170,28 +192,36 @@ main(struct kernel_info *i)
 	init_procs();
 
 	while (true) {
-		if ((from = recv(-1, &rq)) < 0)
+		if ((from = recv(-1, m)) < 0)
 			continue;
 
-		switch (rq.type) {
+		switch (((uint32_t *) m)[0]) {
 			case PROC0_addr_req_req:
-				handle_addr_req(from, &rq);
+				handle_addr_req(from, (union proc0_req *) m);
 				break;
 
 			case PROC0_addr_map_req:
-				handle_addr_map(from, &rq);
+				handle_addr_map(from, (union proc0_req *) m);
 				break;
 
 			case PROC0_addr_give_req:
-				handle_addr_give(from, &rq);
+				handle_addr_give(from, (union proc0_req *) m);
 				break;
 
 			case PROC0_irq_reg_req:
-				handle_irq_reg(from, &rq);
+				handle_irq_reg(from, (union proc0_req *) m);
 				break;
 
 			case PROC0_proc_req:
-				handle_proc(from, &rq);
+				handle_proc(from, (union proc0_req *) m);
+				break;
+
+			case PROC_fault_msg:
+				handle_fault(from, (union proc_msg *) m);
+				break;
+
+			case PROC_exit_msg:
+				handle_exit(from, (union proc_msg *) m);
 				break;
 		};
 	}

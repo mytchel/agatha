@@ -312,7 +312,7 @@ proc_map(int pid,
 init_bundled_proc(char *name,
 		size_t start, size_t len)
 {
-	uint32_t m[MESSAGE_LEN/sizeof(uint32_t)] = { 0 };
+	union proc_msg m;
 
 	size_t code_pa, stack_pa;
 	uint32_t *code_va, *start_va;
@@ -329,19 +329,19 @@ init_bundled_proc(char *name,
 	
 	code_pa = get_ram(len, 0x1000);
 	if (code_pa == nil) {
-		exit_r(1);
+		exit(1);
 		raise();
 	}
 
 	code_va = map_addr(code_pa, len, MAP_RW|MAP_DEV);
 	if (code_va == nil) {
-		exit_r(2);
+		exit(2);
 		raise();
 	}
 
 	start_va = map_addr(start, len, MAP_RO|MAP_DEV);
 	if (start_va == nil) {
-		exit_r(3);
+		exit(3);
 		raise();
 	}
 
@@ -352,13 +352,13 @@ init_bundled_proc(char *name,
 
 	log(LOG_INFO, "unmap code");
 	if ((r = unmap_addr(code_va, len)) != OK) {
-		exit_r(r);
+		exit(r);
 		raise();
 	}
 
 	log(LOG_INFO, "unmap start");
 	if ((r = unmap_addr(start_va, len)) != OK) {
-		exit_r(r);
+		exit(r);
 		raise();
 	}
 	
@@ -366,34 +366,34 @@ init_bundled_proc(char *name,
 
 	l1_table_pa = get_ram(0x4000, 0x4000);
 	if (l1_table_pa == nil) {
-		exit_r(4);
+		exit(4);
 		raise();
 	}
 
 	l1_mapped_pa = get_ram(0x4000, 0x1000);
 	if (l1_mapped_pa == nil) {
-		exit_r(4);
+		exit(4);
 		raise();
 	}
 
 	l1_table_va = map_addr(l1_table_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_table_va == nil) {
-		exit_r(5);
+		exit(5);
 		raise();
 	}
 
 	l1_mapped_va = map_addr(l1_mapped_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_mapped_va == nil) {
-		exit_r(5);
+		exit(5);
 		raise();
 	}
 
 	memset(l1_mapped_va, 0, 0x4000);
 	proc_init_l1(l1_table_va);
 	
-	pid = proc_new(l1_table_pa);
+	pid = proc_new(l1_table_pa, 0);
 	if (pid < 0) {
-		exit_r(8);
+		exit(8);
 		raise();
 	}
 
@@ -406,24 +406,24 @@ init_bundled_proc(char *name,
 
 	l2_pa = get_ram(0x1000, 0x1000);
 	if (l2_pa == nil) {
-		exit_r(6);
+		exit(6);
 		raise();
 	}
 
 	if ((f = frame_new(l2_pa, 0x1000)) == nil) {
-		exit_r(0x9);
+		exit(0x9);
 		raise();
 	}
 
 	if ((r = proc_give_addr(pid, f)) != OK) {
-		exit_r(0xa);
+		exit(0xa);
 		raise();
 	}
 
 	if ((r = proc_map(pid, l2_pa, 
 				0, 0x1000, 
 				MAP_TABLE)) != OK) {
-		exit_r(0xf);
+		exit(0xf);
 		raise();
 	}
 
@@ -432,52 +432,53 @@ init_bundled_proc(char *name,
 	size_t stack_len = 0x2000;
 	stack_pa = get_ram(stack_len, 0x1000); 
 	if (stack_pa == nil) {
-		exit_r(7);
+		exit(7);
 		raise();
 	}
 
 	if ((f = frame_new(stack_pa, stack_len)) == nil) {
-		exit_r(0xb);
+		exit(0xb);
 		raise();
 	}
 
 	if ((r = proc_give_addr(pid, f)) != OK) {
-		exit_r(0xc);
+		exit(0xc);
 		raise();
 	}
 
 	if ((r = proc_map(pid, stack_pa, 
 				USER_ADDR - stack_len, stack_len, 
 				MAP_MEM|MAP_RW)) != OK) {
-		exit_r(0x10);
+		exit(0x10);
 		raise();
 	}
 
 	/* Code */
 
 	if ((f = frame_new(code_pa, len)) == nil) {
-		exit_r(0xd);
+		exit(0xd);
 		raise();
 	}
 
 	if ((r = proc_give_addr(pid, f)) != OK) {
-		exit_r(0xe);
+		exit(0xe);
 		raise();
 	}
 
 	if ((r = proc_map(pid, code_pa, 
 				USER_ADDR, len, 
 				MAP_MEM|MAP_RW)) != OK) {
-		exit_r(0x11);
+		exit(0x11);
 		raise();
 	}
 
-	m[0] = USER_ADDR;
-	m[1] = USER_ADDR;
+	m.start.type = PROC_start_msg;
+	m.start.pc = USER_ADDR;
+	m.start.sp = USER_ADDR;
 
 	log(LOG_INFO, "start bundled proc pid %i %s", pid, name);
 
-	send(pid, (uint8_t *) m);
+	send(pid, (uint8_t *) &m);
 
 	return pid;
 }

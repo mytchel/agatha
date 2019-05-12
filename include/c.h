@@ -16,7 +16,7 @@ int
 pid(void);
 
 void
-exit(void)
+exit(uint32_t code)
 	__attribute__((noreturn));
 
 int

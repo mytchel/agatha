@@ -327,7 +327,7 @@ main(void)
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		log(LOG_FATAL, "pl18x failed to map registers!");
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "pl18x mapped from 0x%x -> 0x%x with irq %i",
@@ -336,7 +336,7 @@ main(void)
 	ret = pl18x_init(regs);
 	if (ret != OK) {
 		log(LOG_FATAL, "pl18x init failed!");
-		exit();
+		exit(ret);
 	}
 
 	mmc.base = regs;
@@ -357,7 +357,7 @@ main(void)
 
 	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
 		log(LOG_FATAL, "failed to register interrupt %i", irqn);
-		exit();
+		exit(ERR);
 	}
 
 	ret = mmc_start(&mmc);

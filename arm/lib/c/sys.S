@@ -8,7 +8,6 @@
 .global panic
 
 .global exit
-.global exit_r
 .global intr_exit
 .global yield
 .global send
@@ -25,13 +24,9 @@ _start:
 
 raise:
 	mov r0, #-1
-	bl exit_r
 panic:
 	mov r0, #-2
-	bl exit_r
 exit:
-	mov r0, #0
-exit_r:
 	push {r12, lr}
 	mov r12, #SYSCALL_EXIT
 	svc 0

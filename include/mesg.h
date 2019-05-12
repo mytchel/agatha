@@ -10,6 +10,7 @@ typedef enum {
 	PROC0_addr_give_req,
 	PROC0_addr_give_rsp,
 
+	PROC_start_msg,
 	PROC_fault_msg,
 	PROC_exit_msg,
 

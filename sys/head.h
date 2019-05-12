@@ -2,6 +2,7 @@
 #include <mach.h>
 #include <sys.h>
 #include <err.h>
+#include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
 
@@ -16,13 +17,6 @@ struct message {
 typedef struct proc *proc_t;
 typedef struct proc_list *proc_list_t;
 
-typedef enum {
-	PROC_dead,
-
-	PROC_ready,
-	PROC_recv,
-} procstate_t;
-
 struct proc_list {
 	proc_t head, tail;
 };
@@ -35,6 +29,7 @@ struct proc {
 
 	procstate_t state;
 	int pid;
+	int supervisor;
 
 	int ts;
 	proc_list_t list;		
@@ -49,10 +44,16 @@ struct proc {
 };
 
 proc_t
-proc_new(void);
+proc_new(size_t vspace, int supervisor);
 
-void
+int
 proc_ready(proc_t p);
+
+int
+proc_fault(proc_t p);
+
+int
+proc_free(proc_t p);
 
 proc_t
 find_proc(int pid);
@@ -71,6 +72,9 @@ send(proc_t to, message_t);
 
 int
 recv(int from, uint8_t *m);
+
+int
+mesg_supervisor(uint8_t *m);
 
 void
 memcpy(void *dst, const void *src, size_t len);

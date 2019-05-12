@@ -404,7 +404,7 @@ check_pools(void)
 		checking = true;
 		r = grow_pool(&l1_span_pool);
 		log(LOG_INFO, "pool grown ? %i", r);
-		if (!r) exit_r(0xff00);
+		if (!r) exit(0xff00);
 		checking = false;
 	}
 
@@ -413,7 +413,7 @@ check_pools(void)
 		checking = true;
 		r = grow_pool(&span_pool);
 		log(LOG_INFO, "pool grown ? %i", r);
-		if (!r) exit_r(0xff01);
+		if (!r) exit(0xff01);
 		checking = false;
 	}
 
@@ -458,7 +458,7 @@ unmap_addr(void *addr, size_t len)
 	dump_mappings();
 
 	if (addr_unmap(va, len) != OK) {
-		exit_r(0x123456);
+		exit(0x123456);
 		return ERR;
 	}
 
@@ -476,7 +476,7 @@ unmap_addr(void *addr, size_t len)
 	if (l == nil) {
 		log(LOG_INFO, "error unmapping, l1 not mapped");
 
-		exit_r(0x1236);
+		exit(0x1236);
 		return ERR;
 	}
 
@@ -491,14 +491,14 @@ unmap_addr(void *addr, size_t len)
 
 	if (s == nil) {
 		log(LOG_INFO, "error unmapping, pages not mapped");
-		exit_r(0x1235);
+		exit(0x1235);
 		return ERR;
 	}
 
 	if (s->va != va || s->len != len) {
 		log(LOG_INFO, "error unmapping, cannot unmap across mappings");
 		/* TODO: support unmapping parts of mapped space */
-		exit_r(0x1234);
+		exit(0x1234);
 		return ERR;
 	}
 

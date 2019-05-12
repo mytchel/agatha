@@ -8,9 +8,10 @@
 #define SYSCALL_INTR_EXIT         6
 
 #define SYSCALL_PROC_NEW          7
-#define SYSCALL_INTR_REGISTER     8
+#define SYSCALL_PROC_SETUP        8
+#define SYSCALL_INTR_REGISTER     9
 
-#define SYSCALL_DEBUG             9
+#define SYSCALL_DEBUG            10
 
-#define NSYSCALLS                10
+#define NSYSCALLS                11
 

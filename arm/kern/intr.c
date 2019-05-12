@@ -119,6 +119,7 @@ go_idle(void)
 	void
 trap(size_t pc, int type)
 {
+	union proc_msg m;
 	uint32_t fsr;
 	size_t addr;
 
@@ -135,10 +136,12 @@ trap(size_t pc, int type)
 
 		case ABORT_INSTRUCTION:
 			debug_warn("abort instruction at 0x%x\n", pc);
+			m.fault.fault_flags = ABORT_INSTRUCTION;
 			break;
 
 		case ABORT_PREFETCH:
 			debug_warn("prefetch instruction at 0x%x\n", pc);
+			m.fault.fault_flags = ABORT_PREFETCH;
 			break;
 
 		case ABORT_DATA:
@@ -168,6 +171,9 @@ trap(size_t pc, int type)
 					break;
 			}
 
+			m.fault.data_addr = addr;
+			m.fault.fault_flags = ABORT_PREFETCH | (fsr << 4);
+
 			break;
 	}
 
@@ -175,13 +181,19 @@ trap(size_t pc, int type)
 		panic("trap with no proc on cpu!!!\n");
 	}
 
-	debug_warn("killing proc %i\n", up->pid);
+	debug_warn("stopping proc %i\n", up->pid);
 
-	up->state = PROC_dead;
+	m.fault.type = PROC_fault_msg;
+	m.fault.pc = pc;
+
+	proc_fault(up);
+	
+	mesg_supervisor((uint8_t *) &m);
+
+	/* TODO: Could be unnecesary if we swapped to 
+		 the supervisor which fixed it then we swapped 
+		 back. But won't hurt too much */
 
 	schedule(nil);
-
-	/* Never reached */
 }
-
 

@@ -249,6 +249,6 @@ main(void)
 	unmap_addr(init_file, init_m_len);
 	release_addr(init_pa, init_m_len);
 
-	exit();
+	exit(OK);
 }
 

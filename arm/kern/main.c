@@ -57,14 +57,6 @@ init_proc0(void)
 {
 	proc_t p;
 
-	p = proc_new();
-	if (p == nil) {
-		panic("Failed to create proc0 entry!\n");
-	}
-
-	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
-			(size_t) &proc0_start);
-
 	memcpy(proc0_l1,
 			kernel_l1, 
 			0x4000);
@@ -122,7 +114,13 @@ init_proc0(void)
 			info->proc0.stack_len, 
 			AP_RW_RW, true);
 
-	p->vspace = info->proc0.l1_pa;
+	p = proc_new(info->proc0.l1_pa, 0);
+	if (p == nil) {
+		panic("Failed to create proc0 entry!\n");
+	}
+
+	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
+			(size_t) &proc0_start);
 
 	proc_ready(p);
 

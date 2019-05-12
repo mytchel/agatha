@@ -41,6 +41,7 @@ union proc0_req {
 
 	struct {
 		uint32_t type;
+		int pid;
 		size_t pa;
 		size_t va;
 		size_t len;
@@ -64,7 +65,6 @@ union proc0_req {
 
 	struct {
 		uint32_t type;
-		int flags;
 	} proc;
 };
 

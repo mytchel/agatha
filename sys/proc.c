@@ -79,7 +79,7 @@ next_proc(void)
 		n = p->next;
 
 		if (p->state == PROC_ready) {
-			if (p->ts > MIN_TIME_SLICE && p->vspace != nil) {
+			if (p->ts > MIN_TIME_SLICE) {
 				debug_sched_v("%i is ready\n", p->pid);
 				return p;
 
@@ -148,18 +148,16 @@ schedule(proc_t n)
 
 	irq_run_active();
 
-	if (n != nil) {
+	if (n != nil && n->state == PROC_ready) {
 		if (n->ts > MIN_TIME_SLICE) {
 			debug_sched("use given\n");
 			up = n;
+
 		} else if (n->list == nil) {
 			debug_sched("put given on next queue\n");
 			add_to_list_tail(&ready.queue[(ready.q + 1) % 2], n);
 			up = next_proc();
-		} else if (n->vspace == nil) {
-			debug_sched("given %i is not set up yet\n", n->pid);
-			add_to_list_tail(&ready.queue[(ready.q + 1) % 2], n);
-			up = next_proc();
+
 		} else {
 			debug_sched("doing nothing with given\n");
 			up = next_proc();
@@ -183,7 +181,7 @@ schedule(proc_t n)
 }
 
 	proc_t
-proc_new(void)
+proc_new(size_t vspace, int supervisor)
 {
 	int pid;
 	proc_t p;
@@ -192,15 +190,41 @@ proc_new(void)
 
 	p = &procs[pid];
 
-	memset(p, 0, sizeof(struct proc));
-
-	p->state = PROC_ready;
 	p->pid = pid;
+	p->vspace = vspace;
+	p->supervisor = supervisor;
 
 	return p;
 }
 
-	void
+	int
+proc_free(proc_t p)
+{
+	debug_sched("free %i\n", p->pid);
+
+	if (p->list != nil) {
+		remove_from_list(p->list, p);
+	}
+
+	memset(p, 0, sizeof(struct proc));
+
+	return OK;
+}
+
+	int
+proc_fault(proc_t p)
+{
+	debug_sched("fault %i\n", p->pid);
+
+	p->state = PROC_fault;
+	if (p->list != nil) {
+		remove_from_list(p->list, p);
+	}
+
+	return OK;
+}
+
+	int
 proc_ready(proc_t p)
 {
 	debug_sched("ready %i\n", p->pid);
@@ -209,13 +233,15 @@ proc_ready(proc_t p)
 	if (p->list == nil) {
 		add_to_list_tail(&ready.queue[(ready.q + 1) % 2], p);
 	}
+
+	return OK;
 }
 
 	proc_t
 find_proc(int pid)
 {
 	if (pid < MAX_PROCS) {
-		return procs[pid].state != PROC_dead ? &procs[pid] : nil;
+		return procs[pid].state != PROC_free ? &procs[pid] : nil;
 	} else {
 		return nil;
 	}

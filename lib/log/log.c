@@ -45,8 +45,6 @@ log(int level, char *fmt, ...)
 	rq.log.type = LOG_log_req;
 	rq.log.level = level;
 
-	if (mesg(LOG_PID, &rq, &rp) != OK || rp.log.ret != OK) {
-		exit();
-	}
+	mesg(LOG_PID, &rq, &rp);
 }
 

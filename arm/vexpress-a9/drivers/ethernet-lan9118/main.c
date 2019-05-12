@@ -45,7 +45,7 @@ main(void)
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		log(LOG_FATAL, "lan9118 failed to map registers!");
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "mapped from 0x%x to 0x%x with irq %i", regs_pa, regs, irqn);
@@ -58,11 +58,11 @@ main(void)
 			"%s", dev_name);
 
 	if (mesg(DEV_REG_PID, (uint8_t *) &drq, &drp) != OK) {
-		exit();
+		exit(ERR);
 	}
 
 	if (drp.reg.ret != OK) {
-		exit();
+		exit(drp.reg.ret);
 	}
 
 	while (true) {

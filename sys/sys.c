@@ -204,18 +204,56 @@ sys_pid(void)
 	return up->pid;
 }
 
-	size_t
-sys_exit(size_t code)
+int
+mesg_supervisor(uint8_t *raw)
 {
-	debug_info("%i proc exiting with 0x%x\n", up->pid, code);
-	up->state = PROC_dead;
-	schedule(nil);
-	panic("schedule returned to exit!\n");
-	return 0;
+	message_t m;
+	proc_t p;
+
+	p = find_proc(up->supervisor);
+	if (p == nil) {
+		p = find_proc(0);
+		if (p == nil) {
+			debug_warn("%i couldn't find supervisor %i or proc0!", up, up->supervisor);
+			return ERR;
+		}
+	}
+
+	m = message_get();
+	if (m == nil) {
+		debug_warn("out of messages\n");
+		return ERR;
+	}
+
+	m->from = up->pid;
+	memcpy(m->body, raw, MESSAGE_LEN);
+
+	return send(p, m);
 }
 
 	size_t
-sys_proc_new(size_t vspace)
+sys_exit(uint32_t code)
+{
+	union proc_msg m;
+
+	debug_info("%i proc exiting with 0x%x\n", up->pid, code);
+
+	m.exit.type = PROC_exit_msg;
+	m.exit.code = code;
+
+	proc_fault(up);
+
+	mesg_supervisor((uint8_t *) &m);
+
+	schedule(nil);
+
+	panic("schedule returned to exit!\n");
+
+	return ERR;
+}
+
+	size_t
+sys_proc_new(size_t vspace, int supervisor)
 {
 	proc_t p;
 
@@ -226,22 +264,55 @@ sys_proc_new(size_t vspace)
 		return ERR;
 	}
 
-	p = proc_new();
+	p = proc_new(vspace, supervisor);
 	if (p == nil) {
 		debug_warn("proc_new failed\n");
 		return ERR;
 	}
 
-	debug_info("new proc %i with vspace 0x%x\n", p->pid, vspace);
+	debug_info("new proc %i with supervisor %i vspace 0x%x\n", 
+			p->pid, supervisor, vspace);
 
 	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
 			(size_t) &proc_start);
 
-	p->vspace = vspace;
-
 	proc_ready(p);
 
 	return p->pid;
+}
+
+	size_t
+sys_proc_setup(int pid, procstate_t state)
+{
+	proc_t p;
+
+	if (up->pid != 0) {
+		debug_warn("proc %i is not proc0!\n", up->pid);
+		return ERR;
+	}
+
+	p = find_proc(pid);
+	if (p == nil) {
+		return ERR;
+	}
+
+	if (state == PROC_free) {
+		debug_info("%i putting proc %i into state free\n", up->pid, p->pid);
+		return proc_free(p);
+
+	} else if (state == PROC_fault) {
+		debug_info("%i putting proc %i into state fault\n", up->pid, p->pid);
+
+		return proc_fault(p);
+
+	} else if (state == PROC_ready) {
+		debug_info("%i putting proc %i into state setup\n", up->pid, p->pid);
+
+		return proc_ready(p);
+
+	} else {
+		return ERR;
+	}
 }
 
 	size_t
@@ -263,10 +334,10 @@ sys_intr_exit(int irqn)
 	return irq_exit();
 }
 
-size_t
+	size_t
 sys_debug(char *m)
 {
-	debug_info("%i debug %s\n", up->pid, m);
+	debug_warn("%i debug %s\n", up->pid, m);
 
 	return OK;
 }
@@ -280,6 +351,7 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_EXIT]             = (void *) &sys_exit,
 	[SYSCALL_INTR_EXIT]        = (void *) &sys_intr_exit,
 	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
+	[SYSCALL_PROC_SETUP]       = (void *) &sys_proc_setup,
 	[SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
 	[SYSCALL_DEBUG]            = (void *) &sys_debug,
 };

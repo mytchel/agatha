@@ -133,7 +133,7 @@ main(void)
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		log(LOG_FATAL, "pl111 failed to map registers!");
-		exit();
+		exit(ERR);
 	}
 
 	rq.irq_reg.type = PROC0_irq_reg_req;
@@ -144,7 +144,7 @@ main(void)
 
 	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
 		log(LOG_FATAL, "failed to register interrupt %i", irqn);
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "pl111 mapped 0x%x -> 0x%x with irq %i", 
@@ -155,7 +155,7 @@ main(void)
 	ret = pl111_init();
 	if (ret != OK) {
 		log(LOG_FATAL, "pl111 init failed!");
-		exit();
+		exit(ret);
 	}
 
 	union dev_reg_req drq;
@@ -167,12 +167,12 @@ main(void)
 
 	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
 		log(LOG_FATAL, "failed to message dev reg at pid %i", DEV_REG_PID);
-		exit();
+		exit(ERR);
 	}
 
 	if (drp.reg.ret != OK) {
 		log(LOG_FATAL, "failed to register to dev reg");
-		exit();
+		exit(drp.reg.ret);
 	}
 
 	while (true) {

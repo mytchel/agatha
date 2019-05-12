@@ -45,7 +45,7 @@ frame_update(int dev_pid,
 	frame = map_addr(frame_pa, frame_size, MAP_RW|MAP_MEM);
 	if (frame == nil) {
 		log(LOG_FATAL, "failed to map frame buffer 0x%x", frame_pa);
-		exit();
+		exit(ERR);
 	}
 
 #if 1
@@ -83,7 +83,7 @@ frame_update(int dev_pid,
 
 	if (give_addr(dev_pid, frame_pa, frame_size) != OK) {
 		log(LOG_FATAL, "failed to give driver new frame");
-		exit();
+		exit(ERR);
 	}
 
 	rq.update.type = VIDEO_update_req;
@@ -92,7 +92,7 @@ frame_update(int dev_pid,
 
 	if (send(dev_pid, &rq) != OK) {
 		log(LOG_FATAL, "failed to update frame!");
-		exit();
+		exit(ERR);
 	}
 }
 
@@ -115,7 +115,7 @@ main(void)
 	dev_pid = get_device_pid(dev_name);
 	if (dev_pid < 0) {
 		log(LOG_FATAL, "failed to get pid of video driver %s", dev_name);
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "%s on pid %i", dev_name, dev_pid);
@@ -123,7 +123,7 @@ main(void)
 	crq.connect.type = VIDEO_connect_req;
 	if (mesg(dev_pid, &crq, &crp) != OK || crp.connect.ret != OK) {
 		log(LOG_FATAL, "failed to connect to video driver %s", dev_name);
-		exit();
+		exit(ERR);
 	}
 
 	width = crp.connect.width;
@@ -135,7 +135,7 @@ main(void)
 	frame_pas[1] = request_memory(frame_size);
 	if (frame_pas[0] == nil || frame_pas[1] == nil) {
 		log(LOG_FATAL, "failed to get memory for frame buffer");
-		exit();
+		exit(ERR);
 	}
 
 	frame_pa = frame_pas[0];
@@ -177,7 +177,7 @@ main(void)
 
 					} else {
 						log(LOG_FATAL, "bad address from display 0x%x!", rsp->update.frame_pa);
-						exit();
+						exit(ERR);
 					}
 
 					frame_ready[i] = true;
@@ -194,6 +194,6 @@ main(void)
 		}
 	}
 
-	exit();
+	exit(OK);
 }
 
