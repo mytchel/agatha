@@ -112,7 +112,7 @@ int init_tda(void)
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
 		log(LOG_WARNING, "failed to setup i2c");
-		exit();
+		exit(ERR);
 	}
 
 	i2c_rq.write.type = I2C_write_req;
@@ -123,7 +123,7 @@ int init_tda(void)
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
 		log(LOG_WARNING, "failed to set hdmi page");
-		exit();
+		exit(ERR);
 	}
 
 	i2c_rq.read.type = I2C_read_req;
@@ -133,7 +133,7 @@ int init_tda(void)
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
 		log(LOG_WARNING, "failed to read hdmi rev");
-		exit();
+		exit(ERR);
 	}
 
 	rev = i2c_rp.read.buf[0];
@@ -145,7 +145,7 @@ int init_tda(void)
 
 	if (mesg(i2c_pid, &i2c_rq, &i2c_rp) != OK || i2c_rp.untyped.ret != OK) {
 		log(LOG_WARNING, "failed to read hdmi rev");
-		exit();
+		exit(ERR);
 	}
 
 	rev |= ((uint32_t) i2c_rp.read.buf[0]) << 8;
@@ -254,8 +254,6 @@ main(void)
 	union dev_reg_req drq;
 	union dev_reg_rsp drp;
 
-	exit_r(1);
-
 	recv(0, init_m);
 
 	regs_pa = init_m[0];
@@ -270,7 +268,7 @@ main(void)
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		log(LOG_WARNING, "failed to map registers!");
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x", pid(), regs_pa, regs);
@@ -292,7 +290,7 @@ TODO: make some protocol for this
 	fb_pa = request_memory(fb_size);
 	if (fb_pa == nil) {
 		log(LOG_WARNING, "failed to get memory for fb");
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "have fb mem at 0x%x size 0x%x", fb_pa, fb_size);
@@ -300,14 +298,14 @@ TODO: make some protocol for this
 	fb = map_addr(fb_pa, fb_size, MAP_RW|MAP_DEV);
 	if (fb == nil) {
 		log(LOG_WARNING, "failed to map frame buffer");
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "frame buffer of size 0x%x mapped at 0x%x", fb_size, fb);
 
 	if (init_tda() != OK) {
 		log(LOG_WARNING, "error initializing TDA19988");
-		exit();
+		exit(ERR);
 	}
 
 	memset(fb, 0, 32);
@@ -316,7 +314,7 @@ TODO: make some protocol for this
 
 	if (init_lcd() != OK) {
 		log(LOG_WARNING, "error initialising lcd");
-		exit();
+		exit(ERR);
 	}
 
 	drq.type = DEV_REG_register_req;
@@ -326,10 +324,10 @@ TODO: make some protocol for this
 
 	if (mesg(DEV_REG_PID, &drq, &drp) != OK || drp.reg.ret != OK) {
 		log(LOG_WARNING, "failed to register with dev reg!");
-		exit();
+		exit(ERR);
 	}
 
-	exit();
+	exit(OK);
 
 	uint32_t stat = regs->irqstatus_raw;
 	while (true) {

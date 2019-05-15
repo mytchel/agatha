@@ -281,7 +281,7 @@ proc_map(int pid,
 	int type;
 
 	/* Don't let procs map past kernel */
-	if (info->kernel_pa <= va + len) {
+	if (info->kernel_va <= va + len) {
 		return PROC0_ERR_ADDR_DENIED;
 	}
 
@@ -330,19 +330,16 @@ init_bundled_proc(char *name,
 	code_pa = get_ram(len, 0x1000);
 	if (code_pa == nil) {
 		exit(1);
-		raise();
 	}
 
 	code_va = map_addr(code_pa, len, MAP_RW|MAP_DEV);
 	if (code_va == nil) {
 		exit(2);
-		raise();
 	}
 
 	start_va = map_addr(start, len, MAP_RO|MAP_DEV);
 	if (start_va == nil) {
 		exit(3);
-		raise();
 	}
 
 	log(LOG_INFO, "copy 0x%x from 0x%x / 0x%x to 0x%x / 0x%x",
@@ -353,13 +350,11 @@ init_bundled_proc(char *name,
 	log(LOG_INFO, "unmap code");
 	if ((r = unmap_addr(code_va, len)) != OK) {
 		exit(r);
-		raise();
 	}
 
 	log(LOG_INFO, "unmap start");
 	if ((r = unmap_addr(start_va, len)) != OK) {
 		exit(r);
-		raise();
 	}
 	
 	log(LOG_INFO, "get l1");
@@ -367,25 +362,21 @@ init_bundled_proc(char *name,
 	l1_table_pa = get_ram(0x4000, 0x4000);
 	if (l1_table_pa == nil) {
 		exit(4);
-		raise();
 	}
 
 	l1_mapped_pa = get_ram(0x4000, 0x1000);
 	if (l1_mapped_pa == nil) {
 		exit(4);
-		raise();
 	}
 
 	l1_table_va = map_addr(l1_table_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_table_va == nil) {
 		exit(5);
-		raise();
 	}
 
 	l1_mapped_va = map_addr(l1_mapped_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_mapped_va == nil) {
 		exit(5);
-		raise();
 	}
 
 	memset(l1_mapped_va, 0, 0x4000);
@@ -394,7 +385,6 @@ init_bundled_proc(char *name,
 	pid = proc_new(l1_table_pa, 0);
 	if (pid < 0) {
 		exit(8);
-		raise();
 	}
 
 	procs[pid].l1.table = l1_table_va;
@@ -407,24 +397,20 @@ init_bundled_proc(char *name,
 	l2_pa = get_ram(0x1000, 0x1000);
 	if (l2_pa == nil) {
 		exit(6);
-		raise();
 	}
 
 	if ((f = frame_new(l2_pa, 0x1000)) == nil) {
 		exit(0x9);
-		raise();
 	}
 
 	if ((r = proc_give_addr(pid, f)) != OK) {
 		exit(0xa);
-		raise();
 	}
 
 	if ((r = proc_map(pid, l2_pa, 
 				0, 0x1000, 
 				MAP_TABLE)) != OK) {
 		exit(0xf);
-		raise();
 	}
 
 	/* Stack */
@@ -433,43 +419,36 @@ init_bundled_proc(char *name,
 	stack_pa = get_ram(stack_len, 0x1000); 
 	if (stack_pa == nil) {
 		exit(7);
-		raise();
 	}
 
 	if ((f = frame_new(stack_pa, stack_len)) == nil) {
 		exit(0xb);
-		raise();
 	}
 
 	if ((r = proc_give_addr(pid, f)) != OK) {
 		exit(0xc);
-		raise();
 	}
 
 	if ((r = proc_map(pid, stack_pa, 
 				USER_ADDR - stack_len, stack_len, 
 				MAP_MEM|MAP_RW)) != OK) {
 		exit(0x10);
-		raise();
 	}
 
 	/* Code */
 
 	if ((f = frame_new(code_pa, len)) == nil) {
 		exit(0xd);
-		raise();
 	}
 
 	if ((r = proc_give_addr(pid, f)) != OK) {
 		exit(0xe);
-		raise();
 	}
 
 	if ((r = proc_map(pid, code_pa, 
 				USER_ADDR, len, 
 				MAP_MEM|MAP_RW)) != OK) {
 		exit(0x11);
-		raise();
 	}
 
 	m.start.type = PROC_start_msg;
@@ -490,11 +469,11 @@ init_procs(void)
 	int i;
 
 	if (pool_init(&frame_pool, sizeof(struct addr_frame)) != OK) {
-		raise();
+		exit(1);
 	}
 
 	if (pool_load(&frame_pool, frame_pool_initial, sizeof(frame_pool_initial)) != OK) {
-		raise();
+		exit(1);
 	}
 
 	off = info->bundle_pa;

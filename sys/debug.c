@@ -67,6 +67,6 @@ panic(const char *fmt, ...)
 		debug_puts(str);
 	}
 
-	raise();	
+	raise(1);
 }
 

@@ -20,7 +20,11 @@
 
 _start:
 	bl main
+	bl exit
 
+jump:
+	mov sp, r1
+	mov pc, r2
 
 raise:
 	mov r0, #-1

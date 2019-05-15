@@ -4,6 +4,7 @@
 .section .text
 
 .global _start
+.global vector_table_load
 
 /*
    From U-Boot:
@@ -22,50 +23,25 @@
 
 
 _start:
-	mov r9,  r6
-	mov r10, r2
-	mov r11, r3
+	ldr sp, = _stack_end
+
+	b main
 
 	ldr r0, = _bss_start
 	ldr r1, = _bss_end
-	mov r2, #0
-	mov r3, #0
+	mov r8, #0
+	mov r9, #0
 1:
-	stmia r0!, {r2, r3}
+	stmia r0!, {r8, r9}
 	cmp r0, r1
 	blt 1b
-
-	mov r0, #0
-	mrc p15, 0, r0, c1, c0, 0
-	bic r0, r0, #(1<< 0) @ disable mmu
-	bic r0, r0, #(1<< 2) @ disable d cache
-	bic r0, r0, #(1<< 3) @ disable write buffer
-	bic r0, r0, #(1<<11) @ disable branch prediction
-	bic r0, r0, #(1<<12) @ disable i cache
-	bic r0, r0, #(1<<26) @ disable unified cache
-	mcr p15, 0, r0, c1, c0, 0
-	
-	cps #MODE_IRQ
-	ldr sp, =_ex_stack_top
-	cps #MODE_ABORT
-	ldr sp, =_ex_stack_top
-	cps #MODE_UND
-	ldr sp, =_ex_stack_top
-	cps #MODE_SVC
-	ldr sp, =_ex_stack_top
-	
-	bl vector_table_init
-	
-	mov r0, r9
-	mov r1, r10
-	mov r2, r11
 
 # void main(kernel_start, dtb_start);
 
 	b main
 
 
-vector_table_init:
+vector_table_load:
 	@ Shift vector table to 0x00000000
 	@ See page 514 of ARM System Developers Guide
 	mrc p15, 0, r0, c1, c0, 0

@@ -1,4 +1,4 @@
-all: build_libs kern.umg  kern.list ../proc0/proc0.list
+all: build_libs kern.umg boot.list kernel.list ../proc0/proc0.list
 
 BASE = ${PWD}/../..
 ARCH = arm

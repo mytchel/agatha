@@ -96,7 +96,7 @@ main(void)
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
-		exit();
+		exit(ERR);
 	}
 
 	drq.type = DEV_REG_register_req;
@@ -105,11 +105,11 @@ main(void)
 			"%s", name);
 
 	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
-		exit();
+		exit(ERR);
 	}
 
 	if (drp.reg.ret != OK) {
-		exit();
+		exit(drp.reg.ret);
 	}
 
 	char buf[64];

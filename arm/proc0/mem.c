@@ -200,6 +200,10 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	uint32_t *l2;
 	bool cache;
 
+	if (info->kernel_va <= va + len) {
+		return PROC0_ERR_ADDR_DENIED;
+	}
+
 	if (flags & MAP_RW) {
 		ap = AP_RW_RW;
 	} else {
@@ -307,23 +311,28 @@ init_mem(void)
 	uint32_t o;
 
 	if (pool_init(&addr_pool, sizeof(struct addr_range)) != OK) {
-		raise();
+		exit(1);
 	}
 
 	if (pool_load(&addr_pool, addr_pool_initial, sizeof(addr_pool_initial)) != OK) {
-		raise();
+		exit(1);
 	}
 	
 	board_init_ram();
 
 	if (ram_free == nil) {
-		raise();
+		exit(1);
 	}
 
 	/* Remove kernel from ram free */
 	m = addr_range_get(&ram_free, info->kernel_pa, info->kernel_len);
 	if (m == nil) {
-		raise();
+		exit(1);
+	}
+
+	m = addr_range_get(&ram_free, info->bundle_pa, info->bundle_len);
+	if (m == nil) {
+		exit(1);
 	}
 
 	pool_free(&addr_pool, m);

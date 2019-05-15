@@ -1,4 +1,4 @@
-all: build_libs kern.umg  kern.list ../proc0/proc0.list
+all: build_libs kern.umg  boot.list kernel.list ../proc0/proc0.list
 
 BASE = ${PWD}/../..
 ARCH = arm
@@ -10,9 +10,9 @@ include ../../rules.mk
 LOAD_ADDR = 0x82000000
 
 PROCS = \
-	../../procs/dev_reg \
-	../../procs/log \
-	../../procs/init
+				../../procs/dev_reg \
+				../../procs/log \
+				../../procs/init
 
 DRIVERS = \
 					drivers/serial-omap3 \
@@ -22,10 +22,10 @@ DRIVERS = \
 					drivers/video-am335x
 
 BOARD_KERNEL_SRC_C =  \
-	cortex_a8_intr.c      \
-	serial_omap3_uart.c   \
-	am335x_dmtimer.c      \
-	kernel.c
+											cortex_a8_intr.c      \
+											serial_omap3_uart.c   \
+											am335x_dmtimer.c      \
+											kernel.c
 
 include ../Makefile
 

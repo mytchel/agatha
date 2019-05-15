@@ -142,7 +142,7 @@ void
 drop_to_user(label_t *l) __attribute__((noreturn));
 
 void
-raise(void) __attribute__((noreturn));
+raise(uint32_t r0) __attribute__((noreturn));
 
 void
 func_label(label_t *l, 

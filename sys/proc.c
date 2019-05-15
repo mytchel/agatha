@@ -167,7 +167,8 @@ schedule(proc_t n)
 	}
 
 	if (up != nil) {
-		debug_sched("switch to %i at 0x%x for %i\n", up->pid, up->label.pc, up->ts);
+		debug_sched("switch to %i for %i\n", 
+				up->pid, up->ts);
 	
 		mmu_switch(up->vspace);
 		set_systick(up->ts);
@@ -190,9 +191,13 @@ proc_new(size_t vspace, int supervisor)
 
 	p = &procs[pid];
 
+	memset(p, 0, sizeof(struct proc));
+
 	p->pid = pid;
 	p->vspace = vspace;
 	p->supervisor = supervisor;
+
+	p->ts = SYSTICK;
 
 	return p;
 }
@@ -206,7 +211,7 @@ proc_free(proc_t p)
 		remove_from_list(p->list, p);
 	}
 
-	memset(p, 0, sizeof(struct proc));
+	p->pid = -1;
 
 	return OK;
 }

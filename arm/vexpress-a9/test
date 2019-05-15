@@ -1,6 +1,6 @@
 #!/bin/sh
 
-doas cp kern.umg /var/ftpd/
+doas cp kern.umg /var/ftpd/kern.umg
 #doas cp vexpress.dtb /var/ftpd/
 
 export ETHER=vether0

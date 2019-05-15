@@ -328,7 +328,7 @@ main(void)
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		log(LOG_FATAL, "mmc-omap3 failed to map registers!");
-		exit();
+		exit(ERR);
 	}
 
 	mmc.base = regs;
@@ -344,7 +344,7 @@ main(void)
 	ret = mmchs_init(&mmc);
 	if (ret != OK) {
 		log(LOG_FATAL, "init failed!");
-		exit();
+		exit(ret);
 	}
 
 	rq.irq_reg.type = PROC0_irq_reg_req;
@@ -356,7 +356,7 @@ main(void)
 	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
 		log(LOG_FATAL, "failed to register interrupt %i : %i", 
 				irqn, rp.irq_reg.ret);
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x with irq %i",

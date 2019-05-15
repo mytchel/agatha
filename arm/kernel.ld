@@ -15,21 +15,9 @@ SECTIONS
 		_bss_end = .;
 	}
 
-  . = ALIGN(4096);
-
-	. = . + 4096;
-	
-	_ex_stack_top = .;
-	
-	.bundle :
-	{
-		. = ALIGN(4096);
-		proc0.bo(.bundle)
-		. = ALIGN(4096);
-		bundle.bo(.bundle)
-	}
-	
-  . = ALIGN(4096);
+	. = . + 256;
+	. = ALIGN(4096);
+	_stack_end = .;
   _kernel_end = .;
 }
 

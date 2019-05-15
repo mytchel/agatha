@@ -1,5 +1,8 @@
 #include <arm/mmu.h>
 
+void
+vector_table_load(void);
+
 uint32_t
 fsr_status(void);
 
@@ -32,6 +35,9 @@ init_devs(void);
 
 void *
 kernel_map(size_t pa, size_t len, int ap, bool cache);
+
+void
+kernel_unmap(void *va, size_t len);
 
 void
 jump(size_t arg, size_t sp, size_t pc)

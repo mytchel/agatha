@@ -1,3 +1,5 @@
+KERNEL_ADDR = 0xff000000
+
 LIBS = \
 			 ../lib/c \
 			 ../../lib/string \
@@ -20,24 +22,33 @@ build_libs:
 		$(MAKE) -C $$L BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD}; \
 	done
 
+BOOT_SRC_A = \
+							../kern/boot_start.S \
+							../kern/asm.S 
+
+BOOT_SRC_C = \
+						 ../kern/boot.c \
+						 ../lib/c/mmu.c \
+						 ../lib/c/util.c 
+
 KERNEL_SRC_A = \
-								../kern/vectors.S     \
-								../kern/asm.S         \
-								$(BOARD_KERNEL_SRC_A)
+							 ../kern/vectors.S \
+							 ../kern/asm.S \
+							 $(BOARD_KERNEL_SRC_A)
 
 KERNEL_SRC_C = \
-								../kern/main.c               \
-								../kern/proc.c               \
-								../kern/intr.c               \
-								../lib/c/mmu.c               \
-								../lib/c/util.c              \
-								../../sys/debug.c            \
-								../../sys/proc.c             \
-								../../sys/sys.c              \
-								../../lib/string/conv.c      \
-								../../lib/string/scanf.c     \
-								../../lib/string/string.c    \
-								$(BOARD_KERNEL_SRC_C)
+							 ../kern/main.c \
+							 ../kern/proc.c \
+							 ../kern/intr.c \
+							 ../lib/c/mmu.c \
+							 ../lib/c/util.c \
+							 ../../sys/debug.c \
+							 ../../sys/proc.c \
+							 ../../sys/sys.c \
+							 ../../lib/string/conv.c \
+							 ../../lib/string/scanf.c \
+							 ../../lib/string/string.c \
+							 $(BOARD_KERNEL_SRC_C)
 
 .PHONY: bundle.bin 
 bundle.bin bundle.c:
@@ -49,36 +60,54 @@ bundle.bin bundle.c:
 	@echo 'BUNDLE drivers : ' $(DRIVERS)
 	@PROCS="$(PROCS)" DRIVERS="$(DRIVERS)" sh ../mkbundle.sh
 
-bundle.bo: bundle.bin
-
-CLEAN += bundle.c bundle.bin bundle.bo
+CLEAN += bundle.c
 
 include ../proc0/Makefile
 
 proc0.bin: ../proc0/proc0.bin
 	@cp ../proc0/proc0.bin proc0.bin
 
+kernel.bo: kernel.bin
+bundle.bo: bundle.bin
 proc0.bo: proc0.bin
 
+CLEAN += kernel.bo kernel.bin
 CLEAN += proc0.bo proc0.bin
+CLEAN += bundle.bo bundle.bin
 
 KERNEL_OBJECTS = $(KERNEL_SRC_A:%.S=%.o) $(KERNEL_SRC_C:%.c=%.o)
 
 CLEAN += $(KERNEL_OBJECTS) 
-CLEAN += kern.elf kern.bin kern.umg kern.list
-		
-kern.elf: ../kernel.ld $(KERNEL_OBJECTS) bundle.bo proc0.bo 
+CLEAN += kernel.elf kernel.bin kernel.list
+
+kernel.elf: ../kernel.ld $(KERNEL_OBJECTS) 
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T ../kernel.ld \
-		-Ttext $(LOAD_ADDR) \
+		-Ttext $(KERNEL_ADDR) \
 		-o $@ \
 		$(KERNEL_OBJECTS) \
-		proc0.bo bundle.bo \
 		-lgcc
 
-kern.umg: kern.bin
+BOOT_OBJECTS = $(BOOT_SRC_A:%.S=%.o) $(BOOT_SRC_C:%.c=%.o)
+
+CLEAN += $(BOOT_OBJECTS) 
+CLEAN += boot.elf boot.bin boot.list
+
+boot.elf: ../boot.ld $(BOOT_OBJECTS) kernel.bo proc0.bo bundle.bo
+	@echo LD $@
+	$(LD) $(LDFLAGS) \
+		-T ../boot.ld \
+		-Ttext $(LOAD_ADDR) \
+		-o $@ \
+		$(BOOT_OBJECTS) \
+		kernel.bo proc0.bo bundle.bo \
+		-lgcc
+
+CLEAN += kern.umg
+
+kern.umg: boot.bin
 	$(MKIMAGE) -A arm -O linux -T kernel -C none \
 		-a $(LOAD_ADDR) -e $(LOAD_ADDR) \
-		-d kern.bin kern.umg
+		-d boot.bin kern.umg
 

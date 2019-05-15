@@ -43,7 +43,7 @@ main(void)
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		log(LOG_FATAL, "failed to map registers!");
-		exit();
+		exit(ERR);
 	}
 
 	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x", pid(), regs_pa, regs);
@@ -59,7 +59,7 @@ main(void)
 
 	if (drp.reg.ret != OK) {
 		log(LOG_FATAL, "failed to register with dev reg!");
-		exit();
+		exit(drp.reg.ret);
 	}
 
 	cm_perpll  = regs;
