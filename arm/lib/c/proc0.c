@@ -14,8 +14,6 @@ request_memory(size_t len)
 	union proc0_req rq;
 	union proc0_rsp rp;
 
-	log(LOG_INFO, "request 0x%x bytes", len);
-
 	if (len == 0) {
 		return nil;
 	}
@@ -30,7 +28,7 @@ request_memory(size_t len)
 		return nil;
 	}
 
-	log(LOG_INFO, "request 0x%x bytes got ret %i", len, rp.addr_req.ret);
+	log(LOG_INFO, "request 0x%x bytes got %i", len, rp.addr_req.ret);
 	if (rp.addr_req.ret != OK) {
 		return nil;
 	}
@@ -50,8 +48,6 @@ give_addr(int to, size_t pa, size_t len)
 	union proc0_req rq;
 	union proc0_rsp rp;
 
-	log(LOG_INFO, "give %i 0x%x . 0x%x", to, pa, len);
-
 	rq.addr_give.type = PROC0_addr_give_req;
 	rq.addr_give.to = to;
 	rq.addr_give.pa = pa;
@@ -61,7 +57,7 @@ give_addr(int to, size_t pa, size_t len)
 		return ERR;
 	}
 
-	log(LOG_INFO, "give got %i", rp.addr_give.ret);
+	/*log(LOG_INFO, "give got %i", rp.addr_give.ret);*/
 	return rp.addr_give.ret;
 }
 
@@ -70,8 +66,6 @@ addr_unmap(size_t va, size_t len)
 {
 	union proc0_req rq;
 	union proc0_rsp rp;
-
-	log(LOG_INFO, "unmap 0x%x . 0x%x", va, len);
 
 	if (PAGE_ALIGN(va) != va) {
 		return nil;
@@ -89,7 +83,7 @@ addr_unmap(size_t va, size_t len)
 		return ERR;
 	}
 
-	log(LOG_INFO, "unmap got %i", rp.addr_map.ret);
+	/*log(LOG_INFO, "unmap got %i", rp.addr_map.ret);*/
 
 	return rp.addr_map.ret;
 }

@@ -10,5 +10,5 @@ doas qemu-system-arm -M vexpress-a9 \
 	-kernel u-boot \
 	-net nic -net tap \
 	-sd disk.iso \
-	-nographic 
+#	-nographic 
 

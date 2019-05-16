@@ -93,13 +93,17 @@ main(uint32_t j)
 		 the kernel */
 	uint32_t *tmp_table = (uint32_t *) PAGE_ALIGN(&_image_end);
 
-	map_l2(kernel_l1, (size_t) tmp_table, 
-			TABLE_ALIGN(info->boot_pa), 0x1000);
+	memset(tmp_table, 0, 0x1000);
+
+	map_l2(kernel_l1, 
+			(size_t) tmp_table, 
+			TABLE_ALIGN_DN(info->boot_pa),
+			0x1000);
 	
 	map_pages(tmp_table, 
-			info->boot_pa, 
-			info->boot_pa, 
-			info->boot_len, 
+			info->boot_pa,
+			info->boot_pa,
+			info->boot_len,
 			AP_RW_RW, false);
 
 	map_l2(kernel_l1, 

@@ -91,11 +91,8 @@ handle_connect(int from, union video_req *rq)
 	static void
 handle_update(int from, union video_req *rq)
 {
-	log(LOG_INFO, "update");
-
 	if (fb_using == nil) {
 		fb_using = rq->update.frame_pa;
-		log(LOG_INFO, "start update 0x%x", fb_using);
 		regs->upbase = fb_using;
 		regs->control |= 1;
 	
@@ -104,7 +101,6 @@ handle_update(int from, union video_req *rq)
 
 	} else {
 		fb_pending = rq->update.frame_pa;
-		log(LOG_INFO, "update pending 0x%x", fb_pending);
 	}
 }
 
@@ -181,10 +177,7 @@ main(void)
 		if (from == pid()) {
 			union video_rsp rp;
 
-			log(LOG_INFO, "got intr 0x%x", regs->ris);
-
 			if (fb_using) {
-				log(LOG_INFO, "update finished for 0x%x", fb_using);
 				rp.update.type = VIDEO_update_rsp;
 				rp.update.frame_pa = fb_using;
 				rp.update.frame_size = fb_size;
@@ -196,8 +189,6 @@ main(void)
 			}
 
 			if (fb_pending) {
-				log(LOG_INFO, "start pending 0x%x", fb_pending);
-
 				fb_using = fb_pending;
 				fb_pending = nil;
 				regs->upbase = fb_using;
@@ -208,8 +199,6 @@ main(void)
 
 		} else if (connected_pid == -1 || from == connected_pid) {
 			union video_req *rq = (void *) m;
-
-			log(LOG_INFO, "got message");
 
 			switch (rq->type) {
 				case VIDEO_connect_req:
