@@ -43,12 +43,6 @@ _start:
 	cmp r0, r1
 	blt 1b
 
-	cps #MODE_IRQ
-	ldr sp, =_ex_stack_top
-	cps #MODE_ABORT
-	ldr sp, =_ex_stack_top
-	cps #MODE_UND
-	ldr sp, =_ex_stack_top
 	cps #MODE_SVC
 	ldr sp, =_ex_stack_top
 

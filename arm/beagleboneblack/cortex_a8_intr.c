@@ -114,6 +114,8 @@ init_cortex_a8_intr(size_t base)
 		panic("failed to map cortex_a8_intr!\n");
 	}
 
+	debug_info("intc mapped from 0x%x to 0x%x\n", base, regs);
+
 	/* enable interface auto idle */
 	regs->sysconfig = 1;
 
@@ -126,7 +128,5 @@ init_cortex_a8_intr(size_t base)
 	for (i = 0; i < nirq; i++) {
 		regs->ilr[i] = 63 << 2;
 	}
-
-	regs->control = 1;	
 }
 

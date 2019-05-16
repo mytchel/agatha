@@ -35,13 +35,13 @@ init_proc0(void)
 
 	l1 = kernel_map(info->proc0.l1_pa,
 			info->proc0.l1_len,
-			AP_RW_NO,
-			true);
+			AP_RW_RW,
+			false);
 
 	l2 = kernel_map(info->proc0.l2_pa,
 			info->proc0.l2_len,
-			AP_RW_NO,
-			true);
+			AP_RW_RW,
+			false);
 
 	memcpy(l1,
 			info->kernel.l1_va, 
@@ -50,21 +50,21 @@ init_proc0(void)
 	map_l2(l1, info->proc0.l2_pa,
 			0, 0x1000);
 
-	info->proc0.l1_va = (uint32_t *) proc0_l1_va;
-	info->proc0.l2_va = (uint32_t *) proc0_l2_va;
+	info->proc0.l1_va = proc0_l1_va;
+	info->proc0.l2_va = proc0_l2_va;
 	info->proc0.info_va = proc0_info_va;
 	info->proc0.stack_va = proc0_stack_va;
 	info->proc0.prog_va = USER_ADDR;
 
 	map_pages(l2, 
 			info->proc0.l1_pa, 
-			(size_t) info->proc0.l1_va, 
+			info->proc0.l1_va, 
 			info->proc0.l1_len,
 			AP_RW_RW, true);
 
 	map_pages(l2, 
 			info->proc0.l2_pa, 
-			(size_t) info->proc0.l2_va, 
+			info->proc0.l2_va, 
 			info->proc0.l2_len,
 			AP_RW_RW, true);
 
@@ -86,15 +86,21 @@ init_proc0(void)
 			info->proc0.prog_len, 
 			AP_RW_RW, true);
 
+	/*
 	kernel_unmap(l1, info->proc0.l1_len);
 	kernel_unmap(l2, info->proc0.l2_len);
+*/
 
 	p = proc_new(info->proc0.l1_pa, 0);
 	if (p == nil) {
 		panic("Failed to create proc0 entry!\n");
 	}
 
-	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN, 
+	debug_info("func label %i, stack top at 0x%x\n",
+			p->pid, p->kstack + KSTACK_LEN);
+
+	func_label(&p->label, 
+			(size_t) p->kstack, KSTACK_LEN, 
 			(size_t) &proc0_start);
 
 	proc_ready(p);
@@ -124,7 +130,9 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 	void
 kernel_unmap(void *addr, size_t len)
 {
+/*
 	unmap_pages(info->kernel.l2_va, (size_t) addr, len);
+	*/
 }
 
 	void
@@ -143,6 +151,27 @@ main(struct kernel_info *i)
 	vector_table_load();
 
 	init_kernel_drivers();
+
+	debug(DEBUG_INFO, "kernel mapped at 0x%x\n", info->kernel_va);
+	debug(DEBUG_INFO, "info mapped at   0x%x\n", info->kernel.info_va);
+	debug(DEBUG_INFO, "boot   0x%x 0x%x\n", info->boot_pa, info->boot_len);
+	debug(DEBUG_INFO, "kernel 0x%x 0x%x\n", info->kernel_pa, info->kernel_len);
+	debug(DEBUG_INFO, "info   0x%x 0x%x\n", info->info_pa, info->info_len);
+	debug(DEBUG_INFO, "bundle 0x%x 0x%x\n", info->bundle_pa, info->bundle_len);
+	debug(DEBUG_INFO, "kernel l1 0x%x -> 0x%x 0x%x\n", 
+			info->kernel.l1_pa, 
+			info->kernel.l1_va, 
+			info->kernel.l1_len);
+	debug(DEBUG_INFO, "kernel l2 0x%x -> 0x%x 0x%x\n", 
+			info->kernel.l2_pa, 
+			info->kernel.l2_va, 
+			info->kernel.l2_len);
+
+	map_pages(info->kernel.l2_va, 
+			0x82070000,
+			0xff0f0000,
+			0x1000,
+			AP_RW_RW, false);
 
 	p0 = init_proc0();
 

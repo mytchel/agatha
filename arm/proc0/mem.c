@@ -339,13 +339,13 @@ init_mem(void)
 
 	proc0_l1.mmu.pa = info->proc0.l1_pa;
 	proc0_l1.mmu.len = info->proc0.l1_len;
-	proc0_l1.mmu.addr = info->proc0.l1_va;
+	proc0_l1.mmu.addr = (uint32_t *) info->proc0.l1_va;
 
 	memset(proc0_l1.va, 0, sizeof(proc0_l1.va));
 
 	for (o = 0; (o << 10) < info->proc0.l2_len; o++) {
 		proc0_l1.va[L1X(info->proc0.l2_va) + o]
-			= (uint32_t *) (((uint32_t) info->proc0.l2_va) + (o << 10));
+			= (uint32_t *) (info->proc0.l2_va + (o << 10));
 	}
 }
 

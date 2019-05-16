@@ -23,7 +23,7 @@ unmap_l2(uint32_t *l1, size_t va, size_t len)
 {
 	size_t o;
 	
-	for (o = 0; (o << PAGE_SHIFT) < len; o++) {
+	for (o = 0; (o << 10) < len; o++) {
 		l1[L1X(va) + o] = 0;
 	}
 

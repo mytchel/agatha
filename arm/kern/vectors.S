@@ -50,7 +50,16 @@ vector_table_load:
 	
 	ldr r0, =vector_table
 	mcr p15, 0, r0, c12, c0, 0	@ set vector base address
-	
+
+	cps #MODE_IRQ	
+	ldr sp, = _stack_end
+	cps #MODE_ABORT
+	ldr sp, = _stack_end
+	cps #MODE_UND
+	ldr sp, = _stack_end
+	cps #MODE_SVC
+	ldr sp, = _stack_end
+
 	bx lr
 
 
@@ -64,7 +73,6 @@ vector_table:
 	b . @ not assigned
 	ldr pc, =irq_ex
 	ldr pc, =fiq_ex
-
 
 swi_ex:
 	cmp r12, #NSYSCALLS

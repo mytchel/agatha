@@ -10,14 +10,17 @@ SECTIONS
 	.data ALIGN(4096) : 
 	{
 		*(.data)
+
 		_bss_start = .;
 		*(.bss)
 		_bss_end = .;
+
+		_stack_start = .;
+		. = . + 256;
+		. = ALIGN(4096);
+		_stack_end = .;
 	}
 
-	. = . + 256;
-	. = ALIGN(4096);
-	_stack_end = .;
   _kernel_end = .;
 }
 
