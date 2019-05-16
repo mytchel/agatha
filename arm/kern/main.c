@@ -145,7 +145,7 @@ main(struct kernel_info *i)
 	 	+ info->kernel.l2_len;
 
 	unmap_l2(info->kernel.l1_va,
-			TABLE_ALIGN(info->boot_pa), 
+			TABLE_ALIGN_DN(info->boot_pa), 
 			0x1000);
 
 	vector_table_load();

@@ -7,7 +7,7 @@ export ETHER=vether0
 export BRIDGE=bridge0
 
 doas qemu-system-arm -M vexpress-a9 \
-	-kernel u-boot \
+	-kernel boot.elf \
 	-net nic -net tap \
 	-sd disk.iso \
 #	-nographic 
