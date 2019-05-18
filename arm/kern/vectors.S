@@ -58,7 +58,6 @@ vector_table_load:
 	cps #MODE_UND
 	ldr sp, = _stack_end
 	cps #MODE_SVC
-	ldr sp, = _stack_end
 
 	bx lr
 

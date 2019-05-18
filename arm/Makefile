@@ -1,5 +1,3 @@
-KERNEL_ADDR = 0xff000000
-
 LIBS = \
 			 ../lib/c \
 			 ../../lib/string \
@@ -80,11 +78,10 @@ KERNEL_OBJECTS = $(KERNEL_SRC_A:%.S=%.o) $(KERNEL_SRC_C:%.c=%.o)
 CLEAN += $(KERNEL_OBJECTS) 
 CLEAN += kernel.elf kernel.bin kernel.list
 
-kernel.elf: ../kernel.ld $(KERNEL_OBJECTS) 
+kernel.elf: ../kern/kernel.ld $(KERNEL_OBJECTS) 
 	@echo LD $@
-	@$(LD) $(LDFLAGS) \
-		-T ../kernel.ld \
-		-Ttext $(KERNEL_ADDR) \
+	$(LD) $(LDFLAGS) \
+		-T ../kern/kernel.ld \
 		-o $@ \
 		$(KERNEL_OBJECTS) \
 		-lgcc
@@ -94,10 +91,10 @@ BOOT_OBJECTS = $(BOOT_SRC_A:%.S=%.o) $(BOOT_SRC_C:%.c=%.o)
 CLEAN += $(BOOT_OBJECTS) 
 CLEAN += boot.elf boot.bin boot.list
 
-boot.elf: ../boot.ld $(BOOT_OBJECTS) kernel.bo proc0.bo bundle.bo
+boot.elf: ../kern/boot.ld $(BOOT_OBJECTS) kernel.bo proc0.bo bundle.bo
 	@echo LD $@
 	$(LD) $(LDFLAGS) \
-		-T ../boot.ld \
+		-T ../kern/boot.ld \
 		-Ttext $(LOAD_ADDR) \
 		-o $@ \
 		$(BOOT_OBJECTS) \

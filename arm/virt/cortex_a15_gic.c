@@ -2,8 +2,7 @@
 #include "../kern/fns.h"
 #include "../kern/trap.h"
 #include "../kern/intr.h"
-#include <arm/gic.h>
-#include <arm/cortex_a9_pt_wd.h>
+#include <arm/cortex_a15_gic.h>
 
 /* maximum. will probably be lower as in dst_init */
 #define nirq 1020
@@ -13,13 +12,12 @@ struct irq_handler user_handlers[nirq] = { { false } };
 
 static volatile struct gic_dst_regs *dregs;
 static volatile struct gic_cpu_regs *cregs;
-static volatile struct cortex_a9_pt_wd_regs *pt_regs;
 
 	void
 gic_set_group(size_t irqn, uint32_t g)
 {
-	dregs->group[irqn / 32] &= 1 << (irqn % 32);
-	dregs->group[irqn / 32] |= g << (irqn % 32);
+	dregs->igroup[irqn / 32] &= 1 << (irqn % 32);
+	dregs->igroup[irqn / 32] |= g << (irqn % 32);
 }
 
 	void
@@ -149,63 +147,27 @@ gic_cpu_init(void)
 	cregs->priority = 0xff;
 }
 
-static size_t systick_set;
-
 	void
 set_systick(size_t t)
 {
-	systick_set = t;
-
-	pt_regs->t_load = systick_set;
-	pt_regs->t_control |= 1;
 }
 
 	size_t
 systick_passed(void)
 {
-	return systick_set - pt_regs->t_count;
-}
-
-	static void 
-systick(size_t irq)
-{
-	pt_regs->t_intr = 1;
-
-	irq_end(irq);
-
-	schedule(nil);
+	return 0;
 }
 
 	void
-init_gic_systick(size_t base)
+init_cortex_a15_gic(size_t base)
 {
-	size_t regs_pa, regs_len, regs;
-
-	regs_pa = base;
-	regs_len = 0x2000;
-
-	regs = (size_t) kernel_map(regs_pa, regs_len,
+	cregs = kernel_map(base + 0x10000, 0x2000,
 			AP_RW_NO, false);
 
-	cregs = (struct gic_cpu_regs *) 
-		(regs + 0x100);
-
-	dregs = (struct gic_dst_regs *) 
-		(regs + 0x1000);
-
-	pt_regs = (struct cortex_a9_pt_wd_regs *) 
-		(regs + 0x600);
+	dregs = kernel_map(base, 0x2000,
+			AP_RW_NO, false);
 
 	gic_dst_init();
 	gic_cpu_init();
-
-	/* Enable interrupt, no prescaler. */
-	pt_regs->t_control = (1<<2);
-
-	irq_add_kernel(&systick, 29);
-
-	/* Disable watch dog timer. */
-	pt_regs->wd_disable = 0x12345678;
-	pt_regs->wd_disable = 0x87654321;
 }
 

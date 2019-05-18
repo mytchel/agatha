@@ -1,0 +1,9 @@
+#!/bin/sh
+
+doas qemu-system-arm \
+	-M virt \
+	-cpu cortex-a15 \
+	-m 64 \
+	-kernel boot.elf \
+#	-nographic 
+

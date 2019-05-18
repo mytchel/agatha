@@ -53,10 +53,10 @@ main(uint32_t j)
 		PAGE_ALIGN((size_t) &_binary_bundle_bin_end) - 
 		info->bundle_pa;
 
-	info->proc0.prog_pa = (size_t) &_binary_proc0_bin_start;
-	info->proc0.prog_len = 
+	info->proc0_pa = (size_t) &_binary_proc0_bin_start;
+	info->proc0_len = 
 		PAGE_ALIGN((size_t) &_binary_proc0_bin_end) -
-		info->proc0.prog_pa;
+		info->proc0_pa;
 
 	info->proc0.stack_pa = (size_t) proc0_stack;
 	info->proc0.stack_len = sizeof(proc0_stack);
@@ -75,14 +75,12 @@ main(uint32_t j)
 
 	info->kernel_va = 0xff000000;
 
-	info->kernel.info_va = 
+	size_t info_va = 
 		info->kernel_va + info->kernel_len;
 
-	info->kernel.l1_va = (uint32_t *) 
-		(info->kernel.info_va + info->info_len);
+	info->kernel.l1_va = info_va + info->info_len;
 
-	info->kernel.l2_va = (uint32_t *) 
-		(((size_t) info->kernel.l1_va) + info->kernel.l1_len);
+	info->kernel.l2_va = info->kernel.l1_va + info->kernel.l1_len;
 
 	info->boot_pa = (size_t) &_boot_start;
 	info->boot_len = (size_t) &_boot_end -
@@ -119,27 +117,27 @@ main(uint32_t j)
 
 	map_pages(kernel_l2, 
 			info->info_pa, 
-			info->kernel.info_va, 
+			info_va, 
 			info->info_len, 
-			AP_RW_NO, true);
+			AP_RW_RW, false);
 
 	map_pages(kernel_l2, 
 			info->kernel.l1_pa, 
 			(size_t) info->kernel.l1_va, 
 			info->kernel.l1_len, 
-			AP_RW_NO, true);
+			AP_RW_NO, false);
 
 	map_pages(kernel_l2, 
 			info->kernel.l2_pa,
 			(size_t) info->kernel.l2_va, 
 			info->kernel.l2_len, 
-			AP_RW_NO, true);
+			AP_RW_NO, false);
 
 	mmu_load_ttb((uint32_t *) info->kernel.l1_pa);
 	mmu_invalidate();
 	mmu_enable();
 
-	jump(info->kernel.info_va, 
+	jump(info_va, 
 			0,
 			info->kernel_va);
 }

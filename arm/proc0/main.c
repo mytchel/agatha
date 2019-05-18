@@ -188,6 +188,10 @@ main(struct kernel_info *i)
 
 	info = i;
 
+	log(0, "kernel_info at 0x%x", i);
+	log(0, "kernel starts at 0x%x", info->kernel_va);
+	log(0, "boot starts at 0x%x", info->boot_pa);
+
 	init_mem();
 	init_procs();
 

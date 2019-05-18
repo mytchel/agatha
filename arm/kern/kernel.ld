@@ -1,13 +1,16 @@
 SECTIONS
 {
+	. = 0xff000000;
+
+	_kernel_start = .;
+
 	.text ALIGN(4096) :
 	{
-		_kernel_start = .;
 		*(.text)
 		*(.rodata)
 	}
 
-	.data ALIGN(4096) : 
+	.data ALIGN(4096) :
 	{
 		*(.data)
 
@@ -16,7 +19,7 @@ SECTIONS
 		_bss_end = .;
 
 		_stack_start = .;
-		. = . + 256;
+		. = . + 4096;
 		. = ALIGN(4096);
 		_stack_end = .;
 	}

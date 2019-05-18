@@ -9,7 +9,10 @@
 #include <proc0.h>
 #include <arm/mmu.h>
 
+#define LOG 1
+#if !LOG
 #define log(X, ...) {}
+#endif
 
 struct span {
 	uint32_t pa, va, len;
@@ -109,7 +112,7 @@ addr_init(void)
 
 	l1_free->holder = &l1_free;
 	l1_free->va = l1_mapped->va + l1_mapped->len;
-	l1_free->len = 0x62000000 - l1_free->va;
+	l1_free->len = 0xff000000 - l1_free->va;
 	l1_free->pa = nil;
 	l1_free->free = nil;
 	l1_free->mapped = nil;
@@ -425,10 +428,13 @@ map_addr(size_t pa, size_t len, int flags)
 {
 	struct span *s;
 
+	log(LOG_INFO, "find map for 0x%x 0x%x", pa, len);
+
 	if (!initialized)
 		addr_init();
 
 	if (PAGE_ALIGN(pa) != pa) {
+		log(LOG_WARNING, "0x%x is not aligned", pa);
 		return nil;
 	}
 

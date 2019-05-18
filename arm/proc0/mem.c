@@ -61,12 +61,15 @@ addr_range_get(struct addr_range **head, size_t start, size_t len)
 	for (f = head; *f != nil; f = &(*f)->next) {
 		if ((*f)->start <= start && start < (*f)->start + (*f)->len) {
 			if ((*f)->start + (*f)->len < start + len) {
+				log(LOG_INFO, "range 0x%x 0x%x is too small",
+						(*f)->start, (*f)->len, start, len);
 				return nil;
 			}
 
 			if ((*f)->start < start) {
 				m = addr_range_split(*f, start - (*f)->start);
 				if (m == nil) {
+					log(LOG_INFO, "split failed");
 					return nil;
 				}
 
@@ -89,6 +92,7 @@ addr_range_get(struct addr_range **head, size_t start, size_t len)
 		}	
 	}
 
+	log(LOG_INFO, "0x%x 0x%x not found", start, len);
 	return nil;
 }
 	
@@ -145,6 +149,8 @@ get_ram(size_t len, size_t align)
 
 	pool_free(&addr_pool, m);
 
+	log(LOG_INFO, "giving away 0x%x 0x%x", pa, len);
+
 	return pa;
 }
 
@@ -193,7 +199,7 @@ addr_map_l2s(size_t pa, size_t va, size_t tlen)
 	return OK;
 }
 
-int
+	int
 addr_map(size_t pa, size_t va, size_t len, int flags)
 {
 	uint32_t tex, c, b, ap, o;
@@ -201,6 +207,8 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	bool cache;
 
 	if (info->kernel_va <= va + len) {
+		log(LOG_WARNING, "map 0x%x + 0x%x would be into kernel memory 0x%x",
+				va, len, info->kernel_va);
 		return PROC0_ERR_ADDR_DENIED;
 	}
 
@@ -254,7 +262,7 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	return OK;
 }
 
-int
+	int
 addr_unmap(size_t va, size_t len)
 {
 	uint32_t *l2;
@@ -278,17 +286,28 @@ addr_unmap(size_t va, size_t len)
 	return OK;
 }
 
-void
+	void
 proc_init_l1(uint32_t *l1)
 {
-	memset(l1, 0, 0x4000);
+	size_t kernel_index = L1X(info->kernel_va);
 
-	memcpy(&l1[L1X(info->kernel_pa)],
-			&proc0_l1.mmu.addr[L1X(info->kernel_pa)],
-			(0x1000 - L1X(info->kernel_pa)) * sizeof(uint32_t));
+	log(LOG_INFO, "init l1 at 0x%x kva at 0x%x", l1, info->kernel_va);
+
+	log(LOG_INFO, "memset 0x%x bytes", kernel_index * sizeof(uint32_t));
+	memset(l1, 0, kernel_index * sizeof(uint32_t));
+
+	log(LOG_INFO, "init l1 at 0x%x kva at 0x%x", l1, info->kernel_va);
+
+	log(LOG_INFO, "copy 0x%x bytes", 0x4000 - kernel_index * sizeof(uint32_t));
+
+	memcpy(&l1[kernel_index],
+			&proc0_l1.mmu.addr[kernel_index],
+			0x4000 - kernel_index * sizeof(uint32_t));
+
+	log(LOG_INFO, "init l1 at 0x%x kva at 0x%x", l1, info->kernel_va);
 }
 
-void
+	void
 add_ram(size_t start, size_t len)
 {
 	struct addr_range *m;
@@ -317,21 +336,35 @@ init_mem(void)
 	if (pool_load(&addr_pool, addr_pool_initial, sizeof(addr_pool_initial)) != OK) {
 		exit(1);
 	}
-	
+
 	board_init_ram();
 
 	if (ram_free == nil) {
 		exit(1);
 	}
 
-	/* Remove kernel from ram free */
-	m = addr_range_get(&ram_free, info->kernel_pa, info->kernel_len);
-	if (m == nil) {
+	/* Remove stuff from ram range */
+
+	log(LOG_INFO, "remove boot range 0x%x 0x%x", info->boot_pa, info->boot_len);
+	if ((m = addr_range_get(&ram_free, info->boot_pa, info->boot_len)) == nil) {
 		exit(1);
 	}
 
-	m = addr_range_get(&ram_free, info->bundle_pa, info->bundle_len);
-	if (m == nil) {
+	pool_free(&addr_pool, m);
+
+	if ((m = addr_range_get(&ram_free, info->kernel_pa, info->kernel_len)) == nil) {
+		exit(1);
+	}
+
+	pool_free(&addr_pool, m);
+
+	if ((m = addr_range_get(&ram_free, info->proc0_pa, info->proc0_len)) == nil) {
+		exit(1);
+	}
+
+	pool_free(&addr_pool, m);
+
+	if ((m = addr_range_get(&ram_free, info->bundle_pa, info->bundle_len)) == nil) {
 		exit(1);
 	}
 

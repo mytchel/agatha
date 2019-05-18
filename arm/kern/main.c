@@ -11,8 +11,10 @@ init_kernel_drivers();
 #define proc0_stack_va   0x1c000
 #define proc0_code_va    USER_ADDR
 
-static struct kernel_info *info;
 static size_t va_next = 0;
+
+static uint32_t *kernel_l1;
+static uint32_t *kernel_l2;
 
 	static void
 proc0_start(void)
@@ -20,7 +22,7 @@ proc0_start(void)
 	label_t u = {0};
 
 	u.psr = MODE_USR;
-	u.sp = info->proc0.stack_va + info->proc0.stack_len;
+	u.sp = proc0_stack_va + 0x1000;
 	u.pc = proc0_code_va;
 	u.regs[0] = proc0_info_va;
 
@@ -28,7 +30,7 @@ proc0_start(void)
 }
 
 	static proc_t
-init_proc0(void)
+init_proc0(struct kernel_info *info)
 {
 	uint32_t *l1, *l2;
 	proc_t p;
@@ -44,7 +46,7 @@ init_proc0(void)
 			false);
 
 	memcpy(l1,
-			info->kernel.l1_va, 
+			kernel_l1,
 			0x4000);
 
 	map_l2(l1, info->proc0.l2_pa,
@@ -54,19 +56,18 @@ init_proc0(void)
 	info->proc0.l2_va = proc0_l2_va;
 	info->proc0.info_va = proc0_info_va;
 	info->proc0.stack_va = proc0_stack_va;
-	info->proc0.prog_va = USER_ADDR;
 
 	map_pages(l2, 
 			info->proc0.l1_pa, 
 			info->proc0.l1_va, 
 			info->proc0.l1_len,
-			AP_RW_RW, true);
+			AP_RW_RW, false);
 
 	map_pages(l2, 
 			info->proc0.l2_pa, 
 			info->proc0.l2_va, 
 			info->proc0.l2_len,
-			AP_RW_RW, true);
+			AP_RW_RW, false);
 
 	map_pages(l2, 
 			info->info_pa,
@@ -81,15 +82,13 @@ init_proc0(void)
 			AP_RW_RW, true);
 
 	map_pages(l2, 
-			info->proc0.prog_pa,
-			info->proc0.prog_va, 
-			info->proc0.prog_len, 
+			info->proc0_pa,
+			proc0_code_va,
+			info->proc0_len, 
 			AP_RW_RW, true);
 
-	/*
 	kernel_unmap(l1, info->proc0.l1_len);
 	kernel_unmap(l2, info->proc0.l2_len);
-*/
 
 	p = proc_new(info->proc0.l1_pa, 0);
 	if (p == nil) {
@@ -122,7 +121,7 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 	va = va_next;
 	va_next += len;
 
-	map_pages(info->kernel.l2_va, pa, va, len, ap, cache);
+	map_pages(kernel_l2, pa, va, len, ap, cache);
 
 	return (void *) (va + off);
 }
@@ -130,21 +129,20 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 	void
 kernel_unmap(void *addr, size_t len)
 {
-/*
-	unmap_pages(info->kernel.l2_va, (size_t) addr, len);
-	*/
+	unmap_pages(kernel_l2, (size_t) addr, len);
 }
 
 	void
-main(struct kernel_info *i)
+main(struct kernel_info *info)
 {
 	proc_t p0;
 
-	info = i;
-	va_next = ((size_t) info->kernel.l2_va)
-	 	+ info->kernel.l2_len;
+	kernel_l1 = (uint32_t *) info->kernel.l1_va;
+	kernel_l2 = (uint32_t *) info->kernel.l2_va;
 
-	unmap_l2(info->kernel.l1_va,
+	va_next = info->kernel.l2_va + info->kernel.l2_len;
+
+	unmap_l2(kernel_l1,
 			TABLE_ALIGN_DN(info->boot_pa), 
 			0x1000);
 
@@ -153,10 +151,11 @@ main(struct kernel_info *i)
 	init_kernel_drivers();
 
 	debug(DEBUG_INFO, "kernel mapped at 0x%x\n", info->kernel_va);
-	debug(DEBUG_INFO, "info mapped at   0x%x\n", info->kernel.info_va);
+	debug(DEBUG_INFO, "info mapped at   0x%x\n", info);
 	debug(DEBUG_INFO, "boot   0x%x 0x%x\n", info->boot_pa, info->boot_len);
 	debug(DEBUG_INFO, "kernel 0x%x 0x%x\n", info->kernel_pa, info->kernel_len);
 	debug(DEBUG_INFO, "info   0x%x 0x%x\n", info->info_pa, info->info_len);
+	debug(DEBUG_INFO, "proc0  0x%x 0x%x\n", info->proc0_pa, info->proc0_len);
 	debug(DEBUG_INFO, "bundle 0x%x 0x%x\n", info->bundle_pa, info->bundle_len);
 	debug(DEBUG_INFO, "kernel l1 0x%x -> 0x%x 0x%x\n", 
 			info->kernel.l1_pa, 
@@ -166,14 +165,16 @@ main(struct kernel_info *i)
 			info->kernel.l2_pa, 
 			info->kernel.l2_va, 
 			info->kernel.l2_len);
+	debug(DEBUG_INFO, "proc0 l1 0x%x 0x%x\n", 
+			info->proc0.l1_pa, 
+			info->proc0.l1_len);
+	debug(DEBUG_INFO, "proc0 l2 0x%x 0x%x\n", 
+			info->proc0.l2_pa, 
+			info->proc0.l2_len);
 
-	map_pages(info->kernel.l2_va, 
-			0x82070000,
-			0xff0f0000,
-			0x1000,
-			AP_RW_RW, false);
+	p0 = init_proc0(info);
 
-	p0 = init_proc0();
+	kernel_unmap(info, info->info_len);
 
 	debug(DEBUG_SCHED, "scheduling proc0\n");
 

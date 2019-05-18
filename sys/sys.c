@@ -1,9 +1,9 @@
 #include "head.h"
 #include <sysnum.h>
 
-static struct message messages[MAX_MESSAGES];
-static size_t n_messages = 0;
-static message_t free_messages = nil;
+struct message messages[MAX_MESSAGES] = { 0 };
+size_t n_messages = 0;
+message_t free_messages = nil;
 
 message_t
 message_get(void)
@@ -236,7 +236,7 @@ sys_exit(uint32_t code)
 {
 	union proc_msg m;
 
-	debug_info("%i proc exiting with 0x%x\n", up->pid, code);
+	debug_warn("%i proc exiting with 0x%x\n", up->pid, code);
 
 	m.exit.type = PROC_exit_msg;
 	m.exit.code = code;

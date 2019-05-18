@@ -282,6 +282,8 @@ proc_map(int pid,
 
 	/* Don't let procs map past kernel */
 	if (info->kernel_va <= va + len) {
+		log(LOG_INFO, "0x%x + 0x%x is beyond kernel 0x%x",
+				va, len, info->kernel_va);
 		return PROC0_ERR_ADDR_DENIED;
 	}
 
@@ -325,15 +327,21 @@ init_bundled_proc(char *name,
 	struct addr_frame *f;
 	int pid, r;
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	log(LOG_INFO, "init bundled proc %s", name);
-	
+
+	log(LOG_INFO, "get ram for code copy");	
 	code_pa = get_ram(len, 0x1000);
 	if (code_pa == nil) {
 		exit(1);
 	}
 
+	log(LOG_INFO, "code copy at 0x%x, find map", code_pa);
+
 	code_va = map_addr(code_pa, len, MAP_RW|MAP_DEV);
 	if (code_va == nil) {
+		log(LOG_INFO, "map code 0x%x failed", code_pa);
 		exit(2);
 	}
 
@@ -342,6 +350,8 @@ init_bundled_proc(char *name,
 		exit(3);
 	}
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	log(LOG_INFO, "copy 0x%x from 0x%x / 0x%x to 0x%x / 0x%x",
 			len, start, start_va, code_pa, code_va);
 
@@ -357,6 +367,8 @@ init_bundled_proc(char *name,
 		exit(r);
 	}
 	
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	log(LOG_INFO, "get l1");
 
 	l1_table_pa = get_ram(0x4000, 0x4000);
@@ -369,6 +381,8 @@ init_bundled_proc(char *name,
 		exit(4);
 	}
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	l1_table_va = map_addr(l1_table_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_table_va == nil) {
 		exit(5);
@@ -379,9 +393,20 @@ init_bundled_proc(char *name,
 		exit(5);
 	}
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
+
+	log(LOG_INFO, "memset mapped l1 0x%x", l1_mapped_va);
 	memset(l1_mapped_va, 0, 0x4000);
+	
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
+	
+	log(LOG_INFO, "copy table l1 0x%x", l1_table_va);
 	proc_init_l1(l1_table_va);
 	
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	pid = proc_new(l1_table_pa, 0);
 	if (pid < 0) {
 		exit(8);
@@ -392,6 +417,8 @@ init_bundled_proc(char *name,
 	procs[pid].l1.table_pa = l1_table_pa;
 	procs[pid].l1.mapped_pa = l1_mapped_pa;
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	/* Initial l2 */
 
 	l2_pa = get_ram(0x1000, 0x1000);
@@ -407,14 +434,18 @@ init_bundled_proc(char *name,
 		exit(0xa);
 	}
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	if ((r = proc_map(pid, l2_pa, 
 				0, 0x1000, 
 				MAP_TABLE)) != OK) {
-		exit(0xf);
+		exit(r);
 	}
 
 	/* Stack */
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	size_t stack_len = 0x2000;
 	stack_pa = get_ram(stack_len, 0x1000); 
 	if (stack_pa == nil) {
@@ -429,12 +460,16 @@ init_bundled_proc(char *name,
 		exit(0xc);
 	}
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	if ((r = proc_map(pid, stack_pa, 
 				USER_ADDR - stack_len, stack_len, 
 				MAP_MEM|MAP_RW)) != OK) {
 		exit(0x10);
 	}
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	/* Code */
 
 	if ((f = frame_new(code_pa, len)) == nil) {
@@ -445,11 +480,16 @@ init_bundled_proc(char *name,
 		exit(0xe);
 	}
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 	if ((r = proc_map(pid, code_pa, 
 				USER_ADDR, len, 
 				MAP_MEM|MAP_RW)) != OK) {
 		exit(0x11);
 	}
+
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 
 	m.start.type = PROC_start_msg;
 	m.start.pc = USER_ADDR;
@@ -457,7 +497,13 @@ init_bundled_proc(char *name,
 
 	log(LOG_INFO, "start bundled proc pid %i %s", pid, name);
 
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
+
 	send(pid, (uint8_t *) &m);
+
+	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
+			info, info->kernel_va);
 
 	return pid;
 }
