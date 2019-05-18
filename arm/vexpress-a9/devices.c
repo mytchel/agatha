@@ -8,27 +8,27 @@
 
 struct device devices[] = {
 
-	{ "sysreg", "drivers/sysreg-sp810",
+	{ "sysreg", "../drivers/sysreg-sp810",
 		0x10000000, 0x1000,
 		0
 	},
 
-	{ "sdmmc0", "drivers/mmc-pl18x",
+	{ "sdmmc0", "../drivers/mmc-pl18x",
 		0x10005000, 0x1000,
 		41
 	},
 
-	{ "serial0", "drivers/serial-pl01x",
+	{ "serial0", "../drivers/serial-pl01x",
 		0x10009000, 0x1000,
 		37
 	},
 
-	{ "eth0", "drivers/ethernet-lan9118",
+	{ "eth0", "../drivers/ethernet-lan9118",
 		0x4e000000, 0x10000,
 		15
 	},
 
-	{ "lcd0", "drivers/video-pl111",
+	{ "lcd0", "../drivers/video-pl111",
 		0x10020000, 0x1000,
 		76
 	},

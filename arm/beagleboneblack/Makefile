@@ -15,11 +15,11 @@ PROCS = \
 				../../procs/init
 
 DRIVERS = \
-					drivers/serial-omap3 \
-					drivers/prm-cm-am33xx \
-					drivers/i2c-am335x \
-					drivers/mmc-omap3 \
-					drivers/video-am335x
+					../drivers/serial-omap3 \
+					../drivers/prm-cm-am33xx \
+					../drivers/i2c-am335x \
+					../drivers/mmc-omap3 \
+					../drivers/video-am335x
 
 BOARD_KERNEL_SRC_C =  \
 											cortex_a8_intr.c      \

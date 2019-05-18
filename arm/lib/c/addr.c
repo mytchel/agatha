@@ -9,7 +9,7 @@
 #include <proc0.h>
 #include <arm/mmu.h>
 
-#define LOG 1
+#define LOG 0
 #if !LOG
 #define log(X, ...) {}
 #endif

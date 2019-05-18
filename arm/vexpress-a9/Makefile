@@ -16,10 +16,10 @@ PROCS = \
 				../../procs/video
 
 DRIVERS = \
-					drivers/serial-pl01x \
-					drivers/mmc-pl18x    \
-					drivers/ethernet-lan9118 \
-					drivers/video-pl111
+					../drivers/serial-pl01x \
+					../drivers/mmc-pl18x    \
+					../drivers/ethernet-lan9118 \
+					../drivers/video-pl111
 
 BOARD_KERNEL_SRC_C = \
 										 cortex_a9_gic_systick.c \

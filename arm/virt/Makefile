@@ -15,7 +15,7 @@ PROCS = \
 				../../procs/video
 
 DRIVERS = \
-					../vexpress-a9/drivers/serial-pl01x
+					../drivers/serial-pl01x
 
 BOARD_KERNEL_SRC_C = \
 										 cortex_a15_gic.c \

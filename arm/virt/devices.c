@@ -4,7 +4,7 @@
 
 struct device devices[] = 
 {
-	{ "serial0", "../vexpress-a9/drivers/serial-pl01x",
+	{ "serial0", "../drivers/serial-pl01x",
 		0x09000000, 0x1000,
 		37,
 	},
