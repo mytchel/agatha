@@ -5,5 +5,5 @@ doas qemu-system-arm \
 	-cpu cortex-a15 \
 	-m 64 \
 	-kernel boot.elf \
-#	-nographic 
+	-nographic 
 

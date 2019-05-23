@@ -17,8 +17,12 @@ PROCS = \
 DRIVERS = \
 					../drivers/serial-pl01x
 
+BOARD_KERNEL_SRC_A = \
+										 timer.S
+
 BOARD_KERNEL_SRC_C = \
 										 cortex_a15_gic.c \
+										 generic_timer.c \
 										 ../vexpress-a9/serial_pl01x.c \
 										 kernel.c
 

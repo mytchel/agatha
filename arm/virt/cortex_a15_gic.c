@@ -131,12 +131,16 @@ gic_dst_init(void)
 
 	for (i = 0; i < irqn; i++) {
 		irq_disable(i);
+		irq_enable(i);
 		gic_set_priority(i, 0);
 		gic_set_target(i, 1);
 		gic_set_group(i, 0);
 	}
 
 	dregs->control |= 1;
+
+	debug_info("gic version = %i\n", (dregs->iid >> 12) & 0xf);
+	debug_info("ncpu = %i\n", ((dregs->type >> 5) & 7) + 1);
 }
 
 	static void
@@ -145,17 +149,6 @@ gic_cpu_init(void)
 	cregs->control |= 1;
 	cregs->bin_pt = 0;
 	cregs->priority = 0xff;
-}
-
-	void
-set_systick(size_t t)
-{
-}
-
-	size_t
-systick_passed(void)
-{
-	return 0;
 }
 
 	void
