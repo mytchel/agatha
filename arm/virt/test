@@ -5,5 +5,10 @@ doas qemu-system-arm \
 	-cpu cortex-a15 \
 	-m 64 \
 	-kernel boot.elf \
-	-nographic 
+	-device virtio-blk-device,drive=hd \
+	-drive if=none,file=../vexpress-a9/disk.iso,format=raw,id=hd \
+	-device virtio-gpu-device \
+	-device virtio-net-device \
+	-device virtio-keyboard-device \
+	-nographic
 

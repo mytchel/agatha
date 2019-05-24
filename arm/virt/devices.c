@@ -1,6 +1,7 @@
 #include "../proc0/head.h"
 #include "../bundle.h"
 #include "../dev.h"
+#include <arm/mmu.h>
 
 struct device devices[] = 
 {
@@ -8,6 +9,27 @@ struct device devices[] =
 		0x09000000, 0x1000,
 		37,
 	},
+
+	{ "blk0", "../drivers/virtio/blk",
+		0x0a003e00, 0x200,
+		16 + 31,
+	},
+
+	{ "gpu0", "../drivers/virtio/gpu",
+		0x0a003c00, 0x200,
+		16 + 30,
+	},
+
+	{ "net0", "../drivers/virtio/net",
+		0x0a003a00, 0x200,
+		16 + 29,
+	},
+
+	{ "key0", "../drivers/virtio/keyboard",
+		0x0a003800, 0x200,
+		16 + 28,
+	},
+
 };
 
 	void
@@ -34,7 +56,8 @@ board_init_bundled_drivers(size_t off)
 					off, 
 					bundled_drivers[b].len);
 
-			f = frame_new(devices[d].reg, devices[d].len);
+			f = frame_new(PAGE_ALIGN_DN(devices[d].reg), 
+					PAGE_ALIGN(devices[d].len));
 			proc_give_addr(pid, f);
 
 			init_m[0] = devices[d].reg;

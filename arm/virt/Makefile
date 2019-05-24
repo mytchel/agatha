@@ -15,7 +15,8 @@ PROCS = \
 				../../procs/video
 
 DRIVERS = \
-					../drivers/serial-pl01x
+					../drivers/serial-pl01x \
+					../drivers/virtio/blk
 
 BOARD_KERNEL_SRC_A = \
 										 timer.S

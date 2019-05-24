@@ -100,7 +100,7 @@ irq_handler(void)
 {
 	uint32_t irqn = cregs->ack;
 
-	debug_info("irq: %i\n", irqn);
+	debug_warn("irq: %i\n", irqn);
 
 	if (irqn == 1023) {
 		debug_warn("interrupt de-asserted before we could handle it!");
@@ -115,7 +115,7 @@ irq_handler(void)
 		schedule(nil);
 
 	} else {
-		debug_info("got unhandled interrupt %i!\n", irqn);
+		debug_warn("got unhandled interrupt %i!\n", irqn);
 		irq_disable(irqn);
 	}
 }
