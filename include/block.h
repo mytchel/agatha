@@ -49,11 +49,12 @@ union block_rsp {
 
 struct block_dev {
 	void *arg;
+	char *name;
+	
+	bool writable;
 	size_t block_size;
 	size_t nblocks;
-
-	char *name;
-
+	
 	bool map_buffers;
 
 	int (*read_blocks_mapped)(struct block_dev *,

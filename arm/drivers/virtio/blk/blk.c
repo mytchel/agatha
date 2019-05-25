@@ -10,8 +10,9 @@
 #include <proc0.h>
 #include <log.h>
 #include <dev_reg.h>
-#include <virtio.h>
 #include <block.h>
+#include <virtio.h>
+#include "../virtq.h"
 
 struct device {
 	volatile struct virtio_device *dev;
@@ -20,105 +21,6 @@ struct device {
 	size_t buffer_pa, buffer_len;
 	void *buffer_va;
 };
-
-size_t virtq_size(size_t qsz)
-{
-	return PAGE_ALIGN(sizeof(struct virtq_desc) * qsz + sizeof(uint16_t)*(3+qsz)) 
-		+ PAGE_ALIGN(sizeof(uint16_t)*3 + sizeof(struct virtq_used_item)*qsz);
-}
-
-struct virtq_desc *
-virtq_get_desc(struct virtq *q, size_t *index)
-{
-	size_t i;
-
-	for (i = 0; i < q->size; i++) {
-		if (q->desc[i].len == 0) {
-			*index = i;
-			/* mark as in use */
-			q->desc[i].len = 1; 
-			return &q->desc[i];
-		}
-	}
-
-	return nil;
-}
-
-void
-virtq_send(struct virtq *q, size_t index)
-{
-	struct virtq_desc *d;
-	size_t idx;
- 
-	idx = q->avail->idx % q->size;
-	q->avail->rings[idx] = index;
-	q->avail->idx++;
-
-	q->dev->queue_notify = 0;
-
-	uint8_t m[MESSAGE_LEN];
-	recv(pid(), m);
-
-	do {
-		d = &q->desc[index];
-		d->len = 0;
-		index = d->next;
-	} while (d->flags & VIRTQ_DESC_F_NEXT);
-}
-
-bool
-virtq_init(struct virtq *q, 
-		volatile struct virtio_device *dev, 
-		size_t queue_index,
-		size_t num)
-{
-	size_t queue_pa, queue_va, queue_len;
-	size_t avail_off, used_off;
-
-	dev->queue_sel = queue_index;
-	
-	if (dev->queue_num_max < num) {
-		log(LOG_FATAL, "queue len %i is too large for queue %i (max = %i)",
-				num, queue_index, dev->queue_num_max);
-		return false;
-	}
-
-	queue_len = PAGE_ALIGN(virtq_size(num));
-
-	log(LOG_INFO, "need 0x%x bytes for queue of size 0x%x", 
-			queue_len, num);
-
-	queue_pa = request_memory(queue_len);
-	if (queue_pa == nil) {
-		log(LOG_FATAL, "virtio queue memory alloc failed");
-		return false;
-	}
-
-	queue_va = (size_t) map_addr(queue_pa, queue_len, MAP_DEV|MAP_RW);
-	if (queue_va == nil) {
-		log(LOG_FATAL, "virtio queue memory map failed");
-		release_addr(queue_pa, queue_len);
-		return false;
-	}
-
-	memset((void *) queue_va, 0, queue_len);
-
-	avail_off = sizeof(struct virtq_desc) * num;
-	used_off = PAGE_ALIGN(sizeof(struct virtq_desc) * num + 
-			sizeof(uint16_t)*(3+num));
-
-	q->size = num;
-	q->dev = dev;
-	q->desc = (void *) queue_va;
-	q->avail = (void *) (queue_va + avail_off);
-	q->used = (void *) (queue_va + used_off);
-
-	dev->queue_num = num;
-	dev->queue_used_align = PAGE_SIZE;
-	dev->queue_pfn = queue_pa >> PAGE_SHIFT;
-
-	return true;
-}
 
 int
 virtio_blk_op(struct device *dev,
@@ -211,7 +113,9 @@ main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 	char dev_name[MESSAGE_LEN];
+	
 	struct device dev;
+	struct block_dev blk;
 
 	size_t regs_pa, regs_len;
 	size_t regs_va, regs_off;
@@ -241,6 +145,11 @@ main(void)
 	log(LOG_INFO, "virtio-blk on 0x%x 0x%x with irq %i",
 			regs_pa, regs_len, irqn);
 
+	blk.arg = &dev;
+	blk.name = dev_name;
+	blk.map_buffers = false;
+	blk.read_blocks = &read_blocks;
+	blk.write_blocks = &write_blocks;
 
 	dev.dev = (struct virtio_device *) ((size_t) regs_va + regs_off);
 
@@ -268,32 +177,46 @@ main(void)
 	dev.dev->status |= VIRTIO_DRIVER;
 
 	/* TODO: negotiate */
-	dev.dev->device_features_sel = 0;
-	dev.dev->driver_features_sel = 0;
-	dev.dev->driver_features = dev.dev->device_features;
 
-	dev.dev->device_features_sel = 1;
-	dev.dev->driver_features_sel = 1;
-	dev.dev->driver_features = dev.dev->device_features;
-	
 	struct virtio_blk_config *config = 
 		(struct virtio_blk_config *) dev.dev->config;
 
-	log(LOG_INFO, "blk cap = 0x%x blocks", config->capacity);
-	log(LOG_INFO, "blk size = 0x%x", config->blk_size);
+	dev.dev->device_features_sel = 0;
+	dev.dev->driver_features_sel = 0;
+	dev.dev->driver_features = 0;
+	
+	if (dev.dev->device_features & VIRTIO_BLK_F_RO) {
+		log(LOG_INFO, "read only");
+		dev.dev->driver_features |= VIRTIO_BLK_F_RO;
+		blk.writable = false;
+	} else {
+		blk.writable = true;
+	}
+
+	if (dev.dev->device_features & VIRTIO_BLK_F_BLK_SIZE) {
+		dev.dev->driver_features |= VIRTIO_BLK_F_BLK_SIZE;
+
+		/* Still uses 512 bytes for protocol.
+			 Not sure what use this is. */
+		log(LOG_INFO, "optimal blk size is 0x%x", config->blk_size);
+	}
+
+	blk.block_size = 512;
+	log(LOG_INFO, "blk size is 0x%x", blk.block_size);
+
+	blk.nblocks = config->capacity;
+
+	log(LOG_INFO, "capacity is 0x%x blocks", blk.nblocks);
+
+	dev.dev->driver_features_sel = 1;
+	dev.dev->driver_features = 0;
 
 	dev.dev->status |= VIRTIO_FEATURES_OK;
 	if (!(dev.dev->status & VIRTIO_FEATURES_OK)) {
 		log(LOG_FATAL, "virtio feature set rejected!");
 		exit(ERR);
 	}
-
-	if (config->blk_size != 512) {
-		log(LOG_FATAL, "unsupported block size 0x%x", 
-				config->blk_size);
-		exit(ERR);
-	}
-
+	
 	dev.dev->page_size = PAGE_SIZE;
 
 	if (!virtq_init(&dev.q, dev.dev, 0, 16)) {
@@ -340,17 +263,6 @@ main(void)
 
 	log(LOG_INFO, "mapped buffer from 0x%x to 0x%x",
 			dev.buffer_pa, dev.buffer_va);
-
-	struct block_dev blk;
-
-	blk.arg = &dev;
-	blk.block_size = config->blk_size;
-	blk.nblocks = config->capacity;
-	blk.name = dev_name;
-	
-	blk.map_buffers = false;
-	blk.read_blocks = &read_blocks;
-	blk.write_blocks = &write_blocks;
 
 	return block_dev_register(&blk);
 }

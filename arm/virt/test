@@ -10,5 +10,5 @@ doas qemu-system-arm \
 	-device virtio-gpu-device \
 	-device virtio-net-device \
 	-device virtio-keyboard-device \
-#	-nographic
+	-nographic
 
