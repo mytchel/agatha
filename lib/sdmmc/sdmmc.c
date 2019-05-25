@@ -505,9 +505,12 @@ mmc_start(struct mmc *mmc)
 	}
 
 	dev.arg = mmc;
+	dev.name = mmc->name;
+
+	dev.writable = true;
+
 	dev.block_size = mmc->block_size;
 	dev.nblocks = mmc->nblocks;
-	dev.name = mmc->name;
 
 	dev.map_buffers = true;
 	dev.read_blocks_mapped = &read_blocks;

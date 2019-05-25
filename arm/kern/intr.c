@@ -109,14 +109,6 @@ irq_run_active(void)
 }
 
 	void
-go_idle(void)
-{
-	set_intr(0);
-	while (true)
-		;
-}
-
-	void
 trap(size_t pc, int type)
 {
 	union proc_msg m;

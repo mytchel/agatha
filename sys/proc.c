@@ -175,9 +175,7 @@ schedule(proc_t n)
 		goto_label(&up->label);
 
 	} else {
-		debug_sched("no procs to run\n");
-
-		go_idle();
+		panic("no procs to run!\n");
 	}
 }
 

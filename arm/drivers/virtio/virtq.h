@@ -5,7 +5,10 @@ virtq_size(size_t qsz);
 virtq_get_desc(struct virtq *q, size_t *index);
 
 	void
-virtq_send(struct virtq *q, size_t index);
+virtq_push(struct virtq *q, size_t index);
+
+struct virtq_used_item *
+virtq_pop(struct virtq *q);
 
 	bool
 virtq_init(struct virtq *q, 

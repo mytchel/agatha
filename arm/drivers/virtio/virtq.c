@@ -35,9 +35,8 @@ virtq_get_desc(struct virtq *q, size_t *index)
 }
 
 void
-virtq_send(struct virtq *q, size_t index)
+virtq_push(struct virtq *q, size_t index)
 {
-	struct virtq_desc *d;
 	size_t idx;
  
 	idx = q->avail->idx % q->size;
@@ -45,15 +44,26 @@ virtq_send(struct virtq *q, size_t index)
 	q->avail->idx++;
 
 	q->dev->queue_notify = 0;
+}
 
-	uint8_t m[MESSAGE_LEN];
-	recv(pid(), m);
+struct virtq_used_item *
+virtq_pop(struct virtq *q)
+{
+	struct virtq_used_item *e;
 
-	do {
-		d = &q->desc[index];
-		d->len = 0;
-		index = d->next;
-	} while (d->flags & VIRTQ_DESC_F_NEXT);
+	log(LOG_INFO, "virtq pop, last is %i, current idx is %i",
+		q->last_seen_used, q->used->index);
+
+	if (q->last_seen_used == q->used->index) {
+		return nil;
+	}
+
+	e = &q->used->rings[q->last_seen_used % q->size];
+	q->last_seen_used++;
+
+	q->dev->interrupt_ack = 1;
+
+	return e;
 }
 
 bool
@@ -97,6 +107,7 @@ virtq_init(struct virtq *q,
 	used_off = PAGE_ALIGN(sizeof(struct virtq_desc) * num + 
 			sizeof(uint16_t)*(3+num));
 
+	q->last_seen_used = 0;
 	q->size = num;
 	q->dev = dev;
 	q->desc = (void *) queue_va;

@@ -48,17 +48,6 @@
 
 
 raise:
-	mov r1, r0
-	mov r2, r0
-	mov r3, r0
-	mov r4, r0
-	mov r5, r0
-	mov r6, r0
-	mov r7, r0
-	mov r8, r0
-	mov r9, r0
-#	bl mmu_disable
-	ldr pc, =#0xf0000000
 	b . 
 
 	

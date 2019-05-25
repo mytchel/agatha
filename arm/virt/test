@@ -8,7 +8,8 @@ doas qemu-system-arm \
 	-device virtio-blk-device,drive=hd \
 	-drive if=none,file=../vexpress-a9/disk.iso,format=raw,id=hd \
 	-device virtio-gpu-device \
-	-device virtio-net-device \
+	-netdev type=tap,id=net0 \
+	-device virtio-net-device,netdev=net0 \
 	-device virtio-keyboard-device \
 	-nographic
 

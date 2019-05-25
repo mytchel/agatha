@@ -16,7 +16,8 @@ PROCS = \
 
 DRIVERS = \
 					../drivers/serial-pl01x \
-					../drivers/virtio/blk
+					../drivers/virtio/blk \
+					../drivers/virtio/net
 
 BOARD_KERNEL_SRC_A = \
 										 timer.S

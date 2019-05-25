@@ -183,9 +183,6 @@ irq_exit(void);
 void
 irq_run_active(void);
 
-void
-go_idle(void);
-
 extern proc_t up;
 
 extern void (*debug_puts)(const char *);

@@ -10,89 +10,24 @@
 #include <proc0.h>
 #include <log.h>
 #include <dev_reg.h>
-#include <block.h>
 #include <virtio.h>
 #include "../virtq.h"
 
 struct device {
 	volatile struct virtio_device *dev;
-	struct virtq q;
+	struct virtq rx, tx;
 
 	size_t buffer_pa, buffer_len;
 	void *buffer_va;
 };
-
-int
-virtio_blk_op(struct device *dev,
-		size_t sector, bool write,
-		size_t buf_pa, size_t buf_len)
-{
-	struct virtq_desc *d[3];
-	size_t index[3];
-
-	d[0] = virtq_get_desc(&dev->q, &index[0]);
-	d[1] = virtq_get_desc(&dev->q, &index[1]);
-	d[2] = virtq_get_desc(&dev->q, &index[2]);
-
-	if (d[0] == nil || d[1] == nil || d[2] == nil) {
-		log(LOG_WARNING, "failed to get virtio descs");
-		return ERR;
-	}
-
-	d[0]->addr = dev->buffer_pa;
-	d[0]->len = 4+4+8;
-	d[0]->next = index[1];
-	d[0]->flags = VIRTQ_DESC_F_NEXT;
-	
-	d[1]->addr = buf_pa;
-	d[1]->len = buf_len;
-	d[1]->next = index[2];
-
-	if (!write) {
-		d[1]->flags = VIRTQ_DESC_F_WRITE;
-	}
-
-	d[1]->flags |= VIRTQ_DESC_F_NEXT;
-	
-	d[2]->addr = dev->buffer_pa + 16;	
-	d[2]->len = 1;
-	d[2]->flags = VIRTQ_DESC_F_WRITE;
-
-	struct virtio_blk_req *r = dev->buffer_va;
-	
-	if (write) {
-		r->type = VIRTIO_BLK_T_OUT;
-	} else {
-		r->type = VIRTIO_BLK_T_IN;
-	}
-
-	r->reserved = 0;
-	r->sector = sector;
-
-	virtq_push(&dev->q, index[0]);
-
-	uint8_t m[MESSAGE_LEN];
-	recv(pid(), m);
-
-	struct virtq_used_item *e;
-	e = virtq_pop(&dev->q);
-
-	log(LOG_INFO, "got used index %i len %i",
-			e->index, e->len);
-
-	/* free descs */
-	d[0]->len = 0;
-	d[1]->len = 0;
-	d[2]->len = 0;
-
-	return (int) ((uint8_t *) dev->buffer_va)[16];
-}
 
 static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
 static void intr_handler(int irqn, void *arg)
 {
 	struct device *dev = arg;
 	uint8_t m[MESSAGE_LEN];
+
+	((uint32_t *) m)[0] = dev->dev->interrupt_status;
 
 	dev->dev->interrupt_ack = dev->dev->interrupt_status;
 
@@ -101,35 +36,55 @@ static void intr_handler(int irqn, void *arg)
 	intr_exit();
 }
 
-int
-read_blocks(struct block_dev *dev,
-		size_t pa, size_t start, size_t n)
+static void
+process_rx(struct device *dev, struct virtq_used_item *e)
 {
-	log(LOG_INFO, "read 0x%x blocks from 0x%x",
-			n, start);
+	log(LOG_INFO, "process rx index %i len %i", e->index, e->len);
 
-	return virtio_blk_op(dev->arg,
-			start, false,
-			pa, n * dev->block_size);
+	struct virtq_desc *d = &dev->rx.desc[e->index];
+	log(LOG_INFO, "len of buffer given is %i", d->len);
+
+	size_t off = d->addr - dev->buffer_pa;
+
+	uint8_t *buf = ((uint8_t *) dev->buffer_va) + off;
+
+	char s[33];
+	int i = 0;
+
+	while (i < e->len) {
+		int j;
+		s[0] = 0;
+		for (j = 0; j < 8; j++) {
+			uint8_t v = buf[i+j];
+			uint8_t l = v & 0xf;
+			uint8_t h = (v >> 4) & 0xf;
+
+			snprintf(s+j*2, 3, "%x%x", h, l);
+		}
+
+		log(LOG_INFO, "p%x %s",
+				i, s);
+
+		i += j;
+	}
+	
+	log(LOG_INFO, "load next rx %i", e->index);
+	virtq_push(&dev->rx, e->index);
 }
 
-int
-write_blocks(struct block_dev *dev,
-		size_t pa, size_t start, size_t n)
+	static void
+process_tx(struct device *dev, struct virtq_used_item *e)
 {
-	return virtio_blk_op(dev->arg,
-			start, true,
-			pa, n * dev->block_size);
+	log(LOG_INFO, "process tx index %i len %i", e->index, e->len);
 }
 
-int
+	int
 main(void)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 	char dev_name[MESSAGE_LEN];
-	
+
 	struct device dev;
-	struct block_dev blk;
 
 	size_t regs_pa, regs_len;
 	size_t regs_va, regs_off;
@@ -151,24 +106,18 @@ main(void)
 			MAP_DEV|MAP_RW);
 
 	if (regs_va == nil) {
-		log(LOG_FATAL, "virtio-blk failed to map registers 0x%x 0x%x!",
+		log(LOG_FATAL, "virtio-net failed to map registers 0x%x 0x%x!",
 				regs_pa, regs_len);
 		exit(ERR);
 	}
 
-	log(LOG_INFO, "virtio-blk on 0x%x 0x%x with irq %i",
+	log(LOG_INFO, "virtio-net on 0x%x 0x%x with irq %i",
 			regs_pa, regs_len, irqn);
-
-	blk.arg = &dev;
-	blk.name = dev_name;
-	blk.map_buffers = false;
-	blk.read_blocks = &read_blocks;
-	blk.write_blocks = &write_blocks;
 
 	dev.dev = (struct virtio_device *) ((size_t) regs_va + regs_off);
 
 	log(LOG_INFO, "virtio-blk mapped 0x%x -> 0x%x",
-			regs_pa, dev.dev);
+			regs_pa, dev);
 
 	if (dev.dev->magic != VIRTIO_DEV_MAGIC) {
 		log(LOG_FATAL, "virtio register magic bad 0x%x != expected 0x%x",
@@ -182,7 +131,7 @@ main(void)
 	log(LOG_INFO, "virtio version = 0x%x",
 			dev.dev->version);
 
-	if (dev.dev->device_id != VIRTIO_DEV_TYPE_BLK) {
+	if (dev.dev->device_id != VIRTIO_DEV_TYPE_NET) {
 		log(LOG_FATAL, "virtio type bad %i", dev.dev->device_id);
 		exit(ERR);
 	}
@@ -192,35 +141,23 @@ main(void)
 
 	/* TODO: negotiate */
 
-	struct virtio_blk_config *config = 
-		(struct virtio_blk_config *) dev.dev->config;
+	struct virtio_net_config *config = 
+		(struct virtio_net_config *) dev.dev->config;
+
+	int i;
+	for (i = 0; i < 6; i++) {
+		log(LOG_INFO, "mac %i = %x", i, config->mac[i]);
+	}
+
+	log(LOG_INFO, "net status = %i", config->status);
 
 	dev.dev->device_features_sel = 0;
 	dev.dev->driver_features_sel = 0;
-	dev.dev->driver_features = 0;
-	
-	if (dev.dev->device_features & (1<<VIRTIO_BLK_F_RO)) {
-		log(LOG_INFO, "read only");
-		dev.dev->driver_features |= (1<<VIRTIO_BLK_F_RO);
-		blk.writable = false;
-	} else {
-		blk.writable = true;
-	}
+	dev.dev->driver_features = 
+		(1<<VIRTIO_NET_F_MAC) |
+		(1<<VIRTIO_NET_F_STATUS);
 
-	if (dev.dev->device_features & (1<<VIRTIO_BLK_F_BLK_SIZE)) {
-		dev.dev->driver_features |= (1<<VIRTIO_BLK_F_BLK_SIZE);
-
-		/* Still uses 512 bytes for protocol.
-			 Not sure what use this is. */
-		log(LOG_INFO, "optimal blk size is 0x%x", config->blk_size);
-	}
-
-	blk.block_size = 512;
-	log(LOG_INFO, "blk size is 0x%x", blk.block_size);
-
-	blk.nblocks = config->capacity;
-
-	log(LOG_INFO, "capacity is 0x%x blocks", blk.nblocks);
+	log(LOG_INFO, "net features = 0x%x", dev.dev->device_features);
 
 	dev.dev->driver_features_sel = 1;
 	dev.dev->driver_features = 0;
@@ -230,10 +167,15 @@ main(void)
 		log(LOG_FATAL, "virtio feature set rejected!");
 		exit(ERR);
 	}
-	
+
 	dev.dev->page_size = PAGE_SIZE;
 
-	if (!virtq_init(&dev.q, dev.dev, 0, 3)) {
+	if (!virtq_init(&dev.rx, dev.dev, 0, 16)) {
+		log(LOG_FATAL, "virtio queue init failed");
+		exit(ERR);
+	}
+
+	if (!virtq_init(&dev.tx, dev.dev, 1, 16)) {
 		log(LOG_FATAL, "virtio queue init failed");
 		exit(ERR);
 	}
@@ -258,7 +200,7 @@ main(void)
 				irqn, rp.irq_reg.ret);
 		exit(ERR);
 	}
-	
+
 	dev.buffer_len = PAGE_SIZE;
 	dev.buffer_pa = request_memory(dev.buffer_len);
 	if (dev.buffer_pa == nil) {
@@ -278,6 +220,59 @@ main(void)
 	log(LOG_INFO, "mapped buffer from 0x%x to 0x%x",
 			dev.buffer_pa, dev.buffer_va);
 
-	return block_dev_register(&blk);
+	struct virtq_desc *d;
+	size_t index;
+
+	d = virtq_get_desc(&dev.rx, &index);
+	d->addr = dev.buffer_pa;
+	d->len = 256;
+	d->flags = VIRTQ_DESC_F_WRITE;
+
+	virtq_push(&dev.rx, index);
+
+	d = virtq_get_desc(&dev.rx, &index);
+	d->addr = dev.buffer_pa + 256;
+	d->len = 256;
+	d->flags = VIRTQ_DESC_F_WRITE;
+
+	virtq_push(&dev.rx, index);
+
+	d = virtq_get_desc(&dev.rx, &index);
+	d->addr = dev.buffer_pa + 512;
+	d->len = 256;
+	d->flags = VIRTQ_DESC_F_WRITE;
+
+	virtq_push(&dev.rx, index);
+
+	uint8_t m[MESSAGE_LEN];
+	while (true) {
+		int from = recv(-1, m);
+
+		log(LOG_INFO, "recv returned");
+		if (from < 0) return from;
+
+		if (from == pid()) {
+			log(LOG_INFO, "got interrupt 0x%x", *((uint32_t *) m));
+
+			struct virtq_used_item *e;
+
+			e = virtq_pop(&dev.rx);
+			if (e != nil) {
+				process_rx(&dev, e);	
+			}
+
+			e = virtq_pop(&dev.tx);
+			if (e != nil) {
+				process_tx(&dev, e);	
+			}
+
+		} else {
+			switch (((uint32_t *) m)[0]) {
+			}
+		}
+
+	}
+
+	return ERR;
 }
 
