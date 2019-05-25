@@ -14,7 +14,7 @@
 #include <fat.h>
 #include <log.h>
 
-char *init = "sdmmc1a:test";
+char *init = "sd0a:test";
 char *init_file;
 size_t init_pa, init_m_len, init_size;
 

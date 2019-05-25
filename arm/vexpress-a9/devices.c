@@ -13,7 +13,7 @@ struct device devices[] = {
 		0
 	},
 
-	{ "sdmmc0", "../drivers/mmc-pl18x",
+	{ "sd0", "../drivers/mmc-pl18x",
 		0x10005000, 0x1000,
 		41
 	},

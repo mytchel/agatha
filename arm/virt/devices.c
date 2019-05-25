@@ -10,24 +10,24 @@ struct device devices[] =
 		37,
 	},
 
-	{ "blk0", "../drivers/virtio/blk",
+	{ "sd0", "../drivers/virtio/blk",
 		0x0a003e00, 0x200,
-		16 + 31,
+		32 + 16 + 31,
 	},
 
 	{ "gpu0", "../drivers/virtio/gpu",
 		0x0a003c00, 0x200,
-		16 + 30,
+		32 + 16 + 30,
 	},
 
 	{ "net0", "../drivers/virtio/net",
 		0x0a003a00, 0x200,
-		16 + 29,
+		32 + 16 + 29,
 	},
 
 	{ "key0", "../drivers/virtio/keyboard",
 		0x0a003800, 0x200,
-		16 + 28,
+		32 + 16 + 28,
 	},
 
 };

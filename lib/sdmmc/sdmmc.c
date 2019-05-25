@@ -448,17 +448,14 @@ read_blocks(struct block_dev *dev,
 		void *buf, size_t start, size_t n)
 {
 	struct mmc *mmc = dev->arg;
-	size_t blocks;
 	int i, ret;
 	uint8_t *b;
 
 	log(LOG_INFO, "read blocks 0x%x 0x%x", start, n);
 
 	b = buf;
-	start = start / mmc->block_size;
-	blocks = n / mmc->block_size;
 
-	for (i = 0; i < blocks; i++) {
+	for (i = 0; i < n; i++) {
 		ret = mmc_read_block(mmc, start + i, b);
 		if (ret != OK) {
 			return ret;
@@ -475,17 +472,14 @@ write_blocks(struct block_dev *dev,
 		void *buf, size_t start, size_t n)
 {
 	struct mmc *mmc = dev->arg;
-	size_t blocks;
 	int i, ret;
 	uint8_t *b;
 
 	log(LOG_INFO, "write blocks 0x%x 0x%x", start, n);
 
 	b = buf;
-	start = start / mmc->block_size;
-	blocks = n / mmc->block_size;
 
-	for (i = 0; i < blocks; i++) {
+	for (i = 0; i < n; i++) {
 		ret = mmc_write_block(mmc, start + i, b);
 		if (ret != OK) {
 			return ret;
@@ -515,8 +509,9 @@ mmc_start(struct mmc *mmc)
 	dev.nblocks = mmc->nblocks;
 	dev.name = mmc->name;
 
-	dev.read_blocks = &read_blocks;
-	dev.write_blocks = &write_blocks;
+	dev.map_buffers = true;
+	dev.read_blocks_mapped = &read_blocks;
+	dev.write_blocks_mapped = &write_blocks;
 
 	log(LOG_INFO, "waiting for requests");
 

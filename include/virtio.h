@@ -120,6 +120,8 @@ struct virtq_used {
 };
 
 struct virtq {
+	volatile struct virtio_device *dev;
+	size_t size;
 	struct virtq_desc *desc;
 	struct virtq_avail *avail;
 	struct virtq_used *used;

@@ -1,6 +1,6 @@
 PROG = virtio-blk
 
-LIBS = -llog
+LIBS = -llog -lblock
 SRC = \
 	blk.c
 

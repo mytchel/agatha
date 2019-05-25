@@ -54,15 +54,28 @@ struct block_dev {
 
 	char *name;
 
-	int (*read_blocks)(struct block_dev *,
+	bool map_buffers;
+
+	int (*read_blocks_mapped)(struct block_dev *,
 			void *buf,
-			size_t index, 
+			size_t start, 
+			size_t n);
+
+	int (*write_blocks_mapped)(struct block_dev *,
+			void *buf,
+			size_t start, 
+			size_t n);
+
+	int (*read_blocks)(struct block_dev *,
+			size_t pa,
+			size_t start, 
 			size_t n);
 
 	int (*write_blocks)(struct block_dev *,
-			void *buf,
-			size_t index, 
+			size_t pa,
+			size_t start, 
 			size_t n);
+
 };
 
 int
