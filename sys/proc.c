@@ -62,7 +62,7 @@ next_proc(void)
 
 	int i;
 	for (i = 0; i < MAX_PROCS; i++) {
-		if (procs[i].state == PROC_dead) continue;
+		if (procs[i].state == PROC_free) continue;
 		if (procs[i].list == nil) {
 			debug_sched_v("proc %i in state %i\n", 
 					procs[i].pid, procs[i].state);

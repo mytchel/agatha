@@ -32,10 +32,13 @@ bool
 cas(void *addr, void *old, void *new);
 
 void
-memcpy(void *dst, const void *src, size_t len);
+memcpy(uint8_t *dst, const uint8_t *src, size_t len);
 
 void
-memset(void *dst, uint8_t v, size_t len);
+memset(uint8_t *dst, uint8_t v, size_t len);
+
+bool
+memcmp(const uint8_t *a, const uint8_t *b, size_t len);
 
 /* Address space management */
 

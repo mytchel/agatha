@@ -121,6 +121,7 @@ struct virtq_used {
 
 struct virtq {
 	volatile struct virtio_device *dev;
+	size_t queue_index;
 	size_t size;
 	size_t last_seen_used;
 	struct virtq_desc *desc;
@@ -250,5 +251,5 @@ struct virtio_net_hdr {
 	uint16_t gso_size; 
 	uint16_t csum_start; 
 	uint16_t csum_offset; 
-	uint16_t num_buffers; 
-};
+}__attribute__((packed));
+

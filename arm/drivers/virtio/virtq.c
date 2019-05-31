@@ -43,7 +43,7 @@ virtq_push(struct virtq *q, size_t index)
 	q->avail->rings[idx] = index;
 	q->avail->idx++;
 
-	q->dev->queue_notify = 0;
+	q->dev->queue_notify = q->queue_index;
 }
 
 struct virtq_used_item *
@@ -74,6 +74,8 @@ virtq_init(struct virtq *q,
 {
 	size_t queue_pa, queue_va, queue_len;
 	size_t avail_off, used_off;
+
+	q->queue_index = queue_index;
 
 	dev->queue_sel = queue_index;
 	
