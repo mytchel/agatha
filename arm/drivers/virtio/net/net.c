@@ -14,7 +14,7 @@
 #include <eth.h>
 #include "../virtq.h"
 
-#define PACKET_MAX_LEN  1200
+#define MTU  1200
 
 const uint8_t broadcast_mac[6] = { 
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff 
@@ -24,12 +24,20 @@ struct device {
 	volatile struct virtio_device *dev;
 
 	struct virtq rx;
-	size_t rx_buf_pa, rx_buf_len;
-	uint8_t *rx_buf_va;
-	
+
+	size_t rx_h_buf_pa, rx_h_buf_len;
+	uint8_t *rx_h_buf_va;
+
+	size_t rx_b_buf_pa, rx_b_buf_len;
+	uint8_t *rx_b_buf_va;
+		
 	struct virtq tx;
-	size_t tx_buf_pa, tx_buf_len;
-	uint8_t *tx_buf_va;
+
+	size_t tx_h_buf_pa, tx_h_buf_len;
+	uint8_t *tx_h_buf_va;
+
+	size_t tx_b_buf_pa, tx_b_buf_len;
+	uint8_t *tx_b_buf_va;
 
 	uint8_t mac[6];
 	uint8_t ipv4[4];
@@ -107,26 +115,43 @@ init_rx(struct device *dev)
 	size_t index_h, index_b, i;
 	struct virtq_desc *h, *b;
 
-	dev->rx_buf_len = PAGE_ALIGN(dev->rx.size * (sizeof(struct virtio_net_hdr) + PACKET_MAX_LEN));
-
-	dev->rx_buf_pa = request_memory(dev->rx_buf_len);
-
-	if (dev->rx_buf_pa == nil) {
+	dev->rx_h_buf_len = PAGE_ALIGN(dev->rx.size * sizeof(struct virtio_net_hdr));
+	dev->rx_h_buf_pa = request_memory(dev->rx_h_buf_len);
+	if (dev->rx_h_buf_pa == nil) {
 		log(LOG_FATAL, "memory alloc failed");
 		return false;
 	}
 
-	dev->rx_buf_va = map_addr(dev->rx_buf_pa,
-			dev->rx_buf_len,
+	dev->rx_h_buf_va = map_addr(dev->rx_h_buf_pa,
+			dev->rx_h_buf_len,
 			MAP_DEV|MAP_RW);
 
-	if (dev->rx_buf_va == nil) {
+	if (dev->rx_h_buf_va == nil) {
 		log(LOG_FATAL, "memory map failed");
 		return false;
 	}
 
-	log(LOG_INFO, "rx buf 0x%x mapped to 0x%x", 
-			dev->rx_buf_pa, dev->rx_buf_va);
+	dev->rx_b_buf_len = PAGE_ALIGN(dev->rx.size * MTU);
+	dev->rx_b_buf_pa = request_memory(dev->rx_b_buf_len);
+	if (dev->rx_b_buf_pa == nil) {
+		log(LOG_FATAL, "memory alloc failed");
+		return false;
+	}
+
+	dev->rx_b_buf_va = map_addr(dev->rx_b_buf_pa,
+			dev->rx_b_buf_len,
+			MAP_DEV|MAP_RW);
+
+	if (dev->rx_b_buf_va == nil) {
+		log(LOG_FATAL, "memory map failed");
+		return false;
+	}
+
+	log(LOG_INFO, "rx head buf 0x%x mapped to 0x%x", 
+			dev->rx_h_buf_pa, dev->rx_h_buf_va);
+	
+	log(LOG_INFO, "rx body buf 0x%x mapped to 0x%x", 
+			dev->rx_b_buf_pa, dev->rx_b_buf_va);
 	
 	for (i = 0; i < dev->rx.size; i += 2) {
 		h = virtq_get_desc(&dev->rx, &index_h);
@@ -141,13 +166,13 @@ init_rx(struct device *dev)
 			return false;
 		}
 
-		h->addr = dev->rx_buf_pa + i * (sizeof(struct virtio_net_hdr) + PACKET_MAX_LEN);
+		h->addr = dev->rx_h_buf_pa + i * sizeof(struct virtio_net_hdr);
 		h->len = sizeof(struct virtio_net_hdr);
 		h->next = index_b;
 		h->flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
 
-		b->addr = h->addr + sizeof(struct virtio_net_hdr);
-		b->len = PACKET_MAX_LEN;
+		b->addr = dev->rx_b_buf_pa + i * MTU;
+		b->len = MTU;
 		b->flags = VIRTQ_DESC_F_WRITE;
 
 		virtq_push(&dev->rx, index_h);
@@ -159,32 +184,78 @@ init_rx(struct device *dev)
 static bool
 init_tx(struct device *dev)
 {
-	dev->tx_buf_len = PAGE_ALIGN(dev->tx.size * (sizeof(struct virtio_net_hdr) + PACKET_MAX_LEN));
-
-	dev->tx_buf_pa = request_memory(dev->tx_buf_len);
-
-	if (dev->tx_buf_pa == nil) {
+	dev->tx_h_buf_len = PAGE_ALIGN(dev->tx.size * sizeof(struct virtio_net_hdr));
+	dev->tx_h_buf_pa = request_memory(dev->tx_h_buf_len);
+	if (dev->tx_h_buf_pa == nil) {
 		log(LOG_FATAL, "memory alloc failed");
 		return false;
 	}
 
-	dev->tx_buf_va = map_addr(dev->tx_buf_pa,
-			dev->tx_buf_len,
+	dev->tx_h_buf_va = map_addr(dev->tx_h_buf_pa,
+			dev->tx_h_buf_len,
 			MAP_DEV|MAP_RW);
 
-	if (dev->tx_buf_va == nil) {
+	if (dev->tx_h_buf_va == nil) {
 		log(LOG_FATAL, "memory map failed");
 		return false;
 	}
 
-	log(LOG_INFO, "tx buf 0x%x mapped to 0x%x", 
-			dev->tx_buf_pa, dev->tx_buf_va);
+	dev->tx_b_buf_len = PAGE_ALIGN(dev->tx.size * MTU);
+	dev->tx_b_buf_pa = request_memory(dev->tx_b_buf_len);
+	if (dev->tx_b_buf_pa == nil) {
+		log(LOG_FATAL, "memory alloc failed");
+		return false;
+	}
+
+	dev->tx_b_buf_va = map_addr(dev->tx_b_buf_pa,
+			dev->tx_b_buf_len,
+			MAP_DEV|MAP_RW);
+
+	if (dev->tx_b_buf_va == nil) {
+		log(LOG_FATAL, "memory map failed");
+		return false;
+	}
+
+	log(LOG_INFO, "tx head buf 0x%x mapped to 0x%x", 
+			dev->tx_h_buf_pa, dev->tx_h_buf_va);
+	
+	log(LOG_INFO, "tx body buf 0x%x mapped to 0x%x", 
+			dev->tx_b_buf_pa, dev->tx_b_buf_va);
 	
 	return true;
 }
 
 	static void 
 test_respond_arp(struct device *dev, uint8_t *src_mac, uint8_t *src_ipv4);
+
+static void
+handle_arp(struct device *dev, struct eth_hdr *hdr, 
+		uint8_t *body, size_t len)
+{
+	log(LOG_INFO, "have arp packet!");
+
+	if (memcmp(hdr->dst, broadcast_mac, 6)) {
+		log(LOG_INFO, "broadcast arp");
+
+		uint8_t *src_ipv4 = body + 14;
+		uint8_t *dst_ipv4 = body + 24;
+
+		log(LOG_INFO, "from    for %i.%i.%i.%i",
+				src_ipv4[0], src_ipv4[1], src_ipv4[2], src_ipv4[3]);
+
+		log(LOG_INFO, "looking for %i.%i.%i.%i",
+				dst_ipv4[0], dst_ipv4[1], dst_ipv4[2], dst_ipv4[3]);
+
+		if (memcmp(dst_ipv4, dev->ipv4, 4)) {
+			log(LOG_WARNING, "asking about us!!!");
+
+			test_respond_arp(dev, hdr->src, src_ipv4);
+		}
+
+	} else if (memcmp(hdr->dst, dev->mac, 6)) {
+		log(LOG_INFO, "responding to us!!!");
+	}
+}
 
 	static void
 process_rx(struct device *dev, struct virtq_used_item *e)
@@ -195,13 +266,13 @@ process_rx(struct device *dev, struct virtq_used_item *e)
 
 	h = &dev->rx.desc[e->index];
 	b = &dev->rx.desc[h->next];
-	
+
 	len = e->len - h->len;
 
 	log(LOG_INFO, "process rx len %i", e->len, len);
 
-	off = b->addr - dev->rx_buf_pa;
-	buf = dev->rx_buf_va + off;
+	off = b->addr - dev->rx_b_buf_pa;
+	buf = dev->rx_b_buf_va + off;
 
 	struct eth_hdr *hdr = (void *) buf;
 
@@ -216,40 +287,19 @@ process_rx(struct device *dev, struct virtq_used_item *e)
 	log(LOG_INFO, "to   %s", dst);
 	log(LOG_INFO, "type 0x%x", type);
 
-	bool dump = false;
+	switch (type) {
+		case 0x0806:
+			handle_arp(dev, hdr,
+					buf + sizeof(struct eth_hdr), 
+					len - sizeof(struct eth_hdr));
+			break;
 
-	if (type == 0x0806) {
-		log(LOG_INFO, "have arp packet!");
-
-		if (memcmp(hdr->dst, broadcast_mac, 6)) {
-			log(LOG_INFO, "broadcast arp");
-			
-			uint8_t *src_ipv4 = buf + sizeof(struct eth_hdr) + 14;
-			uint8_t *dst_ipv4 = buf + sizeof(struct eth_hdr) + 24;
-
-			log(LOG_INFO, "from    for %i.%i.%i.%i",
-					src_ipv4[0], src_ipv4[1], src_ipv4[2], src_ipv4[3]);
-
-			log(LOG_INFO, "looking for %i.%i.%i.%i",
-					dst_ipv4[0], dst_ipv4[1], dst_ipv4[2], dst_ipv4[3]);
-
-			if (memcmp(dst_ipv4, dev->ipv4, 4)) {
-				log(LOG_WARNING, "asking about us!!!");
-
-				test_respond_arp(dev, hdr->src, src_ipv4);
-		
-				dump = true;
-			}
-		}
+		default:
+			break;
 	}
 
 	if (memcmp(hdr->dst, dev->mac, 6)) {
-		log(LOG_WARNING, "this packet is for us!!!!");
-		dump = true;
-	}
-
-	if (dump) {
-		log(LOG_INFO, "packet:");
+		log(LOG_WARNING, "this packet is for us ::::");
 		dump_hex_block(buf, len);
 	}
 
@@ -265,55 +315,63 @@ process_tx(struct device *dev, struct virtq_used_item *e)
 	static int
 send_pkt(struct device *dev, uint8_t *pkt, size_t len)
 {
-	struct virtq_desc *d;
-	size_t index, off;
-	uint8_t *buf;
+	struct virtq_desc *h, *b;
+	size_t index_h, index_b;
+	struct virtio_net_hdr *vh;
+	uint8_t *body;
 
 	log(LOG_INFO, "prepare pkt with len %i", len);
-	log(LOG_INFO, "tx buf mapped to 0x%x", dev->tx_buf_va);
 
-	d = virtq_get_desc(&dev->tx, &index);
-	if (d == nil) {
+	h = virtq_get_desc(&dev->tx, &index_h);
+	if (h == nil) {
 		log(LOG_WARNING, "failed to get descriptor");
 		return ERR;
 	}
 
-	d->addr = dev->tx_buf_pa + index * (sizeof(struct virtio_net_hdr) + PACKET_MAX_LEN);
-	d->flags = 0;
+	b = virtq_get_desc(&dev->tx, &index_b);
+	if (b == nil) {
+		log(LOG_WARNING, "failed to get descriptor");
+		return ERR;
+	}
 
-	off = d->addr - dev->tx_buf_pa;
-	buf = dev->tx_buf_va + off;
+	body = dev->tx_b_buf_va + index_b * MTU;
 
-	memcpy(&buf[sizeof(struct virtio_net_hdr)], pkt, len);
+	memcpy(body, pkt, len);
 
 	if (len < 64) {
 		log(LOG_INFO, "zero padding bytes %i to %i bytes", 
 				len, 64);
 
-		memset(buf + sizeof(struct virtio_net_hdr) + len, 
-				0, 64 - len);
+		memset(body + len, 0, 64 - len);
 
 		len = 64;
 	}
 
-	struct virtio_net_hdr *h = (void *) buf;
-	h->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-	h->gso_type = 0;
-	h->csum_start = 0;
-	h->csum_offset = len;
-	
-	d->len = sizeof(struct virtio_net_hdr) + len;
+	h->addr = dev->tx_h_buf_pa + index_h * sizeof(struct virtio_net_hdr);
+	h->len = sizeof(struct virtio_net_hdr);
+	h->next = index_b;
+	h->flags = VIRTQ_DESC_F_NEXT;
+
+	vh	= (void *) (dev->tx_h_buf_va + index_h * sizeof(struct virtio_net_hdr));
+	vh->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
+	vh->gso_type = 0;
+	vh->csum_start = 0;
+	vh->csum_offset = len;
+
+	b->addr = dev->tx_b_buf_pa + index_b * MTU;
+	b->len = len;
+	b->flags = 0;
 
 	log(LOG_INFO, "push");
 
-	dump_hex_block(buf + sizeof(struct virtio_net_hdr), len);
+	dump_hex_block(body, len);
 
-	virtq_push(&dev->tx, index);
+	virtq_push(&dev->tx, index_h);
 
 	return OK;	
 }
 
-static void 
+	static void 
 test_respond_arp(struct device *dev, uint8_t *src_mac, uint8_t *src_ipv4)
 {
 	struct eth_hdr *hdr;
