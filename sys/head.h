@@ -29,7 +29,9 @@ struct proc {
 
 	procstate_t state;
 	int pid;
+
 	int supervisor;
+	int priority;
 
 	int ts;
 	proc_list_t list;		
@@ -44,7 +46,7 @@ struct proc {
 };
 
 proc_t
-proc_new(size_t vspace, int supervisor);
+proc_new(size_t vspace, int supervisor, int priority);
 
 int
 proc_ready(proc_t p);

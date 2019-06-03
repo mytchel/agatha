@@ -2,6 +2,8 @@
 #define PID_ANY    -1
 #define PID_NONE   -2
 
+#define PRIORITY_MAX  16
+
 typedef enum {
 	PROC_free = 0,
 	PROC_fault,

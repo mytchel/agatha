@@ -312,6 +312,7 @@ proc_map(int pid,
 
 	int
 init_bundled_proc(char *name,
+		int priority,
 		size_t start, size_t len)
 {
 	union proc_msg m;
@@ -407,7 +408,8 @@ init_bundled_proc(char *name,
 	
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
-	pid = proc_new(l1_table_pa, 0);
+
+	pid = proc_new(l1_table_pa, 0, priority);
 	if (pid < 0) {
 		exit(8);
 	}
@@ -525,6 +527,7 @@ init_procs(void)
 	off = info->bundle_pa;
 	for (i = 0; i < nbundled_procs; i++) {
 		init_bundled_proc(bundled_procs[i].name,
+				1,
 				off,
 				bundled_procs[i].len);
 

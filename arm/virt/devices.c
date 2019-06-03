@@ -53,6 +53,7 @@ board_init_bundled_drivers(size_t off)
 			/* The proc can handle this device */
 
 			pid = init_bundled_proc(devices[d].name,
+					2,
 					off, 
 					bundled_drivers[b].len);
 

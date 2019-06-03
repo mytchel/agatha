@@ -253,7 +253,7 @@ sys_exit(uint32_t code)
 }
 
 	size_t
-sys_proc_new(size_t vspace, int supervisor)
+sys_proc_new(size_t vspace, int supervisor, int priority)
 {
 	proc_t p;
 
@@ -264,7 +264,7 @@ sys_proc_new(size_t vspace, int supervisor)
 		return ERR;
 	}
 
-	p = proc_new(vspace, supervisor);
+	p = proc_new(vspace, supervisor, priority);
 	if (p == nil) {
 		debug_warn("proc_new failed\n");
 		return ERR;

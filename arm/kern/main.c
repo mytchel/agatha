@@ -90,7 +90,7 @@ init_proc0(struct kernel_info *info)
 	kernel_unmap(l1, info->proc0.l1_len);
 	kernel_unmap(l2, info->proc0.l2_len);
 
-	p = proc_new(info->proc0.l1_pa, 0);
+	p = proc_new(info->proc0.l1_pa, 0, 1);
 	if (p == nil) {
 		panic("Failed to create proc0 entry!\n");
 	}
