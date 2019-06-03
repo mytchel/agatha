@@ -11,7 +11,7 @@ LIBS = \
 .PHONY: clean
 clean:
 	@rm -f $(CLEAN)
-	@for B in $(PROCS) $(DRIVERS) $(LIBS); do \
+	@for B in $(PROCS) $(IDLE) $(DRIVERS) $(LIBS); do \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} clean; \
 	done
 
@@ -51,13 +51,14 @@ KERNEL_SRC_C = \
 
 .PHONY: bundle.bin 
 bundle.bin bundle.c:
-	@for B in $(PROCS) $(DRIVERS); do \
+	@for B in $(PROCS) $(IDLE) $(DRIVERS); do \
 		echo $(MAKE) -C $$B; \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} || exit 1; \
 		done
 	@echo 'BUNDLE procs   : ' $(PROCS)
+	@echo 'BUNDLE idle    : ' $(IDLE)
 	@echo 'BUNDLE drivers : ' $(DRIVERS)
-	@PROCS="$(PROCS)" DRIVERS="$(DRIVERS)" sh ../mkbundle.sh
+	@PROCS="$(PROCS)" IDLE="$(IDLE)" DRIVERS="$(DRIVERS)" sh ../mkbundle.sh
 
 CLEAN += bundle.c
 

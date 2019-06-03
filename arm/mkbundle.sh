@@ -2,12 +2,21 @@ echo -n > bundle.c
 echo '#include <types.h>' >> bundle.c
 echo '#include "../bundle.h"' >> bundle.c
 
+P=0
+
 P=$(sh ../bundle.sh \
 	bundled_procs \
 	bundle.bin \
 	bundle.c \
-	0 \
+	$P \
 	$PROCS)
+
+P=$(sh ../bundle.sh \
+	bundled_idle \
+	bundle.bin \
+	bundle.c \
+	$P \
+	$IDLE)
 
 P=$(sh ../bundle.sh \
 	bundled_drivers \

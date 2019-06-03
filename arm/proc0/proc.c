@@ -534,6 +534,15 @@ init_procs(void)
 		off += bundled_procs[i].len;
 	}
 
+	for (i = 0; i < nbundled_idle; i++) {
+		init_bundled_proc(bundled_idle[i].name,
+				0,
+				off,
+				bundled_idle[i].len);
+
+		off += bundled_idle[i].len;
+	}
+
 	board_init_bundled_drivers(off);
 }
 

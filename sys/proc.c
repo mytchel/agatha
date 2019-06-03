@@ -74,7 +74,7 @@ next_proc(void)
 #endif
 
 	q = PRIORITY_MAX - 1;
-	while (q > 0) {
+	while (q >= 0) {
 		debug_sched_v("check priority %i ready queue %i\n", q, ready[q].q);
 
 		p = ready[q].queue[ready[q].q].head; 

@@ -282,9 +282,6 @@ main(void)
 
 	log(LOG_INFO, "alloc test finished!");
 
-	while (true)
-		;
-
 	exit(OK);
 }
 

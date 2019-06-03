@@ -14,6 +14,9 @@ PROCS = \
 				../../procs/log \
 				../../procs/init
 
+IDLE = \
+			 ../../procs/idle
+
 DRIVERS = \
 					../drivers/serial-omap3 \
 					../drivers/prm-cm-am33xx \

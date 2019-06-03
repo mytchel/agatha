@@ -14,6 +14,9 @@ PROCS = \
 				../../procs/init \
 				../../procs/video
 
+IDLE = \
+				../../procs/idle 
+
 DRIVERS = \
 					../drivers/serial-pl01x \
 					../drivers/virtio/blk \
