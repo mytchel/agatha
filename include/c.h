@@ -24,6 +24,8 @@ intr_exit(void);
 
 /* Utils */
 
+#define align(x, a)  (((x) + a - 1) & (~(a-1)))
+
 	void
 raise(void)
   __attribute__((noreturn));
@@ -32,15 +34,24 @@ bool
 cas(void *addr, void *old, void *new);
 
 void
-memcpy(uint8_t *dst, const uint8_t *src, size_t len);
+memcpy(void *dst, const void *src, size_t len);
 
 void
-memset(uint8_t *dst, uint8_t v, size_t len);
+memset(void *dst, uint8_t v, size_t len);
 
 bool
-memcmp(const uint8_t *a, const uint8_t *b, size_t len);
+memcmp(const void *a, const void *b, size_t len);
 
 /* Address space management */
+
+#define MAP_RO         (0<<0)
+#define MAP_RW         (1<<0)
+
+#define MAP_TYPE_MASK  (7<<1) 
+
+#define MAP_MEM        (0<<1)
+#define MAP_DEV        (1<<1) 
+#define MAP_SHARED     (2<<1) 
 
 int
 unmap_addr(void *a, size_t len);
@@ -58,4 +69,10 @@ int
 give_addr(int to, 
 		size_t pa, size_t len);
 
+
+void *
+malloc(size_t size);
+
+void
+free(void *ptr);
 

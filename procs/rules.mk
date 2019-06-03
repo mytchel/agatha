@@ -8,7 +8,7 @@ OBJECTS = $(SRC:%.c=%.o)
 
 CLEAN += $(OBJECTS)
 
-LIBS += -lc -lpool -lstring -lgcc
+LIBS += -lc -lpool -lmem -lstring -lgcc
 
 out.elf: $(USER.LD) $(OBJECTS)
 	@echo LD $@ $(OBJECTS) $(LIBS)

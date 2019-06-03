@@ -4,16 +4,20 @@
 #include <c.h>
 
 void
-memcpy(uint8_t *d, const uint8_t *s, size_t len)
+memcpy(void *dd, const void *ss, size_t len)
 {
+	uint8_t *d = dd;
+	const uint8_t *s = ss;
+
 	while (len-- > 0) {
 		*d++ = *s++;
 	}
 }
 
 void
-memset(uint8_t *d, uint8_t v, size_t len)
+memset(void *dd, uint8_t v, size_t len)
 {
+	uint8_t *d = dd;
 	size_t i;
 		
 	for (i = 0; i < len; i++)
@@ -21,8 +25,10 @@ memset(uint8_t *d, uint8_t v, size_t len)
 }
 
 bool
-memcmp(const uint8_t *a, const uint8_t *b, size_t len)
+memcmp(const void *aa, const void *bb, size_t len)
 {
+	const uint8_t *a = aa, *b = bb;
+
 	while (len-- > 0) {
 		if (*a++ != *b++) return false;
 	}

@@ -2,6 +2,7 @@ LIBS = \
 			 ../lib/c \
 			 ../../lib/string \
 			 ../../lib/pool \
+			 ../../lib/mem \
 			 ../../lib/log \
 			 ../../lib/sdmmc \
 			 ../../lib/block \
@@ -27,7 +28,7 @@ BOOT_SRC_A = \
 BOOT_SRC_C = \
 						 ../kern/boot.c \
 						 ../lib/c/mmu.c \
-						 ../lib/c/util.c 
+						 ../../lib/mem/util.c 
 
 KERNEL_SRC_A = \
 							 ../kern/vectors.S \
@@ -39,10 +40,10 @@ KERNEL_SRC_C = \
 							 ../kern/proc.c \
 							 ../kern/intr.c \
 							 ../lib/c/mmu.c \
-							 ../lib/c/util.c \
 							 ../../sys/debug.c \
 							 ../../sys/proc.c \
 							 ../../sys/sys.c \
+						   ../../lib/mem/util.c \
 							 ../../lib/string/conv.c \
 							 ../../lib/string/scanf.c \
 							 ../../lib/string/string.c \

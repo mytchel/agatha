@@ -339,11 +339,7 @@ send_pkt(struct device *dev, uint8_t *pkt, size_t len)
 	memcpy(body, pkt, len);
 
 	if (len < 64) {
-		log(LOG_INFO, "zero padding bytes %i to %i bytes", 
-				len, 64);
-
 		memset(body + len, 0, 64 - len);
-
 		len = 64;
 	}
 

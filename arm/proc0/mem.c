@@ -177,7 +177,6 @@ addr_map_l2s(size_t pa, size_t va, size_t tlen)
 
 	addr = map_addr(pa, tlen, MAP_RW|MAP_DEV);
 	if (addr == nil) {
-		exit(0xaa001);
 		return PROC0_ERR_INTERNAL;
 	}
 
@@ -185,7 +184,6 @@ addr_map_l2s(size_t pa, size_t va, size_t tlen)
 
 	for (o = 0; (o << 10) < tlen; o++) {
 		if (proc0_l1.mmu.addr[L1X(va) + o] != L1_FAULT) {
-			exit(0xaa002);
 			return PROC0_ERR_ADDR_DENIED;
 		}
 
@@ -225,7 +223,6 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	} else if ((flags & MAP_TYPE_MASK) == MAP_SHARED) {
 		cache = false;
 	} else {
-		exit(0xaa003);
 		return PROC0_ERR_FLAGS;
 	}
 
@@ -245,13 +242,11 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 		l2 = proc0_l1.va[L1X(va + o)];
 		if (l2 == nil) {
 			log(LOG_INFO, "l1 nil");
-			exit(0xaa004);
 			return PROC0_ERR_TABLE;
 		}
 
 		if (l2[L2X(va + o)] != L2_FAULT) {
 			log(LOG_INFO, "l2 already mapped 0x%x", l2[L2X(va + o)]);
-			exit(0xaa005);
 			return PROC0_ERR_ADDR_DENIED;
 		}
 
@@ -274,7 +269,6 @@ addr_unmap(size_t va, size_t len)
 		l2 = proc0_l1.va[L1X(va + o)];
 		if (l2 == nil) {
 			log(LOG_INFO, "l1 nil");
-			exit(0xaa004);
 			return PROC0_ERR_TABLE;
 		}
 

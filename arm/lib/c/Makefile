@@ -6,8 +6,7 @@ SRC_A = \
 SRC_C = \
 				mmu.c \
 				proc0.c \
-				addr.c \
-				util.c
+				addr.c
 
 include ../../../lib/rules.mk
 

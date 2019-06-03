@@ -239,15 +239,48 @@ main(void)
 	log_init("init");
 	
 	if (map_init_file(init) != OK) {
-		raise();
+		exit(1);
 	}
 
 	if (read_init_file(init_file, init_size) != OK) {
-		raise();
+		exit(2);
 	}
 
 	unmap_addr(init_file, init_m_len);
 	release_addr(init_pa, init_m_len);
+
+	size_t w;
+	for (w = 0; w < 0xfffff; w++)
+		;
+
+	uint32_t **p;
+
+	p = malloc(10 * sizeof(uint32_t));
+	if (p == nil) {
+		log(LOG_FATAL, "error allocating pointer buffer");
+		exit(3);
+	}
+
+	size_t i, j;
+	for (i = 1; i < (1<<15); i *= 2) {
+		for (j = 0; j < 10; j++) {
+			p[j] = malloc(i + j);
+			if (p[j] == nil) {
+				log(LOG_FATAL, "error allocating buffer %i size 0x%x",
+						j, i + j);
+			} else {
+				log(LOG_INFO, "buffer %i of size 0x%x at 0x%x", j, i + j, p[j]);
+				memset(p[j], j, i + j);
+			}
+		}	
+
+		for (j = 0; j < 10; j++) {
+			log(LOG_INFO, "free buffer %i at 0x%x", j, p[j]);
+			free(p[j]);
+		}
+	}
+
+	log(LOG_INFO, "alloc test finished!");
 
 	while (true)
 		;

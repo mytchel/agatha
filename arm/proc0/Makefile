@@ -8,7 +8,7 @@ PROC0_SRC_C = \
 	../proc0/proc.c              \
 	../lib/c/addr.c              \
 	../lib/c/mmu.c               \
-	../lib/c/util.c              \
+	../../lib/mem/util.c         \
 	devices.c                    \
 	bundle.c
 				
