@@ -6,6 +6,7 @@ LIBS = \
 			 ../../lib/log \
 			 ../../lib/sdmmc \
 			 ../../lib/block \
+			 ../../lib/net \
 			 ../../lib/fat
 
 .PHONY: clean

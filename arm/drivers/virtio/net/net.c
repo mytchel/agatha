@@ -12,16 +12,13 @@
 #include <dev_reg.h>
 #include <virtio.h>
 #include <eth.h>
+#include <net.h>
 #include "../virtq.h"
 
 #define MTU  1200
 
-const uint8_t broadcast_mac[6] = { 
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff 
-}; 
-
-struct device {
-	volatile struct virtio_device *dev;
+struct virtio_net_dev {
+	volatile struct virtio_device *base;
 
 	struct virtq rx;
 
@@ -38,71 +35,17 @@ struct device {
 
 	size_t tx_b_buf_pa, tx_b_buf_len;
 	uint8_t *tx_b_buf_va;
-
-	uint8_t mac[6];
-	uint8_t ipv4[4];
 };
-
-static void
-print_mac(char *s, uint8_t *mac)
-{
-	int i;
-
-	for (i = 0; i < 6; i++) {
-		uint8_t l, h;
-		
-		l = mac[i] & 0xf;
-		h = (mac[i] >> 4) & 0xf;
-	
-		if (h < 0xa) s[i*3] = h + '0';
-		else s[i*3] = h - 0xa + 'a';
-
-		if (l < 0xa) s[i*3+1] = l + '0';
-		else s[i*3+1] = l - 0xa + 'a';
-
-		s[i*3+2] = ':';
-	}
-
-	s[5*3+2] = 0;
-}
-
-static void
-dump_hex_block(uint8_t *buf, size_t len)
-{
-	char s[33];
-	size_t i = 0;
-	while (i < len) {
-		int j;
-		s[0] = 0;
-		for (j = 0; j < 8 && i + j < len; j++) {
-			uint8_t v = buf[i+j];
-			uint8_t l = v & 0xf;
-			uint8_t h = (v >> 4) & 0xf;
-
-			if (h < 0xa) s[j*2] = h + '0';
-			else s[j*2] = h - 0xa + 'a';
-
-			if (l < 0xa) s[j*2+1] = l + '0';
-			else s[j*2+1] = l - 0xa + 'a';
-		}
-
-		s[j*2] = 0;
-
-		log(LOG_INFO, "p%x %s", i, s);
-
-		i += j;
-	}
-}
 
 static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
 static void intr_handler(int irqn, void *arg)
 {
-	struct device *dev = arg;
+	struct virtio_net_dev *dev = arg;
 	uint8_t m[MESSAGE_LEN];
 
-	((uint32_t *) m)[0] = dev->dev->interrupt_status;
+	((uint32_t *) m)[0] = dev->base->interrupt_status;
 
-	dev->dev->interrupt_ack = dev->dev->interrupt_status;
+	dev->base->interrupt_ack = dev->base->interrupt_status;
 
 	send(pid(), m);
 
@@ -110,7 +53,7 @@ static void intr_handler(int irqn, void *arg)
 }
 
 static bool
-init_rx(struct device *dev)
+init_rx(struct virtio_net_dev *dev)
 {
 	size_t index_h, index_b, i;
 	struct virtq_desc *h, *b;
@@ -182,7 +125,7 @@ init_rx(struct device *dev)
 }
 
 static bool
-init_tx(struct device *dev)
+init_tx(struct virtio_net_dev *dev)
 {
 	dev->tx_h_buf_len = PAGE_ALIGN(dev->tx.size * sizeof(struct virtio_net_hdr));
 	dev->tx_h_buf_pa = request_memory(dev->tx_h_buf_len);
@@ -225,43 +168,12 @@ init_tx(struct device *dev)
 	return true;
 }
 
-	static void 
-test_respond_arp(struct device *dev, uint8_t *src_mac, uint8_t *src_ipv4);
-
-static void
-handle_arp(struct device *dev, struct eth_hdr *hdr, 
-		uint8_t *body, size_t len)
-{
-	log(LOG_INFO, "have arp packet!");
-
-	if (memcmp(hdr->dst, broadcast_mac, 6)) {
-		log(LOG_INFO, "broadcast arp");
-
-		uint8_t *src_ipv4 = body + 14;
-		uint8_t *dst_ipv4 = body + 24;
-
-		log(LOG_INFO, "from    for %i.%i.%i.%i",
-				src_ipv4[0], src_ipv4[1], src_ipv4[2], src_ipv4[3]);
-
-		log(LOG_INFO, "looking for %i.%i.%i.%i",
-				dst_ipv4[0], dst_ipv4[1], dst_ipv4[2], dst_ipv4[3]);
-
-		if (memcmp(dst_ipv4, dev->ipv4, 4)) {
-			log(LOG_WARNING, "asking about us!!!");
-
-			test_respond_arp(dev, hdr->src, src_ipv4);
-		}
-
-	} else if (memcmp(hdr->dst, dev->mac, 6)) {
-		log(LOG_INFO, "responding to us!!!");
-	}
-}
-
 	static void
-process_rx(struct device *dev, struct virtq_used_item *e)
+process_rx(struct net_dev *net, struct virtq_used_item *e)
 {
+	struct virtio_net_dev *dev = net->arg;
 	struct virtq_desc *h, *b;
-	uint8_t *buf;
+	uint8_t *rx_va;
 	size_t off, len;
 
 	h = &dev->rx.desc[e->index];
@@ -269,78 +181,41 @@ process_rx(struct device *dev, struct virtq_used_item *e)
 
 	len = e->len - h->len;
 
-	log(LOG_INFO, "process rx len %i", e->len, len);
-
 	off = b->addr - dev->rx_b_buf_pa;
-	buf = dev->rx_b_buf_va + off;
+	rx_va = dev->rx_b_buf_va + off;
 
-	struct eth_hdr *hdr = (void *) buf;
-
-	uint32_t type = hdr->tol.type[0] << 8 | hdr->tol.type[1];
-
-	char dst[18], src[18];
-
-	print_mac(dst, hdr->dst);
-	print_mac(src, hdr->src);
-
-	log(LOG_INFO, "from %s", src);
-	log(LOG_INFO, "to   %s", dst);
-	log(LOG_INFO, "type 0x%x", type);
-
-	switch (type) {
-		case 0x0806:
-			handle_arp(dev, hdr,
-					buf + sizeof(struct eth_hdr), 
-					len - sizeof(struct eth_hdr));
-			break;
-
-		default:
-			break;
-	}
-
-	if (memcmp(hdr->dst, dev->mac, 6)) {
-		log(LOG_WARNING, "this packet is for us ::::");
-		dump_hex_block(buf, len);
-	}
+	net_process_pkt(net, rx_va, len);
 
 	virtq_push(&dev->rx, e->index);
 }
 
 	static void
-process_tx(struct device *dev, struct virtq_used_item *e)
+process_tx(struct net_dev *net, struct virtq_used_item *e)
 {
 	log(LOG_INFO, "process tx index %i len %i", e->index, e->len);
 }
 
-	static int
-send_pkt(struct device *dev, uint8_t *pkt, size_t len)
+	static void
+send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 {
+	struct virtio_net_dev *dev = net->arg;
 	struct virtq_desc *h, *b;
 	size_t index_h, index_b;
 	struct virtio_net_hdr *vh;
-	uint8_t *body;
+	uint8_t *tx_va;
 
 	log(LOG_INFO, "prepare pkt with len %i", len);
 
 	h = virtq_get_desc(&dev->tx, &index_h);
 	if (h == nil) {
 		log(LOG_WARNING, "failed to get descriptor");
-		return ERR;
+		return;
 	}
 
 	b = virtq_get_desc(&dev->tx, &index_b);
 	if (b == nil) {
 		log(LOG_WARNING, "failed to get descriptor");
-		return ERR;
-	}
-
-	body = dev->tx_b_buf_va + index_b * MTU;
-
-	memcpy(body, pkt, len);
-
-	if (len < 64) {
-		memset(body + len, 0, 64 - len);
-		len = 64;
+		return;
 	}
 
 	h->addr = dev->tx_h_buf_pa + index_h * sizeof(struct virtio_net_hdr);
@@ -348,117 +223,118 @@ send_pkt(struct device *dev, uint8_t *pkt, size_t len)
 	h->next = index_b;
 	h->flags = VIRTQ_DESC_F_NEXT;
 
+	b->addr = dev->tx_b_buf_pa + index_b * MTU;
+	b->len = len;
+	b->flags = 0;
+
 	vh	= (void *) (dev->tx_h_buf_va + index_h * sizeof(struct virtio_net_hdr));
 	vh->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
 	vh->gso_type = 0;
 	vh->csum_start = 0;
 	vh->csum_offset = len;
 
-	b->addr = dev->tx_b_buf_pa + index_b * MTU;
-	b->len = len;
-	b->flags = 0;
+	tx_va = dev->tx_b_buf_va + index_b * MTU;
+	memcpy(tx_va, buf, len);
 
 	log(LOG_INFO, "push");
 
-	dump_hex_block(body, len);
-
 	virtq_push(&dev->tx, index_h);
-
-	return OK;	
 }
 
-	static void 
-test_respond_arp(struct device *dev, uint8_t *src_mac, uint8_t *src_ipv4)
+int
+claim_irq(struct virtio_net_dev *dev, size_t irqn)
 {
-	struct eth_hdr *hdr;
-	uint8_t pkt[64], *bdy;
+	union proc0_req rq;
+	union proc0_rsp rp;
 
-	log(LOG_INFO, "building arp response packet");
+	rq.irq_reg.type = PROC0_irq_reg_req;
+	rq.irq_reg.irqn = irqn; 
+	rq.irq_reg.func = &intr_handler;
+	rq.irq_reg.arg = dev;
+	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack)];
 
-	hdr = (void *) pkt;
-	bdy = pkt + sizeof(struct eth_hdr);
-
-	memcpy(hdr->dst, src_mac, 6);
-	memcpy(hdr->src, dev->mac, 6);
-	hdr->tol.type[0] = 0x08;
-	hdr->tol.type[1] = 0x06;
-
-	/* hardware type (ethernet 1) */
-	bdy[0] = 0;
-	bdy[1] = 1;
-	/* protocol type (ipv4 0x0800) */
-	bdy[2] = 0x08;
-	bdy[3] = 0x00;
-	/* len (eth = 6, ip = 4)*/
-	bdy[4] = 6;
-	bdy[5] = 4;
-	/* operation (1 request, 2 reply) */
-	bdy[6] = 0;
-	bdy[7] = 2;
-
-	memcpy(&bdy[8], dev->mac, 6);
-	memcpy(&bdy[14], dev->ipv4, 4);
-	memcpy(&bdy[18], src_mac, 6);
-	memcpy(&bdy[24], src_ipv4, 4);
-
-	if (send_pkt(dev, pkt, sizeof(struct eth_hdr) + 28) != OK) {
-		log(LOG_FATAL, "error sending arp test");
+	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
+		return ERR;
 	}
 
+	return OK;
 }
 
-	static void
-test(struct device *dev)
+	int
+init_dev(struct net_dev *net, struct virtio_net_dev *dev)
 {
-	struct eth_hdr *hdr;
-	uint8_t pkt[64], *bdy;
-
-	log(LOG_INFO, "building test packet");
-
-	hdr = (void *) pkt;
-	bdy = pkt + sizeof(struct eth_hdr);
-
-	/*uint8_t dst[6] = { 0x10, 0x13, 0x31, 0xc7, 0xfc, 0xc0 };*/
-	uint8_t dst[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-	uint8_t dst_ipv4[4] = { 192, 168, 10, 1 };
-
-	memcpy(hdr->dst, dst, 6);
-	memcpy(hdr->src, dev->mac, 6);
-	hdr->tol.type[0] = 0x08;
-	hdr->tol.type[1] = 0x06;
-
-	/* hardware type (ethernet 1) */
-	bdy[0] = 0;
-	bdy[1] = 1;
-	/* protocol type (ipv4 0x0800) */
-	bdy[2] = 0x08;
-	bdy[3] = 0x00;
-	/* len (eth = 6, ip = 4)*/
-	bdy[4] = 6;
-	bdy[5] = 4;
-	/* operation (1 request, 2 reply) */
-	bdy[6] = 0;
-	bdy[7] = 1;
-
-	memcpy(&bdy[8], dev->mac, 6);
-	memcpy(&bdy[14], dev->ipv4, 4);
-	memset(&bdy[18], 0, 6);
-	memcpy(&bdy[24], dst_ipv4, 4);
-
-	if (send_pkt(dev, pkt, sizeof(struct eth_hdr) + 28) != OK) {
-		log(LOG_FATAL, "error sending arp test");
+	if (dev->base->magic != VIRTIO_DEV_MAGIC) {
+		log(LOG_FATAL, "virtio register magic bad 0x%x != expected 0x%x",
+				dev->base->magic, VIRTIO_DEV_MAGIC);
+		return ERR;
 	}
-}
 
-	static void
-handle_message(int from, uint8_t *m)
-{
-	uint32_t type = *((uint32_t *) m);
+	log(LOG_INFO, "virtio version = 0x%x",
+			dev->base->version);
 
-	switch (type) {
-		default:
-			break;
+	if (dev->base->device_id != VIRTIO_DEV_TYPE_NET) {
+		log(LOG_FATAL, "virtio type bad %i", dev->base->device_id);
+		return ERR;
 	}
+
+	dev->base->status = VIRTIO_ACK;
+	dev->base->status |= VIRTIO_DRIVER;
+
+	/* TODO: negotiate */
+
+	struct virtio_net_config *config = 
+		(struct virtio_net_config *) dev->base->config;
+
+	memcpy(net->mac, config->mac, 6);
+
+	log(LOG_INFO, "net status = %i", config->status);
+
+	dev->base->device_features_sel = 0;
+	dev->base->driver_features_sel = 0;
+	dev->base->driver_features = 
+		(1<<VIRTIO_NET_F_MAC) |
+		(1<<VIRTIO_NET_F_STATUS) |
+		(1<<VIRTIO_NET_F_CSUM);
+
+	log(LOG_INFO, "net features = 0x%x", dev->base->device_features);
+
+	dev->base->driver_features_sel = 1;
+	dev->base->driver_features = 0;
+
+	dev->base->status |= VIRTIO_FEATURES_OK;
+	if (!(dev->base->status & VIRTIO_FEATURES_OK)) {
+		log(LOG_FATAL, "virtio feature set rejected!");
+		return ERR;
+	}
+
+	dev->base->page_size = PAGE_SIZE;
+
+	if (!virtq_init(&dev->rx, dev->base, 0, 16)) {
+		log(LOG_FATAL, "virtio queue init failed");
+		return ERR;
+	}
+
+	if (!virtq_init(&dev->tx, dev->base, 1, 16)) {
+		log(LOG_FATAL, "virtio queue init failed");
+		return ERR;
+	}
+
+	dev->base->status |= VIRTIO_DRIVER_OK;
+
+	if (dev->base->status != 0xf) {
+		log(LOG_FATAL, "virtio status bad");
+		return ERR;
+	}
+
+	if (!init_rx(dev)) {
+		return ERR;
+	}
+
+	if (!init_tx(dev)) {
+		return ERR;
+	}
+
+	return OK;
 }
 
 	int
@@ -467,10 +343,15 @@ main(void)
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 	char dev_name[MESSAGE_LEN];
 
-	struct device dev;
+	struct virtio_net_dev dev;
+	struct net_dev net;
+
+	net.arg = &dev;
+	net.mtu = MTU;
+	net.send_pkt = &send_pkt;
 
 	size_t regs_pa, regs_len;
-	size_t regs_va, regs_off;
+	size_t regs_off, regs_va;
 	size_t irqn;
 
 	recv(0, init_m);
@@ -491,115 +372,27 @@ main(void)
 	if (regs_va == nil) {
 		log(LOG_FATAL, "virtio-net failed to map registers 0x%x 0x%x!",
 				regs_pa, regs_len);
-		exit(ERR);
+		return ERR;
 	}
 
 	log(LOG_INFO, "virtio-net on 0x%x 0x%x with irq %i",
 			regs_pa, regs_len, irqn);
 
-	dev.dev = (struct virtio_device *) ((size_t) regs_va + regs_off);
+	dev.base = (struct virtio_device *) ((size_t) regs_va + regs_off);
 
 	log(LOG_INFO, "virtio-blk mapped 0x%x -> 0x%x",
-			regs_pa, dev);
+			regs_pa, dev.base);
 
-	if (dev.dev->magic != VIRTIO_DEV_MAGIC) {
-		log(LOG_FATAL, "virtio register magic bad 0x%x != expected 0x%x",
-				dev.dev->magic, VIRTIO_DEV_MAGIC);
-		exit(ERR);
+	init_dev(&net, &dev);
+
+	if (claim_irq(&dev, irqn) != OK) {
+		log(LOG_FATAL, "failed to register interrupt %i", irqn);
+		return ERR;
 	}
 
-	log(LOG_INFO, "virtio magic = 0x%x",
-			dev.dev->magic);
-
-	log(LOG_INFO, "virtio version = 0x%x",
-			dev.dev->version);
-
-	if (dev.dev->device_id != VIRTIO_DEV_TYPE_NET) {
-		log(LOG_FATAL, "virtio type bad %i", dev.dev->device_id);
-		exit(ERR);
+	if (net_init(&net) != OK) {
+		return ERR;
 	}
-
-	dev.dev->status = VIRTIO_ACK;
-	dev.dev->status |= VIRTIO_DRIVER;
-
-	/* TODO: negotiate */
-
-	struct virtio_net_config *config = 
-		(struct virtio_net_config *) dev.dev->config;
-
-	memcpy(dev.mac, config->mac, 6);
-
-	char mac_str[18];
-	print_mac(mac_str, dev.mac);
-	log(LOG_INFO, "mac = %s", mac_str);
-
-	log(LOG_INFO, "net status = %i", config->status);
-
-	dev.dev->device_features_sel = 0;
-	dev.dev->driver_features_sel = 0;
-	dev.dev->driver_features = 
-		(1<<VIRTIO_NET_F_MAC) |
-		(1<<VIRTIO_NET_F_STATUS) |
-		(1<<VIRTIO_NET_F_CSUM);
-
-	log(LOG_INFO, "net features = 0x%x", dev.dev->device_features);
-
-	dev.dev->driver_features_sel = 1;
-	dev.dev->driver_features = 0;
-
-	dev.dev->status |= VIRTIO_FEATURES_OK;
-	if (!(dev.dev->status & VIRTIO_FEATURES_OK)) {
-		log(LOG_FATAL, "virtio feature set rejected!");
-		exit(ERR);
-	}
-
-	dev.dev->page_size = PAGE_SIZE;
-
-	if (!virtq_init(&dev.rx, dev.dev, 0, 16)) {
-		log(LOG_FATAL, "virtio queue init failed");
-		exit(ERR);
-	}
-
-	if (!virtq_init(&dev.tx, dev.dev, 1, 16)) {
-		log(LOG_FATAL, "virtio queue init failed");
-		exit(ERR);
-	}
-
-	dev.dev->status |= VIRTIO_DRIVER_OK;
-
-	if (dev.dev->status != 0xf) {
-		log(LOG_FATAL, "virtio status bad");
-		exit(ERR);
-	}
-
-	union proc0_req rq;
-	union proc0_rsp rp;
-	rq.irq_reg.type = PROC0_irq_reg_req;
-	rq.irq_reg.irqn = irqn; 
-	rq.irq_reg.func = &intr_handler;
-	rq.irq_reg.arg = &dev;
-	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack)];
-
-	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
-		log(LOG_FATAL, "failed to register interrupt %i : %i", 
-				irqn, rp.irq_reg.ret);
-		exit(ERR);
-	}
-
-	if (!init_rx(&dev)) {
-		exit(ERR);
-	}
-
-	if (!init_tx(&dev)) {
-		exit(ERR);
-	}
-
-	dev.ipv4[0] = 192;
-	dev.ipv4[1] = 168;
-	dev.ipv4[2] = 10;
-	dev.ipv4[3] = 34;
-
-	test(&dev);
 
 	uint8_t m[MESSAGE_LEN];
 	while (true) {
@@ -615,16 +408,16 @@ main(void)
 
 			e = virtq_pop(&dev.rx);
 			if (e != nil) {
-				process_rx(&dev, e);	
+				process_rx(&net, e);	
 			}
 
 			e = virtq_pop(&dev.tx);
 			if (e != nil) {
-				process_tx(&dev, e);	
+				process_tx(&net, e);	
 			}
 
 		} else {
-			handle_message(from, m);	
+			net_handle_message(&net, from, m);	
 		}
 
 	}

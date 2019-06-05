@@ -1,6 +1,6 @@
 PROG = virtio-net
 
-LIBS = -llog 
+LIBS = -llog -lnet
 SRC = \
 	net.c \
 	../virtq.c

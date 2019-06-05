@@ -59,6 +59,7 @@ board_init_bundled_drivers(size_t off)
 
 			f = frame_new(PAGE_ALIGN_DN(devices[d].reg), 
 					PAGE_ALIGN(devices[d].len));
+
 			proc_give_addr(pid, f);
 
 			init_m[0] = devices[d].reg;
