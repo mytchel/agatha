@@ -131,7 +131,6 @@ gic_dst_init(void)
 
 	for (i = 0; i < irqn; i++) {
 		irq_disable(i);
-		irq_enable(i);
 		gic_set_priority(i, 0);
 		gic_set_target(i, 1);
 		gic_set_group(i, 0);
