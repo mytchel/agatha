@@ -128,8 +128,6 @@ send_eth_pkt(struct net_dev *net,
 
 	pkt_len = sizeof(struct eth_hdr) + len;
 	
-	log(LOG_INFO, "sending pkt of len %i", pkt_len);
-
 	dump_hex_block(pkt, pkt_len);
 
 	net->send_pkt(net, pkt, pkt_len);
@@ -354,7 +352,6 @@ handle_icmp(struct net_dev *net,
 	switch (icmp_hdr->type) {
 		case 0:
 			/* echo reply */
-			log(LOG_INFO, "echo reply");
 			break;
 
 		case 8:
@@ -420,8 +417,6 @@ handle_udp(struct net_dev *net,
 	log(LOG_INFO, "udp packet length %i csum %i",
 			data_len, csum);
 
-	dump_hex_block(data, data_len);
-
 	struct ipv4_hdr *ip_hdr_r;
 	struct udp_hdr *udp_hdr_r;
 	uint8_t *pkt, *bdy_r;
@@ -469,14 +464,6 @@ handle_ipv4(struct net_dev *net,
 		return;
 	}
 
-	log(LOG_INFO, "have ipv4 packet for our mac");
-
-	log(LOG_INFO, "for %i.%i.%i.%i",
-			ip_hdr->dst[0], ip_hdr->dst[1], ip_hdr->dst[2], ip_hdr->dst[3]);
-
-	log(LOG_INFO, "from %i.%i.%i.%i",
-			ip_hdr->src[0], ip_hdr->src[1], ip_hdr->src[2], ip_hdr->src[3]);
-
 	if (!memcmp(ip_hdr->dst, net->ipv4, 4)) {
 		log(LOG_INFO, "for our mac but not our ip address?");
 		return;
@@ -485,11 +472,13 @@ handle_ipv4(struct net_dev *net,
 	hdr_len = (ip_hdr->ver_len & 0xf) << 2;
 	version = (ip_hdr->ver_len & 0xf0) >> 4;
 
-	log(LOG_INFO, "version %i, hdr len = %i", version, hdr_len);
+	if (version != 4) {
+		log(LOG_INFO, "pkt has bad version %i", version);
+		return;
+	}
 
 	ip_bdy = bdy + hdr_len;
 	ip_len = ((ip_hdr->length[0] << 8) | ip_hdr->length[1]) - hdr_len;
-	log(LOG_INFO, "body len %i", ip_len);
 
 	frag_flags = (ip_hdr->fragment[0] & 0x70) >> 5;
 	frag_offset = ((ip_hdr->fragment[0] & 0x1f ) << 8)
@@ -540,8 +529,6 @@ test_respond_arp(struct net_dev *net, uint8_t *src_mac, uint8_t *src_ipv4)
 		return;
 	}
 
-	log(LOG_INFO, "building arp response packet");
-
 	/* hardware type (ethernet 1) */
 	bdy[0] = 0;
 	bdy[1] = 1;
@@ -578,8 +565,6 @@ arp_request(struct net_dev *net, uint8_t *ipv4)
 		return;
 	}
 
-	log(LOG_INFO, "building arp request");
-
 	/* hardware type (ethernet 1) */
 	bdy[0] = 0;
 	bdy[1] = 1;
@@ -606,19 +591,9 @@ handle_arp(struct net_dev *net,
 		struct eth_hdr *hdr, 
 		uint8_t *bdy, size_t len)
 {
-	log(LOG_INFO, "have arp packet!");
-
 	if (memcmp(hdr->dst, broadcast_mac, 6)) {
-		log(LOG_INFO, "broadcast arp");
-
 		uint8_t *src_ipv4 = bdy + 14;
 		uint8_t *dst_ipv4 = bdy + 24;
-
-		log(LOG_INFO, "from    for %i.%i.%i.%i",
-				src_ipv4[0], src_ipv4[1], src_ipv4[2], src_ipv4[3]);
-
-		log(LOG_INFO, "looking for %i.%i.%i.%i",
-				dst_ipv4[0], dst_ipv4[1], dst_ipv4[2], dst_ipv4[3]);
 
 		if (memcmp(dst_ipv4, net->ipv4, 4)) {
 			log(LOG_WARNING, "asking about us!!!");
@@ -644,18 +619,7 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 	bdy	= pkt + sizeof(struct eth_hdr);
 	bdy_len = len - sizeof(struct eth_hdr);
 
-	log(LOG_INFO, "process pkt len %i", len);
-
 	uint32_t type = hdr->tol.type[0] << 8 | hdr->tol.type[1];
-
-	char dst[18], src[18];
-
-	print_mac(dst, hdr->dst);
-	print_mac(src, hdr->src);
-
-	log(LOG_INFO, "from %s", src);
-	log(LOG_INFO, "to   %s", dst);
-	log(LOG_INFO, "type 0x%x", type);
 
 	if (memcmp(hdr->dst, net->mac, 6)) {
 		log(LOG_WARNING, "this packet is for us ::::");

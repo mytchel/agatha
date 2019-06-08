@@ -28,10 +28,8 @@ virtq_get_desc(struct virtq *q, size_t *index)
 	}
 
 	*index = q->desc_free_index;
-	log(LOG_INFO, "virtq return %i", *index);
 	d = &q->desc[*index];
 	q->desc_free_index = d->next;
-	log(LOG_INFO, "virtq free index now %i", q->desc_free_index); 
 
 	return d;
 }
@@ -39,8 +37,6 @@ virtq_get_desc(struct virtq *q, size_t *index)
 void
 virtq_free_desc(struct virtq *q, struct virtq_desc *d, size_t index)
 {
-	log(LOG_INFO, "virtq free %i", index);
-
 	d->next = q->desc_free_index;
 
 	q->desc_free_index = index;
