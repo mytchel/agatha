@@ -127,6 +127,8 @@ struct virtq {
 	struct virtq_desc *desc;
 	struct virtq_avail *avail;
 	struct virtq_used *used;
+
+	size_t desc_free_index;	
 };
 
 #define VIRTIO_BLK_F_SIZE_MAX (1)
@@ -252,4 +254,26 @@ struct virtio_net_hdr {
 	uint16_t csum_start; 
 	uint16_t csum_offset; 
 }__attribute__((packed));
+
+size_t 
+virtq_size(size_t qsz);
+
+	struct virtq_desc *
+virtq_get_desc(struct virtq *q, size_t *index);
+
+	void
+virtq_push(struct virtq *q, size_t index);
+
+struct virtq_used_item *
+virtq_pop(struct virtq *q);
+
+void
+virtq_free_desc(struct virtq *q, 
+		struct virtq_desc *d, size_t index);
+
+	bool
+virtq_init(struct virtq *q, 
+		volatile struct virtio_device *dev, 
+		size_t queue_index,
+		size_t num);
 

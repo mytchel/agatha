@@ -20,18 +20,30 @@ size_t virtq_size(size_t qsz)
 struct virtq_desc *
 virtq_get_desc(struct virtq *q, size_t *index)
 {
-	size_t i;
+	struct virtq_desc *d;
 
-	for (i = 0; i < q->size; i++) {
-		if (q->desc[i].len == 0) {
-			*index = i;
-			/* mark as in use */
-			q->desc[i].len = 1; 
-			return &q->desc[i];
-		}
+	if (q->desc_free_index == 0xffff) {
+		log(LOG_INFO, "virtq get desc fail");
+		return nil;
 	}
 
-	return nil;
+	*index = q->desc_free_index;
+	log(LOG_INFO, "virtq return %i", *index);
+	d = &q->desc[*index];
+	q->desc_free_index = d->next;
+	log(LOG_INFO, "virtq free index now %i", q->desc_free_index); 
+
+	return d;
+}
+
+void
+virtq_free_desc(struct virtq *q, struct virtq_desc *d, size_t index)
+{
+	log(LOG_INFO, "virtq free %i", index);
+
+	d->next = q->desc_free_index;
+
+	q->desc_free_index = index;
 }
 
 void
@@ -50,9 +62,6 @@ struct virtq_used_item *
 virtq_pop(struct virtq *q)
 {
 	struct virtq_used_item *e;
-
-	log(LOG_INFO, "virtq pop, last is %i, current idx is %i",
-		q->last_seen_used, q->used->index);
 
 	if (q->last_seen_used == q->used->index) {
 		return nil;
@@ -74,6 +83,7 @@ virtq_init(struct virtq *q,
 {
 	size_t queue_pa, queue_va, queue_len;
 	size_t avail_off, used_off;
+	size_t i;
 
 	q->queue_index = queue_index;
 
@@ -119,6 +129,14 @@ virtq_init(struct virtq *q,
 	dev->queue_num = num;
 	dev->queue_used_align = PAGE_SIZE;
 	dev->queue_pfn = queue_pa >> PAGE_SHIFT;
+
+	q->desc_free_index = 0;
+	
+	for (i = 0; i < num-1; i++) {
+		q->desc[i].next = i + 1;
+	}
+
+	q->desc[num-1].next = 0xffff;
 
 	return true;
 }

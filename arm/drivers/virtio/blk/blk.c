@@ -12,7 +12,6 @@
 #include <dev_reg.h>
 #include <block.h>
 #include <virtio.h>
-#include "../virtq.h"
 
 struct device {
 	volatile struct virtio_device *dev;
@@ -81,9 +80,9 @@ virtio_blk_op(struct device *dev,
 			e->index, e->len);
 
 	/* free descs */
-	d[0]->len = 0;
-	d[1]->len = 0;
-	d[2]->len = 0;
+	virtq_free_desc(&dev->q, d[0], index[0]);
+	virtq_free_desc(&dev->q, d[1], index[1]);
+	virtq_free_desc(&dev->q, d[2], index[2]);
 
 	return (int) ((uint8_t *) dev->buffer_va)[16];
 }

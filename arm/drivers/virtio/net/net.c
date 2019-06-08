@@ -13,7 +13,6 @@
 #include <virtio.h>
 #include <eth.h>
 #include <net.h>
-#include "../virtq.h"
 
 #define MTU  1200
 
@@ -192,7 +191,18 @@ process_rx(struct net_dev *net, struct virtq_used_item *e)
 	static void
 process_tx(struct net_dev *net, struct virtq_used_item *e)
 {
+	struct virtio_net_dev *dev = net->arg;
+	struct virtq_desc *h, *b;
+	
 	log(LOG_INFO, "process tx index %i len %i", e->index, e->len);
+	
+	h = &dev->tx.desc[e->index];
+	b = &dev->tx.desc[h->next];
+
+	log(LOG_INFO, "free tx desc %i and %i", e->index, h->next);
+
+	virtq_free_desc(&dev->tx, b, h->next);
+	virtq_free_desc(&dev->tx, h, e->index);
 }
 
 	static void
@@ -204,7 +214,7 @@ send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 	struct virtio_net_hdr *vh;
 	uint8_t *tx_va;
 
-	log(LOG_INFO, "prepare pkt with len %i", len);
+	log(LOG_INFO, "send pkt");
 
 	h = virtq_get_desc(&dev->tx, &index_h);
 	if (h == nil) {
@@ -217,6 +227,8 @@ send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 		log(LOG_WARNING, "failed to get descriptor");
 		return;
 	}
+
+	log(LOG_INFO, "got descriptors %i and %i", index_h, index_b);
 
 	h->addr = dev->tx_h_buf_pa + index_h * sizeof(struct virtio_net_hdr);
 	h->len = sizeof(struct virtio_net_hdr);
@@ -235,8 +247,6 @@ send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 
 	tx_va = dev->tx_b_buf_va + index_b * MTU;
 	memcpy(tx_va, buf, len);
-
-	log(LOG_INFO, "push");
 
 	virtq_push(&dev->tx, index_h);
 }
@@ -398,12 +408,9 @@ main(void)
 	while (true) {
 		int from = recv(-1, m);
 
-		log(LOG_INFO, "recv returned");
 		if (from < 0) return from;
 
 		if (from == pid()) {
-			log(LOG_INFO, "got interrupt 0x%x", *((uint32_t *) m));
-
 			struct virtq_used_item *e;
 
 			e = virtq_pop(&dev.rx);

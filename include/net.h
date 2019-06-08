@@ -1,6 +1,8 @@
 struct net_dev {
 	void *arg;
 
+	uint16_t ipv4_ident;
+
 	size_t mtu;
 
 	uint8_t mac[6];

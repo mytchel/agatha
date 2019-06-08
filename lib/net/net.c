@@ -124,7 +124,7 @@ arp_request(struct net_dev *net, uint8_t *ipv4)
 		return;
 	}
 
-	log(LOG_INFO, "building test packet");
+	log(LOG_INFO, "building arp request");
 
 	hdr = (void *) pkt;
 	bdy = pkt + sizeof(struct eth_hdr);
@@ -189,18 +189,155 @@ handle_arp(struct net_dev *net,
 	}
 }
 
+static int16_t 
+csum_ip(uint8_t *h, size_t len)
+{
+	size_t sum, s, i;
+	uint16_t v;
+
+	sum = 0;
+	for (i = 0; i < len; i += 2) {
+		v = (h[i] << 8) | h[i+1];
+		sum += v;
+	}
+
+	while (sum > 0xffff) {
+		s = sum >> 16;
+		sum = (sum & 0xffff) + s;
+	}
+	
+	return (~sum);
+}
+
+static void 
+handle_echo_request(struct net_dev *net,
+		struct eth_hdr *eth_hdr, 
+		struct ipv4_hdr *ip_hdr, 
+		size_t ip_hdr_len, 
+		struct icmp_hdr *icmp_hdr,
+		uint8_t *bdy,
+		size_t bdy_len)
+{
+	struct eth_hdr *eth_hdr_r;
+	struct ipv4_hdr *ip_hdr_r;
+	struct icmp_hdr *icmp_hdr_r;
+
+	size_t pkt_len;
+
+	uint8_t version, hdr_len;
+	uint16_t frag_offset;
+	uint8_t frag_flags;
+	size_t ip_len;
+	
+	uint8_t *pkt, *bdy_r;
+	int16_t csum;
+
+	ip_len = sizeof(struct ipv4_hdr) 
+		+ sizeof(struct icmp_hdr) 
+		+ bdy_len;
+
+	pkt_len = ip_len + sizeof(struct eth_hdr);
+
+	pkt = malloc(pkt_len);
+	if (pkt == nil) {
+		log(LOG_WARNING, "malloc failed for pkt");
+		return;
+	}
+
+	log(LOG_INFO, "building echo response, bdy len = %i", bdy_len);
+
+	eth_hdr_r = (void *) pkt;
+	ip_hdr_r = (void *) (pkt 
+			+ sizeof(struct eth_hdr));
+	icmp_hdr_r = (void *) (pkt 
+			+ sizeof(struct eth_hdr)
+			+ sizeof(struct ipv4_hdr));
+	bdy_r = pkt 
+		+ sizeof(struct eth_hdr)
+		+ sizeof(struct ipv4_hdr)
+		+ sizeof(struct icmp_hdr);
+
+	/* icmp */
+
+	icmp_hdr_r->type = 0;
+	icmp_hdr_r->code = 0;
+	icmp_hdr_r->csum[0] = 0;
+	icmp_hdr_r->csum[1] = 0;
+
+	memcpy(icmp_hdr_r->rst, icmp_hdr->rst, 4);
+
+	memcpy(bdy_r, bdy, bdy_len);
+
+	csum = csum_ip((uint8_t *) icmp_hdr_r, 
+			sizeof(struct icmp_hdr) + bdy_len);
+
+	icmp_hdr_r->csum[0] = (csum >> 8) & 0xff;
+	icmp_hdr_r->csum[1] = (csum >> 0) & 0xff;
+
+	/* ipv4 */
+
+	hdr_len = 20;
+	version = 4;
+
+	ip_hdr_r->ver_len = (version << 4) | (hdr_len >> 2);
+
+	ip_hdr_r->length[0] = (ip_len >> 8) & 0xff;
+	ip_hdr_r->length[1] = (ip_len >> 0) & 0xff;
+
+	ip_hdr_r->ident[0] = (net->ipv4_ident >> 8) & 0xff;
+	ip_hdr_r->ident[1] = (net->ipv4_ident >> 0) & 0xff;
+	
+	net->ipv4_ident++;
+
+	frag_flags = 0;
+	frag_offset = 0;
+
+	ip_hdr_r->fragment[0] = (frag_flags << 5) | 
+		((frag_offset >> 8) & 0x1f);
+	ip_hdr_r->fragment[1] = 
+		(frag_offset & 0xff);
+
+	ip_hdr_r->ttl = 0xff;
+	ip_hdr_r->protocol = 0x1;
+
+	memcpy(ip_hdr_r->dst, ip_hdr->src, 4);
+	memcpy(ip_hdr_r->src, net->ipv4, 4);
+
+	ip_hdr_r->hdr_csum[0] = 0;
+	ip_hdr_r->hdr_csum[1] = 0;
+
+	csum = csum_ip((uint8_t *) ip_hdr_r, hdr_len);
+	ip_hdr_r->hdr_csum[0] = (csum >> 8) & 0xff;
+	ip_hdr_r->hdr_csum[1] = (csum >> 0) & 0xff;
+
+	/* eth */
+
+	memcpy(eth_hdr_r->dst, eth_hdr->src, 6);
+	memcpy(eth_hdr_r->src, net->mac, 6);
+	
+	uint32_t type = 0x800;
+
+	eth_hdr_r->tol.type[0] = (type >> 8) & 0xff;
+	eth_hdr_r->tol.type[1] = (type >> 0) & 0xff;
+
+	dump_hex_block(pkt, pkt_len);
+
+	net->send_pkt(net, pkt, pkt_len);
+
+	free(pkt);
+}
+
 static void
 handle_icmp(struct net_dev *net, 
 		struct eth_hdr *eth_hdr, 
 		struct ipv4_hdr *ip_hdr, 
+		size_t ip_hdr_len, 
 		uint8_t *bdy,
-		size_t hdr_len, size_t bdy_len)
+		size_t bdy_len)
 {
 	struct icmp_hdr *icmp_hdr;
 
 	icmp_hdr = (void *) bdy;
-
-	dump_hex_block(bdy, bdy_len);
 
 	switch (icmp_hdr->type) {
 		case 0:
@@ -210,7 +347,13 @@ handle_icmp(struct net_dev *net,
 
 		case 8:
 			/* echo request */
-			log(LOG_INFO, "echo request");
+			handle_echo_request(net,
+					eth_hdr,
+					ip_hdr,
+					ip_hdr_len,
+					icmp_hdr,
+					bdy + sizeof(struct icmp_hdr),
+					bdy_len - sizeof(struct icmp_hdr));
 			break;
 
 		default:
@@ -223,8 +366,9 @@ static void
 handle_tcp(struct net_dev *net, 
 		struct eth_hdr *eth_hdr, 
 		struct ipv4_hdr *ip_hdr, 
+		size_t ip_hdr_len, 
 		uint8_t *bdy, 
-		size_t hdr_len, size_t bdy_len)
+		size_t bdy_len)
 {
 
 }
@@ -233,8 +377,9 @@ static void
 handle_udp(struct net_dev *net, 
 		struct eth_hdr *eth_hdr, 
 		struct ipv4_hdr *ip_hdr, 
+		size_t ip_hdr_len, 
 		uint8_t *bdy,
-		size_t hdr_len, size_t bdy_len)
+		size_t bdy_len)
 {
 
 }
@@ -272,14 +417,14 @@ handle_ipv4(struct net_dev *net,
 		return;
 	}
 
-	hdr_len = (ip_hdr->ver_len & 0xf) * 4;
+	hdr_len = (ip_hdr->ver_len & 0xf) << 2;
 	version = (ip_hdr->ver_len & 0xf0) >> 4;
 
 	log(LOG_INFO, "version %i, hdr len = %i", version, hdr_len);
 
 	ip_bdy = bdy + hdr_len;
-	ip_len = (ip_hdr->length[0] << 8) | ip_hdr->length[1];
-	log(LOG_INFO, "total len %i", ip_len);
+	ip_len = ((ip_hdr->length[0] << 8) | ip_hdr->length[1]) - hdr_len;
+	log(LOG_INFO, "body len %i", ip_len);
 
 	frag_flags = (ip_hdr->fragment[0] & 0x70) >> 5;
 	frag_offset = ((ip_hdr->fragment[0] & 0x1f ) << 8)
@@ -298,11 +443,11 @@ handle_ipv4(struct net_dev *net,
 
 	switch (protocol) {
 		case 0x01:
-			handle_icmp(net, eth_hdr, ip_hdr, ip_bdy, hdr_len, ip_len);
+			handle_icmp(net, eth_hdr, ip_hdr, hdr_len, ip_bdy, ip_len);
 		case 0x06:
-			handle_tcp(net, eth_hdr, ip_hdr, ip_bdy, hdr_len, ip_len);
+			handle_tcp(net, eth_hdr, ip_hdr, hdr_len, ip_bdy, ip_len);
 		case 0x11:
-			handle_udp(net, eth_hdr, ip_hdr, ip_bdy, hdr_len, ip_len);
+			handle_udp(net, eth_hdr, ip_hdr, hdr_len, ip_bdy, ip_len);
 		default:
 			break;
 	}
@@ -333,6 +478,11 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 	log(LOG_INFO, "to   %s", dst);
 	log(LOG_INFO, "type 0x%x", type);
 
+	if (memcmp(hdr->dst, net->mac, 6)) {
+		log(LOG_WARNING, "this packet is for us ::::");
+		dump_hex_block(pkt, len);
+	}
+
 	switch (type) {
 		case 0x0806:
 			handle_arp(net, hdr,
@@ -347,15 +497,10 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 		default:
 			break;
 	}
-
-	if (memcmp(hdr->dst, net->mac, 6)) {
-		log(LOG_WARNING, "this packet is for us ::::");
-		dump_hex_block(pkt, len);
-	}
 }
 
 	void
-net_handle_message(struct net_dev *dev,
+net_handle_message(struct net_dev *net,
 		int from, uint8_t *m)
 {
 	uint32_t type = *((uint32_t *) m);
@@ -367,20 +512,22 @@ net_handle_message(struct net_dev *dev,
 }
 
 int
-net_init(struct net_dev *dev)
+net_init(struct net_dev *net)
 {
 	char mac_str[18];
 
-	print_mac(mac_str, dev->mac);
+	print_mac(mac_str, net->mac);
 	log(LOG_INFO, "mac = %s", mac_str);
 
-	dev->ipv4[0] = 192;
-	dev->ipv4[1] = 168;
-	dev->ipv4[2] = 10;
-	dev->ipv4[3] = 34;
+	net->ipv4[0] = 192;
+	net->ipv4[1] = 168;
+	net->ipv4[2] = 10;
+	net->ipv4[3] = 34;
+
+	net->ipv4_ident = 0xabcd;
 
 	uint8_t ip[4] = { 192, 168, 10, 1 };
-	arp_request(dev, ip);
+	arp_request(net, ip);
 
 	return OK;
 }
