@@ -12,7 +12,7 @@
 #include <dev_reg.h>
 #include <virtio.h>
 #include <eth.h>
-#include <net.h>
+#include <net_dev.h>
 
 #define MTU  1200
 
