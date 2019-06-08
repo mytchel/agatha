@@ -209,7 +209,166 @@ csum_ip(uint8_t *h, size_t len)
 	return (~sum);
 }
 
-static void 
+static bool
+create_eth_pkt(struct net_dev *net,
+		uint8_t *dst_mac, 
+		int16_t type,
+		size_t len,
+		uint8_t **pkt,
+		uint8_t **body)
+{
+	struct eth_hdr *eth_hdr;
+	
+	*pkt = malloc(sizeof(struct eth_hdr) + len);
+	if (*pkt == nil) {
+		log(LOG_WARNING, "malloc failed for pkt");
+		return false;
+	}
+
+	eth_hdr = (void *) *pkt;
+
+	memcpy(eth_hdr->src, net->mac, 6);
+	memcpy(eth_hdr->dst, dst_mac, 6);
+	
+	eth_hdr->tol.type[0] = (type >> 8) & 0xff;
+	eth_hdr->tol.type[1] = (type >> 0) & 0xff;
+
+	*body = *pkt + sizeof(struct eth_hdr);
+
+	return true;
+}
+
+	static void
+send_eth_pkt(struct net_dev *net,
+		uint8_t *pkt,
+		size_t len)
+{
+	log(LOG_INFO, "sending pkt of len %i", len + sizeof(struct eth_hdr));
+
+	dump_hex_block(pkt, len + sizeof(struct eth_hdr));
+
+	net->send_pkt(net, pkt, len + sizeof(struct eth_hdr));
+}
+
+static bool
+create_ipv4_pkt(struct net_dev *net,
+		uint8_t *dst_mac, uint8_t *dst_ip,
+		size_t hdr_len,
+		uint8_t proto,
+		size_t data_len,
+		uint8_t **pkt,
+		struct ipv4_hdr **ipv4_hdr,
+		uint8_t **body)
+{
+	size_t ip_len, frag_flags, frag_offset, csum;
+	struct ipv4_hdr *ip_hdr;
+
+	ip_len = hdr_len + data_len;
+
+	if (!create_eth_pkt(net, dst_mac,
+				0x0800,
+				ip_len,
+				pkt, (uint8_t **) &ip_hdr))
+	{
+		return false;
+	}
+
+	ip_hdr->ver_len = (4 << 4) | (hdr_len >> 2);
+
+	ip_hdr->length[0] = (ip_len >> 8) & 0xff;
+	ip_hdr->length[1] = (ip_len >> 0) & 0xff;
+
+	ip_hdr->ident[0] = (net->ipv4_ident >> 8) & 0xff;
+	ip_hdr->ident[1] = (net->ipv4_ident >> 0) & 0xff;
+
+	net->ipv4_ident++;
+
+	frag_flags = 0;
+	frag_offset = 0;
+
+	ip_hdr->fragment[0] = (frag_flags << 5) | 
+		((frag_offset >> 8) & 0x1f);
+	ip_hdr->fragment[1] = 
+		(frag_offset & 0xff);
+
+	ip_hdr->ttl = 0xff;
+	ip_hdr->protocol = proto;
+
+	memcpy(ip_hdr->dst, dst_ip, 4);
+	memcpy(ip_hdr->src, net->ipv4, 4);
+
+	ip_hdr->hdr_csum[0] = 0;
+	ip_hdr->hdr_csum[1] = 0;
+
+	csum = csum_ip((uint8_t *) ip_hdr, hdr_len);
+
+	ip_hdr->hdr_csum[0] = (csum >> 8) & 0xff;
+	ip_hdr->hdr_csum[1] = (csum >> 0) & 0xff;
+
+	*ipv4_hdr = ip_hdr;
+	*body = ((uint8_t *) ip_hdr) + hdr_len;
+
+	return true;
+}
+
+	static void
+send_ip_pkt(struct net_dev *net,
+		uint8_t *pkt,
+		struct ipv4_hdr *ip_hdr, 
+		size_t hdr_len,
+		size_t data_len)
+{
+	send_eth_pkt(net, pkt, hdr_len + data_len);
+}
+
+	static bool
+create_icmp_pkt(struct net_dev *net,
+		uint8_t *dst_mac, uint8_t *dst_ip,
+		size_t data_len,
+		uint8_t **pkt,
+		struct ipv4_hdr **ipv4_hdr,
+		struct icmp_hdr **icmp_hdr,
+		uint8_t **data)
+{
+	if (!create_ipv4_pkt(net, 
+				dst_mac, dst_ip,
+				20, 1,
+				sizeof(struct icmp_hdr) + data_len,
+				pkt,
+				ipv4_hdr, 
+				(uint8_t **) icmp_hdr)) 
+	{
+		return false;
+	}
+
+	*data = ((uint8_t *) *icmp_hdr) + sizeof(struct icmp_hdr);
+	return true;
+}
+
+	static void
+send_icmp_pkt(struct net_dev *net,
+		uint8_t *pkt,
+		struct ipv4_hdr *ip_hdr, 
+		struct icmp_hdr *icmp_hdr,
+		size_t data_len)
+{
+	size_t csum;
+
+	icmp_hdr->csum[0] = 0;
+	icmp_hdr->csum[1] = 0;
+
+	csum = csum_ip((uint8_t *) icmp_hdr, 
+			sizeof(struct icmp_hdr) + data_len);
+
+	icmp_hdr->csum[0] = (csum >> 8) & 0xff;
+	icmp_hdr->csum[1] = (csum >> 0) & 0xff;
+
+	send_ip_pkt(net, pkt, ip_hdr, 
+				20, 
+				sizeof(struct icmp_hdr) +	data_len);
+}
+
+	static void 
 handle_echo_request(struct net_dev *net,
 		struct eth_hdr *eth_hdr, 
 		struct ipv4_hdr *ip_hdr, 
@@ -218,116 +377,31 @@ handle_echo_request(struct net_dev *net,
 		uint8_t *bdy,
 		size_t bdy_len)
 {
-	struct eth_hdr *eth_hdr_r;
 	struct ipv4_hdr *ip_hdr_r;
 	struct icmp_hdr *icmp_hdr_r;
-
-	size_t pkt_len;
-
-	uint8_t version, hdr_len;
-	uint16_t frag_offset;
-	uint8_t frag_flags;
-	size_t ip_len;
-	
 	uint8_t *pkt, *bdy_r;
-	int16_t csum;
-
-	ip_len = sizeof(struct ipv4_hdr) 
-		+ sizeof(struct icmp_hdr) 
-		+ bdy_len;
-
-	pkt_len = ip_len + sizeof(struct eth_hdr);
-
-	pkt = malloc(pkt_len);
-	if (pkt == nil) {
-		log(LOG_WARNING, "malloc failed for pkt");
-		return;
-	}
-
-	log(LOG_INFO, "building echo response, bdy len = %i", bdy_len);
-
-	eth_hdr_r = (void *) pkt;
-	ip_hdr_r = (void *) (pkt 
-			+ sizeof(struct eth_hdr));
-	icmp_hdr_r = (void *) (pkt 
-			+ sizeof(struct eth_hdr)
-			+ sizeof(struct ipv4_hdr));
-	bdy_r = pkt 
-		+ sizeof(struct eth_hdr)
-		+ sizeof(struct ipv4_hdr)
-		+ sizeof(struct icmp_hdr);
 
 	/* icmp */
 
+	if (!create_icmp_pkt(net, eth_hdr->src, ip_hdr->src,
+				bdy_len,
+				&pkt, &ip_hdr_r, &icmp_hdr_r, &bdy_r)) {
+		return;
+	}
+
 	icmp_hdr_r->type = 0;
 	icmp_hdr_r->code = 0;
-	icmp_hdr_r->csum[0] = 0;
-	icmp_hdr_r->csum[1] = 0;
 
 	memcpy(icmp_hdr_r->rst, icmp_hdr->rst, 4);
 
 	memcpy(bdy_r, bdy, bdy_len);
 
-	csum = csum_ip((uint8_t *) icmp_hdr_r, 
-			sizeof(struct icmp_hdr) + bdy_len);
-
-	icmp_hdr_r->csum[0] = (csum >> 8) & 0xff;
-	icmp_hdr_r->csum[1] = (csum >> 0) & 0xff;
-
-	/* ipv4 */
-
-	hdr_len = 20;
-	version = 4;
-
-	ip_hdr_r->ver_len = (version << 4) | (hdr_len >> 2);
-
-	ip_hdr_r->length[0] = (ip_len >> 8) & 0xff;
-	ip_hdr_r->length[1] = (ip_len >> 0) & 0xff;
-
-	ip_hdr_r->ident[0] = (net->ipv4_ident >> 8) & 0xff;
-	ip_hdr_r->ident[1] = (net->ipv4_ident >> 0) & 0xff;
-	
-	net->ipv4_ident++;
-
-	frag_flags = 0;
-	frag_offset = 0;
-
-	ip_hdr_r->fragment[0] = (frag_flags << 5) | 
-		((frag_offset >> 8) & 0x1f);
-	ip_hdr_r->fragment[1] = 
-		(frag_offset & 0xff);
-
-	ip_hdr_r->ttl = 0xff;
-	ip_hdr_r->protocol = 0x1;
-
-	memcpy(ip_hdr_r->dst, ip_hdr->src, 4);
-	memcpy(ip_hdr_r->src, net->ipv4, 4);
-
-	ip_hdr_r->hdr_csum[0] = 0;
-	ip_hdr_r->hdr_csum[1] = 0;
-
-	csum = csum_ip((uint8_t *) ip_hdr_r, hdr_len);
-	ip_hdr_r->hdr_csum[0] = (csum >> 8) & 0xff;
-	ip_hdr_r->hdr_csum[1] = (csum >> 0) & 0xff;
-
-	/* eth */
-
-	memcpy(eth_hdr_r->dst, eth_hdr->src, 6);
-	memcpy(eth_hdr_r->src, net->mac, 6);
-	
-	uint32_t type = 0x800;
-
-	eth_hdr_r->tol.type[0] = (type >> 8) & 0xff;
-	eth_hdr_r->tol.type[1] = (type >> 0) & 0xff;
-
-	dump_hex_block(pkt, pkt_len);
-
-	net->send_pkt(net, pkt, pkt_len);
+	send_icmp_pkt(net, pkt, ip_hdr_r, icmp_hdr_r, bdy_len);
 
 	free(pkt);
 }
 
-static void
+	static void
 handle_icmp(struct net_dev *net, 
 		struct eth_hdr *eth_hdr, 
 		struct ipv4_hdr *ip_hdr, 
@@ -362,7 +436,7 @@ handle_icmp(struct net_dev *net,
 	}
 }
 
-static void
+	static void
 handle_tcp(struct net_dev *net, 
 		struct eth_hdr *eth_hdr, 
 		struct ipv4_hdr *ip_hdr, 
@@ -373,7 +447,7 @@ handle_tcp(struct net_dev *net,
 
 }
 
-static void
+	static void
 handle_udp(struct net_dev *net, 
 		struct eth_hdr *eth_hdr, 
 		struct ipv4_hdr *ip_hdr, 
@@ -397,7 +471,7 @@ handle_ipv4(struct net_dev *net,
 	uint16_t frag_offset;
 	uint8_t frag_flags;
 	uint8_t protocol;
-	
+
 	ip_hdr = (void *) bdy;
 
 	if (!memcmp(eth_hdr->dst, net->mac, 6)) {
@@ -459,7 +533,7 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 	struct eth_hdr *hdr;
 	uint8_t *bdy;
 	size_t bdy_len;
- 
+
 	hdr	= (void *) pkt;
 
 	bdy	= pkt + sizeof(struct eth_hdr);
@@ -511,7 +585,7 @@ net_handle_message(struct net_dev *net,
 	}
 }
 
-int
+	int
 net_init(struct net_dev *net)
 {
 	char mac_str[18];
