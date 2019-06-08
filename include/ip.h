@@ -18,3 +18,10 @@ struct icmp_hdr {
 	uint8_t rst[4];
 };
 
+struct udp_hdr {
+	uint8_t port_src[2];
+	uint8_t port_dst[2];
+	uint8_t length[2];
+	uint8_t csum[2];
+};
+

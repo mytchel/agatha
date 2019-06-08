@@ -67,129 +67,7 @@ dump_hex_block(uint8_t *buf, size_t len)
 	}
 }
 
-	static void 
-test_respond_arp(struct net_dev *net, uint8_t *src_mac, uint8_t *src_ipv4)
-{
-	struct eth_hdr *hdr;
-	uint8_t *pkt, *bdy;
-
-	pkt = malloc(sizeof(struct eth_hdr) + 64);
-	if (pkt == nil) {
-		log(LOG_WARNING, "malloc failed for pkt");
-		return;
-	}
-
-	log(LOG_INFO, "building arp response packet");
-
-	hdr = (void *) pkt;
-	bdy = pkt + sizeof(struct eth_hdr);
-
-	memcpy(hdr->dst, src_mac, 6);
-	memcpy(hdr->src, net->mac, 6);
-	hdr->tol.type[0] = 0x08;
-	hdr->tol.type[1] = 0x06;
-
-	/* hardware type (ethernet 1) */
-	bdy[0] = 0;
-	bdy[1] = 1;
-	/* protocol type (ipv4 0x0800) */
-	bdy[2] = 0x08;
-	bdy[3] = 0x00;
-	/* len (eth = 6, ip = 4)*/
-	bdy[4] = 6;
-	bdy[5] = 4;
-	/* operation (1 request, 2 reply) */
-	bdy[6] = 0;
-	bdy[7] = 2;
-
-	memcpy(&bdy[8], net->mac, 6);
-	memcpy(&bdy[14], net->ipv4, 4);
-	memcpy(&bdy[18], src_mac, 6);
-	memcpy(&bdy[24], src_ipv4, 4);
-
-	memset(&bdy[28], 0, 64 - sizeof(struct eth_hdr) - 28);
-
-	net->send_pkt(net, pkt, 64);
-}
-
-	static void
-arp_request(struct net_dev *net, uint8_t *ipv4)
-{
-	struct eth_hdr *hdr;
-	uint8_t *bdy, *pkt;
-
-	pkt = malloc(sizeof(struct eth_hdr) + 64);
-	if (pkt == nil) {
-		log(LOG_WARNING, "malloc failed for pkt");
-		return;
-	}
-
-	log(LOG_INFO, "building arp request");
-
-	hdr = (void *) pkt;
-	bdy = pkt + sizeof(struct eth_hdr);
-
-	uint8_t dst[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-
-	memcpy(hdr->dst, dst, 6);
-	memcpy(hdr->src, net->mac, 6);
-	hdr->tol.type[0] = 0x08;
-	hdr->tol.type[1] = 0x06;
-
-	/* hardware type (ethernet 1) */
-	bdy[0] = 0;
-	bdy[1] = 1;
-	/* protocol type (ipv4 0x0800) */
-	bdy[2] = 0x08;
-	bdy[3] = 0x00;
-	/* len (eth = 6, ip = 4)*/
-	bdy[4] = 6;
-	bdy[5] = 4;
-	/* operation (1 request, 2 reply) */
-	bdy[6] = 0;
-	bdy[7] = 1;
-
-	memcpy(&bdy[8], net->mac, 6);
-	memcpy(&bdy[14], net->ipv4, 4);
-	memset(&bdy[18], 0, 6);
-	memcpy(&bdy[24], ipv4, 4);
-
-	memset(&bdy[28], 0, 64 - sizeof(struct eth_hdr) - 28);
-
-	net->send_pkt(net, pkt, 64);
-}
-	
-static void
-handle_arp(struct net_dev *net, 
-		struct eth_hdr *hdr, 
-		uint8_t *bdy, size_t len)
-{
-	log(LOG_INFO, "have arp packet!");
-
-	if (memcmp(hdr->dst, broadcast_mac, 6)) {
-		log(LOG_INFO, "broadcast arp");
-
-		uint8_t *src_ipv4 = bdy + 14;
-		uint8_t *dst_ipv4 = bdy + 24;
-
-		log(LOG_INFO, "from    for %i.%i.%i.%i",
-				src_ipv4[0], src_ipv4[1], src_ipv4[2], src_ipv4[3]);
-
-		log(LOG_INFO, "looking for %i.%i.%i.%i",
-				dst_ipv4[0], dst_ipv4[1], dst_ipv4[2], dst_ipv4[3]);
-
-		if (memcmp(dst_ipv4, net->ipv4, 4)) {
-			log(LOG_WARNING, "asking about us!!!");
-
-			test_respond_arp(net, hdr->src, src_ipv4);
-		}
-
-	} else if (memcmp(hdr->dst, net->mac, 6)) {
-		log(LOG_INFO, "responding to us!!!");
-	}
-}
-
-static int16_t 
+	static int16_t 
 csum_ip(uint8_t *h, size_t len)
 {
 	size_t sum, s, i;
@@ -218,8 +96,11 @@ create_eth_pkt(struct net_dev *net,
 		uint8_t **body)
 {
 	struct eth_hdr *eth_hdr;
-	
-	*pkt = malloc(sizeof(struct eth_hdr) + len);
+	size_t pkt_len;
+
+	pkt_len = sizeof(struct eth_hdr) + len;
+
+	*pkt = malloc(sizeof(struct eth_hdr) + pkt_len);
 	if (*pkt == nil) {
 		log(LOG_WARNING, "malloc failed for pkt");
 		return false;
@@ -243,11 +124,15 @@ send_eth_pkt(struct net_dev *net,
 		uint8_t *pkt,
 		size_t len)
 {
-	log(LOG_INFO, "sending pkt of len %i", len + sizeof(struct eth_hdr));
+	size_t pkt_len;
 
-	dump_hex_block(pkt, len + sizeof(struct eth_hdr));
+	pkt_len = sizeof(struct eth_hdr) + len;
+	
+	log(LOG_INFO, "sending pkt of len %i", pkt_len);
 
-	net->send_pkt(net, pkt, len + sizeof(struct eth_hdr));
+	dump_hex_block(pkt, pkt_len);
+
+	net->send_pkt(net, pkt, pkt_len);
 }
 
 static bool
@@ -332,7 +217,7 @@ create_icmp_pkt(struct net_dev *net,
 {
 	if (!create_ipv4_pkt(net, 
 				dst_mac, dst_ip,
-				20, 1,
+				20, 0x01,
 				sizeof(struct icmp_hdr) + data_len,
 				pkt,
 				ipv4_hdr, 
@@ -366,6 +251,59 @@ send_icmp_pkt(struct net_dev *net,
 	send_ip_pkt(net, pkt, ip_hdr, 
 				20, 
 				sizeof(struct icmp_hdr) +	data_len);
+}
+
+	static bool
+create_udp_pkt(struct net_dev *net,
+		uint8_t *dst_mac, uint8_t *dst_ip,
+		uint16_t port_src, uint16_t port_dst,
+		size_t data_len,
+		uint8_t **pkt,
+		struct ipv4_hdr **ipv4_hdr,
+		struct udp_hdr **udp_hdr,
+		uint8_t **data)
+{
+	size_t length;
+
+	length = sizeof(struct udp_hdr) + data_len;
+
+	if (!create_ipv4_pkt(net, 
+				dst_mac, dst_ip,
+				20, 0x11,
+				length,
+				pkt,
+				ipv4_hdr, 
+				(uint8_t **) udp_hdr)) 
+	{
+		return false;
+	}
+
+	(*udp_hdr)->port_src[0] = (port_src >> 8) & 0xff;
+	(*udp_hdr)->port_src[1] = (port_src >> 0) & 0xff;
+	(*udp_hdr)->port_dst[0] = (port_dst >> 8) & 0xff;
+	(*udp_hdr)->port_dst[1] = (port_dst >> 0) & 0xff;
+
+	(*udp_hdr)->length[0] = (length >> 8) & 0xff;
+	(*udp_hdr)->length[1] = (length >> 0) & 0xff;
+
+	(*udp_hdr)->csum[0] = 0;
+	(*udp_hdr)->csum[1] = 0;
+
+	*data = ((uint8_t *) *udp_hdr) + sizeof(struct udp_hdr);
+
+	return true;
+}
+
+	static void
+send_udp_pkt(struct net_dev *net,
+		uint8_t *pkt,
+		struct ipv4_hdr *ip_hdr, 
+		struct udp_hdr *udp_hdr,
+		size_t data_len)
+{
+	send_ip_pkt(net, pkt, ip_hdr, 
+				20, 
+				sizeof(struct udp_hdr) + data_len);
 }
 
 	static void 
@@ -455,7 +393,60 @@ handle_udp(struct net_dev *net,
 		uint8_t *bdy,
 		size_t bdy_len)
 {
+	struct udp_hdr *udp_hdr;
+	int16_t port_src, port_dst;
+	size_t length, csum, data_len;
+	uint8_t *data;
 
+	udp_hdr = (void *) (((uint8_t *) ip_hdr) + ip_hdr_len);
+
+	port_src = udp_hdr->port_src[0] << 8 | udp_hdr->port_src[1];
+	port_dst = udp_hdr->port_dst[0] << 8 | udp_hdr->port_dst[1];
+	length = udp_hdr->length[0] << 8 | udp_hdr->length[1];
+	csum = udp_hdr->csum[0] << 8 | udp_hdr->csum[1];
+
+	log(LOG_INFO, "udp packet from port %i to port %i",
+			(size_t) port_src, (size_t) port_dst);
+
+	if (length > bdy_len) {
+		log(LOG_INFO, "udp packet length %i larger than packet len %i",
+				length, bdy_len);
+		return;
+	}
+
+	data = bdy + sizeof(struct udp_hdr);
+	data_len = length - sizeof(struct udp_hdr);
+
+	log(LOG_INFO, "udp packet length %i csum %i",
+			data_len, csum);
+
+	dump_hex_block(data, data_len);
+
+	struct ipv4_hdr *ip_hdr_r;
+	struct udp_hdr *udp_hdr_r;
+	uint8_t *pkt, *bdy_r;
+
+	/* icmp */
+
+	size_t bdy_r_len = 6;
+
+	if (!create_udp_pkt(net, 
+				eth_hdr->src, ip_hdr->src,
+				port_dst, port_src,
+				bdy_r_len,
+				&pkt, &ip_hdr_r, &udp_hdr_r, &bdy_r)) {
+		return;
+	}
+
+	bdy_r[0] = 'w';
+	bdy_r[1] = 'h';
+	bdy_r[2] = 'a';
+	bdy_r[3] = 't';
+	bdy_r[4] = '?';
+	bdy_r[5] = '\n';
+
+	send_udp_pkt(net, pkt, ip_hdr_r, udp_hdr_r, bdy_r_len);
+	free(pkt);
 }
 
 	static void
@@ -517,15 +508,129 @@ handle_ipv4(struct net_dev *net,
 
 	switch (protocol) {
 		case 0x01:
-			handle_icmp(net, eth_hdr, ip_hdr, hdr_len, ip_bdy, ip_len);
+			handle_icmp(net, eth_hdr, ip_hdr, hdr_len, 
+					ip_bdy, ip_len);
+			break;
+
 		case 0x06:
-			handle_tcp(net, eth_hdr, ip_hdr, hdr_len, ip_bdy, ip_len);
+			handle_tcp(net, eth_hdr, ip_hdr, hdr_len, 
+					ip_bdy, ip_len);
+			break;
+
 		case 0x11:
-			handle_udp(net, eth_hdr, ip_hdr, hdr_len, ip_bdy, ip_len);
+			handle_udp(net, eth_hdr, ip_hdr, hdr_len, 
+					ip_bdy, ip_len);
+			break;
+
 		default:
 			break;
 	}
 }
+
+	static void 
+test_respond_arp(struct net_dev *net, uint8_t *src_mac, uint8_t *src_ipv4)
+{
+	uint8_t *pkt, *bdy;
+
+	if (!create_eth_pkt(net, src_mac,
+				0x0806,
+				28,
+				&pkt, (uint8_t **) &bdy))
+	{
+		return;
+	}
+
+	log(LOG_INFO, "building arp response packet");
+
+	/* hardware type (ethernet 1) */
+	bdy[0] = 0;
+	bdy[1] = 1;
+	/* protocol type (ipv4 0x0800) */
+	bdy[2] = 0x08;
+	bdy[3] = 0x00;
+	/* len (eth = 6, ip = 4)*/
+	bdy[4] = 6;
+	bdy[5] = 4;
+	/* operation (1 request, 2 reply) */
+	bdy[6] = 0;
+	bdy[7] = 2;
+
+	memcpy(&bdy[8], net->mac, 6);
+	memcpy(&bdy[14], net->ipv4, 4);
+	memcpy(&bdy[18], src_mac, 6);
+	memcpy(&bdy[24], src_ipv4, 4);
+
+	send_eth_pkt(net, pkt, 28);
+}
+
+	static void
+arp_request(struct net_dev *net, uint8_t *ipv4)
+{
+	uint8_t dst[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+
+	uint8_t *pkt, *bdy;
+
+	if (!create_eth_pkt(net, dst,
+				0x0806,
+				28,
+				&pkt, (uint8_t **) &bdy))
+	{
+		return;
+	}
+
+	log(LOG_INFO, "building arp request");
+
+	/* hardware type (ethernet 1) */
+	bdy[0] = 0;
+	bdy[1] = 1;
+	/* protocol type (ipv4 0x0800) */
+	bdy[2] = 0x08;
+	bdy[3] = 0x00;
+	/* len (eth = 6, ip = 4)*/
+	bdy[4] = 6;
+	bdy[5] = 4;
+	/* operation (1 request, 2 reply) */
+	bdy[6] = 0;
+	bdy[7] = 1;
+
+	memcpy(&bdy[8], net->mac, 6);
+	memcpy(&bdy[14], net->ipv4, 4);
+	memset(&bdy[18], 0, 6);
+	memcpy(&bdy[24], ipv4, 4);
+
+	send_eth_pkt(net, pkt, 28);
+}
+	
+static void
+handle_arp(struct net_dev *net, 
+		struct eth_hdr *hdr, 
+		uint8_t *bdy, size_t len)
+{
+	log(LOG_INFO, "have arp packet!");
+
+	if (memcmp(hdr->dst, broadcast_mac, 6)) {
+		log(LOG_INFO, "broadcast arp");
+
+		uint8_t *src_ipv4 = bdy + 14;
+		uint8_t *dst_ipv4 = bdy + 24;
+
+		log(LOG_INFO, "from    for %i.%i.%i.%i",
+				src_ipv4[0], src_ipv4[1], src_ipv4[2], src_ipv4[3]);
+
+		log(LOG_INFO, "looking for %i.%i.%i.%i",
+				dst_ipv4[0], dst_ipv4[1], dst_ipv4[2], dst_ipv4[3]);
+
+		if (memcmp(dst_ipv4, net->ipv4, 4)) {
+			log(LOG_WARNING, "asking about us!!!");
+
+			test_respond_arp(net, hdr->src, src_ipv4);
+		}
+
+	} else if (memcmp(hdr->dst, net->mac, 6)) {
+		log(LOG_INFO, "responding to us!!!");
+	}
+}
+
 
 	void
 net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
