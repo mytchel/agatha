@@ -249,10 +249,7 @@ main(void)
 	unmap_addr(init_file, init_m_len);
 	release_addr(init_pa, init_m_len);
 
-	size_t w;
-	for (w = 0; w < 0xfffff; w++)
-		;
-
+#if 0
 	uint32_t **p;
 
 	p = malloc(10 * sizeof(uint32_t));
@@ -281,6 +278,7 @@ main(void)
 	}
 
 	log(LOG_INFO, "alloc test finished!");
+#endif
 
 	exit(OK);
 }

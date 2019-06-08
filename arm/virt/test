@@ -11,5 +11,5 @@ doas qemu-system-arm \
 	-netdev type=tap,id=net0 \
 	-device virtio-net-device,netdev=net0 \
 	-device virtio-keyboard-device \
-	-nographic
+#	-nographic
 

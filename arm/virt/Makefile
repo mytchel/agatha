@@ -20,7 +20,8 @@ IDLE = \
 DRIVERS = \
 					../drivers/serial-pl01x \
 					../drivers/virtio/blk \
-					../drivers/virtio/net
+					../drivers/virtio/net \
+					../drivers/virtio/gpu
 
 BOARD_KERNEL_SRC_A = \
 										 timer.S

@@ -382,7 +382,7 @@ main(void)
 
 	dev.base = (struct virtio_device *) ((size_t) regs_va + regs_off);
 
-	log(LOG_INFO, "virtio-blk mapped 0x%x -> 0x%x",
+	log(LOG_INFO, "virtio-gpu mapped 0x%x -> 0x%x",
 			regs_pa, dev.base);
 
 	init_dev(&net, &dev);
