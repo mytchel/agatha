@@ -109,7 +109,7 @@ main(void)
 
 	log_init("display");
 
-	char *dev_name = "lcd0";
+	char *dev_name = "gpu0";
 	log(LOG_INFO, "find %s", dev_name);
 
 	dev_pid = get_device_pid(dev_name);

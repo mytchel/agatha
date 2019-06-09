@@ -7,6 +7,7 @@ struct kernel_info *info;
 void
 log(int level, char *fmt, ...)
 {
+	/*
 	char buf[256];
 	va_list a;
 
@@ -16,6 +17,7 @@ log(int level, char *fmt, ...)
 	va_end(a);
 
 	kern_debug(buf);
+	*/
 }
 
 	int

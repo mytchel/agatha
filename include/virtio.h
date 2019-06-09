@@ -365,6 +365,12 @@ struct virtio_gpu_mem_entry {
 	uint32_t padding; 
 };
 
+struct virtio_gpu_resource_detach_backing { 
+	struct virtio_gpu_ctrl_hdr hdr; 
+	uint32_t resource_id; 
+	uint32_t padding; 
+}; 
+
 struct virtio_gpu_transfer_to_host_2d { 
 	struct virtio_gpu_ctrl_hdr hdr; 
 	struct virtio_gpu_rect r; 
