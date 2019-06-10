@@ -10,8 +10,9 @@
 #include <proc0.h>
 #include <log.h>
 #include <dev_reg.h>
-#include <block.h>
 #include <virtio.h>
+#include <virtio-blk.h>
+#include <block.h>
 
 struct device {
 	volatile struct virtio_device *dev;

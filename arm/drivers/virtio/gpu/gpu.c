@@ -11,6 +11,7 @@
 #include <log.h>
 #include <dev_reg.h>
 #include <virtio.h>
+#include <virtio-gpu.h>
 #include <video.h>
 
 struct virtio_gpu_dev {

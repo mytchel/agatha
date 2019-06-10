@@ -11,6 +11,7 @@
 #include <log.h>
 #include <dev_reg.h>
 #include <virtio.h>
+#include <virtio-net.h>
 #include <eth.h>
 #include <net_dev.h>
 
@@ -382,7 +383,7 @@ main(void)
 
 	dev.base = (struct virtio_device *) ((size_t) regs_va + regs_off);
 
-	log(LOG_INFO, "virtio-gpu mapped 0x%x -> 0x%x",
+	log(LOG_INFO, "virtio-net mapped 0x%x -> 0x%x",
 			regs_pa, dev.base);
 
 	init_dev(&net, &dev);

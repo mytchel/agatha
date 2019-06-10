@@ -25,9 +25,14 @@ struct device devices[] =
 		32 + 16 + 29,
 	},
 
-	{ "key0", "../drivers/virtio/keyboard",
+	{ "key0", "../drivers/virtio/input",
 		0x0a003800, 0x200,
 		32 + 16 + 28,
+	},
+
+	{ "mouse0", "../drivers/virtio/input",
+		0x0a003600, 0x200,
+		32 + 16 + 27,
 	},
 
 };

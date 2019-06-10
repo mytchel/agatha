@@ -21,7 +21,8 @@ DRIVERS = \
 					../drivers/serial-pl01x \
 					../drivers/virtio/blk \
 					../drivers/virtio/net \
-					../drivers/virtio/gpu
+					../drivers/virtio/gpu \
+					../drivers/virtio/input
 
 BOARD_KERNEL_SRC_A = \
 										 timer.S
