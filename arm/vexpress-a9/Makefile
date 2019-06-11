@@ -13,7 +13,7 @@ PROCS = \
 				../../procs/dev_reg \
 				../../procs/log \
 				../../procs/init \
-				../../procs/video
+				../../procs/ui
 
 DRIVERS = \
 					../drivers/serial-pl01x \

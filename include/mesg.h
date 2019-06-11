@@ -65,5 +65,11 @@ typedef enum {
 	VIDEO_update_req,
 	VIDEO_update_rsp,
 
+	EVDEV_info_req,
+	EVDEV_info_rsp,
+	EVDEV_connect_req,
+	EVDEV_connect_rsp,
+	EVDEV_event_msg,
+
 } mesg_type_t;
 

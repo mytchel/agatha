@@ -1,5 +1,5 @@
 #define MAX_PROCS      16
-#define MAX_MESSAGES   32
+#define MAX_MESSAGES   128
 
 #define KSTACK_LEN       1024
 

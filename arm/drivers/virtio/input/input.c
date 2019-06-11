@@ -12,6 +12,8 @@
 #include <dev_reg.h>
 #include <virtio.h>
 #include <virtio-input.h>
+#include <evdev.h>
+#include <evdev_codes.h>
 
 struct virtio_input_dev {
 	volatile struct virtio_device *base;
@@ -21,6 +23,8 @@ struct virtio_input_dev {
 
 	size_t event_buf_pa, event_buf_len;
 	uint8_t *event_buf_va;
+
+	int connected_pid;
 };
 
 static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
@@ -57,9 +61,34 @@ claim_irq(void *arg, size_t irqn)
 	return OK;
 }
 
+int
+register_dev(struct virtio_input_dev *dev, char *name)
+{
+	union dev_reg_req drq;
+	union dev_reg_rsp drp;
+	
+	drq.type = DEV_REG_register_req;
+	drq.reg.pid = pid();
+	snprintf(drq.reg.name, sizeof(drq.reg.name),
+			"%s", name);
+
+	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
+	 return ERR;
+	} else {
+		return drp.reg.ret; 
+	}
+}
+
 	int
 init_dev(struct virtio_input_dev *dev)
 {
+	struct virtio_input_config *config;
+	struct virtq_desc *d;
+	size_t index;
+	size_t i;
+
+	dev->connected_pid = -1;
+
 	if (dev->base->magic != VIRTIO_DEV_MAGIC) {
 		log(LOG_FATAL, "virtio register magic bad 0x%x != expected 0x%x",
 				dev->base->magic, VIRTIO_DEV_MAGIC);
@@ -79,28 +108,14 @@ init_dev(struct virtio_input_dev *dev)
 
 	/* TODO: negotiate */
 
-	struct virtio_input_config *config = 
-		(struct virtio_input_config *) dev->base->config;
+	config = (struct virtio_input_config *) dev->base->config;
 
 	config->select = VIRTIO_INPUT_CFG_ID_NAME;
+
 	char name[32];
 	strlcpy(name, config->u.string, 32);
 
 	log(LOG_INFO, "name = %s", name);
-
-	config->subsel = 1;
-	config->select = VIRTIO_INPUT_CFG_EV_BITS;
-
-	log(LOG_INFO, "check events, size is %i", config->size);
-
-	size_t i, b;
-	for (i = 0; i < config->size; i++) {
-		for (b = 0; b < 8; b++) {
-			if (config->u.bitmap[i] & (1<<b)) {
-				log(LOG_INFO, "supports event %i", i*8+b);
-			}
-		}
-	}
 
 	dev->base->device_features_sel = 0;
 	dev->base->driver_features_sel = 0;
@@ -152,28 +167,11 @@ init_dev(struct virtio_input_dev *dev)
 		return ERR;
 	}
 
-	return OK;
-}
-
-void
-test(struct virtio_input_dev *dev)
-{
-	struct virtio_input_event *event;
-		struct virtq_used_item *e;
-	size_t i = 0;
-	struct virtq_desc *d;
-	size_t index;
-	uint8_t m[MESSAGE_LEN];
-
-	log(LOG_INFO, "start test");
-
 	for (i = 0; i < dev->eventq.size;  i++) {
-		log(LOG_INFO, "load item");
-
 		d = virtq_get_desc(&dev->eventq, &index);
 		if (d == nil) {
 			log(LOG_WARNING, "failed to get descriptor");
-			return ;
+			return ERR;
 		}
 
 		d->addr = dev->event_buf_pa + index * sizeof(struct virtio_input_event);
@@ -183,24 +181,91 @@ test(struct virtio_input_dev *dev)
 		virtq_push(&dev->eventq, index);
 	}
 
-	log(LOG_INFO, "process");
+	return OK;
+}
+
+void
+handle_event(struct virtio_input_dev *dev,
+		struct virtio_input_event *e)
+{
+	union evdev_msg m;
+
+	if (e->type == EV_SYN) {
+		return;
+	}
+
+	if (dev->connected_pid == -1) {
+		return;
+	}
+
+	m.type = EVDEV_event_msg;
+	m.event.event_type = e->type;
+	m.event.code       = e->code;
+	m.event.value      = e->value;
+
+	send(dev->connected_pid, &m);
+}
+
+void
+handle_connect_req(struct virtio_input_dev *dev, 
+		int from, union evdev_req *rq)
+{
+	union evdev_rsp rp;
+
+	rp.connect.type = EVDEV_connect_rsp;
+
+	if (dev->connected_pid == -1) {
+		rp.connect.ret = OK;
+		dev->connected_pid = from;
+	} else {
+		rp.connect.ret = ERR;
+	}
+
+	send(from, &rp);
+}
+
+void
+handle_event_msg(struct virtio_input_dev *dev, 
+		int from, union evdev_msg *m)
+{
+	/* TODO */
+}
+
+void
+main_loop(struct virtio_input_dev *dev)
+{
+	struct virtio_input_event *event;
+	struct virtq_used_item *e;
+	struct virtq_desc *d;
+	uint8_t m[MESSAGE_LEN];
+	int from;
 
 	while (true) {
-		uint8_t m[MESSAGE_LEN];
-		recv(pid(), m);
+		from = recv(-1, m);
 
-		log(LOG_INFO, "got int");
+		if (from == pid()) {
+			while ((e = virtq_pop(&dev->eventq)) != nil) {
+				d = &dev->eventq.desc[e->index];
 
-		while ((e = virtq_pop(&dev->eventq)) != nil) {
-			d = &dev->eventq.desc[e->index];
+				size_t off = d->addr - dev->event_buf_pa;
+				event = (void *) (dev->event_buf_va + off);
 
-			size_t off = d->addr - dev->event_buf_pa;
-			event = (void *) (dev->event_buf_va + off);
+				handle_event(dev, event);
 
-			log(LOG_INFO, "got event type %i code %i value %i",
-					(uint32_t) event->type, (uint32_t) event->code, (uint32_t) event->value);
+				virtq_push(&dev->eventq, e->index);
+			}
+		} else {
+			uint32_t type = *((uint32_t *) m);
 
-			virtq_push(&dev->eventq, e->index);
+			switch (type) {
+				case EVDEV_connect_req:
+					handle_connect_req(dev, from, (void *) m);
+					break;
+
+				case EVDEV_event_msg:
+					handle_event_msg(dev, from, (void *) m);
+					break;
+			}
 		}
 	}
 }
@@ -255,7 +320,9 @@ main(void)
 		return ERR;
 	}
 
-	test(&dev);
+	register_dev(&dev, dev_name);
+
+	main_loop(&dev);
 
 	return ERR;
 }

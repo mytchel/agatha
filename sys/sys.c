@@ -189,6 +189,10 @@ sys_mesg(int pid, uint8_t *send, uint8_t *recv)
 	}
 
 	m = message_get();
+	if (m == nil) {
+		debug_warn("out of messages\n");
+		return ERR;
+	}
 
 	m->from = up->pid;
 	memcpy(m->body, send, MESSAGE_LEN);

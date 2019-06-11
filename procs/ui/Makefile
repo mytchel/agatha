@@ -1,4 +1,4 @@
-PROG = video
+PROG = ui
 
 LIBS = \
 			 -llog

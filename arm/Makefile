@@ -50,8 +50,8 @@ KERNEL_SRC_C = \
 							 ../../lib/string/string.c \
 							 $(BOARD_KERNEL_SRC_C)
 
-.PHONY: bundle.bin 
-bundle.bin bundle.c:
+.PHONY: bundle.bin bundle.c
+bundle.bin bundle.c: 
 	@for B in $(PROCS) $(IDLE) $(DRIVERS); do \
 		echo $(MAKE) -C $$B; \
 		$(MAKE) -C $$B BASE=${BASE} ARCH=${ARCH} BOARD=${BOARD} || exit 1; \
