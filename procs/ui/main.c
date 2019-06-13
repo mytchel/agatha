@@ -20,6 +20,11 @@ struct ui_dev {
 	size_t width, height;
 	size_t frame_pas[2], frame_size, frame_pa;
 	bool frame_ready[2];
+
+	int32_t px, py;
+	uint32_t pc;
+
+	uint32_t c;
 };
 
 int
@@ -43,66 +48,69 @@ get_device_pid(char *name)
 }
 
 void
-frame_update(int gpu_pid,
-		size_t frame_pa, size_t frame_size,
-		size_t width, size_t height)
+frame_update(struct ui_dev *dev, size_t frame_pa)
 {
 	static int i = 2;
 	static int j = 2;
 	static int dx = 1, dy = 1;
+
 	union video_req rq;
-	uint32_t *frame;
+	uint8_t *frame;
 	size_t x, y;
 
-	frame = map_addr(frame_pa, frame_size, MAP_RW|MAP_MEM);
+	frame = map_addr(frame_pa, dev->frame_size, MAP_RW|MAP_MEM);
 	if (frame == nil) {
 		log(LOG_FATAL, "failed to map frame buffer 0x%x", frame_pa);
 		exit(ERR);
 	}
 
-#if 1
-	memset(frame, 0, width * height * 4);
-#else
-	for (x = 2; x < 50; x++) {
-		for (y = 2; y < 50; y++) {
-			frame[(y + i - 2) * width + (x + j - 2)] = 0x004433;
-		}
-	}
-#endif
+	memset(frame, 0, dev->width * dev->height * 4);
 
-	for (x = 2; x < 50; x++) {
-		for (y = 2; y < 50; y++) {
-			frame[(y + i) * width + (x + j)] = 0x00aa88;
+	for (x = 0; x < 5 && dev->px + x < dev->width; x++) {
+		for (y = 0; y < 5 && dev->py + y < dev->height; y++) {
+			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 0] = 0;
+			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 1] = (dev->pc >> 16) & 0xff;
+			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 2] = (dev->pc >> 8) & 0xff;
+			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 3] = (dev->pc >> 0) & 0xff;
 		}
 	}
 
-	j += dx;
-	i += dy;
+	for (x = 2; x < 50; x++) {
+		for (y = 2; y < 50; y++) {
+			frame[((y + j) * dev->width + (x + i)) * 4 + 0] = 0;
+			frame[((y + j) * dev->width + (x + i)) * 4 + 1] = (dev->c >> 16) & 0xff;
+			frame[((y + j) * dev->width + (x + i)) * 4 + 2] = (dev->c >> 8) & 0xff;
+			frame[((y + j) * dev->width + (x + i)) * 4 + 3] = (dev->c >> 0) & 0xff;
+		}
+	}
+
+	j += dy;
+	i += dx;
 	
-	if (j == width - 50) {
+	if (i == dev->width - 50) {
 		dx = -1;
-	} else if (j == 2) {
+	} else if (x == 2) {
 		dx = 1;
 	}
 
-	if (i == height - 50) {
+	if (j == dev->height - 50) {
 		dy = -1;
-	} else if (i == 2) {
+	} else if (j == 2) {
 		dy = 1;
 	}
 
-	unmap_addr(frame, frame_size);
+	unmap_addr(frame, dev->frame_size);
 
-	if (give_addr(gpu_pid, frame_pa, frame_size) != OK) {
+	if (give_addr(dev->gpu_pid, frame_pa, dev->frame_size) != OK) {
 		log(LOG_FATAL, "failed to give driver new frame");
 		exit(ERR);
 	}
 
 	rq.update.type = VIDEO_update_req;
 	rq.update.frame_pa = frame_pa;
-	rq.update.frame_size = frame_size;
+	rq.update.frame_size = dev->frame_size;
 
-	if (send(gpu_pid, &rq) != OK) {
+	if (send(dev->gpu_pid, &rq) != OK) {
 		log(LOG_FATAL, "failed to update frame!");
 		exit(ERR);
 	}
@@ -143,9 +151,7 @@ init_gpu(struct ui_dev *dev, char *name)
 	dev->frame_ready[0] = false;
 	dev->frame_ready[1] = true;
 
-	frame_update(dev->gpu_pid, 
-			dev->frame_pas[0], dev->frame_size, 
-			dev->width, dev->height);
+	frame_update(dev, dev->frame_pas[0]);
 }
 
 int
@@ -188,9 +194,7 @@ update(struct ui_dev *dev)
 	}
 
 	if (frame_pa != nil) {
-		frame_update(dev->gpu_pid, 
-				frame_pa, dev->frame_size, 
-				dev->width, dev->height);
+		frame_update(dev, frame_pa);
 	}
 }
 
@@ -227,7 +231,50 @@ handle_gpu_msg(struct ui_dev *dev, uint8_t *m)
 	}
 }
 
-void
+	void
+handle_evdev_rel(struct ui_dev *dev, 
+		uint32_t code, int32_t value)
+{
+	switch (code) {
+		case REL_X:
+			dev->px += value;
+			break;
+		case REL_Y:
+			dev->py += value;
+			break;
+	}
+
+	if (dev->px < 0) dev->px = 0;
+	else if (dev->px > dev->width) dev->px = dev->width;
+
+	if (dev->py < 0) dev->py = 0;
+	else if (dev->py > dev->height) dev->py = dev->height;
+}
+
+	void
+handle_evdev_key(struct ui_dev *dev, 
+		uint32_t code, uint32_t value)
+{
+	switch (code) {
+		case BTN_LEFT:
+			if (value) dev->pc &= ~0xff0000;
+			else dev->pc |= 0xff0000;
+			break;
+
+		case BTN_RIGHT:
+			if (value) dev->pc &= ~0x00ff00;
+			else dev->pc |= 0x00ff00;
+			break;
+
+		case BTN_MIDDLE:
+			if (value) dev->pc &= ~0x0000ff;
+			else dev->pc |= 0x0000ff;
+			break;
+	}
+}
+
+
+	void
 handle_evdev_msg(struct ui_dev *dev, int from,
 		uint8_t *m)
 {
@@ -236,11 +283,22 @@ handle_evdev_msg(struct ui_dev *dev, int from,
 	switch (*((uint32_t *) m)) {
 		case EVDEV_event_msg:
 			e = (void *) m;
-			log(LOG_INFO, "event from %i %i\t%i\t%i",
-					from, 
-					e->event.event_type, 
-					e->event.code, 
-					e->event.value);
+			switch (e->event.event_type) {
+				case EV_REL:
+					handle_evdev_rel(dev, 
+							e->event.code, 
+							e->event.value);
+					break;
+
+				case EV_KEY:
+					handle_evdev_key(dev, 
+							e->event.code, 
+							e->event.value);
+					break;
+			}
+
+			break;
+
 		default:
 			break;
 	}
@@ -263,6 +321,12 @@ main(void)
 	init_gpu(&dev, gpu_name);
 	dev.key_pid = init_evdev(key_name);
 	dev.ptr_pid = init_evdev(ptr_name);
+
+	dev.px = dev.width / 2;
+	dev.py = dev.height / 2;
+	dev.pc = 0xffffff;
+
+	dev.c = 0x00aa88;
 
 	while (true) {
 		update(&dev);
