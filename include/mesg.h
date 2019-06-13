@@ -62,8 +62,10 @@ typedef enum {
 	
 	VIDEO_connect_req,
 	VIDEO_connect_rsp,
-	VIDEO_update_req,
-	VIDEO_update_rsp,
+	VIDEO_create_frame_req,
+	VIDEO_create_frame_rsp,
+	VIDEO_draw_req,
+	VIDEO_draw_rsp,
 
 	EVDEV_info_req,
 	EVDEV_info_rsp,

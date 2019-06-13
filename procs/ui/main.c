@@ -18,8 +18,8 @@ struct ui_dev {
 	int ptr_pid;
 	
 	size_t width, height;
+	size_t frame_id;
 	size_t frame_pas[2], frame_size, frame_pa;
-	bool frame_ready[2];
 
 	int32_t px, py;
 	uint32_t pc;
@@ -48,19 +48,37 @@ get_device_pid(char *name)
 }
 
 void
-frame_update(struct ui_dev *dev, size_t frame_pa)
+frame_flush(struct ui_dev *dev, size_t frame_id)
+{
+	union video_req rq;
+
+	if (give_addr(dev->gpu_pid, dev->frame_pas[frame_id], dev->frame_size) != OK) {
+		log(LOG_FATAL, "failed to give driver new frame");
+		exit(ERR);
+	}
+
+	rq.draw.type = VIDEO_draw_req;
+	rq.draw.frame_id = frame_id;
+
+	if (send(dev->gpu_pid, &rq) != OK) {
+		log(LOG_FATAL, "failed to update frame!");
+		exit(ERR);
+	}
+}
+
+void
+frame_draw(struct ui_dev *dev, size_t frame_id)
 {
 	static int i = 2;
 	static int j = 2;
 	static int dx = 1, dy = 1;
 
-	union video_req rq;
 	uint8_t *frame;
 	size_t x, y;
 
-	frame = map_addr(frame_pa, dev->frame_size, MAP_RW|MAP_MEM);
+	frame = map_addr(dev->frame_pas[frame_id], dev->frame_size, MAP_RW|MAP_MEM);
 	if (frame == nil) {
-		log(LOG_FATAL, "failed to map frame buffer 0x%x", frame_pa);
+		log(LOG_FATAL, "failed to map frame buffer 0x%x", dev->frame_pas[frame_id]);
 		exit(ERR);
 	}
 
@@ -100,20 +118,6 @@ frame_update(struct ui_dev *dev, size_t frame_pa)
 	}
 
 	unmap_addr(frame, dev->frame_size);
-
-	if (give_addr(dev->gpu_pid, frame_pa, dev->frame_size) != OK) {
-		log(LOG_FATAL, "failed to give driver new frame");
-		exit(ERR);
-	}
-
-	rq.update.type = VIDEO_update_req;
-	rq.update.frame_pa = frame_pa;
-	rq.update.frame_size = dev->frame_size;
-
-	if (send(dev->gpu_pid, &rq) != OK) {
-		log(LOG_FATAL, "failed to update frame!");
-		exit(ERR);
-	}
 }
 
 	void
@@ -124,34 +128,51 @@ init_gpu(struct ui_dev *dev, char *name)
 	
 	log(LOG_INFO, "find %s", name);
 	if ((dev->gpu_pid = get_device_pid(name)) < 0) {
-		log(LOG_FATAL, "failed to get pid of video driver %s", name);
+		log(LOG_FATAL, "failed to get pid of gpu %s", name);
 		exit(ERR);
 	}
 
 	log(LOG_INFO, "%s on pid %i", name, dev->gpu_pid);
 	grq.connect.type = VIDEO_connect_req;
 	if (mesg(dev->gpu_pid, &grq, &grp) != OK || grp.connect.ret != OK) {
-		log(LOG_FATAL, "failed to connect to video driver %s", name);
+		log(LOG_FATAL, "failed to connect to gpu %s", name);
 		exit(ERR);
 	}
 
 	dev->width = grp.connect.width;
 	dev->height = grp.connect.height;
 	dev->frame_size = grp.connect.frame_size;
-	log(LOG_INFO, "starting display on %s %ix%i", 
+	log(LOG_INFO, "starting gpu on %s %ix%i", 
 			name, dev->width, dev->height);
 
-	dev->frame_pas[0] = request_memory(dev->frame_size);
-	dev->frame_pas[1] = request_memory(dev->frame_size);
-	if (dev->frame_pas[0] == nil || dev->frame_pas[1] == nil) {
-		log(LOG_FATAL, "failed to get memory for frame buffer");
+	log(LOG_INFO, "get first frame");
+
+	grq.create_frame.type = VIDEO_create_frame_req;
+	if (mesg(dev->gpu_pid, &grq, &grp) != OK || grp.create_frame.ret != OK) {
+		log(LOG_FATAL, "gpu failed to create frame");
 		exit(ERR);
 	}
 
-	dev->frame_ready[0] = false;
-	dev->frame_ready[1] = true;
+	dev->frame_pas[grp.create_frame.frame_id] = grp.create_frame.frame_pa;
 
-	frame_update(dev, dev->frame_pas[0]);
+	log(LOG_INFO, "frame %i at 0x%x",
+			grp.create_frame.frame_id, grp.create_frame.frame_pa);
+
+	log(LOG_INFO, "get second frame");
+	grq.create_frame.type = VIDEO_create_frame_req;
+	if (mesg(dev->gpu_pid, &grq, &grp) != OK || grp.create_frame.ret != OK) {
+		log(LOG_FATAL, "gpu failed to create frame");
+		exit(ERR);
+	}
+
+	log(LOG_INFO, "frame %i at 0x%x",
+			grp.create_frame.frame_id, grp.create_frame.frame_pa);
+
+	dev->frame_pas[grp.create_frame.frame_id] = grp.create_frame.frame_pa;
+
+	frame_draw(dev, 0);	
+	frame_flush(dev, 0);	
+	frame_draw(dev, 1);	
 }
 
 int
@@ -178,55 +199,24 @@ init_evdev(char *name)
 	return p;
 }
 
-	void
-update(struct ui_dev *dev)
-{
-	size_t frame_pa;
-
-	if (dev->frame_ready[0]) {
-		frame_pa = dev->frame_pas[0];
-		dev->frame_ready[0] = false;
-	} else if (dev->frame_ready[1]) {
-		frame_pa = dev->frame_pas[1];
-		dev->frame_ready[1] = false;
-	} else {
-		frame_pa = nil;
-	}
-
-	if (frame_pa != nil) {
-		frame_update(dev, frame_pa);
-	}
-}
-
 void
 handle_gpu_msg(struct ui_dev *dev, uint8_t *m)
 {
 	union video_rsp *rsp = (void *) m;
-	size_t i;
 
 	switch (*((uint32_t *) m)) {
-		case VIDEO_update_rsp:
-			if (rsp->update.ret != OK) {
-				log(LOG_FATAL, "display got error %i", rsp->update.ret);
+		case VIDEO_draw_rsp:
+			if (rsp->draw.ret != OK) {
+				log(LOG_FATAL, "gpu got error %i", rsp->draw.ret);
 				break;
 			}
 
-			if (rsp->update.frame_pa == dev->frame_pas[0]) {
-				i = 0;
-			} else if (rsp->update.frame_pa == dev->frame_pas[1]) {
-				i = 1;
-
-			} else {
-				log(LOG_FATAL, "bad address from display 0x%x!", rsp->update.frame_pa);
-				exit(ERR);
-			}
-
-			dev->frame_ready[i] = true;
-
+			frame_flush(dev, (rsp->draw.frame_id + 1) % 2);
+			frame_draw(dev, rsp->draw.frame_id);
 			break;
 
 		default:
-			log(LOG_WARNING, "bad message from display");
+			log(LOG_WARNING, "bad message from gpu");
 			break;
 	}
 }
@@ -272,7 +262,6 @@ handle_evdev_key(struct ui_dev *dev,
 			break;
 	}
 }
-
 
 	void
 handle_evdev_msg(struct ui_dev *dev, int from,
@@ -329,8 +318,6 @@ main(void)
 	dev.c = 0x00aa88;
 
 	while (true) {
-		update(&dev);
-
 		from = recv(-1, m);
 
 		if (from == dev.gpu_pid) {
@@ -339,7 +326,7 @@ main(void)
 			handle_evdev_msg(&dev, from, m);
 
 		} else {
-			log(LOG_INFO, "display got message from %i", from);
+			log(LOG_INFO, "message from unknown pid %i", from);
 		}
 	}
 

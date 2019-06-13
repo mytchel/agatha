@@ -27,12 +27,16 @@ struct virtio_gpu_dev {
 
 	size_t n_scanouts;
 
+	size_t drawing_resource;
+
 	struct {
 		size_t x, y;
 		size_t w, h;
 		bool enabled;
 
-		size_t resource_id;
+		size_t frame_id[2];
+		size_t frame_pa[2];
+		size_t frame_size;
 
 		int connected_pid;
 	} displays[VIRTIO_GPU_MAX_SCANOUTS]; 
@@ -143,7 +147,12 @@ init_displays(struct virtio_gpu_dev *dev)
 		dev->displays[d].h = info->pmodes[d].r.height;
 		
 		dev->displays[d].connected_pid = -1;
-		dev->displays[d].resource_id = 0;
+
+		dev->displays[d].frame_id[0] = 0;
+		dev->displays[d].frame_id[1] = 0;
+		dev->displays[d].frame_pa[0] = 0;
+		dev->displays[d].frame_pa[1] = 0;
+		dev->displays[d].frame_size = PAGE_ALIGN(dev->displays[d].w * dev->displays[d].h * 4);
 	}
 
 	virtq_free_desc(&dev->controlq, r, i_r);
@@ -468,8 +477,6 @@ flush_resource(struct virtio_gpu_dev *dev,
 {
 	struct virtio_gpu_resource_flush *rf;
 	
-	struct virtio_gpu_ctrl_hdr *hdr;
-	struct virtq_used_item *e;
 	struct virtq_desc *h, *r;
 	size_t i_h, i_r;
 	
@@ -501,25 +508,82 @@ flush_resource(struct virtio_gpu_dev *dev,
 
 	virtq_push(&dev->controlq, i_h);
 	
-	wait_for_int(dev);
+	return true;
+}
+
+void
+handle_virtio_int(struct virtio_gpu_dev *dev)
+{
+	struct virtio_gpu_ctrl_hdr *rq_hdr, *rp_hdr;
+	struct virtq_used_item *e;
+	struct virtq_desc *rq, *rp;
+	size_t i_rq, i_rp, off;
 
 	e = virtq_pop(&dev->controlq);
 	if (e == nil) {
 		log(LOG_FATAL, "got nothing");
-		return false;
+		return;
 	}
 
-	hdr = (void *) (dev->cmd_va + sizeof(struct virtio_gpu_resource_flush));
+	i_rq = e->index;
+	rq = &dev->controlq.desc[i_rq];
 
-	if (hdr->type != VIRTIO_GPU_RESP_OK_NODATA) {
-		log(LOG_INFO, "bad response type = 0x%x", hdr->type);
-		return false;
+	i_rp = rq->next;
+	rp = &dev->controlq.desc[i_rp];
+
+	off = rq->addr - dev->cmd_pa; 
+	rq_hdr = (void *) (dev->cmd_va + off);
+
+	if (rq_hdr->type != VIRTIO_GPU_CMD_RESOURCE_FLUSH) {
+		log(LOG_INFO, "got response that should have been handled already : %i",
+				rq_hdr->type);
+
+		return;
 	}
 
-	virtq_free_desc(&dev->controlq, r, i_r);
-	virtq_free_desc(&dev->controlq, h, i_h);
+	if (dev->drawing_resource == 0) {
+		log(LOG_INFO, "not drawing any resources!");
+		return;
+	}
 
-	return true;
+	off = rp->addr - dev->cmd_pa; 
+	rp_hdr = (void *) (dev->cmd_va + off);
+
+	if (rp_hdr->type != VIRTIO_GPU_RESP_OK_NODATA) {
+		log(LOG_INFO, "bad response type = 0x%x", rp_hdr->type);
+		return;
+	}
+
+	virtq_free_desc(&dev->controlq, rp, i_rp);
+	virtq_free_desc(&dev->controlq, rq, i_rq);
+
+	union video_rsp vrp;
+	size_t id;
+
+	for (id = 0; id < 2; id++) {
+		if (dev->displays[0].frame_id[id] == dev->drawing_resource) {
+			break;
+		}
+	}
+	
+	dev->drawing_resource = 0;
+	
+	if (id == 3) {
+		log(LOG_INFO, "didin't find frame that matches resource %i",
+				dev->drawing_resource);
+		return;
+	}
+
+	vrp.draw.type = VIDEO_draw_rsp;
+
+	vrp.draw.frame_id = id;
+	vrp.draw.ret = OK;
+	
+	give_addr(dev->displays[0].connected_pid, 
+			dev->displays[0].frame_pa[id], 
+			dev->displays[0].frame_size);
+
+	send(dev->displays[0].connected_pid, &vrp);
 }
 
 	int
@@ -605,23 +669,27 @@ init_dev(struct virtio_gpu_dev *dev)
 
 	dev->n_resource_id = 1;
 
+	dev->drawing_resource = 0;
+
 	return OK;
 }
 
 static int
-set_frame(struct virtio_gpu_dev *dev, 
-		int resource, 
+draw_resource(struct virtio_gpu_dev *dev, 
+		size_t resource, 
 		size_t pa, size_t len,
 		size_t w, size_t h)
 {
-	if (!resource_attach_back(dev, resource, pa, len))
-	{
-		return ERR;
-	}
-
 	if (!transfer_resource(dev, resource,
 				0, 0, 0, w, h))
  	{
+		return ERR;
+	}
+
+	if (!set_scanout(dev, resource, 0, 
+				0, 0,
+				dev->displays[0].w, dev->displays[0].h)) 
+	{
 		return ERR;
 	}
 
@@ -631,14 +699,12 @@ set_frame(struct virtio_gpu_dev *dev,
 		return ERR;
 	}
 
-	if (!resource_detach_back(dev, resource)) {
-		return ERR;
-	}
+	dev->drawing_resource = resource;
 
 	return OK;
 }
 
-static void
+	static void
 handle_connect(struct virtio_gpu_dev *dev, 
 		int from, union video_req *rq)
 {
@@ -654,56 +720,109 @@ handle_connect(struct virtio_gpu_dev *dev,
 		return;
 	}
 
-	rp.connect.frame_size = PAGE_ALIGN(dev->displays[0].w * dev->displays[0].h * 4);
+	rp.connect.frame_size = dev->displays[0].frame_size;
 	rp.connect.width = dev->displays[0].w;
 	rp.connect.height = dev->displays[0].h;
 
-	dev->displays[0].resource_id = create_resource(dev, 
-			dev->displays[0].w, dev->displays[0].h);
-
-	if (dev->displays[0].resource_id == 0) {
-		rp.connect.ret = ERR;
-		send(from, &rp);
-		return;
-	}
-
-	if (!set_scanout(dev, dev->displays[0].resource_id, 0, 
-				0, 0,
-				dev->displays[0].w, dev->displays[0].h)) 
-	{
-		rp.connect.ret = ERR;
-		send(from, &rp);
-		return;
-	}
-
 	rp.connect.ret = OK;
-	
+
 	dev->displays[0].connected_pid = from;
 
 	send(from, &rp);
 }
 
 	static void
-handle_update(struct virtio_gpu_dev *dev, 
+handle_create_frame(struct virtio_gpu_dev *dev, 
+		int from, union video_req *rq)
+{
+	union video_rsp rp;
+	size_t id;
+
+	rp.create_frame.type = VIDEO_create_frame_rsp;
+
+	for (id = 0; id < 2; id++) {
+		if (dev->displays[0].frame_id[id] == 0) {
+			break;
+		}
+	}
+
+	if (id == 3) {
+		log(LOG_INFO, "out of frames");
+		rp.create_frame.ret = ERR;
+		send(from, &rp);
+		return;
+	}
+	
+	log(LOG_INFO, "creating new frame with id %i", id);
+
+	dev->displays[0].frame_id[id] = create_resource(dev, 
+			dev->displays[0].w, dev->displays[0].h);
+
+	if (dev->displays[0].frame_id[id] == 0) {
+		rp.create_frame.ret = ERR;
+		send(from, &rp);
+		return;
+	}
+
+	log(LOG_INFO, "creating new frame with resouce id %i", dev->displays[0].frame_id[id]);
+
+	dev->displays[0].frame_pa[id] = request_memory(dev->displays[0].frame_size);
+	if (dev->displays[0].frame_pa[id] == nil) {
+		rp.create_frame.ret = ERR;
+		send(from, &rp);
+		return;
+	}
+
+	log(LOG_INFO, "creating new frame with pa 0x%x", dev->displays[0].frame_pa[id]);
+
+	if (!resource_attach_back(dev, dev->displays[0].frame_id[id],
+			 	dev->displays[0].frame_pa[id], dev->displays[0].frame_size))
+	{
+		rp.create_frame.ret = ERR;
+		send(from, &rp);
+		return;
+	}
+
+	rp.create_frame.frame_id = id;
+	rp.create_frame.frame_pa = dev->displays[0].frame_pa[id];
+
+	give_addr(from, 
+			dev->displays[0].frame_pa[id], 
+			dev->displays[0].frame_size);
+
+	rp.create_frame.ret = OK;
+
+	send(from, &rp);
+}
+
+	static void
+handle_draw(struct virtio_gpu_dev *dev, 
 		int from, union video_req *rq)
 {
 	union video_rsp rp;
 
-	rp.update.type = VIDEO_update_rsp;
-	rp.update.frame_pa = rq->update.frame_pa;
-	rp.update.frame_size = rq->update.frame_size;
+	if (dev->displays[0].connected_pid != from) {
+		return;
+	}
 
-	if (dev->displays[0].connected_pid == from) {
-		rp.update.ret = set_frame(dev, dev->displays[0].resource_id, 
-				rq->update.frame_pa, rq->update.frame_size,
-				dev->displays[0].w, dev->displays[0].h);
-	} else {
-		rp.update.ret	= ERR;
+	rp.draw.type = VIDEO_draw_rsp;
+
+	rp.draw.frame_id = rq->draw.frame_id;
+
+	rp.draw.ret = draw_resource(dev, 
+			dev->displays[0].frame_id[rq->draw.frame_id], 
+			dev->displays[0].frame_pa[rq->draw.frame_id], 
+			dev->displays[0].frame_size,
+			dev->displays[0].w, dev->displays[0].h);
+
+	if (rp.draw.ret == OK) {
+		/* Will respond when the draw finishes */
+		return;
 	}
 
 	give_addr(from, 
-			rq->update.frame_pa,
-			rq->update.frame_size);
+			dev->displays[0].frame_pa[rq->draw.frame_id], 
+			dev->displays[0].frame_size);
 
 	send(from, &rp);
 }
@@ -783,17 +902,28 @@ main(void)
 	}
 
 	while (true) {
-		union video_req rq;
-		from = recv(-1, &rq);
+		uint8_t m[MESSAGE_LEN];
 
-		switch (rq.type) {
-			case VIDEO_connect_req:
-				handle_connect(&dev, from, &rq);
-				break;
+		from = recv(-1, m);
 
-			case VIDEO_update_req:
-				handle_update(&dev, from, &rq);
-				break;
+		if (from == pid()) {
+			handle_virtio_int(&dev);
+
+		} else {
+			union video_req *rq = (void *) m;
+			switch (rq->type) {
+				case VIDEO_connect_req:
+					handle_connect(&dev, from, rq);
+					break;
+
+				case VIDEO_create_frame_req:
+					handle_create_frame(&dev, from, rq);
+					break;
+
+				case VIDEO_draw_req:
+					handle_draw(&dev, from, rq);
+					break;
+			}
 		}
 	}	
 

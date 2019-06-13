@@ -8,8 +8,12 @@ union video_req {
 
 	struct {
 		uint32_t type;
-		size_t frame_pa, frame_size;
-	} update;
+	} create_frame;
+
+	struct {
+		uint32_t type;
+		size_t frame_id;
+	} draw;
 };
 
 union video_rsp {
@@ -30,7 +34,14 @@ union video_rsp {
 	struct {
 		uint32_t type;
 		int ret;
-		size_t frame_pa, frame_size;
-	} update;
+		size_t frame_id;
+		size_t frame_pa;
+	} create_frame;
+
+	struct {
+		uint32_t type;
+		int ret;
+		size_t frame_id;
+	} draw;
 };
 
