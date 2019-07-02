@@ -27,3 +27,11 @@ handle_arp(struct net_dev *net,
 		struct eth_hdr *hdr, 
 		uint8_t *bdy, size_t len);
 
+bool
+arp_match_ip(struct net_dev *net,
+		uint8_t *ip_src, uint8_t *mac_dst);
+
+bool
+arp_add(struct net_dev *net,
+		uint8_t *ip, uint8_t *mac);
+

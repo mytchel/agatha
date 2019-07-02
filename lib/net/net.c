@@ -75,6 +75,26 @@ net_init(struct net_dev *net)
 
 	net->ipv4_ident = 0xabcd;
 
+	net->ip_ports = nil;
+
+	struct ip_port *p;
+
+	if ((p = malloc(sizeof(struct ip_port))) == nil) 
+		return ERR;
+
+	p->handler_pid = -1;
+	p->port = 42;
+	p->waiting_pkts = nil;
+	p->next = nil;
+	
+	net->ip_ports = p;
+
+	net->arp_entries = nil;
+
+	uint8_t ip[4] = 
+	{ 192, 168, 1, 1};
+	arp_request(net, ip);
+
 	return OK;
 }
 

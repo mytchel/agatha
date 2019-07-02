@@ -69,9 +69,11 @@ frame_flush(struct ui_dev *dev, size_t frame_id)
 void
 frame_draw(struct ui_dev *dev, size_t frame_id)
 {
-	static int i = 2;
-	static int j = 2;
+	static int i = 2, oi = 2;
+	static int j = 2, oj = 2;
 	static int dx = 1, dy = 1;
+	static int px = 0, py = 0;
+	static uint32_t oc = 0, opc = 0;
 
 	uint8_t *frame;
 	size_t x, y;
@@ -82,16 +84,20 @@ frame_draw(struct ui_dev *dev, size_t frame_id)
 		exit(ERR);
 	}
 
-	memset(frame, 0, dev->width * dev->height * 4);
+/*	memset(frame, 0, dev->width * dev->height * 4);*/
 
-	for (x = 0; x < 5 && dev->px + x < dev->width; x++) {
-		for (y = 0; y < 5 && dev->py + y < dev->height; y++) {
-			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 0] = 0;
-			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 1] = (dev->pc >> 16) & 0xff;
-			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 2] = (dev->pc >> 8) & 0xff;
-			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 3] = (dev->pc >> 0) & 0xff;
+	for (x = 2; x < 50; x++) {
+		for (y = 2; y < 50; y++) {
+			frame[((y + oj) * dev->width + (x + oi)) * 4 + 0] = 0;
+			frame[((y + oj) * dev->width + (x + oi)) * 4 + 1] = (oc >> 16) & 0xff;
+			frame[((y + oj) * dev->width + (x + oi)) * 4 + 2] = (oc >> 8) & 0xff;
+			frame[((y + oj) * dev->width + (x + oi)) * 4 + 3] = (oc >> 0) & 0xff;
 		}
 	}
+
+	oi = i;
+	oj = j;
+	oc = dev->c;
 
 	for (x = 2; x < 50; x++) {
 		for (y = 2; y < 50; y++) {
@@ -99,6 +105,28 @@ frame_draw(struct ui_dev *dev, size_t frame_id)
 			frame[((y + j) * dev->width + (x + i)) * 4 + 1] = (dev->c >> 16) & 0xff;
 			frame[((y + j) * dev->width + (x + i)) * 4 + 2] = (dev->c >> 8) & 0xff;
 			frame[((y + j) * dev->width + (x + i)) * 4 + 3] = (dev->c >> 0) & 0xff;
+		}
+	}
+
+	for (x = 0; x < 5 && px + x < dev->width; x++) {
+		for (y = 0; y < 5 && py + y < dev->height; y++) {
+			frame[((y + py) * dev->width + (x + px)) * 4 + 0] = 0;
+			frame[((y + py) * dev->width + (x + px)) * 4 + 1] = (opc >> 16) & 0xff;
+			frame[((y + py) * dev->width + (x + px)) * 4 + 2] = (opc >> 8) & 0xff;
+			frame[((y + py) * dev->width + (x + px)) * 4 + 3] = (opc >> 0) & 0xff;
+		}
+	}
+
+	px = dev->px;
+	py = dev->py;
+	opc = dev->pc;
+
+	for (x = 0; x < 5 && dev->px + x < dev->width; x++) {
+		for (y = 0; y < 5 && dev->py + y < dev->height; y++) {
+			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 0] = 0;
+			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 1] = (dev->pc >> 16) & 0xff;
+			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 2] = (dev->pc >> 8) & 0xff;
+			frame[((y + dev->py) * dev->width + (x + dev->px)) * 4 + 3] = (dev->pc >> 0) & 0xff;
 		}
 	}
 

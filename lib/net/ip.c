@@ -279,8 +279,33 @@ handle_tcp(struct net_dev *net,
 		uint8_t *bdy, 
 		size_t bdy_len)
 {
+	struct tcp_hdr *tcp_hdr;
 
+	uint16_t port_src, port_dst;
+	uint32_t seq, ack;
+	size_t csum;
+
+	tcp_hdr = (void *) (((uint8_t *) ip_hdr) + ip_hdr_len);
+
+	port_src = tcp_hdr->port_src[0] << 8 | tcp_hdr->port_src[1];
+	port_dst = tcp_hdr->port_dst[0] << 8 | tcp_hdr->port_dst[1];
+	csum = tcp_hdr->csum[0] << 8 | tcp_hdr->csum[1];
+	
+	seq = tcp_hdr->seq[0] << 24 | tcp_hdr->seq[1] << 16 
+		| tcp_hdr->seq[2] << 8 | tcp_hdr->seq[3];
+
+	ack = tcp_hdr->ack[0] << 24 | tcp_hdr->ack[1] << 16 
+		| tcp_hdr->ack[2] << 8 | tcp_hdr->ack[3];
+
+
+	log(LOG_INFO, "tdp packet from port %i to port %i",
+			(size_t) port_src, (size_t) port_dst);
+	log(LOG_INFO, "tdp packet csum 0x%x seq %x ack 0x%x",
+			(size_t) csum, (size_t) seq, (size_t) ack);
+	
+	dump_hex_block(bdy, bdy_len);
 }
+
 
 	static void
 handle_udp(struct net_dev *net, 
@@ -291,8 +316,10 @@ handle_udp(struct net_dev *net,
 		size_t bdy_len)
 {
 	struct udp_hdr *udp_hdr;
-	int16_t port_src, port_dst;
+
+	uint16_t port_src, port_dst;
 	size_t length, csum, data_len;
+	uint8_t *data;
 
 	udp_hdr = (void *) (((uint8_t *) ip_hdr) + ip_hdr_len);
 
@@ -310,13 +337,13 @@ handle_udp(struct net_dev *net,
 		return;
 	}
 
-	/*
 	data = bdy + sizeof(struct udp_hdr);
-	*/
 	data_len = length - sizeof(struct udp_hdr);
 
-	log(LOG_INFO, "udp packet length %i csum %i",
+	log(LOG_INFO, "udp packet length %i csum 0x%x",
 			data_len, csum);
+
+	dump_hex_block(data, data_len);
 
 	struct ipv4_hdr *ip_hdr_r;
 	struct udp_hdr *udp_hdr_r;
@@ -343,6 +370,21 @@ handle_udp(struct net_dev *net,
 	free(pkt);
 }
 
+static struct ip_port *
+find_port(struct net_dev *net,
+		size_t port)
+{
+	struct ip_port *p;
+
+	for (p = net->ip_ports; p != nil; p = p->next) {
+		if (p->port == port) {
+			return p;
+		}
+	}
+
+	return nil;
+}
+
 	void
 handle_ipv4(struct net_dev *net, 
 		struct eth_hdr *eth_hdr, 
@@ -353,6 +395,8 @@ handle_ipv4(struct net_dev *net,
 
 	uint8_t version, hdr_len;
 	size_t ip_len;
+
+	uint16_t ident;
 	uint16_t frag_offset;
 	uint8_t frag_flags;
 	uint8_t protocol;
@@ -379,11 +423,16 @@ handle_ipv4(struct net_dev *net,
 	ip_bdy = bdy + hdr_len;
 	ip_len = ((ip_hdr->length[0] << 8) | ip_hdr->length[1]) - hdr_len;
 
+	ident = ip_hdr->ident[0] << 8 | ip_hdr->ident[1];
+
+	log(LOG_INFO, "pkt id 0x%x", ident);
+	log(LOG_INFO, "ttl %i", ip_hdr->ttl);
+
 	frag_flags = (ip_hdr->fragment[0] & 0x70) >> 5;
 	frag_offset = ((ip_hdr->fragment[0] & 0x1f ) << 8)
 		| ip_hdr->fragment[1];
 
-	log(LOG_INFO, "frag flags %i, offset %i", 
+	log(LOG_INFO, "frag flags %i, offset 0x%x", 
 			frag_flags, frag_offset);
 
 	protocol = ip_hdr->protocol;
