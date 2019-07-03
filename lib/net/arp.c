@@ -13,10 +13,33 @@
 #include <net_dev.h>
 #include "net.h"
 
+bool
+arp_match_ip(struct net_dev *net, 
+		uint8_t *ip_src, 
+		uint8_t *mac_dst)
+{
+	struct net_dev_internal *i = net->internal;
+	struct arp_entry *e;
+
+	for (e = i->arp_entries; e != nil; e = e->next)	{
+		if (memcmp(e->ip, ip_src, 4)) {
+			memcpy(mac_dst, e->mac, 6);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 	void
-arp_request(struct net_dev *net, uint8_t *ipv4)
+arp_request(struct net_dev *net, uint8_t *ipv4, 
+		void (*func)(struct net_dev *net, void *arg, uint8_t *mac),
+		void *arg)
 {
 	uint8_t dst[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+
+	struct net_dev_internal *i = net->internal;
+	struct arp_request *r;
 
 	uint8_t *pkt, *bdy;
 
@@ -27,6 +50,17 @@ arp_request(struct net_dev *net, uint8_t *ipv4)
 	{
 		return;
 	}
+
+	if ((r = malloc(sizeof(struct arp_request))) == nil) {
+		free(pkt);
+		return;
+	}
+
+	memcpy(r->ip, ipv4, 4);
+	r->func = func;
+	r->arg = arg;
+	r->next = i->arp_requests;
+	i->arp_requests = r;
 
 	/* hardware type (ethernet 1) */
 	bdy[0] = 0;
@@ -47,6 +81,48 @@ arp_request(struct net_dev *net, uint8_t *ipv4)
 	memcpy(&bdy[24], ipv4, 4);
 
 	send_eth_pkt(net, pkt, 28);
+}
+
+	static void
+arp_add_entry(struct net_dev *net, uint8_t *ipv4, uint8_t *mac)
+{
+	struct net_dev_internal *i = net->internal;
+	struct arp_request **r, *f;
+	struct arp_entry *e;
+
+	log(LOG_INFO, "adding entry for %i.%i.%i.%i", ipv4[0], ipv4[1], ipv4[2], ipv4[3]);
+
+	for (e = i->arp_entries; e != nil; e = e->next) {
+		if (memcmp(e->ip, ipv4, 4)) {
+			break;
+		}
+	}
+
+	if (e == nil) {
+		if ((e = malloc(sizeof(struct arp_entry))) == nil) {
+			log(LOG_WARNING, "malloc failed");
+			return;
+		}
+
+		e->next = i->arp_entries;
+		i->arp_entries = e;
+		memcpy(e->ip, ipv4, 4);
+	}
+
+	memcpy(e->mac, mac, 6);
+
+	r = &i->arp_requests; 
+	while (*r != nil) {
+		if (memcmp((*r)->ip, ipv4, 4)) {
+			f = *r;
+			*r = (*r)->next;
+			f->func(net, f->arg, mac);
+			free(f);
+	
+		} else {
+			r = &(*r)->next;
+		}
+	}
 }
 
 	static void 
@@ -83,46 +159,19 @@ handle_arp_request(struct net_dev *net, uint8_t *src_mac, uint8_t *src_ipv4)
 	memcpy(&bdy[24], src_ipv4, 4);
 
 	send_eth_pkt(net, pkt, 28);
+
+	arp_add_entry(net, src_ipv4, src_mac);
 }
 
 	static void
 handle_arp_response(struct net_dev *net, uint8_t *bdy, size_t len)
 {
-	log(LOG_INFO, "responding to us!!!");
-
 	uint8_t *src_ip, *src_mac;
-	uint8_t *tgt_ip, *tgt_mac;
 
 	src_mac = bdy + 8;
 	src_ip = bdy + 14;
-	tgt_mac = bdy + 18;
-	tgt_ip = bdy + 24;
 
-	log(LOG_INFO, "arp response from %i.%i.%i.%i / %x:%x:%x:%x:%x:%x",
-			src_ip[0],
-			src_ip[1],
-			src_ip[2],
-			src_ip[3],
-			src_mac[0],
-			src_mac[1],
-			src_mac[2],
-			src_mac[3],
-			src_mac[4],
-			src_mac[5]);
-
-	log(LOG_INFO, "to                %i.%i.%i.%i / %x:%x:%x:%x:%x:%x",
-			tgt_ip[0],
-			tgt_ip[1],
-			tgt_ip[2],
-			tgt_ip[3],
-			tgt_mac[0],
-			tgt_mac[1],
-			tgt_mac[2],
-			tgt_mac[3],
-			tgt_mac[4],
-			tgt_mac[5]);
-
-
+	arp_add_entry(net, src_ip, src_mac);
 }
 
 	void

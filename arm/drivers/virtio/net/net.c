@@ -242,6 +242,8 @@ send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 	memcpy(tx_va, buf, len);
 
 	virtq_push(&dev->tx, index_h);
+
+	free(buf);
 }
 
 int

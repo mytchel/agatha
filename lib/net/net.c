@@ -60,10 +60,33 @@ net_handle_message(struct net_dev *net,
 	}
 }
 
+	static void
+f(struct net_dev *net, void *arg, uint8_t *mac)
+{
+	log(LOG_INFO, "test arp request responded with %x:%x:%x:%x:%x:%x",
+			mac[0],
+			mac[1],
+			mac[2],
+			mac[3],
+			mac[4],
+			mac[5]);
+}
+
 	int
 net_init(struct net_dev *net)
 {
+	struct net_dev_internal *i;
 	char mac_str[18];
+
+	if ((i = malloc(sizeof(struct net_dev_internal))) == nil) {
+		return ERR;
+	}
+
+	i->ip_ports = nil;
+	i->arp_entries = nil;
+	i->arp_requests = nil;
+
+	net->internal = i;
 
 	print_mac(mac_str, net->mac);
 	log(LOG_INFO, "mac = %s", mac_str);
@@ -75,8 +98,6 @@ net_init(struct net_dev *net)
 
 	net->ipv4_ident = 0xabcd;
 
-	net->ip_ports = nil;
-
 	struct ip_port *p;
 
 	if ((p = malloc(sizeof(struct ip_port))) == nil) 
@@ -86,14 +107,10 @@ net_init(struct net_dev *net)
 	p->port = 42;
 	p->waiting_pkts = nil;
 	p->next = nil;
-	
-	net->ip_ports = p;
+	i->ip_ports = p;
 
-	net->arp_entries = nil;
-
-	uint8_t ip[4] = 
-	{ 192, 168, 1, 1};
-	arp_request(net, ip);
+	uint8_t ip[4] = { 192, 168, 1, 1};
+	arp_request(net, ip, &f, nil);
 
 	return OK;
 }

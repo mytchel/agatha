@@ -371,12 +371,12 @@ handle_udp(struct net_dev *net,
 }
 
 static struct ip_port *
-find_port(struct net_dev *net,
+find_port(struct net_dev_internal *i,
 		size_t port)
 {
 	struct ip_port *p;
 
-	for (p = net->ip_ports; p != nil; p = p->next) {
+	for (p = i->ip_ports; p != nil; p = p->next) {
 		if (p->port == port) {
 			return p;
 		}
