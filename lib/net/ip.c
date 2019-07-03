@@ -140,15 +140,19 @@ send_icmp_pkt(struct net_dev *net,
 	icmp_hdr->csum[0] = 0;
 	icmp_hdr->csum[1] = 0;
 
+	log(LOG_INFO, "csum");
 	csum = csum_ip((uint8_t *) icmp_hdr, 
 			sizeof(struct icmp_hdr) + data_len);
+	log(LOG_INFO, "csum = 0x%x", csum);
 
 	icmp_hdr->csum[0] = (csum >> 8) & 0xff;
 	icmp_hdr->csum[1] = (csum >> 0) & 0xff;
 
+	log(LOG_INFO, "send");
 	send_ipv4_pkt(net, pkt, ip_hdr, 
 				20, 
 				sizeof(struct icmp_hdr) +	data_len);
+	log(LOG_INFO, "sent");
 }
 
 	static bool
@@ -206,9 +210,7 @@ send_udp_pkt(struct net_dev *net,
 
 	static void 
 handle_echo_request(struct net_dev *net,
-		struct eth_hdr *eth_hdr, 
-		struct ipv4_hdr *ip_hdr, 
-		size_t ip_hdr_len, 
+		uint8_t *src_mac, uint8_t *src_ipv4, 
 		struct icmp_hdr *icmp_hdr,
 		uint8_t *bdy,
 		size_t bdy_len)
@@ -219,7 +221,9 @@ handle_echo_request(struct net_dev *net,
 
 	/* icmp */
 
-	if (!create_icmp_pkt(net, eth_hdr->src, ip_hdr->src,
+	log(LOG_INFO, "send echo reply");
+
+	if (!create_icmp_pkt(net, src_mac, src_ipv4,
 				bdy_len,
 				&pkt, &ip_hdr_r, &icmp_hdr_r, &bdy_r)) {
 		return;
@@ -232,16 +236,17 @@ handle_echo_request(struct net_dev *net,
 
 	memcpy(bdy_r, bdy, bdy_len);
 
+	log(LOG_INFO, "send");
 	send_icmp_pkt(net, pkt, ip_hdr_r, icmp_hdr_r, bdy_len);
 
+	log(LOG_INFO, "free packet");
 	free(pkt);
+	log(LOG_INFO, "freed packet");
 }
 
 	static void
 handle_icmp(struct net_dev *net, 
-		struct eth_hdr *eth_hdr, 
-		struct ipv4_hdr *ip_hdr, 
-		size_t ip_hdr_len, 
+		uint8_t *src_mac, uint8_t *src_ipv4,
 		uint8_t *bdy,
 		size_t bdy_len)
 {
@@ -257,9 +262,7 @@ handle_icmp(struct net_dev *net,
 		case 8:
 			/* echo request */
 			handle_echo_request(net,
-					eth_hdr,
-					ip_hdr,
-					ip_hdr_len,
+					src_mac, src_ipv4,
 					icmp_hdr,
 					bdy + sizeof(struct icmp_hdr),
 					bdy_len - sizeof(struct icmp_hdr));
@@ -273,19 +276,16 @@ handle_icmp(struct net_dev *net,
 
 	static void
 handle_tcp(struct net_dev *net, 
-		struct eth_hdr *eth_hdr, 
-		struct ipv4_hdr *ip_hdr, 
-		size_t ip_hdr_len, 
+		uint8_t *src_mac, uint8_t *src_ipv4,
 		uint8_t *bdy, 
 		size_t bdy_len)
 {
 	struct tcp_hdr *tcp_hdr;
-
 	uint16_t port_src, port_dst;
 	uint32_t seq, ack;
 	size_t csum;
 
-	tcp_hdr = (void *) (((uint8_t *) ip_hdr) + ip_hdr_len);
+	tcp_hdr = (void *) bdy;
 
 	port_src = tcp_hdr->port_src[0] << 8 | tcp_hdr->port_src[1];
 	port_dst = tcp_hdr->port_dst[0] << 8 | tcp_hdr->port_dst[1];
@@ -306,22 +306,18 @@ handle_tcp(struct net_dev *net,
 	dump_hex_block(bdy, bdy_len);
 }
 
-
 	static void
 handle_udp(struct net_dev *net, 
-		struct eth_hdr *eth_hdr, 
-		struct ipv4_hdr *ip_hdr, 
-		size_t ip_hdr_len, 
+		uint8_t *src_mac, uint8_t *src_ipv4,
 		uint8_t *bdy,
 		size_t bdy_len)
 {
 	struct udp_hdr *udp_hdr;
-
 	uint16_t port_src, port_dst;
 	size_t length, csum, data_len;
 	uint8_t *data;
 
-	udp_hdr = (void *) (((uint8_t *) ip_hdr) + ip_hdr_len);
+	udp_hdr = (void *) bdy;
 
 	port_src = udp_hdr->port_src[0] << 8 | udp_hdr->port_src[1];
 	port_dst = udp_hdr->port_dst[0] << 8 | udp_hdr->port_dst[1];
@@ -352,7 +348,7 @@ handle_udp(struct net_dev *net,
 	size_t bdy_r_len = 6;
 
 	if (!create_udp_pkt(net, 
-				eth_hdr->src, ip_hdr->src,
+				src_mac, src_ipv4,
 				port_dst, port_src,
 				bdy_r_len,
 				&pkt, &ip_hdr_r, &udp_hdr_r, &bdy_r)) {
@@ -370,21 +366,6 @@ handle_udp(struct net_dev *net,
 	free(pkt);
 }
 
-static struct ip_port *
-find_port(struct net_dev_internal *i,
-		size_t port)
-{
-	struct ip_port *p;
-
-	for (p = i->ip_ports; p != nil; p = p->next) {
-		if (p->port == port) {
-			return p;
-		}
-	}
-
-	return nil;
-}
-
 	void
 handle_ipv4(struct net_dev *net, 
 		struct eth_hdr *eth_hdr, 
@@ -397,8 +378,8 @@ handle_ipv4(struct net_dev *net,
 	size_t ip_len;
 
 	uint16_t ident;
+	uint8_t frag_flag_dont, frag_flag_more;
 	uint16_t frag_offset;
-	uint8_t frag_flags;
 	uint8_t protocol;
 
 	ip_hdr = (void *) bdy;
@@ -428,34 +409,40 @@ handle_ipv4(struct net_dev *net,
 	log(LOG_INFO, "pkt id 0x%x", ident);
 	log(LOG_INFO, "ttl %i", ip_hdr->ttl);
 
-	frag_flags = (ip_hdr->fragment[0] & 0x70) >> 5;
-	frag_offset = ((ip_hdr->fragment[0] & 0x1f ) << 8)
+	frag_flag_dont = (ip_hdr->fragment[0] >> 6) & 1;
+	frag_flag_more = (ip_hdr->fragment[0] >> 5) & 1;
+	frag_offset = ((ip_hdr->fragment[0] & 0x1f ) << 5)
 		| ip_hdr->fragment[1];
 
-	log(LOG_INFO, "frag flags %i, offset 0x%x", 
-			frag_flags, frag_offset);
-
+	log(LOG_INFO, "frag d %i m %i offset 0x%x", 
+			frag_flag_dont, frag_flag_more, frag_offset);
+	
 	protocol = ip_hdr->protocol;
 	log(LOG_INFO, "proto %i", protocol);
 
-	if (frag_flags != 0 || frag_offset > 0) {
-		log(LOG_WARNING, "fragmentation not implimented!");
+	if (frag_flag_more || frag_offset > 0) {
+		log(LOG_INFO, "fragmented packet offset 0x%x", 
+				frag_offset);
+
 		return;
 	}
 
 	switch (protocol) {
 		case 0x01:
-			handle_icmp(net, eth_hdr, ip_hdr, hdr_len, 
+			handle_icmp(net, 
+					eth_hdr->src, ip_hdr->src, 
 					ip_bdy, ip_len);
 			break;
 
 		case 0x06:
-			handle_tcp(net, eth_hdr, ip_hdr, hdr_len, 
+			handle_tcp(net, 
+					eth_hdr->src, ip_hdr->src, 
 					ip_bdy, ip_len);
 			break;
 
 		case 0x11:
-			handle_udp(net, eth_hdr, ip_hdr, hdr_len, 
+			handle_udp(net, 
+					eth_hdr->src, ip_hdr->src, 
 					ip_bdy, ip_len);
 			break;
 

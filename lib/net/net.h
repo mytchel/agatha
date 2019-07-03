@@ -7,21 +7,15 @@ struct ip_pkt_frag {
 };
 
 struct ip_pkt {
-	uint8_t ip_src[4], ip_dst[4];
-	uint16_t port_src, port_dst;
+	uint8_t src_ipv4[4];
+
 	uint16_t id;
+	bool have_last;
+	uint8_t protocol;
+
 	struct ip_pkt_frag *frags;	
 
 	struct ip_pkt *next;
-};
-
-struct ip_port {
-	int handler_pid;
-	uint16_t port;
-
-	struct ip_pkt *waiting_pkts;
-
-	struct ip_port *next;
 };
 
 struct arp_request {
@@ -42,7 +36,7 @@ struct net_dev_internal {
 	struct arp_entry *arp_entries;
 	struct arp_request *arp_requests;
 
-	struct ip_port *ip_ports;
+	struct ip_pkt *ip_pkts;
 };
 
 void
