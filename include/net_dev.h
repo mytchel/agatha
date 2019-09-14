@@ -1,6 +1,8 @@
 struct net_dev {
 	void *arg;
 
+	char name[16];
+
 	uint16_t ipv4_ident;
 
 	size_t mtu;

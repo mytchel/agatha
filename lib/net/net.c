@@ -11,6 +11,7 @@
 #include <eth.h>
 #include <ip.h>
 #include <net_dev.h>
+#include <net.h>
 #include "net.h"
 
 	void
@@ -48,6 +49,132 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 	}
 }
 
+static struct connection *
+find_connection(struct net_dev *net,
+		int pid, int id)
+{
+	struct net_dev_internal *i = net->internal;
+	struct connection *c;
+
+	for (c = i->connections; c != nil; c = c->next) {
+		if (c->proc_id == pid && c->id == id) {
+			return c;
+		}
+	}	
+
+	return nil;
+}
+
+
+static void
+handle_open(struct net_dev *net,
+		int from, union net_req *rq)
+{
+	struct net_dev_internal *i = net->internal;
+	struct connection *c;
+	union net_rsp rp;
+
+	log(LOG_INFO, "%i want to open conneciton", from);
+
+	if ((c = malloc(sizeof(struct connection))) == nil) {
+		rp.open.type = NET_open_req;
+		rp.open.ret = ERR;
+		send(from, &rp);
+		return;
+	}
+
+	c->proc_id = from;
+	c->id = i->n_connection_id++;
+
+	c->proto = rq->open.proto;
+
+	c->next = i->connections;
+	i->connections = c;
+
+	switch (rq->open.proto) {
+		case NET_UDP:
+			ip_open_udp(net, rq, c);
+			break;
+
+		case NET_TCP:
+			ip_open_tcp(net, rq, c);
+			break;
+
+		default:
+			rp.open.type = NET_open_req;
+			rp.open.ret = ERR;
+			send(from, &rp);
+			return;
+	}
+}
+
+	static void
+handle_close(struct net_dev *net,
+		int from, union net_req *rq)
+{
+	log(LOG_INFO, "%i want to close", from);
+}
+
+	static void
+handle_read(struct net_dev *net,
+		int from, union net_req *rq)
+{
+	struct connection *c;
+
+	log(LOG_INFO, "%i want to read", from);
+
+	c = find_connection(net, from, rq->read.id);
+	if (c == nil) {
+		log(LOG_INFO, "connection %i for %i not found",
+			rq->read.id, from);
+		return;
+	}
+
+	log(LOG_INFO, "found con has proto %i", c->proto);
+
+	switch (c->proto) {
+		case NET_UDP:
+			ip_read_udp(net, from, rq, c);
+			break;
+
+		case NET_TCP:
+			ip_read_tcp(net, from, rq, c);
+			break;
+
+		default:
+			return;
+	}
+}
+
+	static void
+handle_write(struct net_dev *net,
+		int from, union net_req *rq)
+{
+	struct connection *c;
+
+	log(LOG_INFO, "%i want to write", from);
+
+	c = find_connection(net, from, rq->write.id);
+	if (c == nil) {
+		log(LOG_INFO, "connection %i for %i not found",
+			rq->write.id, from);
+		return;
+	}
+
+	switch (c->proto) {
+		case NET_UDP:
+			ip_write_udp(net, from, rq, c);
+			break;
+
+		case NET_TCP:
+			ip_write_tcp(net, from, rq, c);
+			break;
+
+		default:
+			return;
+	}
+}
+
 	void
 net_handle_message(struct net_dev *net,
 		int from, uint8_t *m)
@@ -55,6 +182,22 @@ net_handle_message(struct net_dev *net,
 	uint32_t type = *((uint32_t *) m);
 
 	switch (type) {
+		case NET_open_req:
+			handle_open(net, from, (void *) m);
+			break;
+
+		case NET_close_req:
+			handle_close(net, from, (void *) m);
+			break;
+
+		case NET_read_req:
+			handle_read(net, from, (void *) m);
+			break;
+
+		case NET_write_req:
+			handle_write(net, from, (void *) m);
+			break;
+
 		default:
 			break;
 	}
@@ -84,7 +227,10 @@ net_init(struct net_dev *net)
 
 	i->arp_entries = nil;
 	i->arp_requests = nil;
-	i->ip_pkts = nil;
+
+	i->n_free_port = 1025;
+	i->n_connection_id = 321;
+	i->connections = nil;
 
 	net->internal = i;
 
@@ -101,6 +247,21 @@ net_init(struct net_dev *net)
 	uint8_t ip[4] = { 192, 168, 1, 1};
 	arp_request(net, ip, &f, nil);
 
-	return OK;
+	union dev_reg_req drq;
+	union dev_reg_rsp drp;
+
+	drq.reg.type = DEV_REG_register_req;
+	drq.reg.pid = pid();
+	strlcpy(drq.reg.name, net->name, sizeof(drq.reg.name));
+
+	log(LOG_INFO, "register as %s", net->name);
+
+	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
+		return ERR;
+	} 
+	
+	log(LOG_INFO, "registered as %s", net->name);
+
+	return drp.reg.ret;
 }
 

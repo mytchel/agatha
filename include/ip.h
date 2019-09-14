@@ -5,6 +5,10 @@ struct ipv4_hdr {
 	uint8_t ident[2];
 	uint8_t fragment[2];
 	uint8_t ttl;
+
+#define IP_ICMP  0x01
+#define IP_TCP   0x06
+#define IP_UDP   0x11
 	uint8_t protocol;
 	uint8_t hdr_csum[2];
 	uint8_t src[4];

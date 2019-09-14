@@ -10,8 +10,6 @@ struct ip_pkt {
 	uint8_t src_ipv4[4];
 	uint8_t protocol;
 	uint16_t id;
-
-	size_t hdr_len;
 	
 	bool have_last;
 	struct ip_pkt_frag *frags;
@@ -23,14 +21,23 @@ struct ip_pkt {
 };
 
 struct connection_ip {
-	uint16_t port_loc;
-	uint16_t port_rem;
+	uint16_t port_src;
+	uint16_t port_dst;
 
-	uint8_t mac_rem[6];
-	uint8_t ip_rem[4];
+	uint8_t mac_dst[6];
+	uint8_t ip_dst[4];
 
-	size_t offset_into_waiting;
+	uint16_t next_id;
+
 	struct ip_pkt *waiting_pkts;
+};
+
+struct connection_ip_udp {
+	struct connection_ip ip;
+};
+
+struct connection_ip_tcp {
+	struct connection_ip ip;
 };
 
 struct connection {
@@ -40,7 +47,10 @@ struct connection {
 	int id;
 
  	uint8_t proto;
-	struct connection_ip ip;
+	union {
+		struct connection_ip_udp udp;
+		struct connection_ip_tcp tcp;
+	} proto_arg;
 };
 
 struct arp_request {

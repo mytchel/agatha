@@ -73,5 +73,14 @@ typedef enum {
 	EVDEV_connect_rsp,
 	EVDEV_event_msg,
 
+	NET_open_req,
+	NET_open_rsp,
+	NET_close_req,
+	NET_close_rsp,
+	NET_write_req,
+	NET_write_rsp,
+	NET_read_req,
+	NET_read_rsp,
+
 } mesg_type_t;
 

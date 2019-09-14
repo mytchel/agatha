@@ -12,7 +12,8 @@ PROCS = \
 				../../procs/dev_reg \
 				../../procs/log \
 				../../procs/init \
-				../../procs/ui
+				../../procs/ui \
+				../../procs/net_test
 
 IDLE = \
 				../../procs/idle 

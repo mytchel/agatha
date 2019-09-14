@@ -11,6 +11,7 @@
 #include <eth.h>
 #include <ip.h>
 #include <net_dev.h>
+#include <net.h>
 
 #include "net.h"
 

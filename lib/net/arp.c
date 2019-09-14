@@ -11,6 +11,7 @@
 #include <eth.h>
 #include <ip.h>
 #include <net_dev.h>
+#include <net.h>
 #include "net.h"
 
 bool
@@ -37,6 +38,15 @@ arp_request(struct net_dev *net, uint8_t *ipv4,
 		void *arg)
 {
 	uint8_t dst[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+	uint8_t mac[6];
+
+	if (arp_match_ip(net, ipv4, mac)) {
+		log(LOG_INFO, "already have it");
+		func(net, arg, mac);
+		return;
+	}
+
+	log(LOG_INFO, "making arp request");
 
 	struct net_dev_internal *i = net->internal;
 	struct arp_request *r;
@@ -167,6 +177,8 @@ handle_arp_request(struct net_dev *net, uint8_t *src_mac, uint8_t *src_ipv4)
 handle_arp_response(struct net_dev *net, uint8_t *bdy, size_t len)
 {
 	uint8_t *src_ip, *src_mac;
+
+	log(LOG_INFO, "got arp response");
 
 	src_mac = bdy + 8;
 	src_ip = bdy + 14;

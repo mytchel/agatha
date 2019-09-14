@@ -372,6 +372,8 @@ main(void)
 
 	log_init(dev_name);
 
+	strlcpy(net.name, dev_name, sizeof(net.name));
+
 	regs_off = regs_pa - PAGE_ALIGN_DN(regs_pa);
 
 	regs_va = (size_t) map_addr(PAGE_ALIGN_DN(regs_pa), 
