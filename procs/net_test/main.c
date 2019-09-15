@@ -159,6 +159,27 @@ main(void)
 		return ERR;
 	}
 
+	log(LOG_INFO, "start TCP test");
+
+	rq.open.type = NET_open_req;
+	rq.open.port = 4257;
+	rq.open.addr[0] = 192;
+	rq.open.addr[1] = 168;
+	rq.open.addr[2] = 10;
+	rq.open.addr[3] = 1;
+	rq.open.proto = NET_TCP;
+
+	if (mesg(net_pid, &rq, &rp) != OK) {
+		log(LOG_FATAL, "mesg failed!");
+		return ERR;
+	} else if (rp.open.ret != OK) {
+		log(LOG_FATAL, "open failed %i", rp.open.ret);
+		return ERR;
+	}
+
+	chan_id = rp.open.id;
+
+
 	return OK;
 }
 

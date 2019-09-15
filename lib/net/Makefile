@@ -7,6 +7,9 @@ SRC_C = \
 				util.c \
 				eth.c \
 				arp.c \
-				ip.c
+				ip.c \
+				tcp.c \
+				udp.c \
+				icmp.c
 
 include ../rules.mk

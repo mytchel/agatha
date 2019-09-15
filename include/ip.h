@@ -34,14 +34,26 @@ struct tcp_hdr {
 	uint8_t port_dst[2];
 	uint8_t seq[4];
 	uint8_t ack[4];
+
+#define TCP_flag_fin (1<<0)
+#define TCP_flag_syn (1<<1)
+#define TCP_flag_rst (1<<2)
+#define TCP_flag_psh (1<<3)
+#define TCP_flag_ack (1<<4)
+#define TCP_flag_urg (1<<5)
+#define TCP_flag_ece (1<<6)
+#define TCP_flag_cwr (1<<7)
+#define TCP_flag_ns  (1<<8)
 	uint8_t flags[2];
-	uint8_t size[2];
+
+	uint8_t win_size[2];
 	uint8_t csum[2];
 	uint8_t urg[2];
 };
 
 typedef enum {
  	TCP_state_listen,
+ 	TCP_state_opening,
 	TCP_state_syn_sent,
 	TCP_state_syn_received,
 	TCP_state_established,

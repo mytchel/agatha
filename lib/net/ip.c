@@ -13,31 +13,49 @@
 #include <net_dev.h>
 #include <net.h>
 #include "net.h"
+#include "ip.h"
 
-static void
-ip_pkt_free(struct ip_pkt *p);
-
-	static int16_t 
-csum_ip(uint8_t *h, size_t len)
+size_t
+csum_ip_continue(uint8_t *h, size_t len, size_t sum)
 {
-	size_t sum, s, i;
-	uint16_t v;
+	size_t v;
+	size_t i;
 
-	sum = 0;
 	for (i = 0; i < len; i += 2) {
-		v = (h[i] << 8) | h[i+1];
+		v = (h[i] << 8);
+		if (i + 1 < len) v |= h[i+1];
+
 		sum += v;
 	}
 
+	return sum;
+}
+
+size_t
+csum_ip_finish(size_t sum)
+{
+	size_t s;
 	while (sum > 0xffff) {
 		s = sum >> 16;
 		sum = (sum & 0xffff) + s;
 	}
 	
-	return (~sum);
+	return (~sum) & 0xffff;
 }
 
-static bool
+size_t 
+csum_ip(uint8_t *h, size_t len)
+{
+	size_t sum;
+
+	sum = 0;
+	sum = csum_ip_continue(h, len, sum);
+	sum = csum_ip_finish(sum);
+	
+	return sum;
+}
+
+bool
 create_ipv4_pkt(struct net_dev *net,
 		uint8_t *dst_mac, uint8_t *dst_ip,
 		size_t hdr_len,
@@ -98,7 +116,7 @@ create_ipv4_pkt(struct net_dev *net,
 	return true;
 }
 
-	static void
+	void
 send_ipv4_pkt(struct net_dev *net,
 		uint8_t *pkt,
 		struct ipv4_hdr *ip_hdr, 
@@ -108,196 +126,22 @@ send_ipv4_pkt(struct net_dev *net,
 	send_eth_pkt(net, pkt, hdr_len + data_len);
 }
 
-	static bool
-create_icmp_pkt(struct net_dev *net,
-		uint8_t *dst_mac, uint8_t *dst_ip,
-		size_t data_len,
-		uint8_t **pkt,
-		struct ipv4_hdr **ipv4_hdr,
-		struct icmp_hdr **icmp_hdr,
-		uint8_t **data)
-{
-	if (!create_ipv4_pkt(net, 
-				dst_mac, dst_ip,
-				20, IP_ICMP,
-				sizeof(struct icmp_hdr) + data_len,
-				pkt,
-				ipv4_hdr, 
-				(uint8_t **) icmp_hdr)) 
-	{
-		return false;
-	}
-
-	*data = ((uint8_t *) *icmp_hdr) + sizeof(struct icmp_hdr);
-	return true;
-}
-
-	static void
-send_icmp_pkt(struct net_dev *net,
-		uint8_t *pkt,
-		struct ipv4_hdr *ip_hdr, 
-		struct icmp_hdr *icmp_hdr,
-		size_t data_len)
-{
-	size_t csum;
-
-	icmp_hdr->csum[0] = 0;
-	icmp_hdr->csum[1] = 0;
-
-	log(LOG_INFO, "csum");
-	csum = csum_ip((uint8_t *) icmp_hdr, 
-			sizeof(struct icmp_hdr) + data_len);
-	log(LOG_INFO, "csum = 0x%x", csum);
-
-	icmp_hdr->csum[0] = (csum >> 8) & 0xff;
-	icmp_hdr->csum[1] = (csum >> 0) & 0xff;
-
-	log(LOG_INFO, "send");
-	send_ipv4_pkt(net, pkt, ip_hdr, 
-				20, 
-				sizeof(struct icmp_hdr) +	data_len);
-	log(LOG_INFO, "sent");
-}
-
-	static bool
-create_udp_pkt(struct net_dev *net,
-		uint8_t *dst_mac, uint8_t *dst_ip,
-		uint16_t port_src, uint16_t port_dst,
-		size_t data_len,
-		uint8_t **pkt,
-		struct ipv4_hdr **ipv4_hdr,
-		struct udp_hdr **udp_hdr,
-		uint8_t **data)
-{
-	size_t length;
-
-	length = sizeof(struct udp_hdr) + data_len;
-
-	if (!create_ipv4_pkt(net, 
-				dst_mac, dst_ip,
-				20, IP_UDP,
-				length,
-				pkt,
-				ipv4_hdr, 
-				(uint8_t **) udp_hdr)) 
-	{
-		return false;
-	}
-
-	(*udp_hdr)->port_src[0] = (port_src >> 8) & 0xff;
-	(*udp_hdr)->port_src[1] = (port_src >> 0) & 0xff;
-	(*udp_hdr)->port_dst[0] = (port_dst >> 8) & 0xff;
-	(*udp_hdr)->port_dst[1] = (port_dst >> 0) & 0xff;
-
-	(*udp_hdr)->length[0] = (length >> 8) & 0xff;
-	(*udp_hdr)->length[1] = (length >> 0) & 0xff;
-
-	(*udp_hdr)->csum[0] = 0;
-	(*udp_hdr)->csum[1] = 0;
-
-	*data = ((uint8_t *) *udp_hdr) + sizeof(struct udp_hdr);
-
-	return true;
-}
-
-	static void
-send_udp_pkt(struct net_dev *net,
-		uint8_t *pkt,
-		struct ipv4_hdr *ip_hdr, 
-		struct udp_hdr *udp_hdr,
-		size_t data_len)
-{
-	send_ipv4_pkt(net, pkt, ip_hdr, 
-				20, 
-				sizeof(struct udp_hdr) + data_len);
-}
-
-	static void 
-handle_echo_request(struct net_dev *net,
-		uint8_t *src_ipv4, 
-		struct icmp_hdr *icmp_hdr,
-		uint8_t *bdy,
-		size_t bdy_len)
-{
-	struct ipv4_hdr *ip_hdr_r;
-	struct icmp_hdr *icmp_hdr_r;
-	uint8_t *pkt, *bdy_r;
-	uint8_t rsp_mac[6];
-
-	/* icmp */
-
-	if (!arp_match_ip(net, src_ipv4, rsp_mac)) {
-		log(LOG_WARNING, "got echo but don't have mac?");
-		return;
-	}
-
-	log(LOG_INFO, "send echo reply");
-
-	if (!create_icmp_pkt(net, rsp_mac, src_ipv4,
-				bdy_len,
-				&pkt, &ip_hdr_r, &icmp_hdr_r, &bdy_r)) {
-		return;
-	}
-
-	icmp_hdr_r->type = 0;
-	icmp_hdr_r->code = 0;
-
-	memcpy(icmp_hdr_r->rst, icmp_hdr->rst, 4);
-
-	memcpy(bdy_r, bdy, bdy_len);
-
-	log(LOG_INFO, "send");
-	send_icmp_pkt(net, pkt, ip_hdr_r, icmp_hdr_r, bdy_len);
-
-	log(LOG_INFO, "free packet");
-	free(pkt);
-	log(LOG_INFO, "freed packet");
-}
-
-	static void
-handle_icmp(struct net_dev *net, 
-		struct ip_pkt *p)
-{
-	struct icmp_hdr *icmp_hdr;
-
-	icmp_hdr = (void *) p->data;
-
-	switch (icmp_hdr->type) {
-		case 0:
-			/* echo reply */
-			break;
-
-		case 8:
-			/* echo request */
-			handle_echo_request(net,
-					p->src_ipv4,
-					icmp_hdr,
-					p->data + sizeof(struct icmp_hdr),
-					p->len - sizeof(struct icmp_hdr));
-			break;
-
-		default:
-			log(LOG_INFO, "other icmp type %i", icmp_hdr->type);
-			break;
-	}
-
-	ip_pkt_free(p);
-}
-
-static struct connection *
-find_connection(struct net_dev *net, 
+struct connection *
+find_connection_ip(struct net_dev *net, 
 		int proto,
 		uint16_t port_loc, uint16_t port_rem,
 		uint8_t ip_rem[4])
 {
 	struct net_dev_internal *i = net->internal;
+	struct connection_ip *ip;
 	struct connection *c;
 
 	for (c = i->connections; c != nil; c = c->next) {
+		ip = c->proto_arg;
 		if (proto == c->proto
-			&& memcmp(ip_rem, c->ip.ip_rem, 4)
-			&& port_loc == c->ip.port_loc
-			&& port_rem == c->ip.port_rem)
+			&& memcmp(ip_rem, ip->ip_rem, 4)
+			&& port_loc == ip->port_loc
+			&& port_rem == ip->port_rem)
 		{
 			return c;
 		}
@@ -306,96 +150,7 @@ find_connection(struct net_dev *net,
 	return nil;
 }
 
-
-	static void
-handle_tcp(struct net_dev *net, 
-		struct ip_pkt *p)
-{
-	struct tcp_hdr *tcp_hdr;
-	uint16_t port_src, port_dst;
-	uint32_t seq, ack;
-	size_t csum;
-
-	tcp_hdr = (void *) p->data;
-
-	port_src = tcp_hdr->port_src[0] << 8 | tcp_hdr->port_src[1];
-	port_dst = tcp_hdr->port_dst[0] << 8 | tcp_hdr->port_dst[1];
-	csum = tcp_hdr->csum[0] << 8 | tcp_hdr->csum[1];
-	
-	seq = tcp_hdr->seq[0] << 24 | tcp_hdr->seq[1] << 16 
-		| tcp_hdr->seq[2] << 8 | tcp_hdr->seq[3];
-
-	ack = tcp_hdr->ack[0] << 24 | tcp_hdr->ack[1] << 16 
-		| tcp_hdr->ack[2] << 8 | tcp_hdr->ack[3];
-
-	log(LOG_INFO, "tdp packet from port %i to port %i",
-			(size_t) port_src, (size_t) port_dst);
-	log(LOG_INFO, "tdp packet csum 0x%x seq %x ack 0x%x",
-			(size_t) csum, (size_t) seq, (size_t) ack);
-	
-	dump_hex_block(p->data, p->len);
-	
-	ip_pkt_free(p);
-}
-
-	static void
-handle_udp(struct net_dev *net, 
-		struct ip_pkt *p)
-{
-	struct udp_hdr *udp_hdr;
-	uint16_t port_src, port_dst;
-	size_t length, csum, data_len;
-	uint8_t *data;
-
-	udp_hdr = (void *) p->data;
-
-	port_src = udp_hdr->port_src[0] << 8 | udp_hdr->port_src[1];
-	port_dst = udp_hdr->port_dst[0] << 8 | udp_hdr->port_dst[1];
-	length = udp_hdr->length[0] << 8 | udp_hdr->length[1];
-	csum = udp_hdr->csum[0] << 8 | udp_hdr->csum[1];
-
-	log(LOG_INFO, "udp packet from port %i to port %i",
-			(size_t) port_src, (size_t) port_dst);
-
-	if (length > p->len) {
-		log(LOG_INFO, "udp packet length %i larger than packet length %i",
-				length, p->len);
-		return;
-	}
-
-	data = p->data + sizeof(struct udp_hdr);
-	data_len = length - sizeof(struct udp_hdr);
-
-	log(LOG_INFO, "udp packet length %i csum 0x%x",
-			data_len, csum);
-
-	dump_hex_block(data, data_len);
-
-	p->hdr_len = sizeof(struct udp_hdr);
-	
-	struct connection *c;
-
-	c = find_connection(net, NET_UDP, 
-			port_dst, port_src, 
-			p->src_ipv4);
-
-	if (c == nil) {
-		log(LOG_INFO, "got unhandled packet");
-		ip_pkt_free(p);
-		return;
-	}
-
-	struct ip_pkt **o;
-	for (o = &c->ip.waiting_pkts; *o != nil; o = &(*o)->next) {
-		log(LOG_INFO, "after pkt %i", (*o)->id);
-	}
-		;
-
-	p->next = nil;
-	*o = p;
-}
-
-static struct ip_pkt *
+struct ip_pkt *
 ip_pkt_new(uint8_t *src, 
 		uint8_t proto,
 		uint16_t ident)
@@ -420,7 +175,7 @@ ip_pkt_new(uint8_t *src,
 	return p;
 }
 
-static void
+void
 ip_pkt_free(struct ip_pkt *p)
 {
 	struct ip_pkt_frag *a, *n;
@@ -637,203 +392,4 @@ handle_ipv4(struct net_dev *net,
 			break;
 	}
 }
-
-static void
-finish_open_udp(struct net_dev *net,
-		void *arg,
-		uint8_t *mac)
-{
-	struct connection *c = arg;
-	union net_rsp rp;
-
-	char mac_str[32];
-	print_mac(mac_str, mac);
-
-	log(LOG_INFO, "got mac dst %s", mac_str);
-
-	memcpy(c->ip.mac_rem, mac, 6);
-
-	rp.open.type = NET_open_rsp;
-	rp.open.ret = OK;
-	rp.open.id = c->id;
-
-	send(c->proc_id, &rp);
-}
-
-void
-ip_open_udp(struct net_dev *net,
-		union net_req *rq, 
-		struct connection *c)
-{
-	struct net_dev_internal *i = net->internal;
-
-	log(LOG_INFO, "open udp");
-
-	c->ip.port_loc = i->n_free_port++;;
-	c->ip.port_rem = rq->open.port;
-
-	memcpy(c->ip.ip_rem, rq->open.addr, 4);
-
-	c->ip.offset_into_waiting = 0;
-	c->ip.waiting_pkts = nil;
-
-	arp_request(net, c->ip.ip_rem, &finish_open_udp, c);
-}
-
-void
-ip_open_tcp(struct net_dev *net,
-		union net_req *rq, 
-		struct connection *c)
-{
-
-}
-
-void
-ip_write_udp(struct net_dev *net,
-		int from,
-		union net_req *rq, 
-		struct connection *c)
-{
-	union net_rsp rp;
-
-	log(LOG_INFO, "write udp");
-
-	uint8_t *pkt, *data; 
-	struct ipv4_hdr *ipv4_hdr;
-	struct udp_hdr *udp_hdr;
-
-	if (!create_udp_pkt(net,
-			c->ip.mac_rem, c->ip.ip_rem,
-			c->ip.port_loc, c->ip.port_rem,
-			rq->write.w_len,
-			&pkt, &ipv4_hdr, &udp_hdr,
-			&data))
-	{
-		log(LOG_INFO, "create pkt fail");
-		return;
-	}
-
-	uint8_t *va;
-
-	va = map_addr(rq->write.pa, rq->write.len, MAP_RO);
-	if (va == nil) {
-		return;
-	}
-
-	memcpy(data, va, rq->write.w_len);
-
-	log(LOG_INFO, "sending");
-
-	send_udp_pkt(net, pkt, ipv4_hdr, udp_hdr, rq->write.w_len);
-
-	log(LOG_INFO, "sent");
-	free(pkt);
-
-	unmap_addr(va, rq->write.len);
-
-	if (give_addr(from, rq->write.pa, rq->write.len) != OK) {
-		return;
-	}
-
-	rp.write.type = NET_write_rsp;
-	rp.write.ret = OK;
-	rp.write.id = c->id;
-	rp.write.pa = rq->write.pa;
-	rp.write.len = rq->write.len;
-	rp.write.w_len = rq->write.w_len;
-
-	send(from, &rp);
-}
-
-void
-ip_write_tcp(struct net_dev *net,
-		int from,
-		union net_req *rq, 
-		struct connection *c)
-{
-
-}
-
-void
-ip_read_udp(struct net_dev *net,
-		int from,
-		union net_req *rq, 
-		struct connection *c)
-{
-	size_t r_len, l, o;
-	struct ip_pkt *p;
-	union net_rsp rp;
-	uint8_t *va;
-
-	log(LOG_INFO, "read udp");
-
-	va = map_addr(rq->read.pa, rq->read.len, MAP_RW);
-	if (va == nil) {
-		return;
-	}
-
-	r_len = 0;
-	while (c->ip.waiting_pkts != nil && r_len < rq->read.r_len) {
-		p = c->ip.waiting_pkts;
-
-		log(LOG_INFO, "read from pkt 0x%x", p->id);
-
-		o = c->ip.offset_into_waiting;
-		log(LOG_INFO, "o = %i", o);
-
-		l = rq->read.r_len - r_len;
-		log(LOG_INFO, "l = %i", l);
-		if (l > p->len - o - p->hdr_len) {
-			l = p->len - o - p->hdr_len;
-			log(LOG_INFO, "l cut to = %i", l);
-		}
-
-		log(LOG_INFO, "read %i bytes from %i offset", l, o);
-		memcpy(va + r_len, 
-			p->data + p->hdr_len + o,
-		 	l);
-
-		if (p->hdr_len + o + l < p->len) {
-			log(LOG_INFO, "update offset to %i", o + l);
-			c->ip.offset_into_waiting = o + l;
-		} else {
-			log(LOG_INFO, "shift to next pkt");
-			c->ip.offset_into_waiting = 0;
-			c->ip.waiting_pkts = p->next;
-			ip_pkt_free(p);
-		}
-		
-		r_len += l;
-	}
-
-	unmap_addr(va, rq->read.len);
-
-	log(LOG_INFO, "got %i bytes in total", r_len);
-
-	if (give_addr(from, rq->read.pa, rq->read.len) != OK) {
-		return;
-	}
-
-	rp.read.type = NET_read_rsp;
-	rp.read.ret = OK;
-	rp.read.id = c->id;
-	rp.read.pa = rq->read.pa;
-	rp.read.len = rq->read.len;
-	rp.read.r_len = r_len;
-
-	send(from, &rp);
-}
-
-void
-ip_read_tcp(struct net_dev *net,
-		int from,
-		union net_req *rq, 
-		struct connection *c)
-{
-
-}
-
-
-
-
 
