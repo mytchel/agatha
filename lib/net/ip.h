@@ -13,8 +13,6 @@ struct ip_pkt {
 	uint8_t protocol;
 	uint16_t id;
 
-	size_t hdr_len;
-	
 	bool have_last;
 	struct ip_pkt_frag *frags;
 	
@@ -29,6 +27,7 @@ struct tcp_pkt {
 	size_t len;
 
 	uint32_t seq;
+	uint16_t flags;
 };
 
 struct connection_ip {
@@ -46,6 +45,7 @@ struct connection_ip {
 		size_t window_sent;
 
 		uint32_t ack;
+
 		uint32_t next_seq;
 		struct tcp_pkt *sending;
 		struct tcp_pkt *receiving;

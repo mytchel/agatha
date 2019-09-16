@@ -97,8 +97,6 @@ handle_udp(struct net_dev *net,
 
 	dump_hex_block(data, data_len);
 
-	p->hdr_len = sizeof(struct udp_hdr);
-	
 	struct connection *c;
 
 	c = find_connection_ip(net, NET_UDP, 
@@ -248,17 +246,17 @@ ip_read_udp(struct net_dev *net,
 
 		l = rq->read.r_len - r_len;
 		log(LOG_INFO, "l = %i", l);
-		if (l > p->len - o - p->hdr_len) {
-			l = p->len - o - p->hdr_len;
+		if (l > p->len - o) {
+			l = p->len - o;
 			log(LOG_INFO, "l cut to = %i", l);
 		}
 
 		log(LOG_INFO, "read %i bytes from %i offset", l, o);
 		memcpy(va + r_len, 
-			p->data + p->hdr_len + o,
+			p->data + o,
 		 	l);
 
-		if (p->hdr_len + o + l < p->len) {
+		if (o + l < p->len) {
 			log(LOG_INFO, "update offset to %i", o + l);
 			ip->offset_into_waiting = o + l;
 		} else {

@@ -273,7 +273,7 @@ net_init(struct net_dev *net)
 	net->ipv4[0] = 192;
 	net->ipv4[1] = 168;
 	net->ipv4[2] = 10;
-	net->ipv4[3] = 34;
+	net->ipv4[3] = 35;
 
 	net->ipv4_ident = 0xabcd;
 

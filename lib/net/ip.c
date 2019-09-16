@@ -165,7 +165,6 @@ ip_pkt_new(uint8_t *src,
 	memcpy(p->src_ipv4, src, 4);
 	p->protocol = proto;
 	p->id = ident;
-	p->hdr_len = 0;
 	p->have_last = false;
 	p->len = 0;
 	p->data = nil;

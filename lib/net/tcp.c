@@ -33,38 +33,35 @@ send_tcp_pkt(struct net_dev *net,
 
 	struct tcp_pkt *p;
 
-	p = ip->tcp.sending;
-	if (p == nil) {
-		log(LOG_WARNING, "nothing to send?");
-		return;
+	while (true) {
+		p = ip->tcp.sending;
+		if (p == nil) {
+			log(LOG_WARNING, "nothing to send?");
+			return;
+		} else if (p->flags & TCP_flag_syn) {
+			break;
+		} else if (p->len > 0) {
+			break;
+		} else if(p->next == nil) {
+			break;
+		} else {
+			log(LOG_INFO, "remove empty pkt 0x%x", p->seq);
+			ip->tcp.sending = p->next;
+			free(p);
+		}
 	}
 
 	seq = p->seq;
+	ack = ip->tcp.ack;
 
-	switch (ip->tcp.state) {
-	case TCP_state_syn_sent:
-		flags |= TCP_flag_syn;
-		ack = 0;
-		break;
-
-	case TCP_state_syn_received:
-		log(LOG_INFO, "sending ack switch to established");
-		ip->tcp.state = TCP_state_established;
-	case TCP_state_established:
-		ack = ip->tcp.ack + 1;
-		flags |= TCP_flag_ack;
-		break;
-
-	default:
-		log(LOG_INFO, "bad state %i?", ip->tcp.state);
-		return;
-	}
-
-	data_len = p->len;
+	flags |= p->flags;
+	
 	data = p->data;
+	data_len = p->len;
 	
 	log(LOG_INFO, "seq = 0x%x", seq);
 	log(LOG_INFO, "ack = 0x%x", ack);
+	log(LOG_INFO, "len = 0x%x", data_len);
 
 	hdr_len = sizeof(struct tcp_hdr);
 	length = hdr_len + data_len;
@@ -137,10 +134,13 @@ send_tcp_pkt(struct net_dev *net,
 }
 
 void
-add_ack(struct net_dev *net,
-		struct connection_ip *ip)
+add_pkt(struct net_dev *net,
+		struct connection_ip *ip,
+		uint16_t flags,
+		uint8_t *data,
+		size_t len)
 {
-	struct tcp_pkt *t;
+	struct tcp_pkt *t, **o;
 	
 	t = malloc(sizeof(struct tcp_pkt));
 	if (t == nil) {
@@ -148,13 +148,18 @@ add_ack(struct net_dev *net,
 		return;
 	}
 
-	log(LOG_INFO, "add ack");
-	t->data = nil;
-	t->len = 0;
+	t->data = data;
+	t->len = len;
+	t->flags = flags;
 	t->seq = ip->tcp.next_seq;
+	
+	log(LOG_INFO, "add pkt 0x%x with flags 0x%x len 0x%x", t->seq, t->flags, t->len);
 
-	t->next = ip->tcp.sending;
-	ip->tcp.sending = t;
+	for (o = &ip->tcp.sending; *o != nil; o = &(*o)->next)
+		;
+
+	t->next = *o;
+	*o = t;
 }
 
 static void
@@ -170,17 +175,35 @@ insert_received(struct net_dev *net,
 
 	log(LOG_INFO, "insert 0x%x of len %i", seq, len);
 
+	/* TODO: bug because this is being done wrong.
+	  cont_seq should be found and updated when user reads
+	  and we remove the packets from the queue then we 
+	  ack to remote. otherwise this has a bug. 
+	  
+	  eh, seq and ack are in bytes!
+
+	  how will we deal with byte acks?
+	  for resends of partial previous packets?
+	  its a fucking stream?
+
+	 */
+	  
 	already_have = false;
 	gap = false;
 	cont_seq = ip->tcp.ack;
 	for (o = &ip->tcp.receiving; *o != nil; o = &(*o)->next) {
-		log(LOG_INFO, "compare with 0x%x", (*o)->seq);
-		if (!gap && cont_seq + 1 == (*o)->seq) {
-			log(LOG_INFO, "inc cont");
-			cont_seq++;
-		} else {
-			log(LOG_INFO, "gap");
-			gap = true;
+		/* will not need this */
+		if (cont_seq >= (*o)->seq) continue;
+
+		log(LOG_INFO, "compare with 0x%x 0x%x 0x%x", seq, cont_seq, (*o)->seq);
+		if (!gap) {
+			if (cont_seq == (*o)->seq) {
+				log(LOG_INFO, "inc cont");
+				cont_seq += (*o)->len;
+			} else {
+				log(LOG_INFO, "gap");
+				gap = true;
+			}
 		}
 
 		if (seq == (*o)->seq) {
@@ -193,20 +216,16 @@ insert_received(struct net_dev *net,
 		}
 	}
 
-	if (!gap && cont_seq + 1 == seq) {
-		log(LOG_INFO, "inc cont");
-		cont_seq++;
+	if (!gap && cont_seq == seq) {
+		log(LOG_INFO, "this pkt is last in last");
+		cont_seq += len;
 	}
 
 	/* todo, shouldn't update till user reads the data */
 	log(LOG_INFO, "have cont from 0x%x to 0x%x", ip->tcp.ack, cont_seq);
-	if (ip->tcp.ack < cont_seq) {
-		log(LOG_INFO, "got more than before, increase seq");
-		ip->tcp.next_seq++;
-	}
-
 	ip->tcp.ack = cont_seq;
-	add_ack(net, ip);
+
+	add_pkt(net, ip, TCP_flag_ack, nil, 0);
 
 	if (already_have) {
 		return;
@@ -251,6 +270,8 @@ handle_tcp(struct net_dev *net,
 	uint16_t hdr_len, flags;
 	struct tcp_pkt *t;
 	size_t csum;
+	uint8_t *data;
+	size_t data_len;
 
 	tcp_hdr = (void *) p->data;
 
@@ -267,16 +288,17 @@ handle_tcp(struct net_dev *net,
 	hdr_len = (tcp_hdr->flags[0] >> 4) * 4;
 	flags = ((tcp_hdr->flags[0] & 0xf) << 8) | (tcp_hdr->flags[1] << 0);
 
-	log(LOG_INFO, "tdp packet from port %i to port %i",
+	log(LOG_INFO, "tcp packet from port %i to port %i",
 			(size_t) port_src, (size_t) port_dst);
-	log(LOG_INFO, "tdp packet csum 0x%x seq %x ack 0x%x",
+	log(LOG_INFO, "tcp packet csum 0x%x seq %x ack 0x%x",
 			(size_t) csum, (size_t) seq, (size_t) ack);
-	log(LOG_INFO, "tdp packet hdr len %i flags 0x%x",
+	log(LOG_INFO, "tcp packet hdr len %i flags 0x%x",
 			(size_t) hdr_len, (size_t) flags);
 
 	dump_hex_block(p->data, p->len);
 
-	p->hdr_len = hdr_len;
+	data = p->data + hdr_len;
+	data_len = p->len - hdr_len;
 
 	struct connection *c;
 
@@ -295,7 +317,8 @@ handle_tcp(struct net_dev *net,
 	if (flags & TCP_flag_ack) {
 		while (ip->tcp.sending != nil) {
 			t = ip->tcp.sending;
-			if (ack < t->seq) {
+			if (ack < t->seq + t->len) {
+				log(LOG_INFO, "pkt 0x%x still not acked", t->seq);
 				break;
 			} else {
 				log(LOG_INFO, "pkt 0x%x acked", t->seq);
@@ -312,28 +335,31 @@ handle_tcp(struct net_dev *net,
 		if (ip->tcp.state == TCP_state_syn_sent) {
 			log(LOG_INFO, "switch to received");
 			ip->tcp.state = TCP_state_syn_received;
-			ip->tcp.ack = seq;
+
+			ip->tcp.ack = seq + 1;
+
+			ip->tcp.next_seq++;
 
 			log(LOG_INFO, "load next with seq 0x%x", ip->tcp.next_seq);
 
-			add_ack(net, ip);
-			ip->tcp.next_seq++;
-
+			add_pkt(net, ip, TCP_flag_ack, nil, 0);
+			
 		} else {
 			log(LOG_INFO, "why? havent been sending");
 		}
 
 	} else if (flags & TCP_flag_ack) {
-		if (seq > ip->tcp.ack) {
+		if (ip->tcp.ack < seq + data_len) {
 			log(LOG_INFO, "have new");
 			
 			insert_received(net, ip, seq, 
-				p->data + hdr_len, 
-				p->len - hdr_len);
+				data, data_len);
 
-		} else {
+		} else if (data_len > 0) {
 			log(LOG_INFO, "did they miss an ack?");
-			add_ack(net, ip);
+			add_pkt(net, ip, TCP_flag_ack, nil, 0);
+		} else {
+			log(LOG_INFO, "just ack for 0x%x", ack);
 		}
 	}
 
@@ -349,6 +375,7 @@ open_tcp_arp(struct net_dev *net,
 {
 	struct connection *c = arg;
 	struct connection_ip *ip = c->proto_arg;
+	union net_rsp rp;
 	
 	char mac_str[32];
 	print_mac(mac_str, mac);
@@ -358,6 +385,12 @@ open_tcp_arp(struct net_dev *net,
 	memcpy(ip->mac_rem, mac, 6);
 
 	send_tcp_pkt(net, c);
+
+	rp.open.type = NET_open_rsp;
+	rp.open.ret = OK;
+	rp.open.id = c->id;
+
+	send(c->proc_id, &rp);
 }
 
 void
@@ -400,20 +433,7 @@ ip_open_tcp(struct net_dev *net,
 	ip->tcp.window_size_rem = 0;
 	ip->tcp.window_sent = 0;
 
-	struct tcp_pkt *t;
-
-	t = malloc(sizeof(struct tcp_pkt));
-	if (t == nil) {
-		log(LOG_WARNING, "out of mem");
-		return;
-	}
-
-	t->data = nil;
-	t->len = 0;
-	t->seq = ip->tcp.next_seq++;
-	t->next = nil;
-
-	ip->tcp.sending = t;
+	add_pkt(net, ip, TCP_flag_syn, nil, 0);
 
 	arp_request(net, ip->ip_rem, &open_tcp_arp, c);
 }
@@ -424,7 +444,47 @@ ip_write_tcp(struct net_dev *net,
 		union net_req *rq, 
 		struct connection *c)
 {
+	struct connection_ip *ip = c->proto_arg;
+	union net_rsp rp;
+	uint8_t *d;
 
+	log(LOG_INFO, "TCP write %i", rq->write.w_len);
+
+	d = malloc(rq->write.w_len);
+	if (d == nil) {
+		log(LOG_WARNING, "out of mem");
+		return;
+	}
+
+	uint8_t *va;
+
+	va = map_addr(rq->write.pa, rq->write.len, MAP_RO);
+	if (va == nil) {
+		log(LOG_WARNING, "map failed");
+		return;
+	}
+
+	memcpy(d, va, rq->write.w_len);
+
+	unmap_addr(va, rq->write.len);
+
+	give_addr(from, rq->write.pa, rq->write.len);
+
+	add_pkt(net, ip, 
+			TCP_flag_ack|TCP_flag_psh, 
+			d, rq->write.w_len);
+
+	ip->tcp.next_seq += rq->write.w_len;
+	
+	send_tcp_pkt(net, c);
+
+	rp.write.type = NET_write_rsp;
+	rp.write.ret = OK;
+	rp.write.w_len = rq->write.w_len;
+	rp.write.pa = rq->write.pa;
+	rp.write.len = rq->write.len;
+
+	send(from, &rp);
 }
 
 void
@@ -433,7 +493,17 @@ ip_read_tcp(struct net_dev *net,
 		union net_req *rq, 
 		struct connection *c)
 {
+	union net_rsp rp;
 
+	give_addr(from, rq->read.pa, rq->read.len);
+
+	rp.read.type = NET_read_rsp;
+	rp.read.ret = OK;
+	rp.read.r_len = 0;
+	rp.read.pa = rq->write.pa;
+	rp.read.len = rq->write.len;
+
+	send(from, &rp);
 }
 
 void
