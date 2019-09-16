@@ -191,7 +191,7 @@ insert_received(struct net_dev *net,
 	already_have = false;
 	gap = false;
 	cont_seq = ip->tcp.ack;
-	for (o = &ip->tcp.receiving; *o != nil; o = &(*o)->next) {
+	for (o = &ip->tcp.recv_wait; *o != nil; o = &(*o)->next) {
 		/* will not need this */
 		if (cont_seq >= (*o)->seq) continue;
 
@@ -221,12 +221,13 @@ insert_received(struct net_dev *net,
 		cont_seq += len;
 	}
 
+#if 0
 	/* todo, shouldn't update till user reads the data */
 	log(LOG_INFO, "have cont from 0x%x to 0x%x", ip->tcp.ack, cont_seq);
 	ip->tcp.ack = cont_seq;
 
 	add_pkt(net, ip, TCP_flag_ack, nil, 0);
-
+#endif
 	if (already_have) {
 		return;
 	}
@@ -343,6 +344,7 @@ handle_tcp(struct net_dev *net,
 			log(LOG_INFO, "load next with seq 0x%x", ip->tcp.next_seq);
 
 			add_pkt(net, ip, TCP_flag_ack, nil, 0);
+			send_tcp_pkt(net, c);
 			
 		} else {
 			log(LOG_INFO, "why? havent been sending");
@@ -358,12 +360,11 @@ handle_tcp(struct net_dev *net,
 		} else if (data_len > 0) {
 			log(LOG_INFO, "did they miss an ack?");
 			add_pkt(net, ip, TCP_flag_ack, nil, 0);
+			send_tcp_pkt(net, c);
 		} else {
 			log(LOG_INFO, "just ack for 0x%x", ack);
 		}
 	}
-
-	send_tcp_pkt(net, c);
 
 	ip_pkt_free(p);
 }
@@ -427,7 +428,8 @@ ip_open_tcp(struct net_dev *net,
 	ip->tcp.sending = nil;
 	
 	ip->tcp.ack = 0;
-	ip->tcp.receiving = nil;
+	ip->tcp.offset_into_waiting = 0;
+	ip->tcp.recv_wait = nil;
 
 	ip->tcp.window_size_loc = 1024;
 	ip->tcp.window_size_rem = 0;
@@ -493,15 +495,64 @@ ip_read_tcp(struct net_dev *net,
 		union net_req *rq, 
 		struct connection *c)
 {
+	struct connection_ip *ip = c->proto_arg;
+	size_t len, o, l, cont_ack;
+	struct tcp_pkt *p;
 	union net_rsp rp;
+	uint8_t *va;
+
+	va = map_addr(rq->read.pa, rq->read.len, MAP_RW);
+	if (va == nil) {
+		log(LOG_WARNING, "map failed");
+		return;
+	}
+
+	len = 0;
+	cont_ack = ip->tcp.ack;
+	while (ip->tcp.recv_wait != nil && len < rq->read.r_len) {
+		p = ip->tcp.recv_wait;
+		if (p->seq != cont_ack) {
+			break;
+		}
+
+		o = ip->tcp.offset_into_waiting;
+		l = rq->read.r_len - len;
+		if (l > p->len - o) {
+			l = p->len - o;
+		}
+
+		memcpy(va + len,
+			p->data + o,
+			l);
+
+		if (o + l < p->len) {
+			ip->tcp.offset_into_waiting = o + l;
+		} else {
+			ip->tcp.offset_into_waiting = 0;
+			ip->tcp.recv_wait = p->next;
+			free(p->data);
+			free(p);
+			cont_ack += l;
+		}
+
+		len += l;
+	}
+
+	log(LOG_INFO, "increase ack from 0x%x to 0x%x", ip->tcp.ack, cont_ack);
+
+	ip->tcp.ack = cont_ack;
+	add_pkt(net, ip, TCP_flag_ack, nil, 0);
+	send_tcp_pkt(net, c);
+
+	unmap_addr(va, rq->read.len);
 
 	give_addr(from, rq->read.pa, rq->read.len);
 
 	rp.read.type = NET_read_rsp;
 	rp.read.ret = OK;
-	rp.read.r_len = 0;
-	rp.read.pa = rq->write.pa;
-	rp.read.len = rq->write.len;
+	rp.read.r_len = len;
+	rp.read.pa = rq->read.pa;
+	rp.read.len = rq->read.len;
 
 	send(from, &rp);
 }
@@ -512,6 +563,7 @@ ip_close_tcp(struct net_dev *net,
 		union net_req *rq, 
 		struct connection *c)
 {
+	log(LOG_INFO, "close req");
 }
 
 

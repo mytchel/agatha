@@ -11,7 +11,7 @@
 #include <net.h>
 #include <log.h>
 
-#define TCP_TEST_PORT 4010
+#define TCP_TEST_PORT 4015
 
 int
 get_device_pid(char *name)
@@ -190,40 +190,9 @@ tcp_test(int net_pid)
 
 	chan_id = rp.open.id;
 
-	for (j = 0; j < 10; j++) {
-		va = map_addr(pa, len, MAP_RW);
-		if (va == nil) {
-			log(LOG_FATAL, "map addr failed");
-			return ERR;
-		}
-
-		size_t w_len;
-		
-		w_len = snprintf((char *) va, len, "hello %i\n", j);
-
-		unmap_addr(va, len);
-		
-		if ((ret = give_addr(net_pid, pa, len)) != OK) {
-			log(LOG_FATAL, "net give_addr failed %i", ret);
-			return ERR;
-		}
-
-		rq.write.type = NET_write_req;
-		rq.write.id = chan_id;
-		rq.write.pa = pa;
-		rq.write.len = len;
-		rq.write.w_len = w_len;
-
-		if (mesg(net_pid, &rq, &rp) != OK) {
-			log(LOG_FATAL, "mesg failed!");
-			return ERR;
-		} else if (rp.write.ret != OK) {
-			log(LOG_FATAL, "write failed %i", rp.write.ret);
-			return ERR;
-		}
-
-		while (true)
-			;
+	j = 0;
+	while (true) {/*for (j = 0; j < 10; j++) {*/
+		j++;
 
 		if ((ret = give_addr(net_pid, pa, len)) != OK) {
 			log(LOG_FATAL, "net give_addr failed %i", ret);
@@ -256,8 +225,43 @@ tcp_test(int net_pid)
 		for (b = 0; b < rp.read.r_len; b++) {
 			log(LOG_INFO, "byte %i : 0x%x", b, va[b]);
 		}
+
+		size_t w_len;
 		
+		if (rp.read.r_len > 0) {
+			uint8_t *d = malloc(rp.read.r_len);
+			memcpy(d, va, rp.read.r_len);
+			d[rp.read.r_len-1] = 0;
+			
+			w_len = snprintf((char *) va, len, 
+						"hello %i, recved %i for '%s'\n", 
+						j, rp.read.r_len, d);
+
+			free(d);
+		} else {
+			w_len = snprintf((char *) va, len, "hello %i\n", j);
+		}
+
 		unmap_addr(va, len);
+		
+		if ((ret = give_addr(net_pid, pa, len)) != OK) {
+			log(LOG_FATAL, "net give_addr failed %i", ret);
+			return ERR;
+		}
+
+		rq.write.type = NET_write_req;
+		rq.write.id = chan_id;
+		rq.write.pa = pa;
+		rq.write.len = len;
+		rq.write.w_len = w_len;
+
+		if (mesg(net_pid, &rq, &rp) != OK) {
+			log(LOG_FATAL, "mesg failed!");
+			return ERR;
+		} else if (rp.write.ret != OK) {
+			log(LOG_FATAL, "write failed %i", rp.write.ret);
+			return ERR;
+		}
 
 		int k;
 		for (k = 0; k < 100000000; k++)

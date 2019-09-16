@@ -48,7 +48,9 @@ struct connection_ip {
 
 		uint32_t next_seq;
 		struct tcp_pkt *sending;
-		struct tcp_pkt *receiving;
+
+		size_t offset_into_waiting;
+		struct tcp_pkt *recv_wait;
 	} tcp;
 
 	size_t offset_into_waiting;
