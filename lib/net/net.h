@@ -107,11 +107,18 @@ ip_read_tcp(struct net_dev *net,
 		union net_req *rq, 
 		struct connection *c);
 
-
-void
+int
 ip_close_udp(struct net_dev *net,
 		int from,
 		union net_req *rq, 
 		struct connection *c);
+
+int
+ip_close_tcp(struct net_dev *net,
+		int from,
+		union net_req *rq, 
+		struct connection *c);
+
+
 
 

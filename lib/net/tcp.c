@@ -44,10 +44,12 @@ send_tcp_pkt(struct net_dev *net,
 			break;
 		} else if(p->next == nil) {
 			break;
-		} else {
+		} else if (!(p->flags & TCP_flag_fin) && !(p->flags & TCP_flag_syn)) {
 			log(LOG_INFO, "remove empty pkt 0x%x", p->seq);
 			ip->tcp.sending = p->next;
 			free(p);
+		} else {
+			break;
 		}
 	}
 
@@ -323,11 +325,62 @@ handle_tcp(struct net_dev *net,
 				break;
 			} else {
 				log(LOG_INFO, "pkt 0x%x acked", t->seq);
+
+				if (t->flags & TCP_flag_fin) {
+					switch (ip->tcp.state) {
+					default:
+						log(LOG_INFO, "fin pkt acked in bad state %i", ip->tcp.state);
+						break;
+
+					case TCP_state_fin_wait_1:
+						log(LOG_INFO, "rem acked fin, goto wait 2");
+						ip->tcp.state = TCP_state_fin_wait_2;
+						ip->tcp.ack++;
+						break;
+					}
+				}
+
 				ip->tcp.sending = t->next;
 				if (t->data != nil) 
 					free(t->data);
 				free(t);
 			}
+		}
+	}
+
+	if (flags & TCP_flag_fin) {
+		log(LOG_INFO, "got fin");
+		switch (ip->tcp.state) {
+		default:
+			log(LOG_WARNING, "got fin in state %i", ip->tcp.state);
+			break;
+
+		case TCP_state_established:
+			ip->tcp.state = TCP_state_close_wait;
+
+			if (ip->tcp.recv_wait == nil) {
+				ip->tcp.ack = seq + 1;
+				add_pkt(net, ip, TCP_flag_ack, nil, 0);
+				ip->tcp.next_seq++;
+				add_pkt(net, ip, TCP_flag_ack|TCP_flag_fin, nil, 0);
+			
+				ip->tcp.state = TCP_state_last_ack;
+				
+				send_tcp_pkt(net, c);
+			} else {
+				log(LOG_INFO, "havent read everything, don't respond");
+			}
+
+			break;
+			
+		case TCP_state_time_wait:
+			log(LOG_INFO, "in time wait, got extra fin?");
+		case TCP_state_fin_wait_2:
+			log(LOG_INFO, "in fin wait 2, go to time wait");
+			add_pkt(net, ip, TCP_flag_ack, nil, 0);
+			ip->tcp.state = TCP_state_time_wait;
+			send_tcp_pkt(net, c);
+			break;
 		}
 	}
 
@@ -557,13 +610,22 @@ ip_read_tcp(struct net_dev *net,
 	send(from, &rp);
 }
 
-void
+int
 ip_close_tcp(struct net_dev *net,
 		int from,
 		union net_req *rq, 
 		struct connection *c)
 {
+	struct connection_ip *ip = c->proto_arg;
+
 	log(LOG_INFO, "close req");
+
+	ip->tcp.state = TCP_state_fin_wait_1;
+
+	add_pkt(net, ip, TCP_flag_ack|TCP_flag_fin, nil, 0);
+	send_tcp_pkt(net, c);
+
+	return OK;
 }
 
 

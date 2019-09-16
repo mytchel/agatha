@@ -11,7 +11,7 @@
 #include <net.h>
 #include <log.h>
 
-#define TCP_TEST_PORT 4015
+#define TCP_TEST_PORT 4020
 
 int
 get_device_pid(char *name)
@@ -190,10 +190,7 @@ tcp_test(int net_pid)
 
 	chan_id = rp.open.id;
 
-	j = 0;
-	while (true) {/*for (j = 0; j < 10; j++) {*/
-		j++;
-
+	for (j = 0; j < 10; j++) {
 		if ((ret = give_addr(net_pid, pa, len)) != OK) {
 			log(LOG_FATAL, "net give_addr failed %i", ret);
 			return ERR;
@@ -230,6 +227,11 @@ tcp_test(int net_pid)
 		
 		if (rp.read.r_len > 0) {
 			uint8_t *d = malloc(rp.read.r_len);
+			if (d == nil) {
+				log(LOG_WARNING, "out of mem");
+				return ERR;
+			}
+
 			memcpy(d, va, rp.read.r_len);
 			d[rp.read.r_len-1] = 0;
 			

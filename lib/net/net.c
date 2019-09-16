@@ -114,6 +114,7 @@ handle_close(struct net_dev *net,
 {
 	struct connection *c;
 	union net_rsp rp;
+	int ret;
 
 	log(LOG_INFO, "%i want to close", from);
 
@@ -124,26 +125,22 @@ handle_close(struct net_dev *net,
 		return;
 	}
 
-	log(LOG_INFO, "found con has proto %i", c->proto);
-
 	switch (c->proto) {
 		case NET_UDP:
-			ip_close_udp(net, from, rq, c);
+			ret = ip_close_udp(net, from, rq, c);
 			break;
 
 		case NET_TCP:
+			ret = ip_close_tcp(net, from, rq, c);
 			break;
 
 		default:
+			ret = ERR;
 			break;
 	}
 
-	log(LOG_WARNING, "not really implimented");
-
-	log(LOG_INFO, "%i want to open conneciton", from);
-
 	rp.open.type = NET_close_req;
-	rp.open.ret = OK;
+	rp.open.ret = ret;
 	rp.open.id = rq->read.id;
 	send(from, &rp);
 }
