@@ -11,7 +11,11 @@
 #include <net.h>
 #include <log.h>
 
-#define TCP_TEST_PORT 4020
+#define TCP_TEST_PORT 4026
+
+#define UDP_TEST_PORT_REM 3000
+uint8_t UDP_TEST_ADDR_REM[4] = { 192, 168, 10, 1 };
+#define UDP_TEST_PORT_LOC 3000
 
 int
 get_device_pid(char *name)
@@ -51,25 +55,26 @@ udp_test(int net_pid)
 
 	log(LOG_INFO, "start UDP test");
 
-	rq.open.type = NET_open_req;
-	rq.open.port = 4242;
-	rq.open.addr[0] = 192;
-	rq.open.addr[1] = 168;
-	rq.open.addr[2] = 10;
-	rq.open.addr[3] = 1;
-	rq.open.proto = NET_UDP;
+	rq.bind.type = NET_bind_req;
+	rq.bind.port_loc = UDP_TEST_PORT_LOC;
+	rq.bind.addr_loc[0] = 192;
+	rq.bind.addr_loc[1] = 168;
+	rq.bind.addr_loc[2] = 10;
+	rq.bind.addr_loc[3] = 34;
+	rq.bind.proto = NET_proto_udp;
 
 	if (mesg(net_pid, &rq, &rp) != OK) {
 		log(LOG_FATAL, "mesg failed!");
 		return ERR;
-	} else if (rp.open.ret != OK) {
-		log(LOG_FATAL, "open failed %i", rp.open.ret);
+	} else if (rp.bind.ret != OK) {
+		log(LOG_FATAL, "open failed %i", rp.bind.ret);
 		return ERR;
 	}
 
-	chan_id = rp.open.id;
+	chan_id = rp.bind.chan_id;
 
-	for (j = 0; j < 10; j++) {
+	for (j = 0; j < 100; j++) {
+#if 0
 		va = map_addr(pa, len, MAP_RW);
 		if (va == nil) {
 			log(LOG_FATAL, "map addr failed");
@@ -88,10 +93,12 @@ udp_test(int net_pid)
 		}
 
 		rq.write.type = NET_write_req;
-		rq.write.id = chan_id;
+		rq.write.chan_id = chan_id;
 		rq.write.pa = pa;
-		rq.write.len = len;
-		rq.write.w_len = w_len;
+		rq.write.pa_len = len;
+		rq.write.len = w_len;
+		rq.write.proto.udp.port_rem = UDP_TEST_PORT_REM;
+		memcpy(rq.write.proto.udp.addr_rem, UDP_TEST_ADDR_REM, 4);
 
 		if (mesg(net_pid, &rq, &rp) != OK) {
 			log(LOG_FATAL, "mesg failed!");
@@ -100,6 +107,7 @@ udp_test(int net_pid)
 			log(LOG_FATAL, "write failed %i", rp.write.ret);
 			return ERR;
 		}
+#endif
 
 		if ((ret = give_addr(net_pid, pa, len)) != OK) {
 			log(LOG_FATAL, "net give_addr failed %i", ret);
@@ -107,10 +115,10 @@ udp_test(int net_pid)
 		}
 
 		rq.read.type = NET_read_req;
-		rq.read.id = chan_id;
+		rq.read.chan_id = chan_id;
 		rq.read.pa = pa;
+		rq.read.pa_len = len;
 		rq.read.len = len;
-		rq.read.r_len = len;
 		rq.read.timeout_ms = 500;
 
 		if (mesg(net_pid, &rq, &rp) != OK) {
@@ -127,9 +135,13 @@ udp_test(int net_pid)
 			return ERR;
 		}
 
-		log(LOG_INFO, "read got %i bytes", rp.read.r_len);
+		log(LOG_INFO, "read got %i bytes from %i.%i", 
+			rp.read.len, 
+			rp.read.proto.udp.addr_rem[2],
+			rp.read.proto.udp.addr_rem[3]);
+
 		size_t b;
-		for (b = 0; b < rp.read.r_len; b++) {
+		for (b = 0; b < rp.read.len; b++) {
 			log(LOG_INFO, "byte %i : 0x%x", b, va[b]);
 		}
 		
@@ -140,14 +152,14 @@ udp_test(int net_pid)
 			;
 	}
 
-	rq.close.type = NET_close_req;
-	rq.close.id = chan_id;
+	rq.unbind.type = NET_unbind_req;
+	rq.unbind.chan_id = chan_id;
 
 	if (mesg(net_pid, &rq, &rp) != OK) {
 		log(LOG_FATAL, "mesg failed!");
 		return ERR;
-	} else if (rp.close.ret != OK) {
-		log(LOG_FATAL, "close failed %i", rp.close.ret);
+	} else if (rp.unbind.ret != OK) {
+		log(LOG_FATAL, "unbind failed %i", rp.unbind.ret);
 		return ERR;
 	}
 
@@ -157,6 +169,7 @@ udp_test(int net_pid)
 int
 tcp_test(int net_pid)
 {
+#if 0
 	int chan_id, ret, j;
 	union net_req rq;
 	union net_rsp rp;
@@ -190,7 +203,7 @@ tcp_test(int net_pid)
 
 	chan_id = rp.open.id;
 
-	for (j = 0; j < 10; j++) {
+	for (j = 0; j < 100; j++) {
 		if ((ret = give_addr(net_pid, pa, len)) != OK) {
 			log(LOG_FATAL, "net give_addr failed %i", ret);
 			return ERR;
@@ -281,6 +294,7 @@ tcp_test(int net_pid)
 		return ERR;
 	}
 
+#endif
 	return OK;
 }
 

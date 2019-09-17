@@ -17,11 +17,14 @@
 
 	static bool
 send_udp_pkt(struct net_dev *net,
-		struct connection *c,
+		struct binding *c,
+		uint8_t mac_rem[6],
+		uint8_t addr_rem[4],
+		uint16_t port_rem,
 		uint8_t *data,
 		size_t data_len)
 {
-	struct connection_ip *ip = c->proto_arg;
+	struct binding_ip *ip = c->proto_arg;
 	struct ipv4_hdr *ipv4_hdr;
 	struct udp_hdr *udp_hdr;
 	uint8_t *pkt, *pkt_data;
@@ -30,7 +33,7 @@ send_udp_pkt(struct net_dev *net,
 	length = sizeof(struct udp_hdr) + data_len;
 
 	if (!create_ipv4_pkt(net, 
-				ip->mac_rem, ip->ip_rem,
+				mac_rem, addr_rem,
 				20, IP_UDP,
 				length,
 				&pkt,
@@ -42,8 +45,8 @@ send_udp_pkt(struct net_dev *net,
 	
 	udp_hdr->port_src[0] = (ip->port_loc >> 8) & 0xff;
 	udp_hdr->port_src[1] = (ip->port_loc >> 0) & 0xff;
-	udp_hdr->port_dst[0] = (ip->port_rem >> 8) & 0xff;
-	udp_hdr->port_dst[1] = (ip->port_rem >> 0) & 0xff;
+	udp_hdr->port_dst[0] = (port_rem >> 8) & 0xff;
+	udp_hdr->port_dst[1] = (port_rem >> 0) & 0xff;
 
 	udp_hdr->length[0] = (length >> 8) & 0xff;
 	udp_hdr->length[1] = (length >> 0) & 0xff;
@@ -97,22 +100,19 @@ handle_udp(struct net_dev *net,
 
 	dump_hex_block(data, data_len);
 
-	struct connection *c;
+	struct binding *c;
 
-	c = find_connection_ip(net, NET_UDP, 
-			port_dst, port_src, 
-			p->src_ipv4);
-
+	c = find_binding_ip(net, NET_proto_udp, port_dst);
 	if (c == nil) {
 		log(LOG_INFO, "got unhandled packet");
 		ip_pkt_free(p);
 		return;
 	}
 
-	struct connection_ip *ip = c->proto_arg;
+	struct binding_ip *ip = c->proto_arg;
 
 	struct ip_pkt **o;
-	for (o = &ip->recv_wait; *o != nil; o = &(*o)->next) {
+	for (o = &ip->udp.recv_wait; *o != nil; o = &(*o)->next) {
 		log(LOG_INFO, "after pkt %i", (*o)->id);
 	}
 		;
@@ -120,14 +120,14 @@ handle_udp(struct net_dev *net,
 	p->next = nil;
 	*o = p;
 }
-
+#if 0
 static void
-open_udp_finish(struct net_dev *net,
+send_udp_finish(struct net_dev *net,
 		void *arg,
 		uint8_t *mac)
 {
-	struct connection *c = arg;
-	struct connection_ip *ip = c->proto_arg;
+	struct binding *c = arg;
+	struct binding_ip *ip = c->proto_arg;
 	union net_rsp rp;
 
 	char mac_str[32];
@@ -137,47 +137,59 @@ open_udp_finish(struct net_dev *net,
 
 	memcpy(ip->mac_rem, mac, 6);
 
-	rp.open.type = NET_open_rsp;
-	rp.open.ret = OK;
-	rp.open.id = c->id;
+	rp.write.type = NET_open_rsp;
+	rp.write.ret = OK;
+	rp.write.id = c->id;
 
 	send(c->proc_id, &rp);
 }
+#endif
 
-void
-ip_open_udp(struct net_dev *net,
+int
+ip_bind_udp(struct net_dev *net,
 		union net_req *rq, 
-		struct connection *c)
+		struct binding *c)
 {
-	struct net_dev_internal *i = net->internal;
-	struct connection_ip *ip;
+	struct binding_ip *ip;
 
-	log(LOG_INFO, "open udp");
+	log(LOG_INFO, "bind udp");
 
-	ip = malloc(sizeof(struct connection_ip));
+	ip = malloc(sizeof(struct binding_ip));
 	if (ip == nil) {
 		log(LOG_WARNING, "out of mem");
-		return;
+		return ERR;
 	}
 
 	c->proto_arg = ip;
 
-	ip->port_loc = i->n_free_port++;;
-	ip->port_rem = rq->open.port;
+	memcpy(ip->addr_loc, rq->bind.addr_loc, 4);
+	ip->port_loc = rq->bind.port_loc;
 
+	ip->udp.offset_into_waiting = 0;
+	ip->udp.recv_wait = nil;
+
+/*
+	struct net_dev_internal *i = net->internal;
 	memcpy(ip->ip_rem, rq->open.addr, 4);
-
-	ip->offset_into_waiting = 0;
-	ip->recv_wait = nil;
-
 	arp_request(net, ip->ip_rem, &open_udp_finish, c);
+*/
+
+	return OK;
+}
+
+int
+ip_unbind_udp(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c)
+{
+	log(LOG_WARNING, "todo udp unbind");
+	return OK;
 }
 
 void
 ip_write_udp(struct net_dev *net,
-		int from,
 		union net_req *rq, 
-		struct connection *c)
+		struct binding *c)
 {
 	union net_rsp rp;
 
@@ -185,14 +197,18 @@ ip_write_udp(struct net_dev *net,
 
 	uint8_t *va;
 
-	va = map_addr(rq->write.pa, rq->write.len, MAP_RO);
+	va = map_addr(rq->write.pa, rq->write.pa_len, MAP_RO);
 	if (va == nil) {
 		return;
 	}
 
-	if (!send_udp_pkt(net,
-			c, va,
-			rq->write.w_len))
+	uint8_t mac_rem[6] = { 0 };
+
+	if (!send_udp_pkt(net, c, 
+			mac_rem,
+			rq->write.proto.udp.addr_rem, 
+			rq->write.proto.udp.port_rem,
+			va, rq->write.len))
 	{
 		log(LOG_INFO, "create pkt fail");
 		return;
@@ -200,101 +216,89 @@ ip_write_udp(struct net_dev *net,
 
 	log(LOG_INFO, "sent");
 
-	unmap_addr(va, rq->write.len);
+	unmap_addr(va, rq->write.pa_len);
 
-	if (give_addr(from, rq->write.pa, rq->write.len) != OK) {
+	if (give_addr(c->proc_id, rq->write.pa, rq->write.pa_len) != OK) {
 		return;
 	}
 
 	rp.write.type = NET_write_rsp;
 	rp.write.ret = OK;
-	rp.write.id = c->id;
+	rp.write.chan_id = c->id;
 	rp.write.pa = rq->write.pa;
+	rp.write.pa_len = rq->write.pa_len;
 	rp.write.len = rq->write.len;
-	rp.write.w_len = rq->write.w_len;
 
-	send(from, &rp);
+	send(c->proc_id, &rp);
 }
 
 void
 ip_read_udp(struct net_dev *net,
-		int from,
 		union net_req *rq, 
-		struct connection *c)
+		struct binding *c)
 {
-	struct connection_ip *ip = c->proto_arg;
-	size_t r_len, l, o;
+	struct binding_ip *ip = c->proto_arg;
+	size_t len, l, o;
 	struct ip_pkt *p;
 	union net_rsp rp;
 	uint8_t *va;
 
 	log(LOG_INFO, "read udp");
 
-	va = map_addr(rq->read.pa, rq->read.len, MAP_RW);
+	va = map_addr(rq->read.pa, rq->read.pa_len, MAP_RW);
 	if (va == nil) {
 		return;
 	}
 
-	r_len = 0;
-	while (ip->recv_wait != nil && r_len < rq->read.r_len) {
-		p = ip->recv_wait;
+	len = 0;
+	while (ip->udp.recv_wait != nil && len < rq->read.len) {
+		p = ip->udp.recv_wait;
 
 		log(LOG_INFO, "read from pkt 0x%x", p->id);
 
-		o = ip->offset_into_waiting;
+		o = ip->udp.offset_into_waiting;
 		log(LOG_INFO, "o = %i", o);
 
-		l = rq->read.r_len - r_len;
+		l = rq->read.len - len;
 		log(LOG_INFO, "l = %i", l);
-		if (l > p->len - o) {
-			l = p->len - o;
+		if (l > p->len - sizeof(struct udp_hdr) - o) {
+			l = p->len - sizeof(struct udp_hdr) - o;
 			log(LOG_INFO, "l cut to = %i", l);
 		}
 
 		log(LOG_INFO, "read %i bytes from %i offset", l, o);
-		memcpy(va + r_len, 
-			p->data + o,
+		memcpy(va + len, 
+			p->data + sizeof(struct udp_hdr) + o,
 		 	l);
 
-		if (o + l < p->len) {
+		if (o + l < p->len - sizeof(struct udp_hdr)) {
 			log(LOG_INFO, "update offset to %i", o + l);
-			ip->offset_into_waiting = o + l;
+			ip->udp.offset_into_waiting = o + l;
 		} else {
 			log(LOG_INFO, "shift to next pkt");
-			ip->offset_into_waiting = 0;
-			ip->recv_wait = p->next;
+			ip->udp.offset_into_waiting = 0;
+			ip->udp.recv_wait = p->next;
 			ip_pkt_free(p);
 		}
 		
-		r_len += l;
+		len += l;
 	}
 
-	unmap_addr(va, rq->read.len);
+	unmap_addr(va, rq->read.pa_len);
 
-	log(LOG_INFO, "got %i bytes in total", r_len);
+	log(LOG_INFO, "got %i bytes in total", len);
 
-	if (give_addr(from, rq->read.pa, rq->read.len) != OK) {
+	if (give_addr(c->proc_id, rq->read.pa, rq->read.pa_len) != OK) {
 		return;
 	}
 
 	rp.read.type = NET_read_rsp;
 	rp.read.ret = OK;
-	rp.read.id = c->id;
+	rp.read.chan_id = c->id;
 	rp.read.pa = rq->read.pa;
-	rp.read.len = rq->read.len;
-	rp.read.r_len = r_len;
+	rp.read.pa_len = rq->read.pa_len;
+	rp.read.len = len;
 
-	send(from, &rp);
+	send(c->proc_id, &rp);
 }
-
-int
-ip_close_udp(struct net_dev *net,
-		int from,
-		union net_req *rq, 
-		struct connection *c)
-{
-	log(LOG_WARNING, "todo udp close");
-	return OK;
-}
-
 

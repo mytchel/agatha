@@ -126,23 +126,19 @@ send_ipv4_pkt(struct net_dev *net,
 	send_eth_pkt(net, pkt, hdr_len + data_len);
 }
 
-struct connection *
-find_connection_ip(struct net_dev *net, 
+struct binding *
+find_binding_ip(struct net_dev *net, 
 		int proto,
-		uint16_t port_loc, uint16_t port_rem,
-		uint8_t ip_rem[4])
+		uint16_t port_loc)
 {
 	struct net_dev_internal *i = net->internal;
-	struct connection_ip *ip;
-	struct connection *c;
+	struct binding_ip *ip;
+	struct binding *c;
 
-	for (c = i->connections; c != nil; c = c->next) {
+	for (c = i->bindings; c != nil; c = c->next) {
 		ip = c->proto_arg;
-		if (proto == c->proto
-			&& memcmp(ip_rem, ip->ip_rem, 4)
-			&& port_loc == ip->port_loc
-			&& port_rem == ip->port_rem)
-		{
+		log(LOG_INFO, "check %i %i against binding %i %i", proto, port_loc, c->proto, ip->port_loc);
+		if (proto == c->proto && port_loc == ip->port_loc) {
 			return c;
 		}
 	}
@@ -151,7 +147,7 @@ find_connection_ip(struct net_dev *net,
 }
 
 struct ip_pkt *
-ip_pkt_new(uint8_t *src, 
+ip_pkt_new(uint8_t src[4], uint8_t dst[4],
 		uint8_t proto,
 		uint16_t ident)
 {
@@ -163,8 +159,11 @@ ip_pkt_new(uint8_t *src,
 	}
 
 	memcpy(p->src_ipv4, src, 4);
+	memcpy(p->dst_ipv4, dst, 4);
+
 	p->protocol = proto;
 	p->id = ident;
+
 	p->have_last = false;
 	p->len = 0;
 	p->data = nil;
@@ -199,7 +198,7 @@ ip_pkt_free(struct ip_pkt *p)
 
 static struct ip_pkt *
 get_waiting_ip_pkt(struct net_dev *net,
-		uint8_t *src, uint8_t proto,
+		uint8_t *src, uint8_t *dst, uint8_t proto,
 		uint16_t ident)
 {
 	struct net_dev_internal *i = net->internal;
@@ -214,7 +213,7 @@ get_waiting_ip_pkt(struct net_dev *net,
 		}
 	}
 
-	p = ip_pkt_new(src, proto, ident);
+	p = ip_pkt_new(src, dst, proto, ident);
 	if (p == nil) {
 		return nil;
 	}
@@ -346,7 +345,9 @@ handle_ipv4(struct net_dev *net,
 
 		memcpy(f->data, ip_bdy, ip_len);
 
-		p = get_waiting_ip_pkt(net, ip_hdr->src, protocol, ident);
+		p = get_waiting_ip_pkt(net, 
+				ip_hdr->src, ip_hdr->dst,
+				protocol, ident);
 		if (p == nil) {
 			free(f->data);
 			free(f);
@@ -359,7 +360,8 @@ handle_ipv4(struct net_dev *net,
 		}
 
 	} else {
-		p = ip_pkt_new(ip_hdr->src, protocol, ident);
+		p = ip_pkt_new(ip_hdr->src, ip_hdr->dst, 
+				protocol, ident);
 		if (p == nil) {
 			return;
 		}

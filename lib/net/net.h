@@ -1,5 +1,5 @@
-struct connection {
-	struct connection *next;
+struct binding {
+	struct binding *next;
 
 	int proc_id;
 	int id;
@@ -26,9 +26,9 @@ struct net_dev_internal {
 	struct arp_entry *arp_entries;
 	struct arp_request *arp_requests;
 
-	size_t n_connection_id;
+	size_t n_binding_id;
 	size_t n_free_port;
-	struct connection *connections;
+	struct binding *bindings;
 
 	struct {
 		struct ip_pkt *pkts;
@@ -73,52 +73,57 @@ arp_request(struct net_dev *net, uint8_t *ipv4,
 		void (*func)(struct net_dev *net, void *arg, uint8_t *mac),
 		void *arg);
 
-void
-ip_open_udp(struct net_dev *net,
+int
+ip_bind_udp(struct net_dev *net,
 		union net_req *rq, 
-		struct connection *c);
+		struct binding *c);
 
-void
-ip_open_tcp(struct net_dev *net,
+int
+ip_unbind_udp(struct net_dev *net,
 		union net_req *rq, 
-		struct connection *c);
+		struct binding *c);
 
 void
 ip_write_udp(struct net_dev *net,
-		int from,
 		union net_req *rq, 
-		struct connection *c);
-
-void
-ip_write_tcp(struct net_dev *net,
-		int from,
-		union net_req *rq, 
-		struct connection *c);
+		struct binding *c);
 
 void
 ip_read_udp(struct net_dev *net,
-		int from,
 		union net_req *rq, 
-		struct connection *c);
+		struct binding *c);
+
+int
+ip_bind_tcp(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c);
+
+int
+ip_unbind_tcp(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c);
+
+void
+ip_tcp_listen(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c);
+
+void
+ip_tcp_connect(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c);
+
+void
+ip_tcp_disconnect(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c);
 
 void
 ip_read_tcp(struct net_dev *net,
-		int from,
 		union net_req *rq, 
-		struct connection *c);
+		struct binding *c);
 
-int
-ip_close_udp(struct net_dev *net,
-		int from,
+void
+ip_write_tcp(struct net_dev *net,
 		union net_req *rq, 
-		struct connection *c);
-
-int
-ip_close_tcp(struct net_dev *net,
-		int from,
-		union net_req *rq, 
-		struct connection *c);
-
-
-
-
+		struct binding *c);

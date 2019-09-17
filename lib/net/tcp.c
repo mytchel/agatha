@@ -15,11 +15,30 @@
 #include "net.h"
 #include "ip.h"
 
+static void
+connect_tcp_finish(struct net_dev *net,
+		struct binding *b,
+		struct tcp_con *c)
+{
+	union net_rsp rp;
+
+	log(LOG_INFO, "TCP connect finished");
+
+	rp.tcp_connect.type = NET_tcp_connect_rsp;
+	rp.tcp_connect.ret = OK;
+	rp.tcp_connect.chan_id = b->id;
+	rp.tcp_connect.con_id = c->id;
+
+	send(b->proc_id, &rp);
+}
+
 	static void
 send_tcp_pkt(struct net_dev *net,
-		struct connection *c)
+		struct binding *b,
+		struct tcp_con *c)
 {
-	struct connection_ip *ip = c->proto_arg;
+	struct binding_ip *ip = b->proto_arg;
+
 	size_t length, hdr_len, data_len;
 	uint8_t *pkt, *pkt_data, *data;
 	struct ipv4_hdr *ipv4_hdr;
@@ -34,7 +53,7 @@ send_tcp_pkt(struct net_dev *net,
 	struct tcp_pkt *p;
 
 	while (true) {
-		p = ip->tcp.sending;
+		p = c->sending;
 		if (p == nil) {
 			log(LOG_WARNING, "nothing to send?");
 			return;
@@ -42,11 +61,11 @@ send_tcp_pkt(struct net_dev *net,
 			break;
 		} else if (p->len > 0) {
 			break;
-		} else if(p->next == nil) {
+		} else if (p->next == nil) {
 			break;
 		} else if (!(p->flags & TCP_flag_fin) && !(p->flags & TCP_flag_syn)) {
 			log(LOG_INFO, "remove empty pkt 0x%x", p->seq);
-			ip->tcp.sending = p->next;
+			c->sending = p->next;
 			free(p);
 		} else {
 			break;
@@ -54,7 +73,7 @@ send_tcp_pkt(struct net_dev *net,
 	}
 
 	seq = p->seq;
-	ack = ip->tcp.ack;
+	ack = c->ack;
 
 	flags |= p->flags;
 	
@@ -69,7 +88,7 @@ send_tcp_pkt(struct net_dev *net,
 	length = hdr_len + data_len;
 
 	if (!create_ipv4_pkt(net, 
-				ip->mac_rem, ip->ip_rem,
+				c->mac_rem, c->addr_rem,
 				20, IP_TCP,
 				length,
 				&pkt,
@@ -81,8 +100,8 @@ send_tcp_pkt(struct net_dev *net,
 	
 	tcp_hdr->port_src[0] = (ip->port_loc >> 8) & 0xff;
 	tcp_hdr->port_src[1] = (ip->port_loc >> 0) & 0xff;
-	tcp_hdr->port_dst[0] = (ip->port_rem >> 8) & 0xff;
-	tcp_hdr->port_dst[1] = (ip->port_rem >> 0) & 0xff;
+	tcp_hdr->port_dst[0] = (c->port_rem >> 8) & 0xff;
+	tcp_hdr->port_dst[1] = (c->port_rem >> 0) & 0xff;
 		
 	tcp_hdr->seq[0] = (seq >> 24) & 0xff;
 	tcp_hdr->seq[1] = (seq >> 16) & 0xff;
@@ -97,8 +116,8 @@ send_tcp_pkt(struct net_dev *net,
 	tcp_hdr->flags[0] = (flags >> 8) & 0xff;
 	tcp_hdr->flags[1] = (flags >> 0) & 0xff;
 
-	tcp_hdr->win_size[0] = (ip->tcp.window_size_loc >> 8) & 0xff;
-	tcp_hdr->win_size[1] = (ip->tcp.window_size_loc >> 1) & 0xff;
+	tcp_hdr->win_size[0] = (c->window_size_loc >> 8) & 0xff;
+	tcp_hdr->win_size[1] = (c->window_size_loc >> 1) & 0xff;
 
 	tcp_hdr->csum[0] = 0;
 	tcp_hdr->csum[1] = 0;
@@ -114,8 +133,8 @@ send_tcp_pkt(struct net_dev *net,
 
 	uint8_t pseudo_hdr[12];
 
-	memcpy(&pseudo_hdr[0], net->ipv4, 4);
-	memcpy(&pseudo_hdr[4], ip->ip_rem, 4);
+	memcpy(&pseudo_hdr[0], ip->addr_loc, 4);
+	memcpy(&pseudo_hdr[4], c->addr_rem, 4);
 	pseudo_hdr[8] = 0;
 	pseudo_hdr[9] = IP_TCP;
 	pseudo_hdr[10] = (length >> 8) & 0xff;
@@ -136,8 +155,7 @@ send_tcp_pkt(struct net_dev *net,
 }
 
 void
-add_pkt(struct net_dev *net,
-		struct connection_ip *ip,
+add_pkt(struct tcp_con *c,
 		uint16_t flags,
 		uint8_t *data,
 		size_t len)
@@ -153,11 +171,11 @@ add_pkt(struct net_dev *net,
 	t->data = data;
 	t->len = len;
 	t->flags = flags;
-	t->seq = ip->tcp.next_seq;
+	t->seq = c->next_seq;
 	
 	log(LOG_INFO, "add pkt 0x%x with flags 0x%x len 0x%x", t->seq, t->flags, t->len);
 
-	for (o = &ip->tcp.sending; *o != nil; o = &(*o)->next)
+	for (o = &c->sending; *o != nil; o = &(*o)->next)
 		;
 
 	t->next = *o;
@@ -165,8 +183,29 @@ add_pkt(struct net_dev *net,
 }
 
 static void
+tcp_fin_respond(struct net_dev *net,
+		struct binding *b,
+		struct tcp_con *c)
+{
+	log(LOG_INFO, "respond to fin");
+
+	c->ack++;
+	add_pkt(c, TCP_flag_ack, nil, 0);
+	
+	send_tcp_pkt(net, b, c);
+
+	c->next_seq++;
+	add_pkt(c, TCP_flag_ack|TCP_flag_fin, nil, 0);
+
+	c->state = TCP_state_last_ack;
+	
+	send_tcp_pkt(net, b, c);
+}
+
+static void
 insert_received(struct net_dev *net,
-		struct connection_ip *ip,
+		struct binding *b,
+		struct tcp_con *c,
 		uint32_t seq,
 		uint8_t *data,
 		size_t len)
@@ -177,23 +216,10 @@ insert_received(struct net_dev *net,
 
 	log(LOG_INFO, "insert 0x%x of len %i", seq, len);
 
-	/* TODO: bug because this is being done wrong.
-	  cont_seq should be found and updated when user reads
-	  and we remove the packets from the queue then we 
-	  ack to remote. otherwise this has a bug. 
-	  
-	  eh, seq and ack are in bytes!
-
-	  how will we deal with byte acks?
-	  for resends of partial previous packets?
-	  its a fucking stream?
-
-	 */
-	  
 	already_have = false;
 	gap = false;
-	cont_seq = ip->tcp.ack;
-	for (o = &ip->tcp.recv_wait; *o != nil; o = &(*o)->next) {
+	cont_seq = c->ack;
+	for (o = &c->recv_wait; *o != nil; o = &(*o)->next) {
 		/* will not need this */
 		if (cont_seq >= (*o)->seq) continue;
 
@@ -223,13 +249,6 @@ insert_received(struct net_dev *net,
 		cont_seq += len;
 	}
 
-#if 0
-	/* todo, shouldn't update till user reads the data */
-	log(LOG_INFO, "have cont from 0x%x to 0x%x", ip->tcp.ack, cont_seq);
-	ip->tcp.ack = cont_seq;
-
-	add_pkt(net, ip, TCP_flag_ack, nil, 0);
-#endif
 	if (already_have) {
 		return;
 	}
@@ -303,23 +322,36 @@ handle_tcp(struct net_dev *net,
 	data = p->data + hdr_len;
 	data_len = p->len - hdr_len;
 
-	struct connection *c;
+	struct binding *b;
 
-	c = find_connection_ip(net, NET_TCP, 
-			port_dst, port_src, 
-			p->src_ipv4);
+	b = find_binding_ip(net, NET_proto_tcp, port_dst);
 
-	if (c == nil) {
-		log(LOG_INFO, "got unhandled packet");
+	if (b == nil) {
+		log(LOG_INFO, "got unhandled packet without bind");
 		ip_pkt_free(p);
 		return;
 	}
 
-	struct connection_ip *ip = c->proto_arg;
+	struct binding_ip *ip = b->proto_arg;
+	struct tcp_con *c;
+
+	for (c = ip->tcp.cons; c != nil; c = c->next) {
+		if (port_src == c->port_rem
+			&& memcmp(p->src_ipv4, c->addr_rem, 4)) 
+		{
+			break;
+		}
+	}
+
+	if (c == nil) {
+		log(LOG_INFO, "got unhandled packet without con");
+		ip_pkt_free(p);
+		return;
+	}
 
 	if (flags & TCP_flag_ack) {
-		while (ip->tcp.sending != nil) {
-			t = ip->tcp.sending;
+		while (c->sending != nil) {
+			t = c->sending;
 			if (ack < t->seq + t->len) {
 				log(LOG_INFO, "pkt 0x%x still not acked", t->seq);
 				break;
@@ -327,20 +359,20 @@ handle_tcp(struct net_dev *net,
 				log(LOG_INFO, "pkt 0x%x acked", t->seq);
 
 				if (t->flags & TCP_flag_fin) {
-					switch (ip->tcp.state) {
+					switch (c->state) {
 					default:
-						log(LOG_INFO, "fin pkt acked in bad state %i", ip->tcp.state);
+						log(LOG_INFO, "fin pkt acked in bad state %i", c->state);
 						break;
 
 					case TCP_state_fin_wait_1:
 						log(LOG_INFO, "rem acked fin, goto wait 2");
-						ip->tcp.state = TCP_state_fin_wait_2;
-						ip->tcp.ack++;
+						c->state = TCP_state_fin_wait_2;
+						c->ack++;
 						break;
 					}
 				}
 
-				ip->tcp.sending = t->next;
+				c->sending = t->next;
 				if (t->data != nil) 
 					free(t->data);
 				free(t);
@@ -350,23 +382,16 @@ handle_tcp(struct net_dev *net,
 
 	if (flags & TCP_flag_fin) {
 		log(LOG_INFO, "got fin");
-		switch (ip->tcp.state) {
+		switch (c->state) {
 		default:
-			log(LOG_WARNING, "got fin in state %i", ip->tcp.state);
+			log(LOG_WARNING, "got fin in state %i", c->state);
 			break;
 
 		case TCP_state_established:
-			ip->tcp.state = TCP_state_close_wait;
+			c->state = TCP_state_close_wait;
 
-			if (ip->tcp.recv_wait == nil) {
-				ip->tcp.ack = seq + 1;
-				add_pkt(net, ip, TCP_flag_ack, nil, 0);
-				ip->tcp.next_seq++;
-				add_pkt(net, ip, TCP_flag_ack|TCP_flag_fin, nil, 0);
-			
-				ip->tcp.state = TCP_state_last_ack;
-				
-				send_tcp_pkt(net, c);
+			if (c->recv_wait == nil) {
+				tcp_fin_respond(net, b, c);
 			} else {
 				log(LOG_INFO, "havent read everything, don't respond");
 			}
@@ -377,43 +402,43 @@ handle_tcp(struct net_dev *net,
 			log(LOG_INFO, "in time wait, got extra fin?");
 		case TCP_state_fin_wait_2:
 			log(LOG_INFO, "in fin wait 2, go to time wait");
-			add_pkt(net, ip, TCP_flag_ack, nil, 0);
-			ip->tcp.state = TCP_state_time_wait;
-			send_tcp_pkt(net, c);
+			add_pkt(c, TCP_flag_ack, nil, 0);
+			c->state = TCP_state_time_wait;
+			send_tcp_pkt(net, b, c);
 			break;
 		}
-	}
-
-	if (flags & TCP_flag_syn) {
-		log(LOG_INFO, "got syn, state = %i", ip->tcp.state);
-		if (ip->tcp.state == TCP_state_syn_sent) {
+	} else if (flags & TCP_flag_syn) {
+		log(LOG_INFO, "got syn, state = %i", c->state);
+		if (c->state == TCP_state_syn_sent) {
 			log(LOG_INFO, "switch to received");
-			ip->tcp.state = TCP_state_syn_received;
+			c->state = TCP_state_syn_received;
 
-			ip->tcp.ack = seq + 1;
+			c->ack = seq + 1;
 
-			ip->tcp.next_seq++;
+			c->next_seq++;
 
-			log(LOG_INFO, "load next with seq 0x%x", ip->tcp.next_seq);
+			log(LOG_INFO, "load next with seq 0x%x", c->next_seq);
 
-			add_pkt(net, ip, TCP_flag_ack, nil, 0);
-			send_tcp_pkt(net, c);
+			add_pkt(c, TCP_flag_ack, nil, 0);
+			send_tcp_pkt(net, b, c);
 			
+			c->state = TCP_state_established;
+			connect_tcp_finish(net, b, c);
 		} else {
 			log(LOG_INFO, "why? havent been sending");
 		}
 
 	} else if (flags & TCP_flag_ack) {
-		if (ip->tcp.ack < seq + data_len) {
+		if (c->ack < seq + data_len) {
 			log(LOG_INFO, "have new");
 			
-			insert_received(net, ip, seq, 
+			insert_received(net, b, c, seq, 
 				data, data_len);
 
 		} else if (data_len > 0) {
 			log(LOG_INFO, "did they miss an ack?");
-			add_pkt(net, ip, TCP_flag_ack, nil, 0);
-			send_tcp_pkt(net, c);
+			add_pkt(c, TCP_flag_ack, nil, 0);
+			send_tcp_pkt(net, b, c);
 		} else {
 			log(LOG_INFO, "just ack for 0x%x", ack);
 		}
@@ -423,13 +448,13 @@ handle_tcp(struct net_dev *net,
 }
 
 static void
-open_tcp_arp(struct net_dev *net,
+connect_tcp_arp(struct net_dev *net,
 		void *arg,
 		uint8_t *mac)
 {
-	struct connection *c = arg;
-	struct connection_ip *ip = c->proto_arg;
-	union net_rsp rp;
+#if 0
+	struct binding *c = arg;
+	struct binding_ip *ip = c->proto_arg;
 	
 	char mac_str[32];
 	print_mac(mac_str, mac);
@@ -439,38 +464,56 @@ open_tcp_arp(struct net_dev *net,
 	memcpy(ip->mac_rem, mac, 6);
 
 	send_tcp_pkt(net, c);
+#endif
+}
 
-	rp.open.type = NET_open_rsp;
-	rp.open.ret = OK;
-	rp.open.id = c->id;
+int
+ip_bind_tcp(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c)
+{
+	return ERR;
+}
 
-	send(c->proc_id, &rp);
+int
+ip_unbind_tcp(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c)
+{
+	return ERR;
 }
 
 void
-ip_open_tcp(struct net_dev *net,
+ip_tcp_listen(struct net_dev *net,
 		union net_req *rq, 
-		struct connection *c)
+		struct binding *c)
 {
+
+}
+
+void
+ip_tcp_connect(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *b)
+{
+#if 0
 	struct net_dev_internal *i = net->internal;
-	struct connection_ip *ip;
+	struct binding_ip *ip;
 
-	log(LOG_INFO, "open udp");
-
-	ip = malloc(sizeof(struct connection_ip));
+	ip = malloc(sizeof(struct binding_ip));
 	if (ip == nil) {
 		log(LOG_WARNING, "out of mem");
 		return;
 	}
 
-	c->proto_arg = ip;
+	b->proto_arg = ip;
 
-	log(LOG_INFO, "open tcp");
+	log(LOG_INFO, "connect tcp");
 
 	ip->port_loc = i->n_free_port++;;
-	ip->port_rem = rq->open.port;
+	ip->port_rem = rq->tcp_connect.port_rem;
 
-	memcpy(ip->ip_rem, rq->open.addr, 4);
+	memcpy(ip->ip_rem, rq->tcp_connect.addr_rem, 4);
 
 	ip->offset_into_waiting = 0;
 	ip->recv_wait = nil;
@@ -490,22 +533,56 @@ ip_open_tcp(struct net_dev *net,
 
 	add_pkt(net, ip, TCP_flag_syn, nil, 0);
 
-	arp_request(net, ip->ip_rem, &open_tcp_arp, c);
+	arp_request(net, ip->ip_rem, &connect_tcp_arp, c);
+#endif
+}
+
+void
+ip_tcp_disconnect(struct net_dev *net,
+		union net_req *rq, 
+		struct binding *c)
+{
+#if 0
+	struct binding_ip *ip = c->proto_arg;
+
+	log(LOG_INFO, "disconnect req");
+
+	ip->tcp.state = TCP_state_fin_wait_1;
+
+	add_pkt(net, ip, TCP_flag_ack|TCP_flag_fin, nil, 0);
+	send_tcp_pkt(net, c);
+#endif
 }
 
 void
 ip_write_tcp(struct net_dev *net,
-		int from,
 		union net_req *rq, 
-		struct connection *c)
+		struct binding *b)
 {
-	struct connection_ip *ip = c->proto_arg;
+#if 0
+	struct binding_ip *ip = b->proto_arg;
 	union net_rsp rp;
 	uint8_t *d;
 
-	log(LOG_INFO, "TCP write %i", rq->write.w_len);
+	log(LOG_INFO, "TCP write %i", rq->write.len);
 
-	d = malloc(rq->write.w_len);
+	if (ip->tcp.state != TCP_state_established) {
+		log(LOG_WARNING, "bad state %i", ip->tcp.state);
+
+		give_addr(c->proc_id, rq->write.pa, rq->write.pa_len);
+
+		rp.write.type = NET_write_rsp;
+		rp.write.ret = ERR;
+		rp.write.len = 0;
+		rp.write.pa = rq->write.pa;
+		rp.write.pa_len = rq->write.pa_len;
+
+		send(c->proc_id, &rp);
+
+		return;
+	}
+
+	d = malloc(rq->write.len);
 	if (d == nil) {
 		log(LOG_WARNING, "out of mem");
 		return;
@@ -513,48 +590,69 @@ ip_write_tcp(struct net_dev *net,
 
 	uint8_t *va;
 
-	va = map_addr(rq->write.pa, rq->write.len, MAP_RO);
+	va = map_addr(rq->write.pa, rq->write.pa_len, MAP_RO);
 	if (va == nil) {
 		log(LOG_WARNING, "map failed");
 		return;
 	}
 
-	memcpy(d, va, rq->write.w_len);
+	memcpy(d, va, rq->write.len);
 
-	unmap_addr(va, rq->write.len);
+	unmap_addr(va, rq->write.pa_len);
 
-	give_addr(from, rq->write.pa, rq->write.len);
+	give_addr(c->proc_id, rq->write.pa, rq->write.pa_len);
 
 	add_pkt(net, ip, 
 			TCP_flag_ack|TCP_flag_psh, 
-			d, rq->write.w_len);
+			d, rq->write.len);
 
-	ip->tcp.next_seq += rq->write.w_len;
+	ip->tcp.next_seq += rq->write.len;
 	
 	send_tcp_pkt(net, c);
 
 	rp.write.type = NET_write_rsp;
 	rp.write.ret = OK;
-	rp.write.w_len = rq->write.w_len;
-	rp.write.pa = rq->write.pa;
 	rp.write.len = rq->write.len;
+	rp.write.pa = rq->write.pa;
+	rp.write.pa_len = rq->write.pa_len;
 
-	send(from, &rp);
+	send(c->proc_id, &rp);
+#endif
 }
 
 void
 ip_read_tcp(struct net_dev *net,
-		int from,
 		union net_req *rq, 
-		struct connection *c)
+		struct binding *c)
 {
-	struct connection_ip *ip = c->proto_arg;
+#if 0
+	struct binding_ip *ip = c->proto_arg;
 	size_t len, o, l, cont_ack;
 	struct tcp_pkt *p;
 	union net_rsp rp;
 	uint8_t *va;
 
-	va = map_addr(rq->read.pa, rq->read.len, MAP_RW);
+	log(LOG_INFO, "TCP read");
+
+	if (ip->tcp.state != TCP_state_established 
+		&& ip->tcp.state != TCP_state_close_wait) 
+	{
+		log(LOG_WARNING, "bad state %i", ip->tcp.state);
+
+		give_addr(c->proc_id, rq->read.pa, rq->read.pa_len);
+
+		rp.read.type = NET_read_rsp;
+		rp.read.ret = ERR;
+		rp.read.len = 0;
+		rp.read.pa = rq->read.pa;
+		rp.read.pa_len = rq->read.pa_len;
+
+		send(c->proc_id, &rp);
+
+		return;
+	}
+
+	va = map_addr(rq->read.pa, rq->read.pa_len, MAP_RW);
 	if (va == nil) {
 		log(LOG_WARNING, "map failed");
 		return;
@@ -562,14 +660,14 @@ ip_read_tcp(struct net_dev *net,
 
 	len = 0;
 	cont_ack = ip->tcp.ack;
-	while (ip->tcp.recv_wait != nil && len < rq->read.r_len) {
+	while (ip->tcp.recv_wait != nil && len < rq->read.len) {
 		p = ip->tcp.recv_wait;
 		if (p->seq != cont_ack) {
 			break;
 		}
 
 		o = ip->tcp.offset_into_waiting;
-		l = rq->read.r_len - len;
+		l = rq->read.len - len;
 		if (l > p->len - o) {
 			l = p->len - o;
 		}
@@ -597,35 +695,24 @@ ip_read_tcp(struct net_dev *net,
 	add_pkt(net, ip, TCP_flag_ack, nil, 0);
 	send_tcp_pkt(net, c);
 
-	unmap_addr(va, rq->read.len);
+	if (ip->tcp.state == TCP_state_close_wait 
+		&& ip->tcp.recv_wait == nil) 
+	{
+		log(LOG_INFO, "everything read, can now close");
 
-	give_addr(from, rq->read.pa, rq->read.len);
+		tcp_fin_respond(net, c);
+	}
+	
+	unmap_addr(va, rq->read.pa_len);
+
+	give_addr(c->proc_id, rq->read.pa, rq->read.pa_len);
 
 	rp.read.type = NET_read_rsp;
 	rp.read.ret = OK;
-	rp.read.r_len = len;
+	rp.read.len = len;
 	rp.read.pa = rq->read.pa;
-	rp.read.len = rq->read.len;
+	rp.read.pa_len = rq->read.pa_len;
 
-	send(from, &rp);
+	send(c->proc_id, &rp);
+#endif
 }
-
-int
-ip_close_tcp(struct net_dev *net,
-		int from,
-		union net_req *rq, 
-		struct connection *c)
-{
-	struct connection_ip *ip = c->proto_arg;
-
-	log(LOG_INFO, "close req");
-
-	ip->tcp.state = TCP_state_fin_wait_1;
-
-	add_pkt(net, ip, TCP_flag_ack|TCP_flag_fin, nil, 0);
-	send_tcp_pkt(net, c);
-
-	return OK;
-}
-
-

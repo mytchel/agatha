@@ -10,6 +10,7 @@ struct ip_pkt {
 	struct ip_pkt *next;
 
 	uint8_t src_ipv4[4];
+	uint8_t dst_ipv4[4];
 	uint8_t protocol;
 	uint16_t id;
 
@@ -30,31 +31,42 @@ struct tcp_pkt {
 	uint16_t flags;
 };
 
-struct connection_ip {
-	uint16_t port_loc;
+struct tcp_con {
+	struct tcp_con *next;
+
+	int id;
+
 	uint16_t port_rem;
-
 	uint8_t mac_rem[6];
-	uint8_t ip_rem[4];
+	uint8_t addr_rem[4];
 
-	struct {
-		tcp_state state;
+	tcp_state state;
 		
-		size_t window_size_loc;
-		size_t window_size_rem;
-		size_t window_sent;
+	size_t window_size_loc;
+	size_t window_size_rem;
+	size_t window_sent;
 
-		uint32_t ack;
+	uint32_t ack;
 
-		uint32_t next_seq;
-		struct tcp_pkt *sending;
-
-		size_t offset_into_waiting;
-		struct tcp_pkt *recv_wait;
-	} tcp;
+	uint32_t next_seq;
+	struct tcp_pkt *sending;
 
 	size_t offset_into_waiting;
-	struct ip_pkt *recv_wait;
+	struct tcp_pkt *recv_wait;
+};
+
+struct binding_ip {
+	uint8_t addr_loc[4];
+	uint16_t port_loc;
+
+	struct {
+		struct tcp_con *cons;
+	} tcp;
+
+	struct {
+		size_t offset_into_waiting;
+		struct ip_pkt *recv_wait;
+	} udp;
 };
 
 void
@@ -86,14 +98,12 @@ send_ipv4_pkt(struct net_dev *net,
 	size_t hdr_len,
 	size_t data_len);
 
-struct connection *
-find_connection_ip(struct net_dev *net,
-	int proto,
-	uint16_t port_loc, uint16_t port_rem,
-	uint8_t ip_rem[4]);
+struct binding *
+find_binding_ip(struct net_dev *net,
+	int proto, uint16_t port_loc);
 
 struct ip_pkt *
-ip_pkt_new(uint8_t *src,
+ip_pkt_new(uint8_t src[4], uint8_t dst[4],
 		uint8_t proto,
 		uint16_t ident);
 

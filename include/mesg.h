@@ -73,10 +73,18 @@ typedef enum {
 	EVDEV_connect_rsp,
 	EVDEV_event_msg,
 
-	NET_open_req,
-	NET_open_rsp,
-	NET_close_req,
-	NET_close_rsp,
+	NET_bind_req,
+	NET_bind_rsp,
+	NET_unbind_req,
+	NET_unbind_rsp,
+
+	NET_tcp_connect_req,
+	NET_tcp_connect_rsp,
+	NET_tcp_disconnect_req,
+	NET_tcp_disconnect_rsp,
+	NET_tcp_listen_req,
+	NET_tcp_listen_rsp,
+
 	NET_write_req,
 	NET_write_rsp,
 	NET_read_req,

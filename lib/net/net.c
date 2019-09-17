@@ -49,14 +49,14 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 	}
 }
 
-static struct connection *
-find_connection(struct net_dev *net,
+static struct binding *
+find_binding(struct net_dev *net,
 		int pid, int id)
 {
 	struct net_dev_internal *i = net->internal;
-	struct connection *c;
+	struct binding *c;
 
-	for (c = i->connections; c != nil; c = c->next) {
+	for (c = i->bindings; c != nil; c = c->next) {
 		if (c->proc_id == pid && c->id == id) {
 			return c;
 		}
@@ -67,112 +67,211 @@ find_connection(struct net_dev *net,
 
 
 static void
-handle_open(struct net_dev *net,
+handle_bind(struct net_dev *net,
 		int from, union net_req *rq)
 {
 	struct net_dev_internal *i = net->internal;
-	struct connection *c;
+	struct binding *c;
 	union net_rsp rp;
+	int ret;
 
-	log(LOG_INFO, "%i want to open conneciton", from);
+	log(LOG_INFO, "%i want bind conneciton", from);
 
-	if ((c = malloc(sizeof(struct connection))) == nil) {
-		rp.open.type = NET_open_req;
-		rp.open.ret = ERR;
+	if ((c = malloc(sizeof(struct binding))) == nil) {
+		rp.bind.type = NET_bind_req;
+		rp.bind.ret = ERR;
 		send(from, &rp);
 		return;
 	}
 
 	c->proc_id = from;
-	c->id = i->n_connection_id++;
+	c->id = i->n_binding_id++;
 
-	c->proto = rq->open.proto;
+	c->proto = rq->bind.proto;
 
-	c->next = i->connections;
-	i->connections = c;
+	c->next = i->bindings;
+	i->bindings = c;
 
-	switch (rq->open.proto) {
-		case NET_UDP:
-			ip_open_udp(net, rq, c);
-			break;
+	switch (rq->bind.proto) {
+	case NET_proto_udp:
+		ret = ip_bind_udp(net, rq, c);
+		break;
 
-		case NET_TCP:
-			ip_open_tcp(net, rq, c);
-			break;
+	case NET_proto_tcp:
+		ret = ip_bind_tcp(net, rq, c);
+		break;
 
-		default:
-			rp.open.type = NET_open_req;
-			rp.open.ret = ERR;
-			send(from, &rp);
-			return;
+	default:
+		ret = ERR;
+		break;
 	}
+
+	rp.bind.type = NET_bind_rsp;
+	rp.bind.ret = ret;
+	rp.bind.chan_id = c->id;
+	send(from, &rp);
 }
 
 	static void
-handle_close(struct net_dev *net,
+handle_unbind(struct net_dev *net,
 		int from, union net_req *rq)
 {
-	struct connection *c;
+	struct binding *c;
 	union net_rsp rp;
 	int ret;
 
-	log(LOG_INFO, "%i want to close", from);
+	log(LOG_INFO, "%i want to unbind", from);
 
-	c = find_connection(net, from, rq->read.id);
+	c = find_binding(net, from, rq->unbind.chan_id);
 	if (c == nil) {
 		log(LOG_INFO, "connection %i for %i not found",
-			rq->read.id, from);
+			rq->unbind.chan_id, from);
+		return;
+	}
+
+	if (c->proc_id != from) {
 		return;
 	}
 
 	switch (c->proto) {
-		case NET_UDP:
-			ret = ip_close_udp(net, from, rq, c);
-			break;
+	case NET_proto_udp:
+		ret = ip_unbind_udp(net, rq, c);
+		break;
 
-		case NET_TCP:
-			ret = ip_close_tcp(net, from, rq, c);
-			break;
+	case NET_proto_tcp:
+		ret = ip_unbind_tcp(net, rq, c);
+		break;
 
-		default:
-			ret = ERR;
-			break;
+	default:
+		ret = ERR;
+		break;
 	}
 
-	rp.open.type = NET_close_req;
-	rp.open.ret = ret;
-	rp.open.id = rq->read.id;
+	log(LOG_WARNING, "not fully implimented");
+
+	rp.unbind.type = NET_unbind_rsp;
+	rp.unbind.ret = ret;
+	rp.unbind.chan_id = rq->unbind.chan_id;
 	send(from, &rp);
+}
+
+	static void
+handle_tcp_listen(struct net_dev *net,
+		int from, union net_req *rq)
+{
+	struct binding *c;
+
+	log(LOG_INFO, "%i want to listen", from);
+
+	c = find_binding(net, from, rq->tcp_listen.chan_id);
+	if (c == nil) {
+		log(LOG_INFO, "connection %i for %i not found",
+			rq->tcp_listen.chan_id, from);
+		return;
+	}
+
+	if (c->proc_id != from) {
+		return;
+	}
+
+	switch (c->proto) {
+	default:
+		return;
+
+	case NET_proto_tcp:
+		ip_tcp_listen(net, rq, c);
+		break;
+	}
+}
+
+	static void
+handle_tcp_connect(struct net_dev *net,
+		int from, union net_req *rq)
+{
+	struct binding *c;
+
+	log(LOG_INFO, "%i want to connect", from);
+
+	c = find_binding(net, from, rq->tcp_connect.chan_id);
+	if (c == nil) {
+		log(LOG_INFO, "connection %i for %i not found",
+			rq->tcp_connect.chan_id, from);
+		return;
+	}
+
+	if (c->proc_id != from) {
+		return;
+	}
+
+	switch (c->proto) {
+	default:
+		return;
+
+	case NET_proto_tcp:
+		ip_tcp_connect(net, rq, c);
+		break;
+	}
+}
+
+	static void
+handle_tcp_disconnect(struct net_dev *net,
+		int from, union net_req *rq)
+{
+	struct binding *c;
+
+	log(LOG_INFO, "%i want to disconnect", from);
+
+	c = find_binding(net, from, rq->tcp_disconnect.chan_id);
+	if (c == nil) {
+		log(LOG_INFO, "connection %i for %i not found",
+			rq->tcp_disconnect.chan_id, from);
+		return;
+	}
+
+	if (c->proc_id != from) {
+		return;
+	}
+
+	switch (c->proto) {
+	default:
+		return;
+
+	case NET_proto_tcp:
+		ip_tcp_disconnect(net, rq, c);
+		break;
+	}
 }
 
 	static void
 handle_read(struct net_dev *net,
 		int from, union net_req *rq)
 {
-	struct connection *c;
+	struct binding *c;
 
 	log(LOG_INFO, "%i want to read", from);
 
-	c = find_connection(net, from, rq->read.id);
+	c = find_binding(net, from, rq->read.chan_id);
 	if (c == nil) {
 		log(LOG_INFO, "connection %i for %i not found",
-			rq->read.id, from);
+			rq->read.chan_id, from);
 		return;
 	}
 
-	log(LOG_INFO, "found con has proto %i", c->proto);
+	if (c->proc_id != from) {
+		return;
+	}
 
 	switch (c->proto) {
-		case NET_UDP:
-			ip_read_udp(net, from, rq, c);
-			break;
+	case NET_proto_udp:
+		ip_read_udp(net, rq, c);
+		break;
 
-		case NET_TCP:
-			ip_read_tcp(net, from, rq, c);
-			break;
+	case NET_proto_tcp:
+		ip_read_tcp(net, rq, c);
+		break;
 
-		default:
-			return;
+	default:
+		return;
 	}
 }
 
@@ -180,28 +279,32 @@ handle_read(struct net_dev *net,
 handle_write(struct net_dev *net,
 		int from, union net_req *rq)
 {
-	struct connection *c;
+	struct binding *c;
 
 	log(LOG_INFO, "%i want to write", from);
 
-	c = find_connection(net, from, rq->write.id);
+	c = find_binding(net, from, rq->write.chan_id);
 	if (c == nil) {
 		log(LOG_INFO, "connection %i for %i not found",
-			rq->write.id, from);
+			rq->write.chan_id, from);
+		return;
+	}
+
+	if (c->proc_id != from) {
 		return;
 	}
 
 	switch (c->proto) {
-		case NET_UDP:
-			ip_write_udp(net, from, rq, c);
-			break;
+	case NET_proto_udp:
+		ip_write_udp(net, rq, c);
+		break;
 
-		case NET_TCP:
-			ip_write_tcp(net, from, rq, c);
-			break;
+	case NET_proto_tcp:
+		ip_write_tcp(net, rq, c);
+		break;
 
-		default:
-			return;
+	default:
+		return;
 	}
 }
 
@@ -212,12 +315,24 @@ net_handle_message(struct net_dev *net,
 	uint32_t type = *((uint32_t *) m);
 
 	switch (type) {
-		case NET_open_req:
-			handle_open(net, from, (void *) m);
+		case NET_bind_req:
+			handle_bind(net, from, (void *) m);
 			break;
 
-		case NET_close_req:
-			handle_close(net, from, (void *) m);
+		case NET_unbind_req:
+			handle_unbind(net, from, (void *) m);
+			break;
+
+		case NET_tcp_listen_req:
+			handle_tcp_listen(net, from, (void *) m);
+			break;
+
+		case NET_tcp_connect_req:
+			handle_tcp_connect(net, from, (void *) m);
+			break;
+
+		case NET_tcp_disconnect_req:
+			handle_tcp_disconnect(net, from, (void *) m);
 			break;
 
 		case NET_read_req:
@@ -259,8 +374,8 @@ net_init(struct net_dev *net)
 	i->arp_requests = nil;
 
 	i->n_free_port = 1025;
-	i->n_connection_id = 321;
-	i->connections = nil;
+	i->n_binding_id = 321;
+	i->bindings = nil;
 
 	net->internal = i;
 
@@ -270,11 +385,11 @@ net_init(struct net_dev *net)
 	net->ipv4[0] = 192;
 	net->ipv4[1] = 168;
 	net->ipv4[2] = 10;
-	net->ipv4[3] = 35;
+	net->ipv4[3] = 34;
 
 	net->ipv4_ident = 0xabcd;
 
-	uint8_t ip[4] = { 192, 168, 1, 1};
+	uint8_t ip[4] = { 192, 168, 10, 1};
 	arp_request(net, ip, &f, nil);
 
 	union dev_reg_req drq;
