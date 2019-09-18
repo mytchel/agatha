@@ -36,6 +36,8 @@ struct tcp_pkt {
 struct tcp_con {
 	struct tcp_con *next;
 
+	struct binding *binding;
+
 	int id;
 
 	uint16_t port_rem;
@@ -62,6 +64,8 @@ struct binding_ip {
 	uint16_t port_loc;
 
 	struct {
+		struct tcp_con *listen_con;
+		int next_con_id;
 		struct tcp_con *cons;
 	} tcp;
 

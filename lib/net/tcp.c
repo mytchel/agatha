@@ -397,7 +397,7 @@ handle_tcp(struct net_dev *net,
 			}
 
 			break;
-			
+
 		case TCP_state_time_wait:
 			log(LOG_INFO, "in time wait, got extra fin?");
 		case TCP_state_fin_wait_2:
@@ -447,38 +447,35 @@ handle_tcp(struct net_dev *net,
 	ip_pkt_free(p);
 }
 
-static void
-connect_tcp_arp(struct net_dev *net,
-		void *arg,
-		uint8_t *mac)
-{
-#if 0
-	struct binding *c = arg;
-	struct binding_ip *ip = c->proto_arg;
-	
-	char mac_str[32];
-	print_mac(mac_str, mac);
-
-	log(LOG_INFO, "got mac dst %s", mac_str);
-
-	memcpy(ip->mac_rem, mac, 6);
-
-	send_tcp_pkt(net, c);
-#endif
-}
-
 int
 ip_bind_tcp(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
-	return ERR;
+	struct binding_ip *ip;
+
+	ip = malloc(sizeof(struct binding_ip));
+	if (ip == nil) {
+		return ERR;
+	}
+
+	b->proto_arg = ip;
+
+	memcpy(ip->addr_loc, rq->bind.addr_loc, 4);
+	ip->port_loc = rq->bind.port_loc;
+
+	ip->tcp.listen_con = nil;
+
+	ip->tcp.next_con_id = 0;
+	ip->tcp.cons = nil;
+
+	return OK;
 }
 
 int
 ip_unbind_tcp(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
 	return ERR;
 }
@@ -486,9 +483,52 @@ ip_unbind_tcp(struct net_dev *net,
 void
 ip_tcp_listen(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
+	struct binding_ip *ip = b->proto_arg;
+	struct tcp_con *c;
 
+	c = malloc(sizeof(struct tcp_con));
+	if (c == nil) {
+		return;
+	}
+
+	c->next = nil;
+	c->id = 0;
+	c->port_rem = 0;
+	memset(c->mac_rem, 0, 6);
+
+	c->state = TCP_state_listen;
+
+	c->window_size_loc = 0;
+	c->window_size_rem = 0;
+	c->window_sent = 0;
+	
+	c->ack = 0;
+	c->next_seq = 0x4321;
+	c->sending = nil;
+	c->offset_into_waiting = 0;
+	c->recv_wait = nil;
+
+	ip->tcp.listen_con = c;
+}
+
+static void
+connect_tcp_arp(struct net_dev *net,
+		void *arg,
+		uint8_t *mac)
+{
+	struct tcp_con *c = arg;
+	struct binding *b = c->binding;
+	
+	char mac_str[32];
+	print_mac(mac_str, mac);
+
+	log(LOG_INFO, "got mac dst %s", mac_str);
+
+	memcpy(c->mac_rem, mac, 6);
+
+	send_tcp_pkt(net, b, c);
 }
 
 void
@@ -496,62 +536,92 @@ ip_tcp_connect(struct net_dev *net,
 		union net_req *rq, 
 		struct binding *b)
 {
-#if 0
-	struct net_dev_internal *i = net->internal;
-	struct binding_ip *ip;
-
-	ip = malloc(sizeof(struct binding_ip));
-	if (ip == nil) {
-		log(LOG_WARNING, "out of mem");
-		return;
-	}
-
-	b->proto_arg = ip;
+	struct binding_ip *ip = b->proto_arg;
+	struct tcp_con *c;
 
 	log(LOG_INFO, "connect tcp");
 
-	ip->port_loc = i->n_free_port++;;
-	ip->port_rem = rq->tcp_connect.port_rem;
+	c = malloc(sizeof(struct tcp_con));
+	if (c == nil) {
+		return;
+	}
 
-	memcpy(ip->ip_rem, rq->tcp_connect.addr_rem, 4);
+	c->next = nil;
+	c->binding = b;
 
-	ip->offset_into_waiting = 0;
-	ip->recv_wait = nil;
+	c->id = ip->tcp.next_con_id++;
 
-	ip->tcp.state = TCP_state_syn_sent;
+	c->port_rem = rq->tcp_connect.port_rem;
+	memset(c->mac_rem, 0, 6);
+	memcpy(c->addr_rem, rq->tcp_connect.addr_rem, 4);
 
-	ip->tcp.next_seq = 0xaaaaa;
-	ip->tcp.sending = nil;
+	c->window_size_loc = 1024;
+	c->window_size_rem = 0;
+	c->window_sent = 0;
 	
-	ip->tcp.ack = 0;
-	ip->tcp.offset_into_waiting = 0;
-	ip->tcp.recv_wait = nil;
+	c->ack = 0;
+	c->next_seq = 0xaaaa;
+	c->sending = nil;
+	c->offset_into_waiting = 0;
+	c->recv_wait = nil;
 
-	ip->tcp.window_size_loc = 1024;
-	ip->tcp.window_size_rem = 0;
-	ip->tcp.window_sent = 0;
+	c->next = ip->tcp.cons;
+	ip->tcp.cons = c;
 
-	add_pkt(net, ip, TCP_flag_syn, nil, 0);
+	c->state = TCP_state_syn_sent;
 
-	arp_request(net, ip->ip_rem, &connect_tcp_arp, c);
-#endif
+	add_pkt(c, TCP_flag_syn, nil, 0);
+
+	arp_request(net, c->addr_rem, &connect_tcp_arp, c);
+}
+
+static struct tcp_con *
+find_tcp_con(struct binding *b, int id)
+{
+	struct binding_ip *ip = b->proto_arg;
+	struct tcp_con *c;
+
+	for (c = ip->tcp.cons; c != nil; c = c->next) {
+		if (c->id == id) {
+			return c;
+		}
+	}
+
+	return nil;
 }
 
 void
 ip_tcp_disconnect(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
-#if 0
-	struct binding_ip *ip = c->proto_arg;
+	struct tcp_con *c;
 
 	log(LOG_INFO, "disconnect req");
 
-	ip->tcp.state = TCP_state_fin_wait_1;
+	c = find_tcp_con(b, rq->tcp_disconnect.con_id);
+	if (c == nil) {
+		log(LOG_WARNING, "couldn't find con %i", rq->tcp_disconnect.con_id);
+		return;
+	}
 
-	add_pkt(net, ip, TCP_flag_ack|TCP_flag_fin, nil, 0);
-	send_tcp_pkt(net, c);
-#endif
+	switch (c->state) {
+	case TCP_state_established:
+		c->state = TCP_state_fin_wait_1;
+		add_pkt(c, TCP_flag_ack|TCP_flag_fin, nil, 0);
+		break;
+	
+	case TCP_state_close_wait:
+		c->state = TCP_state_last_ack;
+		add_pkt(c, TCP_flag_ack|TCP_flag_fin, nil, 0);
+		break;
+
+	default:
+		log(LOG_WARNING, "bad state %i", c->state);
+		break;
+	}
+
+	send_tcp_pkt(net, b, c);
 }
 
 void
@@ -559,25 +629,32 @@ ip_write_tcp(struct net_dev *net,
 		union net_req *rq, 
 		struct binding *b)
 {
-#if 0
-	struct binding_ip *ip = b->proto_arg;
+	struct tcp_con *c;
 	union net_rsp rp;
 	uint8_t *d;
 
 	log(LOG_INFO, "TCP write %i", rq->write.len);
 
-	if (ip->tcp.state != TCP_state_established) {
-		log(LOG_WARNING, "bad state %i", ip->tcp.state);
+	c = find_tcp_con(b, rq->write.proto.tcp.con_id);
+	if (c == nil) {
+		log(LOG_WARNING, "couldn't find con %i", rq->write.proto.tcp.con_id);
+		return;
+	}
 
-		give_addr(c->proc_id, rq->write.pa, rq->write.pa_len);
+	if (c->state != TCP_state_established) {
+		log(LOG_WARNING, "bad state %i", c->state);
+
+		give_addr(b->proc_id, rq->write.pa, rq->write.pa_len);
 
 		rp.write.type = NET_write_rsp;
 		rp.write.ret = ERR;
+		rp.write.chan_id = b->id;
+		rp.write.proto.tcp.con_id = c->id;
 		rp.write.len = 0;
 		rp.write.pa = rq->write.pa;
 		rp.write.pa_len = rq->write.pa_len;
 
-		send(c->proc_id, &rp);
+		send(b->proc_id, &rp);
 
 		return;
 	}
@@ -600,54 +677,61 @@ ip_write_tcp(struct net_dev *net,
 
 	unmap_addr(va, rq->write.pa_len);
 
-	give_addr(c->proc_id, rq->write.pa, rq->write.pa_len);
+	give_addr(b->proc_id, rq->write.pa, rq->write.pa_len);
 
-	add_pkt(net, ip, 
-			TCP_flag_ack|TCP_flag_psh, 
+	add_pkt(c, TCP_flag_ack|TCP_flag_psh, 
 			d, rq->write.len);
 
-	ip->tcp.next_seq += rq->write.len;
+	c->next_seq += rq->write.len;
 	
-	send_tcp_pkt(net, c);
+	send_tcp_pkt(net, b, c);
 
 	rp.write.type = NET_write_rsp;
 	rp.write.ret = OK;
+	rp.write.chan_id = b->id;
+	rp.write.proto.tcp.con_id = c->id;
 	rp.write.len = rq->write.len;
 	rp.write.pa = rq->write.pa;
 	rp.write.pa_len = rq->write.pa_len;
 
-	send(c->proc_id, &rp);
-#endif
+	send(b->proc_id, &rp);
 }
 
 void
 ip_read_tcp(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
-#if 0
-	struct binding_ip *ip = c->proto_arg;
 	size_t len, o, l, cont_ack;
+	struct tcp_con *c;
 	struct tcp_pkt *p;
 	union net_rsp rp;
 	uint8_t *va;
 
 	log(LOG_INFO, "TCP read");
 
-	if (ip->tcp.state != TCP_state_established 
-		&& ip->tcp.state != TCP_state_close_wait) 
-	{
-		log(LOG_WARNING, "bad state %i", ip->tcp.state);
+	c = find_tcp_con(b, rq->read.proto.tcp.con_id);
+	if (c == nil) {
+		log(LOG_WARNING, "couldn't find con %i", rq->read.proto.tcp.con_id);
+		return;
+	}
 
-		give_addr(c->proc_id, rq->read.pa, rq->read.pa_len);
+	if (c->state != TCP_state_established 
+		&& c->state != TCP_state_close_wait) 
+	{
+		log(LOG_WARNING, "bad state %i", c->state);
+
+		give_addr(b->proc_id, rq->read.pa, rq->read.pa_len);
 
 		rp.read.type = NET_read_rsp;
 		rp.read.ret = ERR;
+		rp.read.chan_id = b->id;
+		rp.read.proto.tcp.con_id = c->id;
 		rp.read.len = 0;
 		rp.read.pa = rq->read.pa;
 		rp.read.pa_len = rq->read.pa_len;
 
-		send(c->proc_id, &rp);
+		send(b->proc_id, &rp);
 
 		return;
 	}
@@ -659,14 +743,14 @@ ip_read_tcp(struct net_dev *net,
 	}
 
 	len = 0;
-	cont_ack = ip->tcp.ack;
-	while (ip->tcp.recv_wait != nil && len < rq->read.len) {
-		p = ip->tcp.recv_wait;
+	cont_ack = c->ack;
+	while (c->recv_wait != nil && len < rq->read.len) {
+		p = c->recv_wait;
 		if (p->seq != cont_ack) {
 			break;
 		}
 
-		o = ip->tcp.offset_into_waiting;
+		o = c->offset_into_waiting;
 		l = rq->read.len - len;
 		if (l > p->len - o) {
 			l = p->len - o;
@@ -677,10 +761,10 @@ ip_read_tcp(struct net_dev *net,
 			l);
 
 		if (o + l < p->len) {
-			ip->tcp.offset_into_waiting = o + l;
+			c->offset_into_waiting = o + l;
 		} else {
-			ip->tcp.offset_into_waiting = 0;
-			ip->tcp.recv_wait = p->next;
+			c->offset_into_waiting = 0;
+			c->recv_wait = p->next;
 			free(p->data);
 			free(p);
 			cont_ack += l;
@@ -689,30 +773,31 @@ ip_read_tcp(struct net_dev *net,
 		len += l;
 	}
 
-	log(LOG_INFO, "increase ack from 0x%x to 0x%x", ip->tcp.ack, cont_ack);
+	log(LOG_INFO, "increase ack from 0x%x to 0x%x", c->ack, cont_ack);
 
-	ip->tcp.ack = cont_ack;
-	add_pkt(net, ip, TCP_flag_ack, nil, 0);
-	send_tcp_pkt(net, c);
+	c->ack = cont_ack;
+	add_pkt(c, TCP_flag_ack, nil, 0);
+	send_tcp_pkt(net, b, c);
 
-	if (ip->tcp.state == TCP_state_close_wait 
-		&& ip->tcp.recv_wait == nil) 
+	if (c->state == TCP_state_close_wait 
+		&& c->recv_wait == nil) 
 	{
 		log(LOG_INFO, "everything read, can now close");
 
-		tcp_fin_respond(net, c);
+		tcp_fin_respond(net, b, c);
 	}
 	
 	unmap_addr(va, rq->read.pa_len);
 
-	give_addr(c->proc_id, rq->read.pa, rq->read.pa_len);
+	give_addr(b->proc_id, rq->read.pa, rq->read.pa_len);
 
 	rp.read.type = NET_read_rsp;
 	rp.read.ret = OK;
+	rp.read.chan_id = b->id;
+	rp.read.proto.tcp.con_id = c->id;
 	rp.read.len = len;
 	rp.read.pa = rq->read.pa;
 	rp.read.pa_len = rq->read.pa_len;
 
-	send(c->proc_id, &rp);
-#endif
+	send(b->proc_id, &rp);
 }

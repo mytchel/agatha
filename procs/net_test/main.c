@@ -11,7 +11,8 @@
 #include <net.h>
 #include <log.h>
 
-#define TCP_TEST_PORT 4026
+#define TCP_TEST_PORT_LOC 4033
+#define TCP_TEST_PORT_REM 4028
 
 #define UDP_TEST_PORT_LOC 3000
 
@@ -173,8 +174,7 @@ udp_test(int net_pid)
 int
 tcp_test(int net_pid)
 {
-#if 0
-	int chan_id, ret, j;
+	int chan_id, con_id, ret, j;
 	union net_req rq;
 	union net_rsp rp;
 	size_t pa, len;
@@ -189,24 +189,41 @@ tcp_test(int net_pid)
 
 	log(LOG_INFO, "start TCP test");
 
-	rq.open.type = NET_open_req;
-	rq.open.port = TCP_TEST_PORT;
-	rq.open.addr[0] = 192;
-	rq.open.addr[1] = 168;
-	rq.open.addr[2] = 10;
-	rq.open.addr[3] = 1;
-	rq.open.proto = NET_TCP;
+	rq.bind.type = NET_bind_req;
+	rq.bind.port_loc = TCP_TEST_PORT_LOC;
+	rq.bind.addr_loc[0] = 192;
+	rq.bind.addr_loc[1] = 168;
+	rq.bind.addr_loc[2] = 10;
+	rq.bind.addr_loc[3] = 34;
+	rq.bind.proto = NET_proto_tcp;
 
 	if (mesg(net_pid, &rq, &rp) != OK) {
 		log(LOG_FATAL, "mesg failed!");
 		return ERR;
-	} else if (rp.open.ret != OK) {
-		log(LOG_FATAL, "open failed %i", rp.open.ret);
+	} else if (rp.bind.ret != OK) {
+		log(LOG_FATAL, "open failed %i", rp.bind.ret);
 		return ERR;
 	}
 
-	chan_id = rp.open.id;
+	chan_id = rp.bind.chan_id;
 
+	rq.tcp_connect.type = NET_tcp_connect_req;
+	rq.tcp_connect.port_rem = TCP_TEST_PORT_REM;
+	rq.tcp_connect.chan_id = chan_id;
+	rq.tcp_connect.addr_rem[0] = 192;
+	rq.tcp_connect.addr_rem[1] = 168;
+	rq.tcp_connect.addr_rem[2] = 10;
+	rq.tcp_connect.addr_rem[3] = 1;
+
+	if (mesg(net_pid, &rq, &rp) != OK) {
+		log(LOG_FATAL, "mesg failed!");
+		return ERR;
+	} else if (rp.tcp_connect.ret != OK) {
+		log(LOG_FATAL, "connect failed %i", rp.tcp_connect.ret);
+		return ERR;
+	}
+
+	con_id = rp.tcp_connect.con_id;
 	for (j = 0; j < 100; j++) {
 		if ((ret = give_addr(net_pid, pa, len)) != OK) {
 			log(LOG_FATAL, "net give_addr failed %i", ret);
@@ -214,10 +231,11 @@ tcp_test(int net_pid)
 		}
 
 		rq.read.type = NET_read_req;
-		rq.read.id = chan_id;
+		rq.read.chan_id = chan_id;
+		rq.read.proto.tcp.con_id = con_id;
 		rq.read.pa = pa;
+		rq.read.pa_len = len;
 		rq.read.len = len;
-		rq.read.r_len = len;
 		rq.read.timeout_ms = 500;
 
 		if (mesg(net_pid, &rq, &rp) != OK) {
@@ -234,27 +252,27 @@ tcp_test(int net_pid)
 			return ERR;
 		}
 
-		log(LOG_INFO, "read got %i bytes", rp.read.r_len);
+		log(LOG_INFO, "read got %i bytes", rp.read.len);
 		size_t b;
-		for (b = 0; b < rp.read.r_len; b++) {
+		for (b = 0; b < rp.read.len; b++) {
 			log(LOG_INFO, "byte %i : 0x%x", b, va[b]);
 		}
 
 		size_t w_len;
 		
-		if (rp.read.r_len > 0) {
-			uint8_t *d = malloc(rp.read.r_len);
+		if (rp.read.len > 0) {
+			uint8_t *d = malloc(rp.read.len);
 			if (d == nil) {
 				log(LOG_WARNING, "out of mem");
 				return ERR;
 			}
 
-			memcpy(d, va, rp.read.r_len);
-			d[rp.read.r_len-1] = 0;
+			memcpy(d, va, rp.read.len);
+			d[rp.read.len-1] = 0;
 			
 			w_len = snprintf((char *) va, len, 
 						"hello %i, recved %i for '%s'\n", 
-						j, rp.read.r_len, d);
+						j, rp.read.len, d);
 
 			free(d);
 		} else {
@@ -269,10 +287,11 @@ tcp_test(int net_pid)
 		}
 
 		rq.write.type = NET_write_req;
-		rq.write.id = chan_id;
+		rq.write.chan_id = chan_id;
+		rq.write.proto.tcp.con_id = con_id;
 		rq.write.pa = pa;
-		rq.write.len = len;
-		rq.write.w_len = w_len;
+		rq.write.pa_len = len;
+		rq.write.len = w_len;
 
 		if (mesg(net_pid, &rq, &rp) != OK) {
 			log(LOG_FATAL, "mesg failed!");
@@ -287,18 +306,29 @@ tcp_test(int net_pid)
 			;
 	}
 
-	rq.close.type = NET_close_req;
-	rq.close.id = chan_id;
+	rq.tcp_disconnect.type = NET_tcp_disconnect_req;
+	rq.tcp_disconnect.chan_id = chan_id;
+	rq.tcp_disconnect.con_id = con_id;
 
 	if (mesg(net_pid, &rq, &rp) != OK) {
 		log(LOG_FATAL, "mesg failed!");
 		return ERR;
-	} else if (rp.close.ret != OK) {
-		log(LOG_FATAL, "close failed %i", rp.close.ret);
+	} else if (rp.tcp_disconnect.ret != OK) {
+		log(LOG_FATAL, "disconnect failed %i", rp.tcp_disconnect.ret);
 		return ERR;
 	}
 
-#endif
+	rq.unbind.type = NET_unbind_req;
+	rq.unbind.chan_id = chan_id;
+
+	if (mesg(net_pid, &rq, &rp) != OK) {
+		log(LOG_FATAL, "mesg failed!");
+		return ERR;
+	} else if (rp.unbind.ret != OK) {
+		log(LOG_FATAL, "unbind failed %i", rp.unbind.ret);
+		return ERR;
+	}
+
 	return OK;
 }
 
@@ -315,7 +345,7 @@ main(void)
 
 	log(LOG_INFO, "have net pid %i", net_pid);
 
-	udp_test(net_pid);
+	/*udp_test(net_pid);*/
 	tcp_test(net_pid);
 
 	return OK;

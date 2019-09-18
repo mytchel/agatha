@@ -63,6 +63,9 @@ union net_req {
 				uint8_t addr_rem[4];
 				uint16_t port_rem;
 			} udp;
+			struct {
+				int con_id;
+			} tcp;
 		} proto;
 	} write;
 };
