@@ -14,6 +14,8 @@ struct ip_pkt {
 	uint8_t protocol;
 	uint16_t id;
 
+	uint16_t src_port;
+
 	bool have_last;
 	struct ip_pkt_frag *frags;
 	

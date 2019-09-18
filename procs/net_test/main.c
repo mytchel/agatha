@@ -13,8 +13,6 @@
 
 #define TCP_TEST_PORT 4026
 
-#define UDP_TEST_PORT_REM 3000
-uint8_t UDP_TEST_ADDR_REM[4] = { 192, 168, 10, 1 };
 #define UDP_TEST_PORT_LOC 3000
 
 int
@@ -46,6 +44,9 @@ udp_test(int net_pid)
 	size_t pa, len;
 	uint8_t *va;
 
+	uint16_t port_rem;
+	uint8_t addr_rem[4];
+
 	len = PAGE_SIZE;
 	pa = request_memory(len);
 	if (pa == nil) {
@@ -74,40 +75,10 @@ udp_test(int net_pid)
 	chan_id = rp.bind.chan_id;
 
 	for (j = 0; j < 100; j++) {
-#if 0
-		va = map_addr(pa, len, MAP_RW);
-		if (va == nil) {
-			log(LOG_FATAL, "map addr failed");
-			return ERR;
-		}
 
-		size_t w_len;
-		
-		w_len = snprintf((char *) va, len, "hello %i\n", j);
-
-		unmap_addr(va, len);
-		
-		if ((ret = give_addr(net_pid, pa, len)) != OK) {
-			log(LOG_FATAL, "net give_addr failed %i", ret);
-			return ERR;
-		}
-
-		rq.write.type = NET_write_req;
-		rq.write.chan_id = chan_id;
-		rq.write.pa = pa;
-		rq.write.pa_len = len;
-		rq.write.len = w_len;
-		rq.write.proto.udp.port_rem = UDP_TEST_PORT_REM;
-		memcpy(rq.write.proto.udp.addr_rem, UDP_TEST_ADDR_REM, 4);
-
-		if (mesg(net_pid, &rq, &rp) != OK) {
-			log(LOG_FATAL, "mesg failed!");
-			return ERR;
-		} else if (rp.write.ret != OK) {
-			log(LOG_FATAL, "write failed %i", rp.write.ret);
-			return ERR;
-		}
-#endif
+		int k;
+		for (k = 0; k < 100000000; k++)
+			;
 
 		if ((ret = give_addr(net_pid, pa, len)) != OK) {
 			log(LOG_FATAL, "net give_addr failed %i", ret);
@@ -135,21 +106,54 @@ udp_test(int net_pid)
 			return ERR;
 		}
 
-		log(LOG_INFO, "read got %i bytes from %i.%i", 
+		log(LOG_INFO, "read got %i bytes from %i.%i.%i.%i : %i", 
 			rp.read.len, 
+			rp.read.proto.udp.addr_rem[0],
+			rp.read.proto.udp.addr_rem[1],
 			rp.read.proto.udp.addr_rem[2],
-			rp.read.proto.udp.addr_rem[3]);
+			rp.read.proto.udp.addr_rem[3],
+			rp.read.proto.udp.port_rem);
 
 		size_t b;
 		for (b = 0; b < rp.read.len; b++) {
 			log(LOG_INFO, "byte %i : 0x%x", b, va[b]);
 		}
-		
+
 		unmap_addr(va, len);
 
-		int k;
-		for (k = 0; k < 100000000; k++)
-			;
+		if (rp.read.len == 0) continue;
+
+		port_rem = rp.read.proto.udp.port_rem;
+		memcpy(addr_rem, rp.read.proto.udp.addr_rem, 4);
+
+		va = map_addr(pa, len, MAP_RW);
+
+		size_t w_len;
+		
+		w_len = snprintf((char *) va, len, "hello %i\n", j);
+
+		unmap_addr(va, len);
+		
+		if ((ret = give_addr(net_pid, pa, len)) != OK) {
+			log(LOG_FATAL, "net give_addr failed %i", ret);
+			return ERR;
+		}
+
+		rq.write.type = NET_write_req;
+		rq.write.chan_id = chan_id;
+		rq.write.pa = pa;
+		rq.write.pa_len = len;
+		rq.write.len = w_len;
+		rq.write.proto.udp.port_rem = port_rem;
+		memcpy(rq.write.proto.udp.addr_rem, addr_rem, 4);
+
+		if (mesg(net_pid, &rq, &rp) != OK) {
+			log(LOG_FATAL, "mesg failed!");
+			return ERR;
+		} else if (rp.write.ret != OK) {
+			log(LOG_FATAL, "write failed %i", rp.write.ret);
+			return ERR;
+		}
 	}
 
 	rq.unbind.type = NET_unbind_req;

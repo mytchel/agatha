@@ -98,6 +98,8 @@ handle_udp(struct net_dev *net,
 	log(LOG_INFO, "udp packet length %i csum 0x%x",
 			data_len, csum);
 
+	p->src_port = port_src;
+
 	dump_hex_block(data, data_len);
 
 	struct binding *c;
@@ -186,13 +188,88 @@ ip_unbind_udp(struct net_dev *net,
 	return OK;
 }
 
+struct udp_write_req {
+	struct net_dev *net;
+	struct binding *binding;
+	size_t pa, pa_len;
+	uint8_t *va;
+	size_t len;
+	uint8_t addr_rem[4];
+	uint16_t port_rem;
+};
+
+static void
+udp_write_finish(struct net_dev *net, void *arg, uint8_t *mac)
+{
+	struct udp_write_req *r = arg;
+	union net_rsp rp;
+
+	if (!send_udp_pkt(r->net, r->binding, 
+			mac,
+			r->addr_rem, 
+			r->port_rem,
+			r->va, r->len))
+	{
+		log(LOG_INFO, "create pkt fail");
+		return;
+	}
+
+	log(LOG_INFO, "udp sent");
+
+	unmap_addr(r->va, r->pa_len);
+
+	if (give_addr(r->binding->proc_id, r->pa, r->pa_len) != OK) {
+		return;
+	}
+
+	rp.write.type = NET_write_rsp;
+	rp.write.ret = OK;
+	rp.write.chan_id = r->binding->id;
+	rp.write.pa = r->pa;
+	rp.write.pa_len = r->pa_len;
+	rp.write.len = r->len;
+
+	send(r->binding->proc_id, &rp);
+
+	free(r);
+}
+
+void
+add_udp_write_req(struct net_dev *net,
+		struct binding *b,
+		size_t pa, size_t pa_len,
+		uint8_t *va,
+		size_t len,
+		uint8_t addr_rem[4],
+		uint16_t port_rem)
+{
+	struct udp_write_req *r;
+
+	r = malloc(sizeof(struct udp_write_req));
+	if (r == nil) {
+		log(LOG_WARNING, "out of mem");
+		return;
+	}
+
+	r->net = net;
+	r->binding = b;
+	r->pa = pa;
+	r->pa_len = pa_len;
+	r->va = va;
+	r->len = len;
+	r->port_rem = port_rem;
+	memcpy(r->addr_rem, addr_rem, 4);
+
+	arp_request(net, addr_rem,
+		&udp_write_finish,
+		r);
+}
+
 void
 ip_write_udp(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
-	union net_rsp rp;
-
 	log(LOG_INFO, "write udp");
 
 	uint8_t *va;
@@ -202,42 +279,18 @@ ip_write_udp(struct net_dev *net,
 		return;
 	}
 
-	uint8_t mac_rem[6] = { 0 };
-
-	if (!send_udp_pkt(net, c, 
-			mac_rem,
-			rq->write.proto.udp.addr_rem, 
-			rq->write.proto.udp.port_rem,
-			va, rq->write.len))
-	{
-		log(LOG_INFO, "create pkt fail");
-		return;
-	}
-
-	log(LOG_INFO, "sent");
-
-	unmap_addr(va, rq->write.pa_len);
-
-	if (give_addr(c->proc_id, rq->write.pa, rq->write.pa_len) != OK) {
-		return;
-	}
-
-	rp.write.type = NET_write_rsp;
-	rp.write.ret = OK;
-	rp.write.chan_id = c->id;
-	rp.write.pa = rq->write.pa;
-	rp.write.pa_len = rq->write.pa_len;
-	rp.write.len = rq->write.len;
-
-	send(c->proc_id, &rp);
+	add_udp_write_req(net, b, rq->write.pa, rq->write.pa_len,
+			va, rq->write.len,
+			rq->write.proto.udp.addr_rem,
+			rq->write.proto.udp.port_rem);
 }
 
 void
 ip_read_udp(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
-	struct binding_ip *ip = c->proto_arg;
+	struct binding_ip *ip = b->proto_arg;
 	size_t len, l, o;
 	struct ip_pkt *p;
 	union net_rsp rp;
@@ -245,15 +298,24 @@ ip_read_udp(struct net_dev *net,
 
 	log(LOG_INFO, "read udp");
 
+	rp.read.type = NET_read_rsp;
+	rp.read.chan_id = b->id;
+	rp.read.pa = rq->read.pa;
+	rp.read.pa_len = rq->read.pa_len;
+	rp.read.len = 0;
+	memset(&rp.read.proto, 0, sizeof(rp.read.proto));
+	
 	va = map_addr(rq->read.pa, rq->read.pa_len, MAP_RW);
 	if (va == nil) {
+		rp.read.ret = ERR;
+		send(b->proc_id, &rp);
 		return;
 	}
 
 	len = 0;
-	while (ip->udp.recv_wait != nil && len < rq->read.len) {
-		p = ip->udp.recv_wait;
 
+	p = ip->udp.recv_wait;
+	if (p != nil) {
 		log(LOG_INFO, "read from pkt 0x%x", p->id);
 
 		o = ip->udp.offset_into_waiting;
@@ -271,6 +333,9 @@ ip_read_udp(struct net_dev *net,
 			p->data + sizeof(struct udp_hdr) + o,
 		 	l);
 
+		rp.read.proto.udp.port_rem = p->src_port;
+		memcpy(rp.read.proto.udp.addr_rem, p->src_ipv4, 4);
+
 		if (o + l < p->len - sizeof(struct udp_hdr)) {
 			log(LOG_INFO, "update offset to %i", o + l);
 			ip->udp.offset_into_waiting = o + l;
@@ -281,24 +346,22 @@ ip_read_udp(struct net_dev *net,
 			ip_pkt_free(p);
 		}
 		
-		len += l;
+		len = l;
 	}
 
 	unmap_addr(va, rq->read.pa_len);
 
 	log(LOG_INFO, "got %i bytes in total", len);
 
-	if (give_addr(c->proc_id, rq->read.pa, rq->read.pa_len) != OK) {
+	if (give_addr(b->proc_id, rq->read.pa, rq->read.pa_len) != OK) {
+		rp.read.ret = ERR;
+		send(b->proc_id, &rp);
 		return;
 	}
 
-	rp.read.type = NET_read_rsp;
 	rp.read.ret = OK;
-	rp.read.chan_id = c->id;
-	rp.read.pa = rq->read.pa;
-	rp.read.pa_len = rq->read.pa_len;
 	rp.read.len = len;
 
-	send(c->proc_id, &rp);
+	send(b->proc_id, &rp);
 }
 
