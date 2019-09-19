@@ -11,19 +11,19 @@ LOAD_ADDR = 0x40000000
 PROCS = \
 				../../procs/dev_reg \
 				../../procs/log \
-				../../procs/init \
-				../../procs/ui \
 				../../procs/net_test
+#				../../procs/init \
+#				../../procs/ui \
 
 IDLE = \
 				../../procs/idle 
 
 DRIVERS = \
 					../drivers/serial-pl01x \
-					../drivers/virtio/blk \
 					../drivers/virtio/net \
-					../drivers/virtio/gpu \
-					../drivers/virtio/input
+#					../drivers/virtio/gpu \
+#					../drivers/virtio/input
+#					../drivers/virtio/blk \
 
 BOARD_KERNEL_SRC_A = \
 										 timer.S

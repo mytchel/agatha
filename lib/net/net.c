@@ -28,10 +28,7 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 
 	uint32_t type = hdr->tol.type[0] << 8 | hdr->tol.type[1];
 
-	if (memcmp(hdr->dst, net->mac, 6)) {
-		log(LOG_WARNING, "this packet is for us ::::");
-		dump_hex_block(pkt, len);
-	}
+	log(LOG_INFO, "process pkt");
 
 	switch (type) {
 		case 0x0806:

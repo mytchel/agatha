@@ -41,12 +41,9 @@ arp_request(struct net_dev *net, uint8_t *ipv4,
 	uint8_t mac[6];
 
 	if (arp_match_ip(net, ipv4, mac)) {
-		log(LOG_INFO, "already have it");
 		func(net, arg, mac);
 		return;
 	}
-
-	log(LOG_INFO, "making arp request");
 
 	struct net_dev_internal *i = net->internal;
 	struct arp_request *r;

@@ -137,7 +137,6 @@ find_binding_ip(struct net_dev *net,
 
 	for (c = i->bindings; c != nil; c = c->next) {
 		ip = c->proto_arg;
-		log(LOG_INFO, "check %i %i against binding %i %i", proto, port_loc, c->proto, ip->port_loc);
 		if (proto == c->proto && port_loc == ip->port_loc) {
 			return c;
 		}
@@ -288,7 +287,10 @@ handle_ipv4(struct net_dev *net,
 
 	ip_hdr = (void *) bdy;
 
+	log(LOG_INFO, "have ip pkt");
+
 	if (!memcmp(eth_hdr->dst, net->mac, 6)) {
+		log(LOG_INFO, "mac bad");
 		return;
 	}
 
@@ -310,19 +312,17 @@ handle_ipv4(struct net_dev *net,
 
 	ident = ip_hdr->ident[0] << 8 | ip_hdr->ident[1];
 
-	log(LOG_INFO, "pkt id 0x%x", ident);
-	log(LOG_INFO, "ttl %i", ip_hdr->ttl);
-
 	frag_flag_dont = (ip_hdr->fragment[0] >> 6) & 1;
 	frag_flag_more = (ip_hdr->fragment[0] >> 5) & 1;
 	frag_offset = ((ip_hdr->fragment[0] & 0x1f ) << 5)
 		| ip_hdr->fragment[1];
 
-	log(LOG_INFO, "frag d %i m %i offset 0x%x", 
-			frag_flag_dont, frag_flag_more, frag_offset);
+	if (frag_offset > 0 || frag_flag_more) {
+		log(LOG_INFO, "frag d %i m %i offset 0x%x", 
+				frag_flag_dont, frag_flag_more, frag_offset);
+	}
 	
 	protocol = ip_hdr->protocol;
-	log(LOG_INFO, "proto %i", protocol);
 
 	struct ip_pkt *p;
 
@@ -331,6 +331,7 @@ handle_ipv4(struct net_dev *net,
 
 		f = malloc(sizeof(struct ip_pkt_frag));
 		if (f == nil) {
+			log(LOG_WARNING, "out of mem");
 			return;
 		}
 
@@ -339,6 +340,7 @@ handle_ipv4(struct net_dev *net,
 
 		f->data = malloc(ip_len);
 		if (f->data == nil) {
+			log(LOG_WARNING, "out of mem");
 			free(f);
 			return;
 		}
@@ -363,11 +365,13 @@ handle_ipv4(struct net_dev *net,
 		p = ip_pkt_new(ip_hdr->src, ip_hdr->dst, 
 				protocol, ident);
 		if (p == nil) {
+			log(LOG_WARNING, "out of mem");
 			return;
 		}
 
 		p->data = malloc(ip_len);
 		if (p->data == nil) {
+			log(LOG_WARNING, "out of mem");
 			free(p);
 			return;
 		}
@@ -375,7 +379,9 @@ handle_ipv4(struct net_dev *net,
 		memcpy(p->data, ip_bdy, ip_len);
 		p->len = ip_len;
 	}
-		
+
+	log(LOG_INFO, "have pkt proto %i", protocol);
+
 	switch (protocol) {
 		case IP_ICMP:
 			handle_icmp(net, p); 

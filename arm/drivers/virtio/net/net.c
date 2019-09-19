@@ -211,8 +211,6 @@ send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 	struct virtio_net_hdr *vh;
 	uint8_t *tx_va;
 
-	log(LOG_INFO, "send_pkt size %i", len);
-
 	h = virtq_get_desc(&dev->tx, &index_h);
 	if (h == nil) {
 		log(LOG_WARNING, "failed to get descriptor");
@@ -224,8 +222,6 @@ send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 		log(LOG_WARNING, "failed to get descriptor");
 		return;
 	}
-
-	log(LOG_INFO, "got descriptors %i and %i", index_h, index_b);
 
 	h->addr = dev->tx_h_buf_pa + index_h * sizeof(struct virtio_net_hdr);
 	h->len = sizeof(struct virtio_net_hdr);
@@ -243,10 +239,8 @@ send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 	vh->csum_offset = len;
 
 	tx_va = dev->tx_b_buf_va + index_b * MTU;
-	log(LOG_INFO, "copy");
 	memcpy(tx_va, buf, len);
 
-	log(LOG_INFO, "push");
 	virtq_push(&dev->tx, index_h);
 }
 

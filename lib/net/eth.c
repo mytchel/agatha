@@ -56,8 +56,6 @@ send_eth_pkt(struct net_dev *net,
 
 	pkt_len = sizeof(struct eth_hdr) + len;
 	
-	dump_hex_block(pkt, pkt_len);
-
 	net->send_pkt(net, pkt, pkt_len);
 }
 
