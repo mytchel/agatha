@@ -45,6 +45,7 @@ struct tcp_con {
 	uint8_t addr_rem[4];
 
 	tcp_state state;
+	bool closing;
 		
 	size_t window_size_loc;
 	size_t window_size_rem;

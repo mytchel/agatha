@@ -96,32 +96,50 @@ send_tcp_pkt(struct net_dev *net,
 		if (p == nil) {
 			log(LOG_WARNING, "nothing to send?");
 			return;
-		} else if (p->flags & TCP_flag_syn) {
-			break;
 		} else if (p->len > 0) {
 			break;
 		} else if (p->next == nil) {
 			break;
-		} else if (!(p->flags & (TCP_flag_fin | TCP_flag_syn))) {
+		} else if (p->flags & (TCP_flag_fin | TCP_flag_syn)) {
+			break;
+		} else {
 			log(LOG_INFO, "remove empty pkt 0x%x", p->seq);
 			c->sending = p->next;
 			free(p);
-		} else {
-			break;
 		}
+	}
+
+	switch (c->state) {
+	case TCP_state_established:
+		if (p->flags & TCP_flag_fin) {
+			log(LOG_INFO, "established -> fin wait 1");
+			c->state = TCP_state_fin_wait_1;
+		}
+		break;
+
+	case TCP_state_close_wait:
+		if (p->flags & TCP_flag_fin) {
+			log(LOG_INFO, "close wait -> last ack");
+			c->state = TCP_state_last_ack;
+		}
+		break;
+
+	default:
+		break;
 	}
 
 	seq = p->seq;
 	ack = c->ack;
 
-	flags |= p->flags;
-	
 	data = p->data;
 	data_len = p->len;
 	
 	log(LOG_INFO, "seq = 0x%x", seq);
 	log(LOG_INFO, "ack = 0x%x", ack);
+	log(LOG_INFO, "flg = 0x%x", p->flags);
 	log(LOG_INFO, "len = 0x%x", data_len);
+	
+	flags |= p->flags;
 
 	hdr_len = sizeof(struct tcp_hdr);
 	length = hdr_len + data_len;
@@ -384,25 +402,11 @@ handle_tcp(struct net_dev *net,
 	if (flags & TCP_flag_ack) {
 		while (c->sending != nil) {
 			t = c->sending;
-			if (ack < t->seq + t->len) {
+			if (ack < t->seq + t->len || (t->flags & TCP_flag_fin)) {
 				log(LOG_INFO, "pkt 0x%x still not acked", t->seq);
 				break;
 			} else {
 				log(LOG_INFO, "pkt 0x%x acked", t->seq);
-
-				if (t->flags & TCP_flag_fin) {
-					switch (c->state) {
-					default:
-						log(LOG_INFO, "fin pkt acked in bad state %i", c->state);
-						break;
-
-					case TCP_state_fin_wait_1:
-						log(LOG_INFO, "rem acked fin, goto wait 2");
-						c->state = TCP_state_fin_wait_2;
-						c->ack++;
-						break;
-					}
-				}
 
 				c->sending = t->next;
 				if (t->data != nil) 
@@ -420,7 +424,9 @@ handle_tcp(struct net_dev *net,
 			break;
 
 		case TCP_state_established:
+			log(LOG_INFO, "established -> close wait");
 			c->state = TCP_state_close_wait;
+			c->closing = true;
 
 			if (c->recv_wait == nil) {	
 				log(LOG_INFO, "ack fin");
@@ -430,17 +436,22 @@ handle_tcp(struct net_dev *net,
 	
 				send_tcp_pkt(net, b, c);
 			} else {
-				log(LOG_INFO, "havent read everything, don't respond");
+				log(LOG_WARNING, "got fin with unread");
 			}
 
 			break;
 
-		case TCP_state_time_wait:
-			log(LOG_INFO, "in time wait, got extra fin?");
+		case TCP_state_fin_wait_1:
+			log(LOG_INFO, "got fin in fin wait 1? fin ack?");
+
 		case TCP_state_fin_wait_2:
-			log(LOG_INFO, "in fin wait 2, go to time wait");
-			add_pkt(c, TCP_flag_ack, nil, 0);
+			log(LOG_INFO, "fin wait 2 -> time wait");
 			c->state = TCP_state_time_wait;
+			c->ack++;
+	
+		case TCP_state_time_wait:
+			log(LOG_INFO, "ack fin from timewait");
+			add_pkt(c, TCP_flag_ack, nil, 0);
 			send_tcp_pkt(net, b, c);
 			break;
 		}
@@ -454,7 +465,7 @@ handle_tcp(struct net_dev *net,
 			break;
 
 		case TCP_state_syn_sent:
-			log(LOG_INFO, "switch to received");
+			log(LOG_INFO, "syn sent -> syn recv");
 			c->state = TCP_state_syn_received;
 
 			c->ack = seq + 1;
@@ -466,6 +477,7 @@ handle_tcp(struct net_dev *net,
 			add_pkt(c, TCP_flag_ack, nil, 0);
 			send_tcp_pkt(net, b, c);
 			
+			log(LOG_INFO, "syn recv -> established");
 			c->state = TCP_state_established;
 			connect_tcp_finish(net, b, c);
 
@@ -485,6 +497,7 @@ handle_tcp(struct net_dev *net,
 
 			c->ack = seq + 1;
 			c->state = TCP_state_syn_received;
+			log(LOG_INFO, "listen -> syn recv");
 
 			add_pkt(c, TCP_flag_syn|TCP_flag_ack, nil, 0);
 			send_tcp_pkt(net, b, c);
@@ -500,14 +513,47 @@ handle_tcp(struct net_dev *net,
 
 		case TCP_state_last_ack:
 			log(LOG_INFO, "got last ack can close now");
+			if (ack == c->next_seq + 1) {
+				log(LOG_INFO, "and ack is good");
+
+				if (c->sending != nil) {
+					t = c->sending;
+					log(LOG_INFO, "remove fin pkt 0x%x", t->seq);
+					c->sending = t->next;
+					free(t);
+				}
+			} else {
+				log(LOG_WARNING, "seq 0x%x is bad, expect 0x%x",
+					ack, c->next_seq + 1);
+			}
+			break;
+
+		case TCP_state_fin_wait_1:
+			log(LOG_INFO, "got ack in fin wait 1");
+			if (ack == c->next_seq + 1) {
+				log(LOG_INFO, "fin wait 1 -> fin wait 2");
+				c->next_seq++;
+				c->state = TCP_state_fin_wait_2;
+
+				if (c->sending != nil) {
+					t = c->sending;
+					log(LOG_INFO, "remove fin pkt 0x%x", t->seq);
+					c->sending = t->next;
+					free(t);
+				}
+			} else {
+				log(LOG_INFO, "they still need to read?");
+				send_tcp_pkt(net, b, c);
+			}
+
 			break;
 
 		case TCP_state_fin_wait_2:
-			log(LOG_INFO, "got ack in fin wait 2");
+			log(LOG_INFO, "got ack in fin wait 2?");
 			break;
 
 		case TCP_state_syn_received:
-			log(LOG_INFO, "got ack in syn recv");
+			log(LOG_INFO, "syn recv -> established");
 			c->state = TCP_state_established;
 
 			c->next_seq++;
@@ -593,13 +639,14 @@ ip_tcp_listen(struct net_dev *net,
 	memset(c->mac_rem, 0, 6);
 
 	c->state = TCP_state_listen;
+	c->closing = false;
 
 	c->window_size_loc = 1024;
 	c->window_size_rem = 0;
 	c->window_sent = 0;
 	
 	c->ack = 0;
-	c->next_seq = 0x4321;
+	c->next_seq = 0x1000;
 	c->sending = nil;
 	c->offset_into_waiting = 0;
 	c->recv_wait = nil;
@@ -654,7 +701,7 @@ ip_tcp_connect(struct net_dev *net,
 	c->window_sent = 0;
 	
 	c->ack = 0;
-	c->next_seq = 0xaaaa;
+	c->next_seq = 0x1000;
 	c->sending = nil;
 	c->offset_into_waiting = 0;
 	c->recv_wait = nil;
@@ -663,6 +710,7 @@ ip_tcp_connect(struct net_dev *net,
 	ip->tcp.cons = c;
 
 	c->state = TCP_state_syn_sent;
+	c->closing = false;
 
 	add_pkt(c, TCP_flag_syn, nil, 0);
 
@@ -699,19 +747,22 @@ ip_tcp_disconnect(struct net_dev *net,
 		return;
 	}
 
-	/* TODO: what should happen if there is data waiting? */
+	if (c->recv_wait != nil) {
+		/* TODO: what should happen here? */
+		log(LOG_WARNING, "disconnect but still have data to read");
+		return;
+	}
+
+	c->closing = true;
 
 	switch (c->state) {
 	case TCP_state_established:
 		log(LOG_INFO, "start close");
-		c->state = TCP_state_fin_wait_1;
 		add_pkt(c, TCP_flag_ack|TCP_flag_fin, nil, 0);
 		break;
 	
 	case TCP_state_close_wait:
 		log(LOG_INFO, "send response fin");
-		c->state = TCP_state_last_ack;
-		/*c->next_seq++;*/
 		add_pkt(c, TCP_flag_ack|TCP_flag_fin, nil, 0);
 		break;
 
@@ -740,7 +791,7 @@ ip_write_tcp(struct net_dev *net,
 		return;
 	}
 
-	if (c->state != TCP_state_established) {
+	if (c->state != TCP_state_established || c->closing) {
 		log(LOG_WARNING, "bad state %i", c->state);
 
 		give_addr(b->proc_id, rq->write.pa, rq->write.pa_len);
@@ -815,9 +866,7 @@ ip_read_tcp(struct net_dev *net,
 		return;
 	}
 
-	if (c->state != TCP_state_established 
-		&& !(c->state == TCP_state_close_wait && c->recv_wait != nil)) 
-	{
+	if (c->state != TCP_state_established) {
 		log(LOG_WARNING, "bad state %i", c->state);
 
 		give_addr(b->proc_id, rq->read.pa, rq->read.pa_len);
@@ -880,8 +929,12 @@ ip_read_tcp(struct net_dev *net,
 		send_tcp_pkt(net, b, c);
 	}
 
-	if (c->state == TCP_state_close_wait && c->recv_wait == nil) {	
+	if (c->closing && c->recv_wait == nil) {	
 		log(LOG_INFO, "ack fin now that everything has been read");
+
+		log(LOG_INFO, "established -> close wait");
+
+		c->state = TCP_state_close_wait;
 
 		c->ack++;
 		add_pkt(c, TCP_flag_ack, nil, 0);
