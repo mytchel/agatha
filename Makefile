@@ -1,10 +1,10 @@
 include rules.mk
 
 ARCH = arm
-TARGET = arm/virt
+TARGET = arm/beagleboneblack
 
 CFLAGS += -DDEBUG_LEVEL=3
 #CFLAGS += -DDEBUG_LEVEL=15
 
-include arm/virt/Makefile
+include $(TARGET)/Makefile
 

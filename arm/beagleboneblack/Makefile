@@ -1,34 +1,33 @@
-all: build_libs kern.umg  boot.list kernel.list ../proc0/proc0.list
+all: boot.elf boot.list kernel.list 
 
-BASE = ${PWD}/../..
-ARCH = arm
 BOARD = beagleboneblack
 MKIMAGE = ~/src/u-boot/tools/mkimage
-
-include ../../rules.mk
 
 LOAD_ADDR = 0x82000000
 
 PROCS = \
-				../../procs/dev_reg \
-				../../procs/log \
-				../../procs/init
+	procs/dev_reg \
+	procs/log \
+	procs/init
 
 IDLE = \
-			 ../../procs/idle
+	procs/idle
 
 DRIVERS = \
-					../drivers/serial-omap3 \
-					../drivers/prm-cm-am33xx \
-					../drivers/i2c-am335x \
-					../drivers/mmc-omap3 \
-					../drivers/video-am335x
+	arm/drivers/serial-omap3 \
+	arm/drivers/prm-cm-am33xx \
+	arm/drivers/i2c-am335x \
+	arm/drivers/mmc-omap3 \
+	arm/drivers/video-am335x
 
-BOARD_KERNEL_SRC_C =  \
-											cortex_a8_intr.c      \
-											serial_omap3_uart.c   \
-											am335x_dmtimer.c      \
-											kernel.c
+BOARD_KERNEL_SRC_C = \
+	arm/beagleboneblack/cortex_a8_intr.c \
+	arm/beagleboneblack/serial_omap3_uart.c \
+	arm/beagleboneblack/am335x_dmtimer.c \
+	arm/beagleboneblack/kernel.c
 
-include ../Makefile
+CFLAGS += -DSYSTICK=100000
+LDFLAGS +=
+
+include arm/Makefile
 

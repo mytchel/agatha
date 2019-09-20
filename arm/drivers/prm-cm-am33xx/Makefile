@@ -1,9 +1,21 @@
-PROG = prm-cm-am33xx
+PRM_CMMAM33XX_OUT = arm/drivers/prm-cm-am33xx/out.elf
 
-LIBS = -llog
+PRM_CMMAM33XX_SRC_C = \
+	arm/drivers/prm-cm-am33xx/main.c
 
-SRC = \
-	main.c
+PRM_CMMAM33XX_LIBS = lib/log $(USER_LIBS)
 
-include ${BASE}/procs/rules.mk
+PRM_CMMAM33XX_OBJECTS = \
+	$(PRM_CMMAM33XX_SRC_C:%.c=%.o) \
+	$(PRM_CMMAM33XX_LIBS:%=%/lib.a)
+
+$(PRM_CMMAM33XX_OUT): $(PRM_CMMAM33XX_OBJECTS) 
+	@echo LD $@ $(OBJECTS)
+	$(LD) $(LDFLAGS_USER) \
+		-o $@ \
+		$(PRM_CMMAM33XX_OBJECTS) \
+		-lgcc
+
+CLEAN += $(PRM_CMMAM33XX_OBJECTS)
+CLEAN += $(PRM_CMMAM33XX_OUT)
 

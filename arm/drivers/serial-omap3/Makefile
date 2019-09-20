@@ -1,7 +1,21 @@
-PROG = serial-omap3
+SERIAL_OMAP3_OUT = arm/drivers/serial-omap3/out.elf
 
-SRC = \
-	main.c
+SERIAL_OMAP3_SRC_C = \
+	arm/drivers/serial-omap3/main.c
 
-include ${BASE}/procs/rules.mk
+SERIAL_OMAP3_LIBS = $(USER_LIBS)
+
+SERIAL_OMAP3_OBJECTS = \
+	$(SERIAL_OMAP3_SRC_C:%.c=%.o) \
+	$(SERIAL_OMAP3_LIBS:%=%/lib.a)
+
+$(SERIAL_OMAP3_OUT): $(SERIAL_OMAP3_OBJECTS) 
+	@echo LD $@ $(OBJECTS)
+	$(LD) $(LDFLAGS_USER) \
+		-o $@ \
+		$(SERIAL_OMAP3_OBJECTS) \
+		-lgcc
+
+CLEAN += $(SERIAL_OMAP3_OBJECTS)
+CLEAN += $(SERIAL_OMAP3_OUT)
 
