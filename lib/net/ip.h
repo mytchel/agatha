@@ -129,5 +129,23 @@ void
 handle_tcp(struct net_dev *net,
 	struct ip_pkt *p);
 
+int
+ip_bind_udp_init(struct net_dev *net,
+	union net_req *rq,
+	struct binding *b);
 
+int
+ip_bind_tcp_init(struct net_dev *net,
+	union net_req *rq,
+	struct binding *b);
+
+int
+ip_unbind_udp(struct net_dev *net,
+	union net_req *rq,
+	struct binding *b);
+
+int
+ip_unbind_tcp(struct net_dev *net,
+	union net_req *rq,
+	struct binding *b);
 

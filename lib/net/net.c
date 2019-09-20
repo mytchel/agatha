@@ -28,8 +28,6 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 
 	uint32_t type = hdr->tol.type[0] << 8 | hdr->tol.type[1];
 
-	log(LOG_INFO, "process pkt");
-
 	switch (type) {
 		case 0x0806:
 			handle_arp(net, hdr,
@@ -68,44 +66,38 @@ handle_bind(struct net_dev *net,
 		int from, union net_req *rq)
 {
 	struct net_dev_internal *i = net->internal;
-	struct binding *c;
+	struct binding *b;
 	union net_rsp rp;
 	int ret;
 
-	log(LOG_INFO, "%i want bind conneciton", from);
+	log(LOG_INFO, "%i wants to bind", from);
 
-	if ((c = malloc(sizeof(struct binding))) == nil) {
+	if ((b = malloc(sizeof(struct binding))) == nil) {
 		rp.bind.type = NET_bind_req;
 		rp.bind.ret = ERR;
 		send(from, &rp);
 		return;
 	}
 
-	c->proc_id = from;
-	c->id = i->n_binding_id++;
+	b->proc_id = from;
+	b->id = i->n_binding_id++;
 
-	c->proto = rq->bind.proto;
+	b->proto = rq->bind.proto;
 
-	c->next = i->bindings;
-	i->bindings = c;
+	ret = ip_bind(net, rq, b);
 
-	switch (rq->bind.proto) {
-	case NET_proto_udp:
-		ret = ip_bind_udp(net, rq, c);
-		break;
+	log(LOG_INFO, "ret = %i", ret);
 
-	case NET_proto_tcp:
-		ret = ip_bind_tcp(net, rq, c);
-		break;
-
-	default:
-		ret = ERR;
-		break;
+	if (ret == OK) {
+		b->next = i->bindings;
+		i->bindings = b;
+	} else {
+		free(b);
 	}
 
 	rp.bind.type = NET_bind_rsp;
 	rp.bind.ret = ret;
-	rp.bind.chan_id = c->id;
+	rp.bind.chan_id = b->id;
 	send(from, &rp);
 }
 
@@ -113,38 +105,33 @@ handle_bind(struct net_dev *net,
 handle_unbind(struct net_dev *net,
 		int from, union net_req *rq)
 {
-	struct binding *c;
+	struct net_dev_internal *i = net->internal;
+	struct binding *b, **o;
 	union net_rsp rp;
 	int ret;
 
 	log(LOG_INFO, "%i want to unbind", from);
 
-	c = find_binding(net, from, rq->unbind.chan_id);
-	if (c == nil) {
+	b = find_binding(net, from, rq->unbind.chan_id);
+	if (b == nil) {
 		log(LOG_INFO, "connection %i for %i not found",
 			rq->unbind.chan_id, from);
 		return;
 	}
 
-	if (c->proc_id != from) {
+	if (b->proc_id != from) {
 		return;
 	}
 
-	switch (c->proto) {
-	case NET_proto_udp:
-		ret = ip_unbind_udp(net, rq, c);
-		break;
+	ret = ip_unbind(net, rq, b);
 
-	case NET_proto_tcp:
-		ret = ip_unbind_tcp(net, rq, c);
-		break;
-
-	default:
-		ret = ERR;
-		break;
+	for (o = &i->bindings; *o != nil; o = &(*o)->next) {
+		if (*o == b) break;
 	}
 
-	log(LOG_WARNING, "not fully implimented");
+	*o = b->next;
+
+	free(b);
 
 	rp.unbind.type = NET_unbind_rsp;
 	rp.unbind.ret = ret;
@@ -345,18 +332,6 @@ net_handle_message(struct net_dev *net,
 	}
 }
 
-	static void
-f(struct net_dev *net, void *arg, uint8_t *mac)
-{
-	log(LOG_INFO, "test arp request responded with %x:%x:%x:%x:%x:%x",
-			mac[0],
-			mac[1],
-			mac[2],
-			mac[3],
-			mac[4],
-			mac[5]);
-}
-
 	int
 net_init(struct net_dev *net)
 {
@@ -385,9 +360,6 @@ net_init(struct net_dev *net)
 	net->ipv4[3] = 34;
 
 	net->ipv4_ident = 0xabcd;
-
-	uint8_t ip[4] = { 192, 168, 10, 1};
-	arp_request(net, ip, &f, nil);
 
 	union dev_reg_req drq;
 	union dev_reg_rsp drp;

@@ -11,8 +11,8 @@
 #include <net.h>
 #include <log.h>
 
-#define TCP_TEST_PORT_LOC 4080
-#define TCP_TEST_PORT_REM 4030
+#define TCP_TEST_PORT_LOC 4084
+#define TCP_TEST_PORT_REM 4032
 
 #define UDP_TEST_PORT_LOC 3000
 
@@ -182,7 +182,7 @@ tcp_con(int net_pid, int chan_id, int con_id,
 
 	bool emptying = false;
 
-	for (j = 0; j < 0; j++) {
+	for (j = 0; j < 10; j++) {
 		if ((ret = give_addr(net_pid, pa, len)) != OK) {
 			log(LOG_FATAL, "net give_addr failed %i", ret);
 			return ERR;
@@ -434,8 +434,8 @@ main(void)
 
 	log(LOG_INFO, "have net pid %i", net_pid);
 
-	/*udp_test(net_pid);*/
-	/*tcp_con_test(net_pid);*/ 
+	udp_test(net_pid);
+	tcp_con_test(net_pid); 
 	tcp_serv_test(net_pid);
 
 	return OK;

@@ -133,12 +133,12 @@ find_binding_ip(struct net_dev *net,
 {
 	struct net_dev_internal *i = net->internal;
 	struct binding_ip *ip;
-	struct binding *c;
+	struct binding *b;
 
-	for (c = i->bindings; c != nil; c = c->next) {
-		ip = c->proto_arg;
-		if (proto == c->proto && port_loc == ip->port_loc) {
-			return c;
+	for (b = i->bindings; b != nil; b = b->next) {
+		ip = b->proto_arg;
+		if (proto == b->proto && port_loc == ip->port_loc) {
+			return b;
 		}
 	}
 
@@ -287,10 +287,7 @@ handle_ipv4(struct net_dev *net,
 
 	ip_hdr = (void *) bdy;
 
-	log(LOG_INFO, "have ip pkt");
-
 	if (!memcmp(eth_hdr->dst, net->mac, 6)) {
-		log(LOG_INFO, "mac bad");
 		return;
 	}
 
@@ -380,8 +377,6 @@ handle_ipv4(struct net_dev *net,
 		p->len = ip_len;
 	}
 
-	log(LOG_INFO, "have pkt proto %i", protocol);
-
 	switch (protocol) {
 		case IP_ICMP:
 			handle_icmp(net, p); 
@@ -398,5 +393,64 @@ handle_ipv4(struct net_dev *net,
 		default:
 			break;
 	}
+}
+
+int
+ip_bind(struct net_dev *net,
+	union net_req *rq,
+	struct binding *b)
+{
+	struct binding_ip *ip;
+
+	if (find_binding_ip(net, rq->bind.proto,
+			rq->bind.port_loc) != nil)
+	{
+		log(LOG_WARNING, "port %i already bound");
+		return ERR;
+	}
+
+	ip = malloc(sizeof(struct binding_ip));
+	if (ip == nil) {
+		return ERR;
+	}
+
+	b->proto_arg = ip;
+
+	memcpy(ip->addr_loc, rq->bind.addr_loc, 4);
+	ip->port_loc = rq->bind.port_loc;
+
+	switch (rq->bind.proto) {
+	default:
+		return ERR;
+
+	case NET_proto_udp:
+		return ip_bind_udp_init(net, rq, b);
+
+	case NET_proto_tcp:
+		return ip_bind_tcp_init(net, rq, b);
+	}
+}
+
+int
+ip_unbind(struct net_dev *net,
+	union net_req *rq,
+	struct binding *b)
+{
+	int ret;
+
+	switch (b->proto) {
+	default:
+		return ERR;
+
+	case NET_proto_udp:
+		ret = ip_unbind_udp(net, rq, b);
+		break;
+
+	case NET_proto_tcp:
+		ret = ip_unbind_tcp(net, rq, b);
+		break;
+	}
+
+	return ret;
 }
 

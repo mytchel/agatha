@@ -74,12 +74,12 @@ arp_request(struct net_dev *net, uint8_t *ipv4,
 		void *arg);
 
 int
-ip_bind_udp(struct net_dev *net,
+ip_bind(struct net_dev *net,
 		union net_req *rq, 
 		struct binding *c);
 
 int
-ip_unbind_udp(struct net_dev *net,
+ip_unbind(struct net_dev *net,
 		union net_req *rq, 
 		struct binding *c);
 
@@ -90,16 +90,6 @@ ip_write_udp(struct net_dev *net,
 
 void
 ip_read_udp(struct net_dev *net,
-		union net_req *rq, 
-		struct binding *c);
-
-int
-ip_bind_tcp(struct net_dev *net,
-		union net_req *rq, 
-		struct binding *c);
-
-int
-ip_unbind_tcp(struct net_dev *net,
 		union net_req *rq, 
 		struct binding *c);
 

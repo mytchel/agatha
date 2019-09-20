@@ -17,14 +17,14 @@
 
 	static bool
 send_udp_pkt(struct net_dev *net,
-		struct binding *c,
+		struct binding *b,
 		uint8_t mac_rem[6],
 		uint8_t addr_rem[4],
 		uint16_t port_rem,
 		uint8_t *data,
 		size_t data_len)
 {
-	struct binding_ip *ip = c->proto_arg;
+	struct binding_ip *ip = b->proto_arg;
 	struct ipv4_hdr *ipv4_hdr;
 	struct udp_hdr *udp_hdr;
 	uint8_t *pkt, *pkt_data;
@@ -102,79 +102,34 @@ handle_udp(struct net_dev *net,
 
 	dump_hex_block(data, data_len);
 
-	struct binding *c;
+	struct binding *b;
 
-	c = find_binding_ip(net, NET_proto_udp, port_dst);
-	if (c == nil) {
+	b = find_binding_ip(net, NET_proto_udp, port_dst);
+	if (b == nil) {
 		log(LOG_INFO, "got unhandled packet");
 		ip_pkt_free(p);
 		return;
 	}
 
-	struct binding_ip *ip = c->proto_arg;
+	struct binding_ip *ip = b->proto_arg;
 
 	struct ip_pkt **o;
-	for (o = &ip->udp.recv_wait; *o != nil; o = &(*o)->next) {
-		log(LOG_INFO, "after pkt %i", (*o)->id);
-	}
+	for (o = &ip->udp.recv_wait; *o != nil; o = &(*o)->next)
 		;
 
 	p->next = nil;
 	*o = p;
 }
-#if 0
-static void
-send_udp_finish(struct net_dev *net,
-		void *arg,
-		uint8_t *mac)
-{
-	struct binding *c = arg;
-	struct binding_ip *ip = c->proto_arg;
-	union net_rsp rp;
-
-	char mac_str[32];
-	print_mac(mac_str, mac);
-
-	log(LOG_INFO, "got mac dst %s", mac_str);
-
-	memcpy(ip->mac_rem, mac, 6);
-
-	rp.write.type = NET_open_rsp;
-	rp.write.ret = OK;
-	rp.write.id = c->id;
-
-	send(c->proc_id, &rp);
-}
-#endif
 
 int
-ip_bind_udp(struct net_dev *net,
+ip_bind_udp_init(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
-	struct binding_ip *ip;
-
-	log(LOG_INFO, "bind udp");
-
-	ip = malloc(sizeof(struct binding_ip));
-	if (ip == nil) {
-		log(LOG_WARNING, "out of mem");
-		return ERR;
-	}
-
-	c->proto_arg = ip;
-
-	memcpy(ip->addr_loc, rq->bind.addr_loc, 4);
-	ip->port_loc = rq->bind.port_loc;
+	struct binding_ip *ip = b->proto_arg;
 
 	ip->udp.offset_into_waiting = 0;
 	ip->udp.recv_wait = nil;
-
-/*
-	struct net_dev_internal *i = net->internal;
-	memcpy(ip->ip_rem, rq->open.addr, 4);
-	arp_request(net, ip->ip_rem, &open_udp_finish, c);
-*/
 
 	return OK;
 }
@@ -182,9 +137,18 @@ ip_bind_udp(struct net_dev *net,
 int
 ip_unbind_udp(struct net_dev *net,
 		union net_req *rq, 
-		struct binding *c)
+		struct binding *b)
 {
-	log(LOG_WARNING, "todo udp unbind");
+	struct binding_ip *ip = b->proto_arg;
+	struct ip_pkt *p;
+
+	while (ip->udp.recv_wait != nil) {
+		p = ip->udp.recv_wait;
+
+		ip->udp.recv_wait = p->next;
+		ip_pkt_free(p);
+	}
+
 	return OK;
 }
 
