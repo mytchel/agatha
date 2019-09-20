@@ -11,7 +11,7 @@ PROCS_INIT_OBJECTS = \
 
 $(PROCS_INIT_OUT): $(PROCS_INIT_OBJECTS) 
 	@echo LD $@ 
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(PROCS_INIT_OBJECTS) \
 		-lgcc

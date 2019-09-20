@@ -11,7 +11,7 @@ PROCS_UI_OBJECTS = \
 
 $(PROCS_UI_OUT): $(PROCS_UI_OBJECTS) 
 	@echo LD $@ 
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(PROCS_UI_OBJECTS) \
 		-lgcc

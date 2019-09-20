@@ -11,7 +11,7 @@ PROCS_LOG_OBJECTS = \
 
 $(PROCS_LOG_OUT): $(PROCS_LOG_OBJECTS) 
 	@echo LD $@ 
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(PROCS_LOG_OBJECTS) \
 		-lgcc

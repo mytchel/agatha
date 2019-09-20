@@ -11,8 +11,8 @@ LIB_FAT_OBJECTS = \
 
 $(LIB_FAT_LIB): $(LIB_FAT_OBJECTS)
 	@echo AR $@
-	$(AR) rc $@ $(LIB_FAT_OBJECTS)
-	$(RANLIB) $@
+	@$(AR) rc $@ $(LIB_FAT_OBJECTS)
+	@$(RANLIB) $@
 
 CLEAN += $(LIB_FAT_OBJECTS)
 CLEAN += $(LIB_FAT_LIB)

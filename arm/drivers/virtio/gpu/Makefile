@@ -12,7 +12,7 @@ VIRT_GPU_OBJECTS = \
 
 $(VIRT_GPU_OUT): $(VIRT_GPU_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(VIRT_GPU_OBJECTS) \
 		-lgcc

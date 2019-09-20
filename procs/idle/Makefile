@@ -11,7 +11,7 @@ PROCS_IDLE_OBJECTS = \
 
 $(PROCS_IDLE_OUT): $(PROCS_IDLE_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(PROCS_IDLE_OBJECTS) \
 		-lgcc

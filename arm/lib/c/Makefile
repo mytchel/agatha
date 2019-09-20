@@ -14,8 +14,8 @@ ARM_LIB_C_OBJECTS = \
 
 $(ARM_LIB_C_LIB): $(ARM_LIB_C_OBJECTS)
 	@echo AR $@
-	$(AR) rc $@ $(ARM_LIB_C_OBJECTS)
-	$(RANLIB) $@
+	@$(AR) rc $@ $(ARM_LIB_C_OBJECTS)
+	@$(RANLIB) $@
 
 CLEAN += $(ARM_LIB_C_OBJECTS)
 CLEAN += $(ARM_LIB_C_LIB)

@@ -11,7 +11,7 @@ SERIAL_PL01X_OBJECTS = \
 
 $(SERIAL_PL01X_OUT): $(SERIAL_PL01X_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(SERIAL_PL01X_OBJECTS) \
 		-lgcc

@@ -15,13 +15,13 @@ LDFLAGS = \
 
 .c.o .S.o:
 	@echo CC $@
-	$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 .elf.bin:
 	@echo BIN $@
-	$(OBJCOPY) -Obinary $< $@
+	@$(OBJCOPY) -Obinary $< $@
 
 .elf.list:
 	@echo LIST $@
-	$(OBJDUMP) -S $< > $@
+	@$(OBJDUMP) -S $< > $@
 

@@ -27,8 +27,8 @@ CLEAN += $(ARM_PROC0_OBJECTS)
 CLEAN += $(ARM_PROC0_OUT)
 
 $(ARM_PROC0_OUT): $(USER.LD) $(ARM_PROC0_OBJECTS)
-	@echo LD $@ $(ARM_PROC0_OBJECTS) 
-	$(LD) $(LDFLAGS_USER) \
+	@echo LD $@ 
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 	 	$(ARM_PROC0_OBJECTS) \
 	 	-lgcc

@@ -85,7 +85,7 @@ CLEAN += kernel.elf kernel.bin kernel.list
 
 kernel.elf: arm/kern/kernel.ld $(KERNEL_OBJECTS) 
 	@echo LD $@
-	$(LD) $(LDFLAGS) \
+	@$(LD) $(LDFLAGS) \
 		-T arm/kern/kernel.ld \
 		-o $@ \
 		$(KERNEL_OBJECTS) \
@@ -100,7 +100,7 @@ CLEAN += boot.elf boot.bin boot.list
 
 boot.elf: arm/kern/boot.ld $(BOOT_OBJECTS) kernel.bo proc0.bo bundle.bo
 	@echo LD $@
-	$(LD) $(LDFLAGS) \
+	@$(LD) $(LDFLAGS) \
 		-T arm/kern/boot.ld \
 		-Ttext $(LOAD_ADDR) \
 		-o $@ \

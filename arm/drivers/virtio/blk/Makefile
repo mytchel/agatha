@@ -12,7 +12,7 @@ VIRT_BLK_OBJECTS = \
 
 $(VIRT_BLK_OUT): $(VIRT_BLK_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(VIRT_BLK_OBJECTS) \
 		-lgcc

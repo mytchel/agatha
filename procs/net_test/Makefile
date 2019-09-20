@@ -11,7 +11,7 @@ PROCS_NET_TEST_OBJECTS = \
 
 $(PROCS_NET_TEST_OUT): $(PROCS_NET_TEST_OBJECTS) 
 	@echo LD $@ 
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(PROCS_NET_TEST_OBJECTS) \
 		-lgcc

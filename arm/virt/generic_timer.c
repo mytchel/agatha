@@ -49,4 +49,3 @@ init_cortex_a15_systick(void)
 	irq_add_kernel(&systick, 30);
 }
 
-

@@ -12,7 +12,7 @@ VIRT_INPUT_OBJECTS = \
 
 $(VIRT_INPUT_OUT): $(VIRT_INPUT_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(VIRT_INPUT_OBJECTS) \
 		-lgcc

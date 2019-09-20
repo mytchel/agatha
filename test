@@ -12,5 +12,5 @@ doas qemu-system-arm \
 	-device virtio-net-device,netdev=net0 \
 	-device virtio-keyboard-device \
 	-device virtio-mouse-device \
-	-nographic
+#	-nographic
 

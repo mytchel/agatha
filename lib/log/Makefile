@@ -11,8 +11,8 @@ LIB_LOG_OBJECTS = \
 
 $(LIB_LOG_LIB): $(LIB_LOG_OBJECTS)
 	@echo AR $@
-	$(AR) rc $@ $(LIB_LOG_OBJECTS)
-	$(RANLIB) $@
+	@$(AR) rc $@ $(LIB_LOG_OBJECTS)
+	@$(RANLIB) $@
 
 CLEAN += $(LIB_LOG_OBJECTS)
 CLEAN += $(LIB_LOG_LIB)

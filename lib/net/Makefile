@@ -18,8 +18,8 @@ LIB_NET_OBJECTS = \
 
 $(LIB_NET_LIB): $(LIB_NET_OBJECTS)
 	@echo AR $@
-	$(AR) rc $@ $(LIB_NET_OBJECTS)
-	$(RANLIB) $@
+	@$(AR) rc $@ $(LIB_NET_OBJECTS)
+	@$(RANLIB) $@
 
 CLEAN += $(LIB_NET_OBJECTS)
 CLEAN += $(LIB_NET_LIB)

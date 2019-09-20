@@ -12,7 +12,7 @@ VIRT_NET_OBJECTS = \
 
 $(VIRT_NET_OUT): $(VIRT_NET_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(VIRT_NET_OBJECTS) \
 		-lgcc

@@ -11,7 +11,7 @@ PROCS_DEV_REG_OBJECTS = \
 
 $(PROCS_DEV_REG_OUT): $(PROCS_DEV_REG_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(PROCS_DEV_REG_OBJECTS) \
 		-lgcc

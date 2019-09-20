@@ -12,8 +12,8 @@ LIB_MEM_OBJECTS = \
 
 $(LIB_MEM_LIB): $(LIB_MEM_OBJECTS)
 	@echo AR $@
-	$(AR) rc $@ $(LIB_MEM_OBJECTS)
-	$(RANLIB) $@
+	@$(AR) rc $@ $(LIB_MEM_OBJECTS)
+	@$(RANLIB) $@
 
 CLEAN += $(LIB_MEM_OBJECTS)
 CLEAN += $(LIB_MEM_LIB)
