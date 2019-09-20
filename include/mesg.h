@@ -90,5 +90,8 @@ typedef enum {
 	NET_read_req,
 	NET_read_rsp,
 
+	TIMER_set,
+	TIMER_trigger,
+
 } mesg_type_t;
 

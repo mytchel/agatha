@@ -8,8 +8,8 @@ LOAD_ADDR = 0x62008000
 PROCS = \
 	procs/dev_reg \
 	procs/log \
-	procs/init \
-	procs/net_test \
+#	procs/init \
+#	procs/net_test \
 #	procs/ui
 
 IDLE = \
@@ -17,8 +17,9 @@ IDLE = \
 
 DRIVERS = \
 	arm/drivers/serial-pl01x \
-	arm/drivers/mmc-pl18x \
-	arm/drivers/virtio/net \
+	arm/drivers/timer-sp804 \
+#	arm/drivers/mmc-pl18x \
+#	arm/drivers/virtio/net \
 #	arm/drivers/ethernet-lan9118 \
 #	arm/drivers/video-pl111
 

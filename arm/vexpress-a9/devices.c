@@ -39,6 +39,15 @@ struct device devices[] = {
 		32 + 40 + 3,
 	},
 
+	{ "timer0", "arm/drivers/timer-sp804",
+		0x10011000, 0x1000,
+		32 + 2,
+	},
+
+	{ "timer1", "arm/drivers/timer-sp804",
+		0x10012000, 0x1000,
+		32 + 3,
+	},
 };
 
 	void
