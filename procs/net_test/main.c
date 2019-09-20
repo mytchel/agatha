@@ -11,8 +11,8 @@
 #include <net.h>
 #include <log.h>
 
-#define TCP_TEST_PORT_LOC 4084
-#define TCP_TEST_PORT_REM 4032
+#define TCP_TEST_PORT_LOC 4085
+#define TCP_TEST_PORT_REM 4060
 
 #define UDP_TEST_PORT_LOC 3000
 
@@ -122,10 +122,16 @@ udp_test(int net_pid)
 
 		unmap_addr(va, len);
 
-		if (rp.read.len == 0) continue;
-
-		port_rem = rp.read.proto.udp.port_rem;
-		memcpy(addr_rem, rp.read.proto.udp.addr_rem, 4);
+		if (rp.read.len > 0) {
+			port_rem = rp.read.proto.udp.port_rem;
+			memcpy(addr_rem, rp.read.proto.udp.addr_rem, 4);
+		} else {
+			port_rem = 4000;
+			addr_rem[0] = 192;
+			addr_rem[1] = 168;
+			addr_rem[2] = 10;
+			addr_rem[3] = 1;
+		}
 
 		va = map_addr(pa, len, MAP_RW);
 

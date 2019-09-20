@@ -11,7 +11,7 @@ SERIAL_OMAP3_OBJECTS = \
 
 $(SERIAL_OMAP3_OUT): $(SERIAL_OMAP3_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(SERIAL_OMAP3_OBJECTS) \
 		-lgcc

@@ -1,14 +1,9 @@
 #!/bin/sh
 
-doas cp kern.umg /var/ftpd/kern.umg
-#doas cp vexpress.dtb /var/ftpd/
-
-export ETHER=vether0
-export BRIDGE=bridge0
-
 doas qemu-system-arm -M vexpress-a9 \
 	-kernel boot.elf \
-	-net nic -net tap \
 	-sd disk.iso \
-#	-nographic 
+	-netdev type=tap,id=net0 \
+	-device virtio-net-device,netdev=net0 \
+	-nographic 
 

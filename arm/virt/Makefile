@@ -1,5 +1,6 @@
 all: boot.elf boot.list kernel.list 
 
+ARCH = arm
 BOARD = virt
 
 LOAD_ADDR = 0x40000000

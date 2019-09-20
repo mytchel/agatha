@@ -51,19 +51,15 @@ send_icmp_pkt(struct net_dev *net,
 	icmp_hdr->csum[0] = 0;
 	icmp_hdr->csum[1] = 0;
 
-	log(LOG_INFO, "csum");
 	csum = csum_ip((uint8_t *) icmp_hdr, 
 			sizeof(struct icmp_hdr) + data_len);
-	log(LOG_INFO, "csum = 0x%x", csum);
 
 	icmp_hdr->csum[0] = (csum >> 8) & 0xff;
 	icmp_hdr->csum[1] = (csum >> 0) & 0xff;
 
-	log(LOG_INFO, "send");
 	send_ipv4_pkt(net, pkt, ip_hdr, 
 				20, 
 				sizeof(struct icmp_hdr) +	data_len);
-	log(LOG_INFO, "sent");
 }
 
 	static void 
@@ -100,12 +96,9 @@ handle_echo_request(struct net_dev *net,
 
 	memcpy(bdy_r, bdy, bdy_len);
 
-	log(LOG_INFO, "send");
 	send_icmp_pkt(net, pkt, ip_hdr_r, icmp_hdr_r, bdy_len);
 
-	log(LOG_INFO, "free packet");
 	free(pkt);
-	log(LOG_INFO, "freed packet");
 }
 
 	void

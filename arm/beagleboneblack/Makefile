@@ -1,6 +1,8 @@
 all: boot.elf boot.list kernel.list 
 
+ARCH = arm
 BOARD = beagleboneblack
+
 MKIMAGE = ~/src/u-boot/tools/mkimage
 
 LOAD_ADDR = 0x82000000

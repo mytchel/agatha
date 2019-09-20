@@ -11,7 +11,7 @@ VIDEO_AM335X_OBJECTS = \
 
 $(VIDEO_AM335X_OUT): $(VIDEO_AM335X_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(VIDEO_AM335X_OBJECTS) \
 		-lgcc

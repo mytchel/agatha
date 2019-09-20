@@ -15,7 +15,7 @@ MMC_OMAP3_OBJECTS = \
 
 $(MMC_OMAP3_OUT): $(MMC_OMAP3_OBJECTS) 
 	@echo LD $@ $(OBJECTS)
-	$(LD) $(LDFLAGS_USER) \
+	@$(LD) $(LDFLAGS_USER) \
 		-o $@ \
 		$(MMC_OMAP3_OBJECTS) \
 		-lgcc

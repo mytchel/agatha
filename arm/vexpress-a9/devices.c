@@ -1,6 +1,7 @@
 #include "../proc0/head.h"
 #include "../bundle.h"
 #include "../dev.h"
+#include <arm/mmu.h>
 
 /* Interrupts from daughterboard start at 32?
 	 so pl111 is pic[44] -> int 76 
@@ -8,29 +9,34 @@
 
 struct device devices[] = {
 
-	{ "sysreg", "../drivers/sysreg-sp810",
+	{ "sysreg", "arm/drivers/sysreg-sp810",
 		0x10000000, 0x1000,
 		0
 	},
 
-	{ "sd0", "../drivers/mmc-pl18x",
+	{ "sd0", "arm/drivers/mmc-pl18x",
 		0x10005000, 0x1000,
 		41
 	},
 
-	{ "serial0", "../drivers/serial-pl01x",
+	{ "serial0", "arm/drivers/serial-pl01x",
 		0x10009000, 0x1000,
 		37
 	},
 
-	{ "eth0", "../drivers/ethernet-lan9118",
+	{ "eth0", "arm/drivers/ethernet-lan9118",
 		0x4e000000, 0x10000,
 		15
 	},
 
-	{ "lcd0", "../drivers/video-pl111",
+	{ "lcd0", "arm/drivers/video-pl111",
 		0x10020000, 0x1000,
 		76
+	},
+
+	{ "net0", "arm/drivers/virtio/net",
+		0x10013000 + 0x200 * 3, 0x200,
+		32 + 40 + 3,
 	},
 
 };
@@ -56,10 +62,13 @@ board_init_bundled_drivers(size_t off)
 			/* The proc can handle this device */
 
 			pid = init_bundled_proc(devices[d].name,
+					2,
 					off, 
 					bundled_drivers[b].len);
 
-			f = frame_new(devices[d].reg, devices[d].len);
+			f = frame_new(PAGE_ALIGN_DN(devices[d].reg), 
+					PAGE_ALIGN(devices[d].len));
+
 			proc_give_addr(pid, f);
 
 			init_m[0] = devices[d].reg;
