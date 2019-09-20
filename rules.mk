@@ -3,23 +3,25 @@
 CFLAGS = \
 	-std=c89 \
 	-Wall \
-	-nostdinc -ffreestanding \
-	-I$(BASE)/include
+	-nostdinc \
+	-ffreestanding \
+	-Iinclude
 
-LDFLAGS = -nostdlib -nodefaultlibs -static \
-					-L${BASE}/lib
-
-include ${BASE}/${ARCH}/rules.mk
+LDFLAGS = \
+	-nostdlib \
+	-nodefaultlibs \
+	-static \
+	-Llib
 
 .c.o .S.o:
 	@echo CC $@
-	@$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 .elf.bin:
 	@echo BIN $@
-	@$(OBJCOPY) -Obinary $< $@
+	$(OBJCOPY) -Obinary $< $@
 
 .elf.list:
 	@echo LIST $@
-	@$(OBJDUMP) -S $< > $@
+	$(OBJDUMP) -S $< > $@
 

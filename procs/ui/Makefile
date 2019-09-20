@@ -1,10 +1,21 @@
-PROG = ui
+PROCS_UI_OUT = procs/ui/out.elf
 
-LIBS = \
-			 -llog
+PROCS_UI_SRC_C = \
+	procs/ui/main.c
 
-SRC = \
-	main.c
+PROCS_UI_LIBS = lib/log $(USER_LIBS)
 
-include ../rules.mk
+PROCS_UI_OBJECTS = \
+	$(PROCS_UI_SRC_C:%.c=%.o) \
+	$(PROCS_UI_LIBS:%=%/lib.a)
+
+$(PROCS_UI_OUT): $(PROCS_UI_OBJECTS) 
+	@echo LD $@ 
+	$(LD) $(LDFLAGS_USER) \
+		-o $@ \
+		$(PROCS_UI_OBJECTS) \
+		-lgcc
+
+CLEAN += $(PROCS_UI_OBJECTS)
+CLEAN += $(PROCS_UI_OUT)
 

@@ -7,19 +7,28 @@ RANLIB = $(CROSS)-ranlib
 OBJCOPY = $(CROSS)-objcopy
 OBJDUMP = $(CROSS)-objdump
 
-USER.LD = $(BASE)/arm/user.ld
+USER.LD = arm/user.ld
 USER_ADDR = 0x00020000
 
 CFLAGS += \
 	-fno-stack-protector \
 	-DUSER_ADDR=$(USER_ADDR) \
-	-I$(BASE)/arm/include
+	-Iarm/include
 
 LDFLAGS += \
-  -L${BASE}/arm/lib \
+  -Larm/lib \
   -L/usr/local/lib/gcc/$(CROSS)/6.3.1 
 
-include ${BASE}/${ARCH}/${BOARD}/rules.mk
+LDFLAGS_USER += \
+	$(LDFLAGS) \
+	-T $(USER.LD) \
+	-Ttext $(USER_ADDR)
+
+USER_LIBS += \
+	arm/lib/c \
+	lib/pool \
+	lib/mem \
+	lib/string
 
 .bin.bo:
 	@echo BO $@

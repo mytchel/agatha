@@ -9,3 +9,7 @@
 *.list
 *.umg
 
+bundle.c
+disk.img
+disk.iso
+

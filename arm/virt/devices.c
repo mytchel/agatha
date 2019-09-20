@@ -5,32 +5,32 @@
 
 struct device devices[] = 
 {
-	{ "serial0", "../drivers/serial-pl01x",
+	{ "serial0", "arm/drivers/serial-pl01x",
 		0x09000000, 0x1000,
 		37,
 	},
 
-	{ "sd0", "../drivers/virtio/blk",
+	{ "sd0", "arm/drivers/virtio/blk",
 		0x0a003e00, 0x200,
 		32 + 16 + 31,
 	},
 
-	{ "gpu0", "../drivers/virtio/gpu",
+	{ "gpu0", "arm/drivers/virtio/gpu",
 		0x0a003c00, 0x200,
 		32 + 16 + 30,
 	},
 
-	{ "net0", "../drivers/virtio/net",
+	{ "net0", "arm/drivers/virtio/net",
 		0x0a003a00, 0x200,
 		32 + 16 + 29,
 	},
 
-	{ "key0", "../drivers/virtio/input",
+	{ "key0", "arm/drivers/virtio/input",
 		0x0a003800, 0x200,
 		32 + 16 + 28,
 	},
 
-	{ "mouse0", "../drivers/virtio/input",
+	{ "mouse0", "arm/drivers/virtio/input",
 		0x0a003600, 0x200,
 		32 + 16 + 27,
 	},

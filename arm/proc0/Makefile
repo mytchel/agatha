@@ -1,36 +1,36 @@
-PROC0_SRC_A = \
-	../lib/c/sys.S               \
-	../proc0/kern.S
+ARM_PROC0_OUT = arm/proc0/out.elf
 
-PROC0_SRC_C = \
-	../proc0/main.c              \
-	../proc0/mem.c               \
-	../proc0/proc.c              \
-	../lib/c/addr.c              \
-	../lib/c/mmu.c               \
-	../../lib/mem/util.c         \
-	devices.c                    \
-	bundle.c
-				
-PROC0_OBJECTS = \
-								$(PROC0_SRC_A:%.S=%.o) \
-								$(PROC0_SRC_C:%.c=%.o)
+ARM_PROC0_SRC_A = \
+	arm/lib/c/sys.S \
+	arm/proc0/kern.S
 
-PROC0_LIBS = -lpool -lstring -lgcc
+ARM_PROC0_SRC_C = \
+	arm/proc0/main.c \
+	arm/proc0/mem.c \
+	arm/proc0/proc.c \
+	arm/lib/c/addr.c \
+	arm/lib/c/mmu.c \
+	lib/mem/util.c \
+	$(TARGET)/devices.c \
+	bundle.c 
+	
+ARM_PROC0_LIBS = \
+	lib/pool \
+	lib/string 
+			
+ARM_PROC0_OBJECTS = \
+	$(ARM_PROC0_SRC_A:%.S=%.o) \
+	$(ARM_PROC0_SRC_C:%.c=%.o) \
+	$(ARM_PROC0_LIBS:%=%/lib.a)
 
-CLEAN += $(PROC0_OBJECTS)
-CLEAN += \
-	../proc0/proc0.elf \
-	../proc0/proc0.bin \
-	../proc0/proc0.list
+CLEAN += $(ARM_PROC0_OBJECTS)
+CLEAN += $(ARM_PROC0_OUT)
 
-../proc0/proc0.elf: $(USER.LD) $(PROC0_OBJECTS)
-	@echo LD $@ $(PROC0_OBJECTS) $(PROC0_LIBS)
-	@$(LD) $(LDFLAGS) \
-		-T $(USER.LD) \
-		-Ttext $(USER_ADDR) \
+$(ARM_PROC0_OUT): $(USER.LD) $(ARM_PROC0_OBJECTS)
+	@echo LD $@ $(ARM_PROC0_OBJECTS) 
+	$(LD) $(LDFLAGS_USER) \
 		-o $@ \
-	 	$(PROC0_OBJECTS) \
-	 	$(PROC0_LIBS)
+	 	$(ARM_PROC0_OBJECTS) \
+	 	-lgcc
 
 

@@ -108,7 +108,7 @@ next_proc(void)
 		}
 
 		if (ready[q].queue[ready[q].q].head == nil) {
-			debug_sched_v("check next priority");
+			debug_sched_v("check next priority\n");
 			q--;
 		} 
 	}
