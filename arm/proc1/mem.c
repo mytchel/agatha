@@ -328,51 +328,53 @@ init_mem(void)
 	}
 
 	if (pool_load(&addr_pool, addr_pool_initial, sizeof(addr_pool_initial)) != OK) {
-		exit(1);
+		exit(2);
 	}
 
 	board_init_ram();
 
 	if (ram_free == nil) {
-		exit(1);
+		exit(3);
 	}
 
 	/* Remove stuff from ram range */
 
 	log(LOG_INFO, "remove boot range 0x%x 0x%x", info->boot_pa, info->boot_len);
 	if ((m = addr_range_get(&ram_free, info->boot_pa, info->boot_len)) == nil) {
-		exit(1);
+		exit(4);
 	}
 
 	pool_free(&addr_pool, m);
 
 	if ((m = addr_range_get(&ram_free, info->kernel_pa, info->kernel_len)) == nil) {
-		exit(1);
+		exit(5);
 	}
 
 	pool_free(&addr_pool, m);
 
-	if ((m = addr_range_get(&ram_free, info->proc0_pa, info->proc0_len)) == nil) {
-		exit(1);
+	if ((m = addr_range_get(&ram_free, info->proc1_pa, info->proc1_len)) == nil) {
+		exit(6);
 	}
 
 	pool_free(&addr_pool, m);
+
+	log(LOG_INFO, "soo");
 
 	if ((m = addr_range_get(&ram_free, info->bundle_pa, info->bundle_len)) == nil) {
-		exit(1);
+		exit(7);
 	}
 
 	pool_free(&addr_pool, m);
 
-	proc0_l1.mmu.pa = info->proc0.l1_pa;
-	proc0_l1.mmu.len = info->proc0.l1_len;
-	proc0_l1.mmu.addr = (uint32_t *) info->proc0.l1_va;
+	proc0_l1.mmu.pa = info->proc1.l1_pa;
+	proc0_l1.mmu.len = info->proc1.l1_len;
+	proc0_l1.mmu.addr = (uint32_t *) info->proc1.l1_va;
 
 	memset(proc0_l1.va, 0, sizeof(proc0_l1.va));
 
-	for (o = 0; (o << 10) < info->proc0.l2_len; o++) {
-		proc0_l1.va[L1X(info->proc0.l2_va) + o]
-			= (uint32_t *) (info->proc0.l2_va + (o << 10));
+	for (o = 0; (o << 10) < info->proc1.l2_len; o++) {
+		proc0_l1.va[L1X(info->proc1.l2_va) + o]
+			= (uint32_t *) (info->proc1.l2_va + (o << 10));
 	}
 }
 

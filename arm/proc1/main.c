@@ -7,21 +7,19 @@ struct kernel_info *info;
 void
 log(int level, char *fmt, ...)
 {
-	/*
 	char buf[256];
-	va_list a;
 
+	va_list a;
 	va_start(a, fmt);
 	vsnprintf(buf, sizeof(buf),
 			fmt, a);
 	va_end(a);
 
 	kern_debug(buf);
-	*/
 }
 
 	int
-handle_addr_req(int from, union proc0_req *rq)
+handle_addr_req(int eid, int from, union proc0_req *rq)
 {
 	struct addr_frame *f;
 	union proc0_rsp rp;
@@ -32,19 +30,19 @@ handle_addr_req(int from, union proc0_req *rq)
 	len = rq->addr_req.len;
 	if (len != PAGE_ALIGN(len)) {
 		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
-		return send(from, &rp);	
+		return reply(eid, from, &rp);	
 	}
 	
 	pa = rq->addr_req.pa;
 	if (pa != PAGE_ALIGN(pa)) {
 		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
-		return send(from, &rp);	
+		return reply(eid, from, &rp);	
 	}
 
 	pa = get_ram(len, 0x1000);
 	if (pa == nil) {
 		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
-		return send(from, &rp);	
+		return reply(eid, from, &rp);	
 	}
 
 	rp.addr_req.pa = pa;
@@ -52,15 +50,15 @@ handle_addr_req(int from, union proc0_req *rq)
 	f = frame_new(pa, len);
 	if (f == nil) {
 		rp.addr_req.ret = ERR;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 
 	rp.addr_req.ret = proc_give_addr(from, f);
-	return send(from, &rp);
+	return reply(eid, from, &rp);
 }
 
 	int
-handle_addr_map(int from, union proc0_req *rq)
+handle_addr_map(int eid, int from, union proc0_req *rq)
 {
 	size_t pa, va, len;
 	union proc0_rsp rp;
@@ -70,30 +68,30 @@ handle_addr_map(int from, union proc0_req *rq)
 	len = rq->addr_map.len;
 	if (len != PAGE_ALIGN(len)) {
 		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 	
 	pa = rq->addr_map.pa;
 	if (pa != PAGE_ALIGN(pa)) {
 		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 
 	va = rq->addr_map.va;
 	if (va != PAGE_ALIGN(va)) {
 		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 
 	rp.addr_map.ret = proc_map(from, 
 			pa, va, len, 
 			rq->addr_map.flags);
 		
-	return send(from, &rp);
+	return reply(eid, from, &rp);
 }
 
 	int
-handle_addr_give(int from, union proc0_req *rq)
+handle_addr_give(int eid, int from, union proc0_req *rq)
 {
 	union proc0_rsp rp;
 	struct addr_frame *f;
@@ -107,19 +105,19 @@ handle_addr_give(int from, union proc0_req *rq)
 	len = rq->addr_give.len;
 	if (len != PAGE_ALIGN(len)) {
 		rp.addr_give.ret = PROC0_ERR_ALIGNMENT;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 	
 	pa = rq->addr_give.pa;
 	if (pa != PAGE_ALIGN(pa)) {
 		rp.addr_give.ret = PROC0_ERR_ALIGNMENT;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 
 	f = proc_take_addr(from, pa, len);
 	if (f == nil) {
 		rp.addr_give.ret = ERR;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 
 	if (to == PROC0_PID) {
@@ -130,9 +128,10 @@ handle_addr_give(int from, union proc0_req *rq)
 		rp.addr_give.ret = proc_give_addr(to, f);
 	}
 	
-	return send(from, &rp);
+	return reply(eid, from, &rp);
 }
 
+#if 0
 int
 handle_irq_reg(int from, union proc0_req *rq)
 {
@@ -182,11 +181,14 @@ handle_exit(int from, union proc_msg *m)
 	return OK;
 }
 
+#endif
+
+char test[64] = "hello there";
 	void
 main(struct kernel_info *i)
 {
 	uint8_t m[MESSAGE_LEN];
-	int from;
+	int eid, from;
 
 	info = i;
 
@@ -194,26 +196,29 @@ main(struct kernel_info *i)
 	log(0, "kernel starts at 0x%x", info->kernel_va);
 	log(0, "boot starts at 0x%x", info->boot_pa);
 
+	kern_debug("what is happening?");
+
 	init_mem();
 	init_procs();
 
 	while (true) {
-		if ((from = recv(-1, m)) < 0)
-			continue;
+		if ((eid = recv(EID_ANY, &from, m)) < 0) continue;
+		if (from == PID_NONE) continue;
 
 		switch (((uint32_t *) m)[0]) {
 			case PROC0_addr_req_req:
-				handle_addr_req(from, (union proc0_req *) m);
+				handle_addr_req(eid, from, (union proc0_req *) m);
 				break;
 
 			case PROC0_addr_map_req:
-				handle_addr_map(from, (union proc0_req *) m);
+				handle_addr_map(eid, from, (union proc0_req *) m);
 				break;
 
 			case PROC0_addr_give_req:
-				handle_addr_give(from, (union proc0_req *) m);
+				handle_addr_give(eid, from, (union proc0_req *) m);
 				break;
 
+/*
 			case PROC0_irq_reg_req:
 				handle_irq_reg(from, (union proc0_req *) m);
 				break;
@@ -229,6 +234,7 @@ main(struct kernel_info *i)
 			case PROC_exit_msg:
 				handle_exit(from, (union proc_msg *) m);
 				break;
+*/
 		};
 	}
 }

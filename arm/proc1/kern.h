@@ -1,7 +1,10 @@
 /* proc0 only syscalls */
 
 int
-proc_new(size_t l1_pa, int supervisor, int priority);
+proc_new(int supervisor_pid,
+	int supervisor_eid, 
+	int priority,
+	size_t l1_pa);
 
 int
 proc_setup(int pid, procstate_t state);

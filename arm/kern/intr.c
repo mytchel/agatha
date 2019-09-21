@@ -8,6 +8,7 @@ struct irq_handler *active_irq = nil;
 	int
 irq_exit(void)
 {
+#if 0
 	if (active_irq == nil || 
 			active_irq->map.pid != up->pid) {
 
@@ -20,13 +21,15 @@ irq_exit(void)
 			active_irq->map.irqn, up->pid);
 
 	schedule(nil);
-
-	return OK;
+#endif
+	return ERR;
 }
 
 	int
 irq_enter(struct irq_handler *h)
 {
+	return ERR;
+#if 0
 	proc_t p;
 
 	if (!h->registered) {
@@ -61,11 +64,13 @@ irq_enter(struct irq_handler *h)
 			h->map.irqn, p->pid);
 
 	return OK;
+#endif
 }
 
 	void
 irq_run_active(void)
 {
+#if 0
 	while (active_irq != nil) {
 		if (!active_irq->registered) {
 			active_irq = active_irq->next;
@@ -106,6 +111,7 @@ irq_run_active(void)
 			drop_to_user(up->irq_label);
 		}
 	}
+#endif
 }
 
 	void
@@ -180,7 +186,7 @@ trap(size_t pc, int type)
 
 	proc_fault(up);
 	
-	mesg_supervisor((uint8_t *) &m);
+	/*mesg_supervisor((uint8_t *) &m);*/
 
 	/* TODO: Could be unnecesary if we swapped to 
 		 the supervisor which fixed it then we swapped 

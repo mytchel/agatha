@@ -2,8 +2,8 @@
 
 #define MIN_TIME_SLICE        10
 
-void add_to_list_tail(proc_list_t l, proc_t p);
-void remove_from_list(proc_list_t l, proc_t p);
+void add_to_list_tail(proc_list_t *l, proc_t *p);
+void remove_from_list(proc_list_t *l, proc_t *p);
 
 struct ready_list {
 	struct proc_list queue[2];
@@ -12,13 +12,13 @@ struct ready_list {
 
 struct ready_list ready[PRIORITY_MAX] = { 0 };
 
-proc_t up = nil;
+proc_t *up = nil;
 
-static uint32_t nextpid = 0;
-static struct proc procs[MAX_PROCS] = { 0 };
+static uint32_t nextpid = 1;
+static proc_t procs[MAX_PROCS] = { 0 };
 
 	void
-add_to_list_tail(proc_list_t l, proc_t p)
+add_to_list_tail(proc_list_t *l, proc_t *p)
 {
 	p->list = l;
 
@@ -35,7 +35,7 @@ add_to_list_tail(proc_list_t l, proc_t p)
 }
 
 	void
-remove_from_list(proc_list_t l, proc_t p)
+remove_from_list(proc_list_t *l, proc_t *p)
 {
 	p->list = nil;
 
@@ -52,10 +52,10 @@ remove_from_list(proc_list_t l, proc_t p)
 	}
 }
 
-	static struct proc *
+	static proc_t *
 next_proc(void)
 {
-	proc_t p, n;
+	proc_t *p, *n;
 	int q;
 
 #if DEBUG_LEVEL >= DEBUG_SCHED_V
@@ -117,7 +117,7 @@ next_proc(void)
 }
 
 	void
-schedule(proc_t n)
+schedule(proc_t *n)
 {
 	if (up != nil) {
 		int passed = systick_passed();
@@ -184,30 +184,37 @@ schedule(proc_t n)
 	}
 }
 
-	proc_t
-proc_new(size_t vspace, int supervisor, int priority)
+	proc_t *
+proc_new(int priority, size_t vspace)
 {
 	int pid;
-	proc_t p;
+	proc_t *p;
 
 	pid = nextpid++;
 
 	p = &procs[pid];
 
-	memset(p, 0, sizeof(struct proc));
+	memset(p, 1, sizeof(struct proc));
 
 	p->pid = pid;
 	p->vspace = vspace;
-	p->supervisor = supervisor;
 	p->priority = priority;
+	
+	p->in_irq = false;
 
 	p->ts = SYSTICK;
+
+	p->next_endpoint_id = 1;
+	p->wlist = nil;
+	p->list = nil;
+	p->endpoints = nil;
+	p->recv_from = nil;
 
 	return p;
 }
 
 	int
-proc_free(proc_t p)
+proc_free(proc_t *p)
 {
 	debug_sched("free %i\n", p->pid);
 
@@ -221,7 +228,7 @@ proc_free(proc_t p)
 }
 
 	int
-proc_fault(proc_t p)
+proc_fault(proc_t *p)
 {
 	debug_sched("fault %i\n", p->pid);
 
@@ -234,7 +241,7 @@ proc_fault(proc_t p)
 }
 
 	int
-proc_ready(proc_t p)
+proc_ready(proc_t *p)
 {
 	debug_sched("ready %i\n", p->pid);
 
@@ -246,7 +253,7 @@ proc_ready(proc_t p)
 	return OK;
 }
 
-	proc_t
+	proc_t *
 find_proc(int pid)
 {
 	if (pid < MAX_PROCS) {

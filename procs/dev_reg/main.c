@@ -19,7 +19,7 @@ struct dev devs[MAX_DEVS] = {0};
 
 struct find_waiting {
 	bool in_use;
-	int pid;
+	int eid, pid;
 	char name[DEV_REG_name_len];
 };
 
@@ -54,14 +54,15 @@ check_waiting(int id)
 			rp.find.id = id;
 			rp.find.ret = OK;
 
-			send(waiting[i].pid, &rp);
+			reply(waiting[i].eid, waiting[i].pid, &rp);
+
 			waiting[i].in_use = false;
 		}
 	}
 }
 
-	int
-handle_find(int from, 
+static void
+handle_find(int eid, int from, 
 		union dev_reg_req *rq)
 {
 	union dev_reg_rsp rp;
@@ -75,7 +76,8 @@ handle_find(int from,
 			rp.find.pid = devs[i].pid;
 			rp.find.id = i;
 			rp.find.ret = OK;
-			return send(from, &rp);
+			reply(eid, from, &rp);
+			return;
 		}
 	}
 
@@ -83,17 +85,18 @@ handle_find(int from,
 		w = get_free_find_waiting();
 		if (w != nil) {
 			w->pid = from;
+			w->eid = eid;
 			memcpy(w->name, rq->find.name, DEV_REG_name_len);
-			return NO_RSP;
+			return;
 		}
 	}
 
 	rp.find.ret = ERR;
-	return send(from, &rp);
+	reply(eid, from, &rp);
 }
 
-	int
-handle_register(int from, 
+static void
+handle_register(int eid, int from, 
 		union dev_reg_req *rq)
 {
 	union dev_reg_rsp rp;
@@ -106,7 +109,8 @@ handle_register(int from,
 
 	if (i == MAX_DEVS) {
 		rp.reg.ret = ERR;
-		return send(from, &rp);
+		reply(eid, from, &rp);
+		return;
 	}
 
 	devs[i].pid = from;
@@ -118,11 +122,11 @@ handle_register(int from,
 
 	rp.reg.ret = OK;
 
-	return send(from, &rp);
+	reply(eid, from, &rp);
 }
 
-	int
-handle_list(int from, 
+static void
+handle_list(int eid, int from, 
 		union dev_reg_req *rq)
 {
 	union dev_reg_rsp rp;
@@ -130,30 +134,30 @@ handle_list(int from,
 	rp.list.type = DEV_REG_list_rsp;
 	rp.list.ret = ERR;
 
-	return send(from, &rp);
+	reply(eid, from, &rp);
 }
 
 	void
 main(void)
 {
 	union dev_reg_req rq;
-	int from;
+	int eid, from;
 
 	while (true) {
-		if ((from = recv(-1, &rq)) < 0)
-			continue;
+		if ((eid = recv(EID_ANY, &from, &rq)) < 0) continue;
+		if (from == PID_NONE) continue;
 
 		switch (rq.type) {
 			case DEV_REG_find_req:
-				handle_find(from, &rq);
+				handle_find(eid, from, &rq);
 				break;
 
 			case DEV_REG_register_req:
-				handle_register(from, &rq);
+				handle_register(eid, from, &rq);
 				break;
 
 			case DEV_REG_list_req:
-				handle_list(from, &rq);
+				handle_list(eid, from, &rq);
 				break;
 
 			default:

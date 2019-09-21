@@ -4,13 +4,16 @@ int
 yield(void);
 
 int
-send(int to, void *m);
+mesg(int eid, void *rq, void *rp);
 
 int
-recv(int from, void *m);
+recv(int eid, int *pid, void *m);
 
 int
-mesg(int to, void *send, void *recv);
+reply(int eid, int pid, void *recv);
+
+int
+signal(int eid, uint32_t s);
 
 int
 pid(void);

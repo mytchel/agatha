@@ -1,4 +1,4 @@
-#include "../proc0/head.h"
+#include "../proc1/head.h"
 #include "../bundle.h"
 #include "../dev.h"
 #include <arm/mmu.h>
@@ -83,11 +83,12 @@ board_init_bundled_drivers(size_t off)
 			init_m[0] = devices[d].reg;
 			init_m[1] = devices[d].len;
 			init_m[2] = devices[d].irqn;
-		
-			send(pid, init_m);	
+
+			uint8_t rp[MESSAGE_LEN];
+			mesg(pid, init_m, rp);	
 		
 			strlcpy((char *) init_m, devices[d].name, sizeof(init_m));	
-			send(pid, init_m);	
+			mesg(pid, init_m, rp);
 		}
 
 		off += bundled_drivers[b].len;

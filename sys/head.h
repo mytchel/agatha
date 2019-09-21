@@ -6,19 +6,12 @@
 #include <stdarg.h>
 #include <string.h>
 
-typedef struct message *message_t;
-
-struct message {
-	message_t next;
-	int from;
-	uint8_t body[MESSAGE_LEN];
-};
-
-typedef struct proc *proc_t;
-typedef struct proc_list *proc_list_t;
+typedef struct proc proc_t;
+typedef struct proc_list proc_list_t;
+typedef struct endpoint endpoint_t;
 
 struct proc_list {
-	proc_t head, tail;
+	proc_t *head, *tail;
 };
 
 struct proc {
@@ -29,54 +22,88 @@ struct proc {
 
 	procstate_t state;
 	int pid;
+	
+	uint32_t kstack[KSTACK_LEN/sizeof(uint32_t)];
 
-	int supervisor;
 	int priority;
 
 	int ts;
-	proc_list_t list;		
-	proc_t prev, next;
+	proc_list_t *list;		
+	proc_t *prev, *next;
 
-	uint32_t kstack[KSTACK_LEN/sizeof(uint32_t)];
+	int next_endpoint_id;
 
-	int recv_from;
-	message_t messages;
+	uint8_t m[MESSAGE_LEN];
+	proc_list_t *wlist;		
+	proc_t *wprev, *wnext;
+
+	endpoint_t *recv_from;
+	endpoint_t *endpoints;
 
 	size_t vspace;
 };
 
-proc_t
-proc_new(size_t vspace, int supervisor, int priority);
+typedef enum {
+	ENDPOINT_listen,
+	ENDPOINT_connect
+} endpoint_mode_t;
+
+struct endpoint {
+	endpoint_t *next;
+
+	int id;
+
+	endpoint_mode_t mode;
+
+	struct {
+		proc_t *holder;
+		uint32_t signal;
+		proc_list_t waiting;
+	} listen;
+
+	struct {
+		endpoint_t *other;
+	} connect;
+};
+
+proc_t *
+proc_new(int priority, size_t vspace);
 
 int
-proc_ready(proc_t p);
+proc_ready(proc_t *p);
 
 int
-proc_fault(proc_t p);
+proc_fault(proc_t *p);
 
 int
-proc_free(proc_t p);
+proc_free(proc_t *p);
 
-proc_t
+proc_t *
 find_proc(int pid);
 
 void
-schedule(proc_t next);
+schedule(proc_t *next);
 
-message_t
-message_get(void);
+endpoint_t *
+endpoint_create_listener(proc_t *p);
 
-void
-message_free(message_t);
+endpoint_t *
+endpoint_create_connect(proc_t *p, endpoint_t *o);
 
-int
-send(proc_t to, message_t);
-
-int
-recv(int from, uint8_t *m);
+endpoint_t *
+proc_find_endpoint(proc_t *p, int eid);
 
 int
-mesg_supervisor(uint8_t *m);
+mesg(endpoint_t *e, uint8_t *m);
+
+int
+recv(endpoint_t *e, int *pid, uint8_t *m);
+
+int
+reply(endpoint_t *e, proc_t *p, uint8_t *m);
+
+int
+signal(endpoint_t *e, uint32_t s);
 
 void
 memcpy(void *dst, const void *src, size_t len);
@@ -185,7 +212,7 @@ irq_exit(void);
 void
 irq_run_active(void);
 
-extern proc_t up;
+extern proc_t *up;
 
 extern void (*debug_puts)(const char *);
 

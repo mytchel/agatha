@@ -6,8 +6,8 @@ BOARD = vexpress-a9
 LOAD_ADDR = 0x62008000
 
 PROCS = \
-	procs/dev_reg \
-	procs/log \
+#	procs/dev_reg \
+#	procs/log \
 #	procs/init \
 #	procs/net_test \
 #	procs/ui
@@ -17,7 +17,7 @@ IDLE = \
 
 DRIVERS = \
 	arm/drivers/serial-pl01x \
-	arm/drivers/timer-sp804 \
+#	arm/drivers/timer-sp804 \
 #	arm/drivers/mmc-pl18x \
 #	arm/drivers/virtio/net \
 #	arm/drivers/ethernet-lan9118 \

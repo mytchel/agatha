@@ -10,9 +10,10 @@
 .global exit
 .global intr_exit
 .global yield
-.global send
-.global recv
 .global mesg
+.global recv
+.global reply
+.global signal
 .global pid
 .global proc_new
 .global va_table
@@ -37,13 +38,6 @@ exit:
 	pop {r12, pc}
 
 
-intr_exit:
-	push {r12, lr}
-	mov r12, #SYSCALL_INTR_EXIT
-	svc 0
-	pop {r12, pc}
-
-
 yield:
 	push {r12, lr}
 	mov r12, #SYSCALL_YIELD
@@ -51,9 +45,23 @@ yield:
 	pop {r12, pc}
 
 	
-send:
+pid:
 	push {r12, lr}
-	mov r12, #SYSCALL_SEND
+	mov r12, #SYSCALL_PID
+	svc 0
+	pop {r12, pc}
+
+
+intr_exit:
+	push {r12, lr}
+	mov r12, #SYSCALL_INTR_EXIT
+	svc 0
+	pop {r12, pc}
+
+
+mesg:
+	push {r12, lr}
+	mov r12, #SYSCALL_MESG
 	svc 0
 	pop {r12, pc}
 	
@@ -65,17 +73,16 @@ recv:
 	pop {r12, pc}
 
 	
-mesg:
+reply:
 	push {r12, lr}
-	mov r12, #SYSCALL_MESG
+	mov r12, #SYSCALL_REPLY
 	svc 0
 	pop {r12, pc}
 
-
-pid:
+	
+signal:
 	push {r12, lr}
-	mov r12, #SYSCALL_PID
+	mov r12, #SYSCALL_SIGNAL
 	svc 0
 	pop {r12, pc}
-
 

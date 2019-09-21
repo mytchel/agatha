@@ -315,7 +315,7 @@ init_bundled_proc(char *name,
 		int priority,
 		size_t start, size_t len)
 {
-	union proc_msg m;
+	union proc_msg m, rp;
 
 	size_t code_pa, stack_pa;
 	uint32_t *code_va, *start_va;
@@ -326,7 +326,7 @@ init_bundled_proc(char *name,
 	size_t l2_pa;
 
 	struct addr_frame *f;
-	int pid, r;
+	int n_pid, r;
 
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
@@ -409,15 +409,18 @@ init_bundled_proc(char *name,
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
 
-	pid = proc_new(l1_table_pa, 0, priority);
-	if (pid < 0) {
+	int sun_pid = pid();
+	int sup_eid = 1;
+
+	n_pid = proc_new(sun_pid, sup_eid, priority, l1_table_pa);
+	if (n_pid < 0) {
 		exit(8);
 	}
 
-	procs[pid].l1.table = l1_table_va;
-	procs[pid].l1.mapped = l1_mapped_va;
-	procs[pid].l1.table_pa = l1_table_pa;
-	procs[pid].l1.mapped_pa = l1_mapped_pa;
+	procs[n_pid].l1.table = l1_table_va;
+	procs[n_pid].l1.mapped = l1_mapped_va;
+	procs[n_pid].l1.table_pa = l1_table_pa;
+	procs[n_pid].l1.mapped_pa = l1_mapped_pa;
 
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
@@ -432,13 +435,13 @@ init_bundled_proc(char *name,
 		exit(0x9);
 	}
 
-	if ((r = proc_give_addr(pid, f)) != OK) {
+	if ((r = proc_give_addr(n_pid, f)) != OK) {
 		exit(0xa);
 	}
 
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
-	if ((r = proc_map(pid, l2_pa, 
+	if ((r = proc_map(n_pid, l2_pa, 
 				0, 0x1000, 
 				MAP_TABLE)) != OK) {
 		exit(r);
@@ -458,13 +461,13 @@ init_bundled_proc(char *name,
 		exit(0xb);
 	}
 
-	if ((r = proc_give_addr(pid, f)) != OK) {
+	if ((r = proc_give_addr(n_pid, f)) != OK) {
 		exit(0xc);
 	}
 
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
-	if ((r = proc_map(pid, stack_pa, 
+	if ((r = proc_map(n_pid, stack_pa, 
 				USER_ADDR - stack_len, stack_len, 
 				MAP_MEM|MAP_RW)) != OK) {
 		exit(0x10);
@@ -478,13 +481,13 @@ init_bundled_proc(char *name,
 		exit(0xd);
 	}
 
-	if ((r = proc_give_addr(pid, f)) != OK) {
+	if ((r = proc_give_addr(n_pid, f)) != OK) {
 		exit(0xe);
 	}
 
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
-	if ((r = proc_map(pid, code_pa, 
+	if ((r = proc_map(n_pid, code_pa, 
 				USER_ADDR, len, 
 				MAP_MEM|MAP_RW)) != OK) {
 		exit(0x11);
@@ -497,17 +500,17 @@ init_bundled_proc(char *name,
 	m.start.pc = USER_ADDR;
 	m.start.sp = USER_ADDR;
 
-	log(LOG_INFO, "start bundled proc pid %i %s", pid, name);
+	log(LOG_INFO, "start bundled proc pid %i %s", n_pid, name);
 
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
 
-	send(pid, (uint8_t *) &m);
+	mesg(n_pid, &m, &rp);
 
 	log(LOG_INFO, "kernel_info at 0x%x, kernel_start at 0x%x",
 			info, info->kernel_va);
 
-	return pid;
+	return n_pid;
 }
 
 	void

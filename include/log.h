@@ -15,7 +15,6 @@ union log_req {
 	struct {
 		uint32_t type;
 		char name[LOG_SERVICE_NAME_LEN];
-		bool respond;
 	} reg;
 
 	struct {

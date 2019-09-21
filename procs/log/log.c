@@ -13,7 +13,6 @@
 struct service {
 	int pid;
 	char name[LOG_SERVICE_NAME_LEN];
-	bool respond;
 };
 
 #define MAX_SERVICES    32
@@ -28,7 +27,6 @@ char *levels[] = {
 static int log_output_pid = -1;
 static char buf[2048];
 static size_t start = 0, end = 0;
-static bool waiting = false;
 
 void
 send_logs(void)
@@ -38,8 +36,6 @@ send_logs(void)
 	if (log_output_pid == -1) {
 		return;
 	} else if (start == end) {
-		return;
-	} else if (waiting) {
 		return;
 	}
 
@@ -58,8 +54,7 @@ send_logs(void)
 
 	memcpy(rq.write.data, buf + start, rq.write.len);
 
-	waiting = true;
-	send(log_output_pid, &rq);
+	mesg(log_output_pid, &rq, &rq);
 
 	start = (start + rq.write.len) % sizeof(buf);
 }
@@ -86,15 +81,8 @@ add_log(char *s, size_t len)
 	}
 }
 
-	void
-handle_write_response(union serial_rsp *rp)
-{
-	waiting = false;
-	send_logs();
-}
-
 void
-handle_register(int from, union log_req *rq)
+handle_register(int eid, int from, union log_req *rq)
 {
 	union log_rsp rp;
 	char line[256];
@@ -109,7 +97,6 @@ handle_register(int from, union log_req *rq)
 			services[i].pid = from;
 			snprintf(services[i].name, sizeof(services[i].name),
 					"%s", rq->reg.name);
-			services[i].respond = rq->reg.respond;
 			rp.reg.ret = OK;
 			break;
 		}
@@ -133,7 +120,7 @@ handle_register(int from, union log_req *rq)
 		}
 	}
 
-	send(from, &rp);
+	reply(eid, from, &rp);
 
 	send_logs();
 }
@@ -153,7 +140,7 @@ find_service(int pid)
 }
 
 	void
-handle_log(int from, union log_req *rq)
+handle_log(int eid, int from, union log_req *rq)
 {
 	char line[256];
 	union log_rsp rp;
@@ -166,13 +153,13 @@ handle_log(int from, union log_req *rq)
 	s = find_service(from);
 	if (s == nil) {
 		rp.log.ret = ERR;
-		send(from, &rp);
+		reply(eid, from, &rp);
 		return;
 	}
 
 	if (rq->log.level >= LOG_MAX_LEVEL) {
 		rp.log.ret = ERR;
-		send(from, &rp);
+		reply(eid, from, &rp);
 		return;
 	}
 
@@ -188,8 +175,7 @@ handle_log(int from, union log_req *rq)
 
 	rp.log.ret = OK;
 
-	if (s->respond)
-		send(from, &rp);
+	reply(eid, from, &rp);
 
 	send_logs();
 }
@@ -198,10 +184,10 @@ handle_log(int from, union log_req *rq)
 main(void)
 {
 	uint8_t m_buf[MESSAGE_LEN];
-	union dev_reg_req *rq;
-	union dev_reg_rsp *rp;
+	union dev_reg_req rq;
+	union dev_reg_rsp rp;
 	uint32_t type;
-	int from, i;
+	int eid, from, i;
 
 	char *log_output = "serial0";
 
@@ -209,44 +195,30 @@ main(void)
 		services[i].pid = -1;
 	}
 
-	rq = (void *) m_buf;
-	rq->find.type = DEV_REG_find_req;
-	rq->find.block = true;
-	snprintf(rq->find.name, sizeof(rq->find.name),
+	rq.find.type = DEV_REG_find_req;
+	rq.find.block = true;
+	snprintf(rq.find.name, sizeof(rq.find.name),
 			"%s", log_output);
 
-	send(DEV_REG_PID, rq);
+	if (mesg(DEV_REG_PID, &rq, &rp) < 0) {
+		return;
+	}
+
+	log_output_pid = rp.find.pid;
 
 	while (true) {
-		from = recv(-1, m_buf);
-		if (from < 0) continue;
+		if ((eid = recv(EID_ANY, &from, m_buf)) < 0) continue;
+		if (from == PID_NONE) continue;
 
 		type = *((uint32_t *) m_buf);
 
 		switch (type) {
-			case DEV_REG_find_rsp:
-				rp = (void *) m_buf;
-				if (from == DEV_REG_PID 
-						&& rp->find.ret == OK 
-						&& log_output_pid == -1) {
-
-					log_output_pid = rp->find.pid;
-
-					send_logs();
-				}
-
-				break;
-
-			case SERIAL_write_rsp:
-				handle_write_response((void *) m_buf);
-				break;
-
 			case LOG_register_req:
-				handle_register(from, (void *) m_buf);
+				handle_register(eid, from, (void *) m_buf);
 				break;
 
 			case LOG_log_req:
-				handle_log(from, (void *) m_buf);
+				handle_log(eid, from, (void *) m_buf);
 				break;
 
 		}
