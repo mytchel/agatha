@@ -4,6 +4,8 @@
 
 .global proc_new
 .global proc_setup
+.global endpoint_listen
+.global endpoint_connect
 .global intr_register
 .global kern_debug
 
@@ -18,6 +20,20 @@ proc_new:
 proc_setup:
 	push {r12, lr}
 	mov r12, #SYSCALL_PROC_SETUP
+	svc 0
+	pop {r12, pc}
+
+
+endpoint_listen:
+	push {r12, lr}
+	mov r12, #SYSCALL_ENDPOINT_LISTEN
+	svc 0
+	pop {r12, pc}
+
+
+endpoint_connect:
+	push {r12, lr}
+	mov r12, #SYSCALL_ENDPOINT_CONNECT
 	svc 0
 	pop {r12, pc}
 

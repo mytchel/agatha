@@ -26,10 +26,6 @@ proc1_start(void)
 	u.pc = proc1_code_va;
 	u.regs[0] = proc1_info_va;
 
-	debug_info("drop to user\n");
-	debug_info("pc = 0x%x sp = 0x%x\n", u.pc, u.sp);
-	debug_info("um?\n");
-
 	drop_to_user(&u);
 }
 
@@ -96,7 +92,7 @@ init_proc1(struct kernel_info *info)
 
 	p = proc_new(1, info->proc1.l1_pa);
 	if (p == nil) {
-		panic("Failed to create proc1 entry!\n");
+		panic("Failed to create proc1!\n");
 	}
 
 	debug_info("func label %i, stack top at 0x%x\n",

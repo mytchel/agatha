@@ -60,8 +60,8 @@ board_init_ram(void)
 board_init_bundled_drivers(size_t off)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
+	int b, d, p_pid, p_eid;
 	struct addr_frame *f;
-	int b, d, pid;
 
 	for (b = 0; b < nbundled_drivers; b++) {
 		for (d = 0; d < LEN(devices); d++) {
@@ -70,16 +70,20 @@ board_init_bundled_drivers(size_t off)
 
 			/* The proc can handle this device */
 
-			pid = init_bundled_proc(devices[d].name,
+			if (!init_bundled_proc(devices[d].name,
 					2,
 					off, 
-					bundled_drivers[b].len);
+					bundled_drivers[b].len,
+					&p_pid, &p_eid))
+			{
+				continue;
+			}
 
 			f = frame_new(PAGE_ALIGN_DN(devices[d].reg), 
 					PAGE_ALIGN(devices[d].len));
 
-			proc_give_addr(pid, f);
-
+			proc_give_addr(p_pid, f);
+/*
 			init_m[0] = devices[d].reg;
 			init_m[1] = devices[d].len;
 			init_m[2] = devices[d].irqn;
@@ -89,6 +93,7 @@ board_init_bundled_drivers(size_t off)
 		
 			strlcpy((char *) init_m, devices[d].name, sizeof(init_m));	
 			mesg(pid, init_m, rp);
+			*/
 		}
 
 		off += bundled_drivers[b].len;

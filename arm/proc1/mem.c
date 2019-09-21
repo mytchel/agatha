@@ -340,6 +340,7 @@ init_mem(void)
 	/* Remove stuff from ram range */
 
 	log(LOG_INFO, "remove boot range 0x%x 0x%x", info->boot_pa, info->boot_len);
+
 	if ((m = addr_range_get(&ram_free, info->boot_pa, info->boot_len)) == nil) {
 		exit(4);
 	}
@@ -357,8 +358,6 @@ init_mem(void)
 	}
 
 	pool_free(&addr_pool, m);
-
-	log(LOG_INFO, "soo");
 
 	if ((m = addr_range_get(&ram_free, info->bundle_pa, info->bundle_len)) == nil) {
 		exit(7);

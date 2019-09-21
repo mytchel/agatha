@@ -10,9 +10,13 @@
 
 #define SYSCALL_PROC_NEW          8
 #define SYSCALL_PROC_SETUP        9
-#define SYSCALL_INTR_REGISTER    10
 
-#define SYSCALL_DEBUG            11
+#define SYSCALL_ENDPOINT_LISTEN  10
+#define SYSCALL_ENDPOINT_CONNECT 11
 
-#define NSYSCALLS                12
+#define SYSCALL_INTR_REGISTER    12
+
+#define SYSCALL_DEBUG            13
+
+#define NSYSCALLS                14
 

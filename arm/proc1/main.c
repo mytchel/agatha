@@ -3,6 +3,7 @@
 #include "../dev.h"
 
 struct kernel_info *info;
+int main_eid;
 
 void
 log(int level, char *fmt, ...)
@@ -183,7 +184,6 @@ handle_exit(int from, union proc_msg *m)
 
 #endif
 
-char test[64] = "hello there";
 	void
 main(struct kernel_info *i)
 {
@@ -196,13 +196,17 @@ main(struct kernel_info *i)
 	log(0, "kernel starts at 0x%x", info->kernel_va);
 	log(0, "boot starts at 0x%x", info->boot_pa);
 
-	kern_debug("what is happening?");
+	main_eid = endpoint_listen(pid());
+	if (main_eid < 0) {
+		log(0, "ERROR creating main endpoint %i", main_eid);
+		exit(1);
+	}
 
 	init_mem();
 	init_procs();
 
 	while (true) {
-		if ((eid = recv(EID_ANY, &from, m)) < 0) continue;
+		if ((eid = recv(main_eid, &from, m)) < 0) continue;
 		if (from == PID_NONE) continue;
 
 		switch (((uint32_t *) m)[0]) {

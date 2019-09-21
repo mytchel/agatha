@@ -100,7 +100,7 @@ int
 recv(endpoint_t *e, int *pid, uint8_t *m);
 
 int
-reply(endpoint_t *e, proc_t *p, uint8_t *m);
+reply(endpoint_t *e, int pid, uint8_t *m);
 
 int
 signal(endpoint_t *e, uint32_t s);

@@ -62,11 +62,10 @@ int
 proc_unmap(int pid, size_t va, size_t len);
 
 
-
-
-int
+bool
 init_bundled_proc(char *name, int priority,
-		size_t prog_pa, size_t len);
+		size_t prog_pa, size_t len,
+		int *p_pid, int *p_eid);
 
 void
 add_ram(size_t start, size_t len);
@@ -79,5 +78,6 @@ board_init_bundled_drivers(size_t offset_into_bundle);
 
 
 extern struct kernel_info *info;
+extern int main_eid;
 
 

@@ -2,7 +2,8 @@
 
 #define PID_NONE          0
 #define EID_ANY           0
-#define EID_SUPERVISOR    1
+#define EID_MAIN          1
+#define EID_SUPERVISOR    2
 
 #define PRIORITY_MAX  16
 

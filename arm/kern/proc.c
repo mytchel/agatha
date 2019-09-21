@@ -21,18 +21,27 @@ proc_start(void)
 {
 	union proc_msg m;
 	label_t u = {0};
-	int eid, pid;
+	endpoint_t *e;
+	int mid;
 
-	debug(DEBUG_INFO, "proc %i starting\n", up->pid);
+	debug_info("proc %i starting\n", up->pid);
+
+	e = proc_find_endpoint(up, EID_MAIN);
+	if (e == nil) {
+		panic("proc %i has no main endpoint\n", up->pid);
+	}
 
 	while (true) {
-		eid = recv(0, &pid, (uint8_t *) &m);
-		if (eid == PID_NONE) {
+		if (recv(e, &mid, (uint8_t *) &m) <= 0) {
 			continue;
 		} else if (m.start.type == PROC_start_msg) {
 			break;
 		}
-	}	
+	}
+
+	debug_info("got start, reply on eid %i", e->id);
+
+	reply(e, mid, (uint8_t *) &m);
 
 	u.psr = MODE_USR;
 	u.pc = m.start.pc;
