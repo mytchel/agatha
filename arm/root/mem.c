@@ -9,7 +9,7 @@ static struct {
 	} mmu;
 
 	uint32_t *va[0x1000];
-} proc0_l1;
+} root_l1;
 
 struct addr_range {
 	size_t start, len;
@@ -182,14 +182,14 @@ addr_map_l2s(size_t pa, size_t va, size_t tlen)
 	memset(addr, 0, tlen);
 
 	for (o = 0; (o << 10) < tlen; o++) {
-		if (proc0_l1.mmu.addr[L1X(va) + o] != L1_FAULT) {
+		if (root_l1.mmu.addr[L1X(va) + o] != L1_FAULT) {
 			return PROC0_ERR_ADDR_DENIED;
 		}
 
-		proc0_l1.mmu.addr[L1X(va) + o]
+		root_l1.mmu.addr[L1X(va) + o]
 			= (pa + (o << 10)) | L1_COARSE;
 
-		proc0_l1.va[L1X(va) + o]
+		root_l1.va[L1X(va) + o]
 			= (uint32_t *) (((uint32_t) addr) + (o << 10));
 	}
 
@@ -238,7 +238,7 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	for (o = 0; o < len; o += PAGE_SIZE) {
 		log(LOG_INFO, "map 0x%x -> 0x%x", va + o, pa + o);
 
-		l2 = proc0_l1.va[L1X(va + o)];
+		l2 = root_l1.va[L1X(va + o)];
 		if (l2 == nil) {
 			log(LOG_INFO, "l1 nil");
 			return PROC0_ERR_TABLE;
@@ -265,7 +265,7 @@ addr_unmap(size_t va, size_t len)
 	for (o = 0; o < len; o += PAGE_SIZE) {
 		log(LOG_INFO, "unmap 0x%x", va + o);
 
-		l2 = proc0_l1.va[L1X(va + o)];
+		l2 = root_l1.va[L1X(va + o)];
 		if (l2 == nil) {
 			log(LOG_INFO, "l1 nil");
 			return PROC0_ERR_TABLE;
@@ -294,7 +294,7 @@ proc_init_l1(uint32_t *l1)
 	log(LOG_INFO, "copy 0x%x bytes", 0x4000 - kernel_index * sizeof(uint32_t));
 
 	memcpy(&l1[kernel_index],
-			&proc0_l1.mmu.addr[kernel_index],
+			&root_l1.mmu.addr[kernel_index],
 			0x4000 - kernel_index * sizeof(uint32_t));
 
 	log(LOG_INFO, "init l1 at 0x%x kva at 0x%x", l1, info->kernel_va);
@@ -352,7 +352,7 @@ init_mem(void)
 
 	pool_free(&addr_pool, m);
 
-	if ((m = addr_range_get(&ram_free, info->proc1_pa, info->proc1_len)) == nil) {
+	if ((m = addr_range_get(&ram_free, info->root_pa, info->root_len)) == nil) {
 		exit(6);
 	}
 
@@ -364,15 +364,15 @@ init_mem(void)
 
 	pool_free(&addr_pool, m);
 
-	proc0_l1.mmu.pa = info->proc1.l1_pa;
-	proc0_l1.mmu.len = info->proc1.l1_len;
-	proc0_l1.mmu.addr = (uint32_t *) info->proc1.l1_va;
+	root_l1.mmu.pa = info->root.l1_pa;
+	root_l1.mmu.len = info->root.l1_len;
+	root_l1.mmu.addr = (uint32_t *) info->root.l1_va;
 
-	memset(proc0_l1.va, 0, sizeof(proc0_l1.va));
+	memset(root_l1.va, 0, sizeof(root_l1.va));
 
-	for (o = 0; (o << 10) < info->proc1.l2_len; o++) {
-		proc0_l1.va[L1X(info->proc1.l2_va) + o]
-			= (uint32_t *) (info->proc1.l2_va + (o << 10));
+	for (o = 0; (o << 10) < info->root.l2_len; o++) {
+		root_l1.va[L1X(info->root.l2_va) + o]
+			= (uint32_t *) (info->root.l2_va + (o << 10));
 	}
 }
 

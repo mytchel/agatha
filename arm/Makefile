@@ -63,17 +63,17 @@ CLEAN += bundle.c
 CLEAN += $(BUNDLE_BIN)
 CLEAN += $(BUNDLE_ELF)
 
-include arm/proc1/Makefile
+include arm/root/Makefile
 
-proc1.bin: arm/proc1/out.bin
-	@cp arm/proc1/out.bin proc1.bin
+root.bin: arm/root/out.bin
+	@cp arm/root/out.bin root.bin
 
 kernel.bo: kernel.bin
 bundle.bo: bundle.bin
-proc1.bo: proc1.bin
+root.bo: root.bin
 
 CLEAN += kernel.bo kernel.bin
-CLEAN += proc1.bo proc1.bin
+CLEAN += root.bo root.bin
 CLEAN += bundle.bo bundle.bin
 
 KERNEL_OBJECTS = \
@@ -98,14 +98,14 @@ BOOT_OBJECTS = \
 CLEAN += $(BOOT_OBJECTS) 
 CLEAN += boot.elf boot.bin boot.list
 
-boot.elf: arm/kern/boot.ld $(BOOT_OBJECTS) kernel.bo proc1.bo bundle.bo
+boot.elf: arm/kern/boot.ld $(BOOT_OBJECTS) kernel.bo root.bo bundle.bo
 	@echo LD $@
 	@$(LD) $(LDFLAGS) \
 		-T arm/kern/boot.ld \
 		-Ttext $(LOAD_ADDR) \
 		-o $@ \
 		$(BOOT_OBJECTS) \
-		kernel.bo proc1.bo bundle.bo \
+		kernel.bo root.bo bundle.bo \
 		-lgcc
 
 CLEAN += kern.umg

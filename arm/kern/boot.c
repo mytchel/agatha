@@ -14,13 +14,13 @@ uint32_t
 kernel_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 
 uint32_t
-proc1_stack[1024]__attribute__((__aligned__(0x1000))) = { 0 };
+root_stack[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 
 uint32_t
-proc1_l1[4096]__attribute__((__aligned__(0x4000))) = { 0 };
+root_l1[4096]__attribute__((__aligned__(0x4000))) = { 0 };
 
 uint32_t
-proc1_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
+root_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
 
 extern uint32_t *_boot_start;
 extern uint32_t *_boot_end;
@@ -28,8 +28,8 @@ extern uint32_t *_image_start;
 extern uint32_t *_image_end;
 extern uint32_t *_binary_kernel_bin_start;
 extern uint32_t *_binary_kernel_bin_end;
-extern uint32_t *_binary_proc1_bin_start;
-extern uint32_t *_binary_proc1_bin_end;
+extern uint32_t *_binary_root_bin_start;
+extern uint32_t *_binary_root_bin_end;
 extern uint32_t *_binary_bundle_bin_start;
 extern uint32_t *_binary_bundle_bin_end;
 
@@ -53,19 +53,19 @@ main(uint32_t j)
 		PAGE_ALIGN((size_t) &_binary_bundle_bin_end) - 
 		info->bundle_pa;
 
-	info->proc1_pa = (size_t) &_binary_proc1_bin_start;
-	info->proc1_len = 
-		PAGE_ALIGN((size_t) &_binary_proc1_bin_end) -
-		info->proc1_pa;
+	info->root_pa = (size_t) &_binary_root_bin_start;
+	info->root_len = 
+		PAGE_ALIGN((size_t) &_binary_root_bin_end) -
+		info->root_pa;
 
-	info->proc1.stack_pa = (size_t) proc1_stack;
-	info->proc1.stack_len = sizeof(proc1_stack);
+	info->root.stack_pa = (size_t) root_stack;
+	info->root.stack_len = sizeof(root_stack);
 
-	info->proc1.l1_pa = (size_t) proc1_l1;
-	info->proc1.l1_len = sizeof(proc1_l1);
+	info->root.l1_pa = (size_t) root_l1;
+	info->root.l1_len = sizeof(root_l1);
 
-	info->proc1.l2_pa = (size_t) proc1_l2;
-	info->proc1.l2_len = sizeof(proc1_l2);
+	info->root.l2_pa = (size_t) root_l2;
+	info->root.l2_len = sizeof(root_l2);
 
 	info->kernel.l1_pa = (size_t) kernel_l1;
 	info->kernel.l1_len = sizeof(kernel_l1);

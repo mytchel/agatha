@@ -23,7 +23,7 @@ struct intr_mapping {
 struct kernel_info {
 	size_t boot_pa, boot_len;
 	size_t kernel_pa, kernel_len;
-	size_t proc1_pa, proc1_len;
+	size_t root_pa, root_len;
 	size_t bundle_pa, bundle_len;
 	size_t info_pa, info_len;
 
@@ -42,6 +42,6 @@ struct kernel_info {
 
 		size_t info_va;
 		size_t stack_pa, stack_va, stack_len;
-	} proc1;
+	} root;
 };
 

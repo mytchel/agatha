@@ -5,11 +5,11 @@
 void
 init_kernel_drivers();
 
-#define proc1_l1_va      0x01000
-#define proc1_l2_va      0x05000
-#define proc1_info_va    0x06000
-#define proc1_stack_va   0x1c000
-#define proc1_code_va    USER_ADDR
+#define root_l1_va      0x01000
+#define root_l2_va      0x05000
+#define root_info_va    0x06000
+#define root_stack_va   0x1c000
+#define root_code_va    USER_ADDR
 
 static size_t va_next = 0;
 
@@ -17,31 +17,31 @@ static uint32_t *kernel_l1;
 static uint32_t *kernel_l2;
 
 	static void
-proc1_start(void)
+root_start(void)
 {
 	label_t u = {0};
 
 	u.psr = MODE_USR;
-	u.sp = proc1_stack_va + 0x1000;
-	u.pc = proc1_code_va;
-	u.regs[0] = proc1_info_va;
+	u.sp = root_stack_va + 0x1000;
+	u.pc = root_code_va;
+	u.regs[0] = root_info_va;
 
 	drop_to_user(&u);
 }
 
 	static proc_t *
-init_proc1(struct kernel_info *info)
+init_root(struct kernel_info *info)
 {
 	uint32_t *l1, *l2;
 	proc_t *p;
 
-	l1 = kernel_map(info->proc1.l1_pa,
-			info->proc1.l1_len,
+	l1 = kernel_map(info->root.l1_pa,
+			info->root.l1_len,
 			AP_RW_RW,
 			false);
 
-	l2 = kernel_map(info->proc1.l2_pa,
-			info->proc1.l2_len,
+	l2 = kernel_map(info->root.l2_pa,
+			info->root.l2_len,
 			AP_RW_RW,
 			false);
 
@@ -49,50 +49,50 @@ init_proc1(struct kernel_info *info)
 			kernel_l1,
 			0x4000);
 
-	map_l2(l1, info->proc1.l2_pa,
+	map_l2(l1, info->root.l2_pa,
 			0, 0x1000);
 
-	info->proc1.l1_va = proc1_l1_va;
-	info->proc1.l2_va = proc1_l2_va;
-	info->proc1.info_va = proc1_info_va;
-	info->proc1.stack_va = proc1_stack_va;
+	info->root.l1_va = root_l1_va;
+	info->root.l2_va = root_l2_va;
+	info->root.info_va = root_info_va;
+	info->root.stack_va = root_stack_va;
 
 	map_pages(l2, 
-			info->proc1.l1_pa, 
-			info->proc1.l1_va, 
-			info->proc1.l1_len,
+			info->root.l1_pa, 
+			info->root.l1_va, 
+			info->root.l1_len,
 			AP_RW_RW, false);
 
 	map_pages(l2, 
-			info->proc1.l2_pa, 
-			info->proc1.l2_va, 
-			info->proc1.l2_len,
+			info->root.l2_pa, 
+			info->root.l2_va, 
+			info->root.l2_len,
 			AP_RW_RW, false);
 
 	map_pages(l2, 
 			info->info_pa,
-			proc1_info_va,
+			root_info_va,
 			info->info_len,
 			AP_RW_RW, true);
 
 	map_pages(l2, 
-			info->proc1.stack_pa,
-			info->proc1.stack_va,
-			info->proc1.stack_len, 
+			info->root.stack_pa,
+			info->root.stack_va,
+			info->root.stack_len, 
 			AP_RW_RW, true);
 
 	map_pages(l2, 
-			info->proc1_pa,
-			proc1_code_va,
-			info->proc1_len, 
+			info->root_pa,
+			root_code_va,
+			info->root_len, 
 			AP_RW_RW, true);
 
-	kernel_unmap(l1, info->proc1.l1_len);
-	kernel_unmap(l2, info->proc1.l2_len);
+	kernel_unmap(l1, info->root.l1_len);
+	kernel_unmap(l2, info->root.l2_len);
 
-	p = proc_new(1, info->proc1.l1_pa);
+	p = proc_new(1, info->root.l1_pa);
 	if (p == nil) {
-		panic("Failed to create proc1!\n");
+		panic("Failed to create root!\n");
 	}
 
 	debug_info("func label %i, stack top at 0x%x\n",
@@ -100,7 +100,7 @@ init_proc1(struct kernel_info *info)
 
 	func_label(&p->label, 
 			(size_t) p->kstack, KSTACK_LEN, 
-			(size_t) &proc1_start);
+			(size_t) &root_start);
 
 	proc_ready(p);
 
@@ -155,7 +155,7 @@ main(struct kernel_info *info)
 	debug(DEBUG_INFO, "boot   0x%x 0x%x\n", info->boot_pa, info->boot_len);
 	debug(DEBUG_INFO, "kernel 0x%x 0x%x\n", info->kernel_pa, info->kernel_len);
 	debug(DEBUG_INFO, "info   0x%x 0x%x\n", info->info_pa, info->info_len);
-	debug(DEBUG_INFO, "proc1  0x%x 0x%x\n", info->proc1_pa, info->proc1_len);
+	debug(DEBUG_INFO, "root  0x%x 0x%x\n", info->root_pa, info->root_len);
 	debug(DEBUG_INFO, "bundle 0x%x 0x%x\n", info->bundle_pa, info->bundle_len);
 	debug(DEBUG_INFO, "kernel l1 0x%x -> 0x%x 0x%x\n", 
 			info->kernel.l1_pa, 
@@ -165,18 +165,18 @@ main(struct kernel_info *info)
 			info->kernel.l2_pa, 
 			info->kernel.l2_va, 
 			info->kernel.l2_len);
-	debug(DEBUG_INFO, "proc1 l1 0x%x 0x%x\n", 
-			info->proc1.l1_pa, 
-			info->proc1.l1_len);
-	debug(DEBUG_INFO, "proc1 l2 0x%x 0x%x\n", 
-			info->proc1.l2_pa, 
-			info->proc1.l2_len);
+	debug(DEBUG_INFO, "root l1 0x%x 0x%x\n", 
+			info->root.l1_pa, 
+			info->root.l1_len);
+	debug(DEBUG_INFO, "root l2 0x%x 0x%x\n", 
+			info->root.l2_pa, 
+			info->root.l2_len);
 
-	p1 = init_proc1(info);
+	p1 = init_root(info);
 
 	kernel_unmap(info, info->info_len);
 
-	debug(DEBUG_SCHED, "scheduling proc1\n");
+	debug(DEBUG_SCHED, "scheduling root\n");
 
 	schedule(p1);
 }

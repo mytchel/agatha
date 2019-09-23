@@ -27,7 +27,7 @@ SECTIONS
 	{
 		kernel.bo(.bundle)
 			. = ALIGN(4096);
-		proc1.bo(.bundle)
+		root.bo(.bundle)
 		. = ALIGN(4096);
 		bundle.bo(.bundle)
 	}
