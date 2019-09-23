@@ -4,7 +4,7 @@
 
 .global proc_new
 .global proc_setup
-.global endpoint_listen
+.global endpoint_create
 .global endpoint_connect
 .global intr_register
 .global kern_debug
@@ -24,9 +24,9 @@ proc_setup:
 	pop {r12, pc}
 
 
-endpoint_listen:
+endpoint_create:
 	push {r12, lr}
-	mov r12, #SYSCALL_ENDPOINT_LISTEN
+	mov r12, #SYSCALL_ENDPOINT_CREATE
 	svc 0
 	pop {r12, pc}
 

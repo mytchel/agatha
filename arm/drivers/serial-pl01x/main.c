@@ -71,7 +71,7 @@ main(void)
 	int from;
 
 	while (true) {
-		if (recv(EID_SUPERVISOR, &from, m) < 0) {
+		if (recv(EID_ANY, &from, m) < 0) {
 			exit(1);
 		}
 

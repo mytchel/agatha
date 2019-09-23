@@ -7,10 +7,10 @@ int
 mesg(int eid, void *rq, void *rp);
 
 int
-recv(int eid, int *pid, void *m);
+recv(int eid, int *mid, void *m);
 
 int
-reply(int eid, int pid, void *recv);
+reply(int eid, int mid, void *recv);
 
 int
 signal(int eid, uint32_t s);

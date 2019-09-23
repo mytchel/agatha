@@ -1,7 +1,6 @@
 #include "head.h"
 #include <arm/mmu.h>
 #include <log.h>
-#include "../dev.h"
 
 static struct {
 	struct {

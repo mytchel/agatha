@@ -204,8 +204,6 @@ proc_new(int priority, size_t vspace)
 
 	p->ts = SYSTICK;
 
-	p->next_endpoint_id = 1;
-	p->wlist = nil;
 	p->list = nil;
 	p->endpoints = nil;
 	p->recv_from = nil;

@@ -31,10 +31,8 @@ struct proc {
 	proc_list_t *list;		
 	proc_t *prev, *next;
 
-	int next_endpoint_id;
-
+	int mid;
 	uint8_t m[MESSAGE_LEN];
-	proc_list_t *wlist;		
 	proc_t *wprev, *wnext;
 
 	endpoint_t *recv_from;
@@ -59,6 +57,7 @@ struct endpoint {
 		proc_t *holder;
 		uint32_t signal;
 		proc_list_t waiting;
+		int next_mid;
 	} listen;
 
 	struct {
@@ -96,11 +95,11 @@ proc_find_endpoint(proc_t *p, int eid);
 int
 mesg(endpoint_t *e, uint8_t *m);
 
-int
-recv(endpoint_t *e, int *pid, uint8_t *m);
+endpoint_t *
+recv(endpoint_t *e, int *mid, uint8_t *m);
 
 int
-reply(endpoint_t *e, int pid, uint8_t *m);
+reply(endpoint_t *e, int mid, uint8_t *m);
 
 int
 signal(endpoint_t *e, uint32_t s);

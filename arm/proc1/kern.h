@@ -10,7 +10,7 @@ int
 proc_setup(int pid, procstate_t state);
 
 int
-endpoint_listen(int pid);
+endpoint_create(int pid);
 
 int
 endpoint_connect(int from, int to, int to_eid);

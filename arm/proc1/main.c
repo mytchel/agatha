@@ -1,6 +1,5 @@
 #include "head.h"
 #include <mmu.h>
-#include "../dev.h"
 
 struct kernel_info *info;
 int main_eid;
@@ -196,7 +195,7 @@ main(struct kernel_info *i)
 	log(0, "kernel starts at 0x%x", info->kernel_va);
 	log(0, "boot starts at 0x%x", info->boot_pa);
 
-	main_eid = endpoint_listen(pid());
+	main_eid = endpoint_create(pid());
 	if (main_eid < 0) {
 		log(0, "ERROR creating main endpoint %i", main_eid);
 		exit(1);

@@ -10,6 +10,13 @@
 #include <pool.h>
 #include "kern.h"
 
+struct device {
+	char name[256];
+	char compatable[256];
+	size_t reg, len;
+	size_t irqn;
+};
+
 struct addr_frame {
 	struct addr_frame *next;
 	size_t pa, len;
@@ -65,7 +72,9 @@ proc_unmap(int pid, size_t va, size_t len);
 bool
 init_bundled_proc(char *name, int priority,
 		size_t prog_pa, size_t len,
-		int *p_pid, int *p_eid);
+		int *p_pid, 
+		int *p_eid,
+		int *m_eid);
 
 void
 add_ram(size_t start, size_t len);
@@ -73,11 +82,12 @@ add_ram(size_t start, size_t len);
 void
 board_init_ram(void);
 
-void
+size_t
 board_init_bundled_drivers(size_t offset_into_bundle);
-
 
 extern struct kernel_info *info;
 extern int main_eid;
 
+extern struct device devices[];
+extern size_t ndevices;
 

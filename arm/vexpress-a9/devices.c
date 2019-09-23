@@ -1,6 +1,5 @@
 #include "../proc1/head.h"
 #include "../bundle.h"
-#include "../dev.h"
 #include <arm/mmu.h>
 
 /* Interrupts from daughterboard start at 32?
@@ -56,11 +55,11 @@ board_init_ram(void)
 	add_ram(0x60000000, 0x20000000);
 }
 
-	void
+	size_t
 board_init_bundled_drivers(size_t off)
 {
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-	int b, d, p_pid, p_eid;
+	int b, d, p_pid, p_main_eid, p_con_eid;
 	struct addr_frame *f;
 
 	for (b = 0; b < nbundled_drivers; b++) {
@@ -74,7 +73,7 @@ board_init_bundled_drivers(size_t off)
 					2,
 					off, 
 					bundled_drivers[b].len,
-					&p_pid, &p_eid))
+					&p_pid, &p_main_eid, &p_con_eid))
 			{
 				continue;
 			}
@@ -98,5 +97,7 @@ board_init_bundled_drivers(size_t off)
 
 		off += bundled_drivers[b].len;
 	}
+
+	return off;
 }
 

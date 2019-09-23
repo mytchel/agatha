@@ -5,13 +5,6 @@ echo '#include "../bundle.h"' >> bundle.c
 P=0
 
 P=$(sh arm/bundle.sh \
-	bundled_procs \
-	bundle.bin \
-	bundle.c \
-	$P \
-	$PROCS)
-
-P=$(sh arm/bundle.sh \
 	bundled_idle \
 	bundle.bin \
 	bundle.c \
@@ -24,4 +17,11 @@ P=$(sh arm/bundle.sh \
 	bundle.c \
 	$P \
 	$DRIVERS)
+
+P=$(sh arm/bundle.sh \
+	bundled_procs \
+	bundle.bin \
+	bundle.c \
+	$P \
+	$PROCS)
 

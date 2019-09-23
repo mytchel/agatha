@@ -26,20 +26,19 @@ proc_start(void)
 
 	debug_info("proc %i starting\n", up->pid);
 
-	e = proc_find_endpoint(up, EID_MAIN);
-	if (e == nil) {
-		panic("proc %i has no main endpoint\n", up->pid);
-	}
-
 	while (true) {
-		if (recv(e, &mid, (uint8_t *) &m) <= 0) {
+		if ((e = recv(nil, &mid, (uint8_t *) &m)) == nil) {
 			continue;
-		} else if (m.start.type == PROC_start_msg) {
+		} else if (mid == MID_SIGNAL) {
+			continue;
+		} else if (m.start.type == PROC_start_req) {
 			break;
 		}
 	}
 
 	debug_info("got start, reply on eid %i", e->id);
+
+	m.start.type = PROC_start_rsp;
 
 	reply(e, mid, (uint8_t *) &m);
 

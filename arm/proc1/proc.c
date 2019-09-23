@@ -314,7 +314,9 @@ bool
 init_bundled_proc(char *name,
 		int priority,
 		size_t start, size_t len,
-		int *p_pid, int *p_eid)
+		int *p_pid, 
+		int *p_eid,
+		int *m_eid)
 {
 	union proc_msg m, rp;
 
@@ -446,62 +448,70 @@ init_bundled_proc(char *name,
 
 	if ((r = proc_map(*p_pid, code_pa, 
 				USER_ADDR, len, 
-				MAP_MEM|MAP_RW)) != OK) {
+				MAP_MEM|MAP_RW)) != OK) 
+	{
 		exit(0x11);
 	}
 
-	*p_eid = endpoint_connect(pid(), *p_pid, EID_MAIN);
+	*m_eid = endpoint_create(*p_pid);
+	if (*m_eid < 0) {
+		exit(0x12);
+	}
+
+	*p_eid = endpoint_connect(pid(), *p_pid, *m_eid);
 	if (*p_eid < 0) {
 		exit(0x12);
 	}
 
-	m.start.type = PROC_start_msg;
+	m.start.type = PROC_start_req;
 	m.start.pc = USER_ADDR;
 	m.start.sp = USER_ADDR;
 
 	log(LOG_INFO, "start bundled proc pid %i %s", *p_pid, name);
 
-	mesg(*p_eid, &m, &rp);
-
-	return true;
+	return mesg(*p_eid, &m, &rp) == OK;
 }
 
 	void
 init_procs(void)
 {
-	int i, p_pid, p_eid;
+	int i, p_pid, p_main_eid, p_con_eid;
 	size_t off;
 
 	if (pool_init(&frame_pool, sizeof(struct addr_frame)) != OK) {
 		exit(1);
 	}
 
-	if (pool_load(&frame_pool, frame_pool_initial, sizeof(frame_pool_initial)) != OK) {
+	if (pool_load(&frame_pool, 
+			frame_pool_initial, 
+			sizeof(frame_pool_initial)) != OK) 
+	{
 		exit(1);
 	}
 
 	off = info->bundle_pa;
-	for (i = 0; i < nbundled_procs; i++) {
-		init_bundled_proc(bundled_procs[i].name,
-				1,
-				off,
-				bundled_procs[i].len,
-				&p_pid, &p_eid);
-
-		off += bundled_procs[i].len;
-	}
 
 	for (i = 0; i < nbundled_idle; i++) {
 		init_bundled_proc(bundled_idle[i].name,
 				0,
 				off,
 				bundled_idle[i].len,
-				&p_pid, &p_eid);
+				&p_pid, &p_main_eid, &p_con_eid);
 
 		off += bundled_idle[i].len;
 	}
 
-	board_init_bundled_drivers(off);
+	off = board_init_bundled_drivers(off);
+
+	for (i = 0; i < nbundled_procs; i++) {
+		init_bundled_proc(bundled_procs[i].name,
+				1,
+				off,
+				bundled_procs[i].len,
+				&p_pid, &p_main_eid, &p_con_eid);
+
+		off += bundled_procs[i].len;
+	}
 }
 
 
