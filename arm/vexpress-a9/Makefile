@@ -6,9 +6,8 @@ BOARD = vexpress-a9
 LOAD_ADDR = 0x62008000
 
 PROCS = \
-#	procs/dev_reg \
-#	procs/log \
-#	procs/init \
+	procs/log \
+	procs/init \
 #	procs/net_test \
 #	procs/ui
 

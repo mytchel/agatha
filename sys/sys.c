@@ -83,13 +83,27 @@ proc_create_endpoint_connect(endpoint_t *o)
 	return e;
 }
 
+static void
+endpoint_log_waiting(endpoint_t *e)
+{
+	proc_t *p;
+
+	debug_info("%i log endpoint %i\n", up->pid, e->id);
+	debug_info("endpoint %i has signal 0x%x\n", e->id, e->listen.signal);
+
+	for (p = e->listen.waiting.head; p != nil; p = p->wnext) {
+		debug_info("endpoint %i proc %i state %i\n",
+			e->id, p->pid, p->state);
+	}
+}
+
 bool
 endpoint_get_pending(endpoint_t *e, int *pid, uint8_t *m)
 {
 	proc_t *p;
 
 	debug_info("%i checking %i\n", up->pid, e->id);
-	debug_info("%i signal %i = 0x%x\n", up->pid, e->id, e->listen.signal);
+	endpoint_log_waiting(e);
 
 	if (e->listen.signal != 0) {
 		((uint32_t *) m)[0] = e->listen.signal;
@@ -106,6 +120,12 @@ endpoint_get_pending(endpoint_t *e, int *pid, uint8_t *m)
 		if (p->state == PROC_block_send) {
 			debug_info("ok\n");
 			memcpy(m, p->m, MESSAGE_LEN);
+
+			if (p->offer != nil) {
+				up->offer = p->offer;
+				p->offer = nil;
+			}
+
 			p->state = PROC_block_reply;
 			*pid = p->pid;
 			return true;
@@ -161,6 +181,10 @@ reply(endpoint_t *e, int pid, uint8_t *m)
 		return ERR;
 	}
 
+	debug_info("proc %i reply eid %i\n", up->pid, e->id);
+
+	endpoint_log_waiting(e);
+
 	for (p = e->listen.waiting.head; p != nil; p = p->next) {
 		if (p->state == PROC_block_reply && p->pid == pid) {
 			break;
@@ -174,18 +198,26 @@ reply(endpoint_t *e, int pid, uint8_t *m)
 	}
 
 	if (p->wprev != nil) {
-		p->prev->wnext = p->wnext;
+		p->wprev->wnext = p->wnext;
 	} else {
 		e->listen.waiting.head = p->wnext;
 	}
 
 	if (p->wnext != nil) {
-		p->next->prev = p->prev;
+		p->wnext->wprev = p->wprev;
 	} else {
-		e->listen.waiting.tail = p->prev;
+		e->listen.waiting.tail = p->wprev;
 	}
 
 	memcpy(p->m, m, MESSAGE_LEN);
+
+	if (up->offer != nil) {
+		p->offer = up->offer;
+		up->offer = nil;
+	}
+
+	debug_info("proc %i endpoint %i now:\n", up->pid, e->id);
+	endpoint_log_waiting(e);
 
 	proc_ready(p);
 	schedule(p);
@@ -216,19 +248,26 @@ mesg(endpoint_t *e, uint8_t *rq, uint8_t *rp)
 
 	debug_info("proc %i send to e %i -> %i proc %i\n",
 		up->pid, e->id, o->id, p->pid);
+	
+	endpoint_log_waiting(o);
 
 	memcpy(up->m, rq, MESSAGE_LEN);
 
 	up->state = PROC_block_send;
 
-	up->wnext = nil;
 	up->wprev = o->listen.waiting.tail;
-	o->listen.waiting.tail = up;
-	if (o->listen.waiting.head == nil) {
+	if (up->wprev != nil) {
+		up->wprev->wnext = up;
+	} else {
 		o->listen.waiting.head = up;
 	}
 
+	up->wnext = nil;
+	o->listen.waiting.tail = up;
+
 	debug_info("added to list\n");
+	debug_info("proc %i endpoint %i now:\n", up->pid, o->id);
+	endpoint_log_waiting(o);
 
 	if (p->state == PROC_block_recv 
 		&& (p->recv_from == nil || p->recv_from == o))
@@ -238,10 +277,6 @@ mesg(endpoint_t *e, uint8_t *rq, uint8_t *rp)
 		schedule(p);
 	} else {
 		schedule(nil);
-	}
-
-	if (up->offering) {
-		debug_warn("should free offered but not accepted endpoint\n");
 	}
 
 	memcpy(rp, up->m, MESSAGE_LEN);
@@ -498,7 +533,7 @@ sys_endpoint_offer(int eid)
 		}
 
 		e->next = nil;
-		up->offering = e;
+		up->offer = e;
 		return OK;
 	}
 	
@@ -510,7 +545,7 @@ sys_endpoint_offer(int eid)
 		}
 
 		e->next = nil;
-		up->offering = e;
+		up->offer = e;
 		return OK;
 	}
 
@@ -518,51 +553,35 @@ sys_endpoint_offer(int eid)
 }
 
 endpoint_t *
-endpoint_accept(endpoint_t *from, int pid)
+endpoint_accept(void)
 {
 	endpoint_t *e;
-	proc_t *p;
 
-	for (p = from->listen.waiting.head; p != nil; p = p->wnext) {
-		if (p->state == PROC_block_reply && p->pid == pid) {
-			break;
-		}
-	}
-
-	if (p == nil) {
-		debug_warn("proc %i couldn't find eid %i pid %i\n",
-				up->pid, from->id, pid);
-		return nil;
-	}
-
-	e = p->offering;
+	e = up->offer;
 	if (e == nil) {
-		debug_warn("proc not offering anything\n");
+		debug_info("proc %i tried to accept but nothing was offered\n",
+			up->pid); 
+
 		return nil;
 	}
 
-	p->offering = nil;
-
-	debug_info("proc %i accepting connection from eid %i pid %i for eid %i\n",
-			up->pid, from->id, pid, e->id); 
+	up->offer = nil;
 
 	e->next = up->sending;
 	up->sending = e;
+
+	debug_info("proc %i accepting connection eid %i\n",
+			up->pid, e->id); 
 
 	return e;
 }
 
 	size_t
-sys_endpoint_accept(int eid, int pid)
+sys_endpoint_accept(void)
 {
-	endpoint_t *o, *e;
+	endpoint_t *e;
 
-	o = proc_find_endpoint(up->listening, eid);
-	if (o == nil) {
-		return ERR;
-	}
-
-	e = endpoint_accept(o, pid);
+	e = endpoint_accept();
 	if (e == nil) {
 		return ERR;
 	}

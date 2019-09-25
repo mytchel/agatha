@@ -48,9 +48,12 @@ union proc0_req {
 	struct {
 		uint32_t type;
 #define RESOURCE_get_log        0
-#define RESOURCE_get_timer      1
-#define RESOURCE_get_regs       2
-#define RESOURCE_get_int        3
+#define RESOURCE_get_regs       1
+#define RESOURCE_get_int        2
+#define RESOURCE_get_timer      3
+#define RESOURCE_get_serial     4
+#define RESOURCE_get_block      5
+#define RESOURCE_get_net        6
 		int resource_type;
 	} get_resource;
 
@@ -94,9 +97,7 @@ union proc0_rsp {
 	struct {
 		uint32_t type;
 		int ret;
-		int resource_type;
 		union {
-			int eid;
 			struct {
 				size_t pa, len;
 			} regs;

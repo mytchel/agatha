@@ -36,9 +36,9 @@ proc_start(void)
 		}
 	}
 
-	debug_info("got start, reply on eid %i", e->id);
+	debug_info("got start, reply on eid %i\n", e->id);
 
-	e_main = endpoint_accept(e, pid);
+	e_main = endpoint_accept();
 
 	m.start.type = PROC_start_rsp;
 

@@ -54,9 +54,9 @@ KERNEL_SRC_C = \
 
 
 bundle.bin bundle.c: $(BUNDLE_BIN) $(BUNDLE_ELF)
-	@echo 'BUNDLE procs   : ' $(PROCS)
 	@echo 'BUNDLE idle    : ' $(IDLE)
 	@echo 'BUNDLE drivers : ' $(DRIVERS)
+	@echo 'BUNDLE procs   : ' $(PROCS)
 	@PROCS="$(PROCS)" IDLE="$(IDLE)" DRIVERS="$(DRIVERS)" sh arm/mkbundle.sh
 
 CLEAN += bundle.c

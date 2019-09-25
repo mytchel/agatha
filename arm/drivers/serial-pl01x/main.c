@@ -92,7 +92,7 @@ main(int p_eid)
 		exit(ERR);
 	}
 
-	puts("pl01x ready\n");
+	puts("serial pl01x ready\n");
 	
 	while (true) {
 		if ((eid = recv(EID_ANY, &from, &rq)) < 0) continue;

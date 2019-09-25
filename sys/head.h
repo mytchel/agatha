@@ -38,7 +38,7 @@ struct proc {
 	endpoint_t *recv_from;
 	endpoint_t *listening;
 	endpoint_t *sending;
-	endpoint_t *offering;
+	endpoint_t *offer;
 
 	size_t vspace;
 };
@@ -86,7 +86,7 @@ void
 schedule(proc_t *next);
 
 endpoint_t *
-endpoint_accept(endpoint_t *from, int pid);
+endpoint_accept(void);
 
 int
 mesg(endpoint_t *e, uint8_t *rq, uint8_t *rp);

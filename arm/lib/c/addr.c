@@ -9,7 +9,7 @@
 #include <proc0.h>
 #include <arm/mmu.h>
 
-#define LOG 1
+#define LOG 0
 #if !LOG
 #define log(X, ...) {}
 #endif
@@ -30,7 +30,7 @@ struct l1_span {
 #define l1_span_initial_size \
 		(sizeof(struct pool_frame) + \
 		 (sizeof(struct l1_span) + \
-			sizeof(struct pool_obj)) * 5)
+			sizeof(struct pool_obj)) * 4)
 
 static uint8_t l1_span_pool_initial[l1_span_initial_size];
 

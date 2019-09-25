@@ -6,8 +6,8 @@
 #include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
-#include <dev_reg.h>
 #include <serial.h>
+#include <proc0.h>
 #include <log.h>
 
 struct service {
@@ -24,7 +24,7 @@ char *levels[] = {
 	[LOG_INFO]      = "INFO",
 };
 
-static int log_output_pid = -1;
+static int log_output_eid = -1;
 static char buf[2048];
 static size_t start = 0, end = 0;
 
@@ -33,7 +33,7 @@ send_logs(void)
 {
 	union serial_req rq;
 
-	if (log_output_pid == -1) {
+	if (log_output_eid == -1) {
 		return;
 	} else if (start == end) {
 		return;
@@ -54,7 +54,7 @@ send_logs(void)
 
 	memcpy(rq.write.data, buf + start, rq.write.len);
 
-	mesg(log_output_pid, &rq, &rq);
+	mesg(log_output_eid, &rq, &rq);
 
 	start = (start + rq.write.len) % sizeof(buf);
 }
@@ -181,46 +181,45 @@ handle_log(int eid, int from, union log_req *rq)
 }
 
 	void
-main(void)
+main(int p_eid)
 {
-	uint8_t m_buf[MESSAGE_LEN];
-	union dev_reg_req rq;
-	union dev_reg_rsp rp;
-	uint32_t type;
+	union proc0_req prq;
+	union proc0_rsp prp;
+	union log_req rq;
 	int eid, from, i;
 
-	char *log_output = "serial0";
+	parent_eid = p_eid;
 
 	for (i = 0; i < MAX_SERVICES; i++) {
 		services[i].pid = -1;
 	}
 
-	rq.find.type = DEV_REG_find_req;
-	rq.find.block = true;
-	snprintf(rq.find.name, sizeof(rq.find.name),
-			"%s", log_output);
+	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.resource_type = RESOURCE_get_serial;
 
-	if (mesg(DEV_REG_PID, &rq, &rp) < 0) {
-		return;
+	mesg(parent_eid, &prq, &prp);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
 	}
 
-	log_output_pid = rp.find.pid;
+	log_output_eid = endpoint_accept();
+
+	char *s = "log starting\n";
+	add_log(s, strlen(s));
+	send_logs();
 
 	while (true) {
-		if ((eid = recv(EID_ANY, &from, m_buf)) < 0) continue;
+		if ((eid = recv(EID_ANY, &from, &rq)) < 0) continue;
 		if (from == PID_NONE) continue;
 
-		type = *((uint32_t *) m_buf);
+		switch (rq.type) {
+		case LOG_register_req:
+			handle_register(eid, from, &rq);
+			break;
 
-		switch (type) {
-			case LOG_register_req:
-				handle_register(eid, from, (void *) m_buf);
-				break;
-
-			case LOG_log_req:
-				handle_log(eid, from, (void *) m_buf);
-				break;
-
+		case LOG_log_req:
+			handle_log(eid, from, &rq);
+			break;
 		}
 	}
 }

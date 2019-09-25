@@ -7,6 +7,7 @@ int main_eid;
 void
 log(int level, char *fmt, ...)
 {
+#if 1
 	char buf[256];
 
 	va_list a;
@@ -16,6 +17,7 @@ log(int level, char *fmt, ...)
 	va_end(a);
 
 	kern_debug(buf);
+#endif
 }
 
 	int
@@ -136,12 +138,26 @@ handle_addr_give(int eid, int from, union proc0_req *rq)
 }
 
 struct device *
-find_device(int pid)
+find_device_pid(int pid)
 {
 	int i;
 
 	for (i = 0; i < ndevices; i++) {
 		if (devices[i].pid == pid) {
+			return &devices[i];
+		}
+	}
+
+	return nil;
+}
+
+struct device *
+find_device_name(char *name)
+{
+	int i;
+
+	for (i = 0; i < ndevices; i++) {
+		if (strncmp(devices[i].name, name, sizeof(devices[i].name))) {
 			return &devices[i];
 		}
 	}
@@ -160,22 +176,39 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 
 	rp.get_resource.type = PROC0_get_resource_rsp;
 
-	dev = find_device(from);
-	if (dev == nil) {
-		log(0, "proc %i does not handle a device", from);
-		rp.get_resource.ret = ERR;
-		return reply(eid, from, &rp);
-	}
-
 	switch (rq->get_resource.resource_type) {
 	default:
-	case RESOURCE_get_log:
 	case RESOURCE_get_timer:
+	case RESOURCE_get_block:
+	case RESOURCE_get_net:
 	case RESOURCE_get_int:
 		rp.get_resource.ret = ERR;
 		break;
+	
+	case RESOURCE_get_log:
+		rp.get_resource.ret = ERR;
+		break;
+	
+	case RESOURCE_get_serial:
+		dev = find_device_name("serial0");
+		if (dev == nil) {
+			rp.get_resource.ret = ERR;
+			return reply(eid, from, &rp);
+		}
+
+		endpoint_offer(dev->eid);
+
+		rp.get_resource.ret = OK;
+		break;
 
 	case RESOURCE_get_regs:
+		dev = find_device_pid(from);
+		if (dev == nil) {
+			log(0, "proc %i not bound to a device", from);
+			rp.get_resource.ret = ERR;
+			return reply(eid, from, &rp);
+		}
+
 		if (!dev->has_regs) {
 			log(0, "giving proc %i its regs 0x%x 0x%x",
 				from, dev->reg, dev->len);
@@ -197,10 +230,6 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		break;
 	}
 
-	log(0, "send proc %i its regs 0x%x 0x%x",
-				from, rp.get_resource.result.regs.pa,
-			rp.get_resource.result.regs.len);
-	
 	return reply(eid, from, &rp);
 }
 

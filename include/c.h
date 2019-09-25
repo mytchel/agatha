@@ -24,7 +24,7 @@ int
 endpoint_offer(int eid);
 
 int
-endpoint_accept(int eid, int pid);
+endpoint_accept(void);
 
 int
 pid(void);

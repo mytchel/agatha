@@ -14,6 +14,7 @@
 #include <fat.h>
 #include <log.h>
 
+#if 0
 char *init = "sd0a:test";
 char *init_file;
 size_t init_pa, init_m_len, init_size;
@@ -233,11 +234,18 @@ read_init_file(char *f, size_t size)
 	return OK;
 }
 
+#endif
+
 	void
-main(void)
+main(int p_eid)
 {
+	parent_eid = p_eid;
+
 	log_init("init");
-	
+
+	log(LOG_INFO, "init starting");
+
+#if 0	
 	if (map_init_file(init) != OK) {
 		exit(1);
 	}
@@ -248,6 +256,7 @@ main(void)
 
 	unmap_addr(init_file, init_m_len);
 	release_addr(init_pa, init_m_len);
+#endif
 
 #if 0
 	uint32_t **p;

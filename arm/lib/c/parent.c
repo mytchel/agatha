@@ -6,7 +6,6 @@
 #include <mesg.h>
 #include <arm/mmu.h>
 #include <proc0.h>
-#include <log.h>
 
 int parent_eid = -1;
 
@@ -30,7 +29,6 @@ request_memory(size_t len)
 		return nil;
 	}
 
-	log(LOG_INFO, "request 0x%x bytes got %i", len, rp.addr_req.ret);
 	if (rp.addr_req.ret != OK) {
 		return nil;
 	}
@@ -59,7 +57,6 @@ give_addr(int to, size_t pa, size_t len)
 		return ERR;
 	}
 
-	/*log(LOG_INFO, "give got %i", rp.addr_give.ret);*/
 	return rp.addr_give.ret;
 }
 
@@ -84,8 +81,6 @@ addr_unmap(size_t va, size_t len)
 	if (mesg(parent_eid, &rq, &rp) != OK) {
 		return ERR;
 	}
-
-	/*log(LOG_INFO, "unmap got %i", rp.addr_map.ret);*/
 
 	return rp.addr_map.ret;
 }
@@ -115,9 +110,7 @@ addr_map_l2s(size_t pa, size_t va, size_t len)
 {
 	int r;
 
-	log(LOG_INFO, "map l2 0x%x -> 0x%x 0x%x", pa, va, len);
 	r = addr_map(pa, va, len, MAP_TABLE);
-	log(LOG_INFO, "l2 map got %i", r);
 	return r;
 }
 
