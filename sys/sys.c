@@ -15,7 +15,7 @@ static endpoint_t *free_endpoints = nil;
 static size_t next_endpoint_id = 1;
 
 endpoint_t *
-endpoint_add(proc_t *p)
+endpoint_create(void)
 {
 	endpoint_t *e;
 
@@ -34,41 +34,42 @@ endpoint_add(proc_t *p)
 
 	e->id = next_endpoint_id++;
 
-	e->next = p->endpoints;
-	p->endpoints = e;
+	e->next = nil;
 
 	return e;
 }
 
 endpoint_t *
-proc_add_endpoint_listener(proc_t *p)
+proc_create_endpoint_listener(proc_t *p)
 {
 	endpoint_t *e;
 
-	e = endpoint_add(p);
+	e = endpoint_create();
 	if (e == nil) {
 		return nil;
 	}
 
 	e->mode = ENDPOINT_listen;
 	e->listen.holder = p;
-	e->listen.next_mid = MID_SIGNAL + 1;
 	e->listen.signal = 0;
 	e->listen.waiting.head = nil;
 	e->listen.waiting.tail = nil;
 
-	debug_info("proc %i making listener endpoint %i for %i\n",
-		up->pid, e->id, p->pid);
+	e->next = p->listening;
+	p->listening = e;
+
+	debug_info("proc %i making listener endpoint %i\n",
+		p->pid, e->id);
 
 	return e;
 }
 
 endpoint_t *
-proc_add_endpoint_connect(proc_t *p, endpoint_t *o)
+proc_create_endpoint_connect(endpoint_t *o)
 {
 	endpoint_t *e;
 
-	e = endpoint_add(p);
+	e = endpoint_create();
 	if (e == nil) {
 		return nil;
 	}
@@ -76,28 +77,14 @@ proc_add_endpoint_connect(proc_t *p, endpoint_t *o)
 	e->mode = ENDPOINT_connect;
 	e->connect.other = o;
 
-	debug_info("proc %i making connect proc %i endpoint %i to proc %i endpoint %i\n",
-		up->pid, p->pid, e->id, o->listen.holder->pid, o->id);
+	debug_info("making connect eid %i to proc %i eid %i\n",
+		e->id, o->listen.holder->pid, o->id);
 
 	return e;
 }
 
-endpoint_t *
-proc_find_endpoint(proc_t *p, int eid)
-{
-	endpoint_t *e;
-
-	for (e = p->endpoints; e != nil; e = e->next) {
-		if (e->id == eid) {
-			return e;
-		}
-	}
-
-	return nil;
-}
-
 bool
-endpoint_get_pending(endpoint_t *e, int *mid, uint8_t *m)
+endpoint_get_pending(endpoint_t *e, int *pid, uint8_t *m)
 {
 	proc_t *p;
 
@@ -107,7 +94,7 @@ endpoint_get_pending(endpoint_t *e, int *mid, uint8_t *m)
 	if (e->listen.signal != 0) {
 		((uint32_t *) m)[0] = e->listen.signal;
 		e->listen.signal = 0;
-		*mid = MID_SIGNAL;
+		*pid = PID_SIGNAL;
 		return true;
 	}
 
@@ -120,8 +107,7 @@ endpoint_get_pending(endpoint_t *e, int *mid, uint8_t *m)
 			debug_info("ok\n");
 			memcpy(m, p->m, MESSAGE_LEN);
 			p->state = PROC_block_reply;
-			p->mid = e->listen.next_mid++;
-			*mid = p->mid;
+			*pid = p->pid;
 			return true;
 		}
 	}
@@ -130,7 +116,7 @@ endpoint_get_pending(endpoint_t *e, int *mid, uint8_t *m)
 }
 
 endpoint_t *
-recv(endpoint_t *from, int *mid, uint8_t *m)
+recv(endpoint_t *from, int *pid, uint8_t *m)
 {
 	endpoint_t *e;
 
@@ -145,15 +131,13 @@ recv(endpoint_t *from, int *mid, uint8_t *m)
 	while (true) {
 		if (from != nil) {
 			debug_info("%i check from %i\n", up->pid, from->id);
-			if (endpoint_get_pending(from, mid, m)) {
+			if (endpoint_get_pending(from, pid, m)) {
 				return e;
 			}
 		} else {
-			for (e = up->endpoints; e != nil; e = e->next) {
-				if (e->mode == ENDPOINT_listen) {
-					if (endpoint_get_pending(e, mid, m)) {
-						return e;
-					}
+			for (e = up->listening; e != nil; e = e->next) {
+				if (endpoint_get_pending(e, pid, m)) {
+					return e;
 				}
 			}
 		}
@@ -167,7 +151,7 @@ recv(endpoint_t *from, int *mid, uint8_t *m)
 }
 
 int
-reply(endpoint_t *e, int mid, uint8_t *m)
+reply(endpoint_t *e, int pid, uint8_t *m)
 {
 	proc_t *p;
 
@@ -178,14 +162,14 @@ reply(endpoint_t *e, int mid, uint8_t *m)
 	}
 
 	for (p = e->listen.waiting.head; p != nil; p = p->next) {
-		if (p->state == PROC_block_reply && p->mid == mid) {
+		if (p->state == PROC_block_reply && p->pid == pid) {
 			break;
 		}
 	}
 
 	if (p == nil) {
-		debug_warn("proc %i tried to reply mid %i not found\n",
-			up->pid, mid);
+		debug_warn("proc %i tried to reply waiting proc %i not found\n",
+			up->pid, pid);
 		return ERR;
 	}
 
@@ -201,19 +185,16 @@ reply(endpoint_t *e, int mid, uint8_t *m)
 		e->listen.waiting.tail = p->prev;
 	}
 
-	if (p->state == PROC_block_reply) {
-		proc_ready(p);
-		schedule(p);
-	} else {
-		debug_warn("waiting proc %i in bad state %i\n",
-			p->pid, p->state);
-	}
+	memcpy(p->m, m, MESSAGE_LEN);
+
+	proc_ready(p);
+	schedule(p);
 	
 	return OK;
 }
 
 int
-mesg(endpoint_t *e, uint8_t *m)
+mesg(endpoint_t *e, uint8_t *rq, uint8_t *rp)
 {
 	endpoint_t *o;
 	proc_t *p;
@@ -236,7 +217,7 @@ mesg(endpoint_t *e, uint8_t *m)
 	debug_info("proc %i send to e %i -> %i proc %i\n",
 		up->pid, e->id, o->id, p->pid);
 
-	memcpy(up->m, m, MESSAGE_LEN);
+	memcpy(up->m, rq, MESSAGE_LEN);
 
 	up->state = PROC_block_send;
 
@@ -258,6 +239,12 @@ mesg(endpoint_t *e, uint8_t *m)
 	} else {
 		schedule(nil);
 	}
+
+	if (up->offering) {
+		debug_warn("should free offered but not accepted endpoint\n");
+	}
+
+	memcpy(rp, up->m, MESSAGE_LEN);
 
 	return OK;
 }
@@ -292,6 +279,20 @@ signal(endpoint_t *e, uint32_t s)
 	return OK;
 }
 
+endpoint_t *
+proc_find_endpoint(endpoint_t *list, int eid)
+{
+	endpoint_t *e;
+
+	for (e = list; e != nil; e = e->next) {
+		if (e->id == eid) {
+			return e;
+		}
+	}
+
+	return nil;
+}
+
 int
 sys_recv(int eid, int *pid, uint8_t *m)
 {
@@ -300,7 +301,7 @@ sys_recv(int eid, int *pid, uint8_t *m)
 	if (eid == EID_ANY) {
 		e = nil;
 	} else {
-		e = proc_find_endpoint(up, eid);
+		e = proc_find_endpoint(up->listening, eid);
 		if (e == nil) {
 			return ERR;
 		}
@@ -315,16 +316,16 @@ sys_recv(int eid, int *pid, uint8_t *m)
 }
 
 int
-sys_mesg(int eid, uint8_t *m)
+sys_mesg(int eid, uint8_t *rq, uint8_t *rp)
 {
 	endpoint_t *e;
 
-	e = proc_find_endpoint(up, eid);
+	e = proc_find_endpoint(up->sending, eid);
 	if (e == nil) {
 		return ERR;
 	}
 
-	return mesg(e, m);
+	return mesg(e, rq, rp);
 }
 
 int
@@ -332,7 +333,7 @@ sys_reply(int eid, int pid, uint8_t *m)
 {
 	endpoint_t *e;
 
-	e = proc_find_endpoint(up, eid);
+	e = proc_find_endpoint(up->listening, eid);
 	if (e == nil) {
 		return ERR;
 	}
@@ -345,7 +346,7 @@ sys_signal(int eid, uint32_t s)
 {
 	endpoint_t *e;
 
-	e = proc_find_endpoint(up, eid);
+	e = proc_find_endpoint(up->sending, eid);
 	if (e == nil) {
 		return ERR;
 	}
@@ -356,6 +357,8 @@ sys_signal(int eid, uint32_t s)
 	size_t
 sys_yield(void)
 {
+	debug_info("yield %i in state %i\n", up->pid, up->state);
+
 	schedule(nil);
 
 	return OK;
@@ -391,34 +394,12 @@ sys_exit(uint32_t code)
 }
 
 	size_t
-sys_proc_new(int supervisor_pid, 
-		int supervisor_eid,
-		size_t vspace, 
-		int priority)
+sys_proc_new(size_t vspace, int priority, int *p_id, int *e_id)
 {
-	endpoint_t *e, *o;
-	proc_t *p, *s;
+	endpoint_t *m, *e;
+	proc_t *p;
 
 	debug_info("%i proc new\n", up->pid);
-
-	if (up->pid != 1) {
-		debug_warn("proc %i is not proc1!\n", up->pid);
-		return ERR;
-	}
-
-	s = find_proc(supervisor_pid);
-	if (s == nil) {
-		debug_warn("couldn't find pid %i for supervisor\n",
-			supervisor_pid);
-		return ERR;
-	}
-
-	o = proc_find_endpoint(s, supervisor_eid);
-	if (o == nil) {
-		debug_warn("couldn't find endpoint %i for supervisor %i\n",
-			supervisor_eid, s->pid);
-		return ERR;
-	}
 
 	p = proc_new(vspace, priority);
 	if (p == nil) {
@@ -426,21 +407,32 @@ sys_proc_new(int supervisor_pid,
 		return ERR;
 	}
 
-	e = proc_add_endpoint_connect(p, o);
-	if (e == nil) {
-		debug_warn("error creating supervisor endpoint\n");
+	m = proc_create_endpoint_listener(p);
+	if (m == nil) {
 		return ERR;
 	}
 
-	debug_info("new proc %i with supervisor %i vspace 0x%x\n", 
-			p->pid, supervisor_pid, vspace);
+	e = proc_create_endpoint_connect(m);
+	if (e == nil) {
+		return ERR;
+	}
 
-	func_label(&p->label, (size_t) p->kstack, KSTACK_LEN,
+	e->next = up->sending;
+	up->sending = e;
+
+	debug_info("new proc %i with vspace 0x%x\n", 
+			p->pid, vspace);
+
+	func_label(&p->label, 
+			(size_t) p->kstack, KSTACK_LEN,
 			(size_t) &proc_start);
 
 	proc_ready(p);
 
-	return p->pid;
+	*p_id = p->pid;
+	*e_id = e->id;
+
+	return OK;
 }
 
 	size_t
@@ -449,7 +441,7 @@ sys_proc_setup(int pid, procstate_t state)
 	proc_t *p;
 
 	if (up->pid != 1) {
-		debug_warn("proc %i is not proc1!\n", up->pid);
+		debug_warn("proc %i is not root!\n", up->pid);
 		return ERR;
 	}
 
@@ -478,22 +470,11 @@ sys_proc_setup(int pid, procstate_t state)
 }
 
 	size_t
-sys_endpoint_create(int pid)
+sys_endpoint_create(void)
 {
 	endpoint_t *e;
-	proc_t *p;
 
-	if (up->pid != 1) {
-		debug_warn("proc %i is not proc1!\n", up->pid);
-		return ERR;
-	}
-
-	p = find_proc(pid);
-	if (p == nil) {
-		return ERR;
-	}
-
-	e = proc_add_endpoint_listener(p);
+	e = proc_create_endpoint_listener(up);
 	if (e == nil) {
 		return ERR;
 	}
@@ -502,47 +483,98 @@ sys_endpoint_create(int pid)
 }
 
 	size_t
-sys_endpoint_connect(int from, int to, int to_eid)
+sys_endpoint_offer(int eid)
 {
-	proc_t *p_from, *p_to;
-	endpoint_t *e_from, *e_to;
+	endpoint_t *e, *o;
 
-	if (up->pid != 1) {
-		debug_warn("proc %i is not proc1!\n", up->pid);
+	debug_info("proc %i wants to offer eid %i\n",
+		up->pid, eid);
+
+	o = proc_find_endpoint(up->listening, eid);
+	if (o != nil) {
+		e = proc_create_endpoint_connect(o);
+		if (e == nil) {
+			return ERR;
+		}
+
+		e->next = nil;
+		up->offering = e;
+		return OK;
+	}
+	
+	o = proc_find_endpoint(up->sending, eid);
+	if (o != nil) {
+		e = proc_create_endpoint_connect(o->connect.other);
+		if (e == nil) {
+			return ERR;
+		}
+
+		e->next = nil;
+		up->offering = e;
+		return OK;
+	}
+
+	return ERR;
+}
+
+endpoint_t *
+endpoint_accept(endpoint_t *from, int pid)
+{
+	endpoint_t *e;
+	proc_t *p;
+
+	for (p = from->listen.waiting.head; p != nil; p = p->wnext) {
+		if (p->state == PROC_block_reply && p->pid == pid) {
+			break;
+		}
+	}
+
+	if (p == nil) {
+		debug_warn("proc %i couldn't find eid %i pid %i\n",
+				up->pid, from->id, pid);
+		return nil;
+	}
+
+	e = p->offering;
+	if (e == nil) {
+		debug_warn("proc not offering anything\n");
+		return nil;
+	}
+
+	p->offering = nil;
+
+	debug_info("proc %i accepting connection from eid %i pid %i for eid %i\n",
+			up->pid, from->id, pid, e->id); 
+
+	e->next = up->sending;
+	up->sending = e;
+
+	return e;
+}
+
+	size_t
+sys_endpoint_accept(int eid, int pid)
+{
+	endpoint_t *o, *e;
+
+	o = proc_find_endpoint(up->listening, eid);
+	if (o == nil) {
 		return ERR;
 	}
 
-	debug_info("proc %i wants to connect from %i to %i e %i\n",
-		up->pid, from, to, to_eid);
-
-	p_from = find_proc(from);
-	if (p_from == nil) {
+	e = endpoint_accept(o, pid);
+	if (e == nil) {
 		return ERR;
 	}
 
-	p_to = find_proc(to);
-	if (p_to == nil) {
-		return ERR;
-	}
-
-	e_to = proc_find_endpoint(p_to, to_eid);
-	if (e_to == nil) {
-		return ERR;
-	}
-
-	e_from = proc_add_endpoint_connect(p_from, e_to);
-	if (e_from == nil) {
-		return ERR;
-	}
-
-	return e_from->id;
+	return e->id;
 }
 
 	size_t
 sys_intr_register(struct intr_mapping *map)
 {
 	if (up->pid != 1) {
-		debug_warn("proc %i is not proc1!\n", up->pid);
+		debug_warn("proc %i is not root!\n", up->pid);
 		return ERR;
 	}
 
@@ -577,7 +609,8 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
 	[SYSCALL_PROC_SETUP]       = (void *) &sys_proc_setup,
 	[SYSCALL_ENDPOINT_CREATE]  = (void *) &sys_endpoint_create,
-	[SYSCALL_ENDPOINT_CONNECT] = (void *) &sys_endpoint_connect,
+	[SYSCALL_ENDPOINT_OFFER]   = (void *) &sys_endpoint_offer,
+	[SYSCALL_ENDPOINT_ACCEPT]  = (void *) &sys_endpoint_accept,
 	[SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
 	[SYSCALL_DEBUG]            = (void *) &sys_debug,
 };

@@ -1,8 +1,8 @@
 typedef enum {
-	PROC0_irq_reg_req,
-	PROC0_irq_reg_rsp,
 	PROC0_proc_req,
 	PROC0_proc_rsp,
+	PROC0_get_resource_req,
+	PROC0_get_resource_rsp,
 	PROC0_addr_req_req,
 	PROC0_addr_req_rsp,
 	PROC0_addr_map_req,
@@ -91,8 +91,8 @@ typedef enum {
 	NET_read_req,
 	NET_read_rsp,
 
-	TIMER_set,
-	TIMER_trigger,
+	TIMER_set_req,
+	TIMER_set_rsp,
 
 } mesg_type_t;
 

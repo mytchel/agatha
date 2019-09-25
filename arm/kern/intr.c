@@ -186,7 +186,9 @@ trap(size_t pc, int type)
 
 	proc_fault(up);
 	
-	/*mesg_supervisor((uint8_t *) &m);*/
+	/*
+	mesg_supervisor((uint8_t *) &m);
+	*/
 
 	/* TODO: Could be unnecesary if we swapped to 
 		 the supervisor which fixed it then we swapped 

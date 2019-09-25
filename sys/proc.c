@@ -146,7 +146,9 @@ schedule(proc_t *n)
 				up->ts = 0;
 
 			} else if (up->state == PROC_ready && up->list == nil) {
-				add_to_list_tail(&ready[up->priority].queue[ready[up->priority].q], up);
+				add_to_list_tail(&ready[up->priority]
+					.queue[ready[up->priority].q], 
+					up);
 			}
 		}
 	}
@@ -194,19 +196,13 @@ proc_new(int priority, size_t vspace)
 
 	p = &procs[pid];
 
-	memset(p, 1, sizeof(struct proc));
+	memset(p, 0, sizeof(proc_t));
 
 	p->pid = pid;
 	p->vspace = vspace;
 	p->priority = priority;
 	
-	p->in_irq = false;
-
 	p->ts = SYSTICK;
-
-	p->list = nil;
-	p->endpoints = nil;
-	p->recv_from = nil;
 
 	return p;
 }
@@ -245,7 +241,9 @@ proc_ready(proc_t *p)
 
 	p->state = PROC_ready;
 	if (p->list == nil) {
-		add_to_list_tail(&ready[p->priority].queue[(ready[p->priority].q + 1) % 2], p);
+		add_to_list_tail(&ready[p->priority]
+			.queue[(ready[p->priority].q + 1) % 2], 
+			p);
 	}
 
 	return OK;

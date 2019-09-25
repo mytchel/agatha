@@ -20,13 +20,13 @@ struct timer {
 	uint32_t time_ms;
 };
 
-static char dev_name[MESSAGE_LEN];
 static volatile struct sp804_timer_regs *regs;
 
 static bool is_set = false;
 static uint32_t last_set;
 static struct timer *timers = nil;
 
+#if 0
 static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
 static void intr_handler(int irqn, void *arg)
 {
@@ -56,10 +56,12 @@ claim_irq(size_t irqn)
 
 	return OK;
 }
+#endif
 
 static void
-handle_set(int from, union timer_req *rq)
+handle_set(int eid, int mid, union timer_req *rq)
 {
+#if 0
 	struct timer *t;
 
 	for (t = timers; t != nil; t = t->next) {
@@ -85,6 +87,12 @@ handle_set(int from, union timer_req *rq)
 
 	t->set = true;
 	t->time_ms = rq->set.time_ms;
+
+#endif
+	union timer_rsp rp;
+	rp.set.type = TIMER_set_rsp;
+	rp.set.ret = OK;
+	reply(eid, mid, &rp);
 }
 
 static void
@@ -144,24 +152,20 @@ set_timer(void)
 	int
 main(void)
 {
-	int from;
+	int eid, mid;
 
 	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
 
 	size_t regs_pa, regs_len;
 	size_t irqn;
-	union dev_reg_req drq;
-	union dev_reg_rsp drp;
 
-	recv(0, init_m);
+	recv(EID_ANY, &mid, init_m);
 
 	regs_pa = init_m[0];
 	regs_len = init_m[1];
 	irqn = init_m[2];
 
-	recv(0, dev_name);
-
-	log_init(dev_name);
+	log_init("timer0");
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
@@ -175,41 +179,28 @@ main(void)
 	timers = nil;
 
 	set_timer();
-
+/*
 	if (claim_irq(irqn) != OK) {
 		log(LOG_FATAL, "failed to register int");
 		return ERR;
 	}
-
-	union timer_req rq;
-	rq.set.time_ms = 5 * 1000;
-	handle_set(3213, &rq);
-	
-	set_timer();
-
-	drq.type = DEV_REG_register_req;
-	drq.reg.pid = pid();
-	snprintf(drq.reg.name, sizeof(drq.reg.name),
-			"%s", dev_name);
-
-	if (mesg(DEV_REG_PID, &drq, &drp) != OK || drp.reg.ret != OK) {
-		log(LOG_WARNING, "failed to register with dev reg!");
-		exit(ERR);
-	}
+*/
 
 	while (true) {
 		union timer_req rq;
 
-		from = recv(-1, &rq);
+		if ((eid = recv(EID_ANY, &mid, &rq)) < 0) {
+			return ERR;
+		}
 
-		if (from == pid()) {
+		if (mid == MID_SIGNAL) {
 			check_timers();
 			set_timer();
 
 		} else {
 			switch (rq.type) {
-			case TIMER_set:
-				handle_set(from, &rq);
+			case TIMER_set_req:
+				handle_set(eid, mid, &rq);
 				break;
 
 			default:

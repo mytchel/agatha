@@ -36,7 +36,9 @@ struct proc {
 	proc_t *wprev, *wnext;
 
 	endpoint_t *recv_from;
-	endpoint_t *endpoints;
+	endpoint_t *listening;
+	endpoint_t *sending;
+	endpoint_t *offering;
 
 	size_t vspace;
 };
@@ -84,16 +86,10 @@ void
 schedule(proc_t *next);
 
 endpoint_t *
-endpoint_create_listener(proc_t *p);
-
-endpoint_t *
-endpoint_create_connect(proc_t *p, endpoint_t *o);
-
-endpoint_t *
-proc_find_endpoint(proc_t *p, int eid);
+endpoint_accept(endpoint_t *from, int pid);
 
 int
-mesg(endpoint_t *e, uint8_t *m);
+mesg(endpoint_t *e, uint8_t *rq, uint8_t *rp);
 
 endpoint_t *
 recv(endpoint_t *e, int *mid, uint8_t *m);

@@ -1,7 +1,9 @@
-#define MESSAGE_LEN 64
+#define ROOT_PID          1
+
+#define MESSAGE_LEN      64
 
 #define PID_NONE          0
-#define MID_SIGNAL        0
+#define PID_SIGNAL        0
 #define EID_ANY           0
 
 #define PRIORITY_MAX  16
@@ -25,7 +27,6 @@ union proc_msg {
 		uint32_t type;
 		size_t pc;
 		size_t sp;
-		size_t arg;
 	} start;
 
 	struct {

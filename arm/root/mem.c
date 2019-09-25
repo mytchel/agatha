@@ -263,7 +263,7 @@ addr_unmap(size_t va, size_t len)
 	size_t o;
 
 	for (o = 0; o < len; o += PAGE_SIZE) {
-		log(LOG_INFO, "unmap 0x%x", va + o);
+		log(LOG_INFO, "unmap page 0x%x", va + o);
 
 		l2 = root_l1.va[L1X(va + o)];
 		if (l2 == nil) {
@@ -274,7 +274,9 @@ addr_unmap(size_t va, size_t len)
 		l2[L2X(va + o)] = L2_FAULT;
 	}
 
+	log(LOG_INFO, "yield");
 	yield();
+	log(LOG_INFO, "back from yield");
 
 	return OK;
 }

@@ -15,6 +15,8 @@ struct device {
 	char compatable[256];
 	size_t reg, len;
 	size_t irqn;
+	int pid, eid;
+	bool has_regs;
 };
 
 struct addr_frame {
@@ -73,8 +75,7 @@ bool
 init_bundled_proc(char *name, int priority,
 		size_t prog_pa, size_t len,
 		int *p_pid, 
-		int *p_eid,
-		int *m_eid);
+		int *p_eid);
 
 void
 add_ram(size_t start, size_t len);
@@ -83,7 +84,7 @@ void
 board_init_ram(void);
 
 size_t
-board_init_bundled_drivers(size_t offset_into_bundle);
+board_init_bundled_drivers(size_t bundle_offset);
 
 extern struct kernel_info *info;
 extern int main_eid;

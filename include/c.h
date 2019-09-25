@@ -1,5 +1,7 @@
 /* Syscalls */
 
+extern int parent_eid;
+
 int
 yield(void);
 
@@ -7,13 +9,22 @@ int
 mesg(int eid, void *rq, void *rp);
 
 int
-recv(int eid, int *mid, void *m);
+recv(int eid, int *pid, void *m);
 
 int
-reply(int eid, int mid, void *recv);
+reply(int eid, int pid, void *recv);
 
 int
 signal(int eid, uint32_t s);
+
+int
+endpoint_create(void);
+
+int
+endpoint_offer(int eid);
+
+int
+endpoint_accept(int eid, int pid);
 
 int
 pid(void);

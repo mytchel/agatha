@@ -63,6 +63,10 @@ handle_addr_map(int eid, int from, union proc0_req *rq)
 	size_t pa, va, len;
 	union proc0_rsp rp;
 
+	log(0, "proc %i wants to map 0x%x 0x%x to 0x%x",
+		from, rq->addr_map.pa, rq->addr_map.len,
+		rq->addr_map.va);
+
 	rp.addr_map.type = PROC0_addr_map_rsp;
 
 	len = rq->addr_map.len;
@@ -120,13 +124,82 @@ handle_addr_give(int eid, int from, union proc0_req *rq)
 		return reply(eid, from, &rp);
 	}
 
-	if (to == PROC0_PID) {
+	if (to == ROOT_PID) {
 		frame_free(f);
 		rp.addr_give.ret = OK;
 
 	} else {
 		rp.addr_give.ret = proc_give_addr(to, f);
 	}
+	
+	return reply(eid, from, &rp);
+}
+
+struct device *
+find_device(int pid)
+{
+	int i;
+
+	for (i = 0; i < ndevices; i++) {
+		if (devices[i].pid == pid) {
+			return &devices[i];
+		}
+	}
+
+	return nil;
+}
+
+	int
+handle_get_resource(int eid, int from, union proc0_req *rq)
+{
+	union proc0_rsp rp;
+	struct addr_frame *f;
+	struct device *dev;
+
+	log(0, "get resource from %i", from);
+
+	rp.get_resource.type = PROC0_get_resource_rsp;
+
+	dev = find_device(from);
+	if (dev == nil) {
+		log(0, "proc %i does not handle a device", from);
+		rp.get_resource.ret = ERR;
+		return reply(eid, from, &rp);
+	}
+
+	switch (rq->get_resource.resource_type) {
+	default:
+	case RESOURCE_get_log:
+	case RESOURCE_get_timer:
+	case RESOURCE_get_int:
+		rp.get_resource.ret = ERR;
+		break;
+
+	case RESOURCE_get_regs:
+		if (!dev->has_regs) {
+			log(0, "giving proc %i its regs 0x%x 0x%x",
+				from, dev->reg, dev->len);
+
+			dev->has_regs = true;
+
+			f = frame_new(PAGE_ALIGN_DN(dev->reg),
+					PAGE_ALIGN(dev->len));
+
+			proc_give_addr(from, f);
+
+			rp.get_resource.result.regs.pa = dev->reg;
+			rp.get_resource.result.regs.len = dev->len;
+			rp.get_resource.ret = OK;
+		} else {
+			rp.get_resource.ret = ERR;
+		}
+
+		break;
+	}
+
+	log(0, "send proc %i its regs 0x%x 0x%x",
+				from, rp.get_resource.result.regs.pa,
+			rp.get_resource.result.regs.len);
 	
 	return reply(eid, from, &rp);
 }
@@ -195,7 +268,7 @@ main(struct kernel_info *i)
 	log(0, "kernel starts at 0x%x", info->kernel_va);
 	log(0, "boot starts at 0x%x", info->boot_pa);
 
-	main_eid = endpoint_create(pid());
+	main_eid = endpoint_create();
 	if (main_eid < 0) {
 		log(0, "ERROR creating main endpoint %i", main_eid);
 		exit(1);
@@ -206,7 +279,10 @@ main(struct kernel_info *i)
 
 	while (true) {
 		if ((eid = recv(main_eid, &from, m)) < 0) continue;
-		if (from == PID_NONE) continue;
+		if (from == PID_SIGNAL) continue;
+
+		log(0, "got message from %i on eid %i of type 0x%x",
+				from, eid, ((uint32_t *) m)[0]);
 
 		switch (((uint32_t *) m)[0]) {
 			case PROC0_addr_req_req:
@@ -219,6 +295,10 @@ main(struct kernel_info *i)
 
 			case PROC0_addr_give_req:
 				handle_addr_give(eid, from, (union proc0_req *) m);
+				break;
+			
+			case PROC0_get_resource_req:
+				handle_get_resource(eid, from, (union proc0_req *) m);
 				break;
 
 /*

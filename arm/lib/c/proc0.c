@@ -8,6 +8,8 @@
 #include <proc0.h>
 #include <log.h>
 
+int parent_eid = -1;
+
 	size_t
 request_memory(size_t len)
 {
@@ -24,7 +26,7 @@ request_memory(size_t len)
 	rq.addr_req.pa = nil;
 	rq.addr_req.len = len;
 
-	if (mesg(PROC0_PID, &rq, &rp) != OK) {
+	if (mesg(parent_eid, &rq, &rp) != OK) {
 		return nil;
 	}
 
@@ -39,7 +41,7 @@ request_memory(size_t len)
 	int
 release_addr(size_t pa, size_t len)
 {
-	return give_addr(PROC0_PID, pa, len);
+	return give_addr(parent_eid, pa, len);
 }
 
 int
@@ -53,7 +55,7 @@ give_addr(int to, size_t pa, size_t len)
 	rq.addr_give.pa = pa;
 	rq.addr_give.len = len;
 
-	if (mesg(PROC0_PID, &rq, &rp) != OK) {
+	if (mesg(parent_eid, &rq, &rp) != OK) {
 		return ERR;
 	}
 
@@ -79,7 +81,7 @@ addr_unmap(size_t va, size_t len)
 	rq.addr_map.pa = 0;
 	rq.addr_map.flags = MAP_REMOVE_LEAF;
 
-	if (mesg(PROC0_PID, &rq, &rp) != OK) {
+	if (mesg(parent_eid, &rq, &rp) != OK) {
 		return ERR;
 	}
 
@@ -101,7 +103,7 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 	rq.addr_map.va = va;
 	rq.addr_map.flags = flags;
 
-	if ((r = mesg(PROC0_PID, &rq, &rp)) != OK) {
+	if ((r = mesg(parent_eid, &rq, &rp)) != OK) {
 		return r;
 	}
 

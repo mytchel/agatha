@@ -1,6 +1,4 @@
-#define PROC0_PID         0
-
-#define MAP_TABLE      (3<<1) 
+#define MAP_TABLE        (3<<1) 
 
 #define MAP_REMOVE_LEAF  (4<<1) 
 #define MAP_REMOVE_TABLE (5<<1) 
@@ -49,6 +47,15 @@ union proc0_req {
 
 	struct {
 		uint32_t type;
+#define RESOURCE_get_log        0
+#define RESOURCE_get_timer      1
+#define RESOURCE_get_regs       2
+#define RESOURCE_get_int        3
+		int resource_type;
+	} get_resource;
+
+	struct {
+		uint32_t type;
 		size_t irqn;
 		void *func;
 		void *arg;
@@ -83,6 +90,18 @@ union proc0_rsp {
 		uint32_t type;
 		int ret;
 	} addr_give;
+
+	struct {
+		uint32_t type;
+		int ret;
+		int resource_type;
+		union {
+			int eid;
+			struct {
+				size_t pa, len;
+			} regs;
+		} result;
+	} get_resource;
 
 	struct {
 		uint32_t type;

@@ -95,6 +95,11 @@ init_root(struct kernel_info *info)
 		panic("Failed to create root!\n");
 	}
 
+	if (p->pid != ROOT_PID) {
+		panic("root proc (%i) doesn't have root pid (%i)!\n",
+			p->pid, ROOT_PID);
+	}
+
 	debug_info("func label %i, stack top at 0x%x\n",
 			p->pid, p->kstack + KSTACK_LEN);
 

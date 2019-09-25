@@ -14,6 +14,9 @@
 .global recv
 .global reply
 .global signal
+.global endpoint_create
+.global endpoint_offer
+.global endpoint_accept
 .global pid
 .global proc_new
 .global va_table
@@ -85,4 +88,26 @@ signal:
 	mov r12, #SYSCALL_SIGNAL
 	svc 0
 	pop {r12, pc}
+	
+
+endpoint_create:
+	push {r12, lr}
+	mov r12, #SYSCALL_ENDPOINT_CREATE
+	svc 0
+	pop {r12, pc}
+
+
+endpoint_offer:
+	push {r12, lr}
+	mov r12, #SYSCALL_ENDPOINT_OFFER
+	svc 0
+	pop {r12, pc}
+
+
+endpoint_accept:
+	push {r12, lr}
+	mov r12, #SYSCALL_ENDPOINT_ACCEPT
+	svc 0
+	pop {r12, pc}
+
 

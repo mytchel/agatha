@@ -314,12 +314,8 @@ bool
 init_bundled_proc(char *name,
 		int priority,
 		size_t start, size_t len,
-		int *p_pid, 
-		int *p_eid,
-		int *m_eid)
+		int *p_pid, int *p_eid)
 {
-	union proc_msg m, rp;
-
 	size_t code_pa, stack_pa;
 	uint32_t *code_va, *start_va;
 	
@@ -351,10 +347,12 @@ init_bundled_proc(char *name,
 
 	memcpy(code_va, start_va, len);
 
+	log(0, "unmap 0x%x 0x%x", code_va, len);
 	if ((r = unmap_addr(code_va, len)) != OK) {
 		exit(r);
 	}
 
+	log(0, "proc new");
 	if ((r = unmap_addr(start_va, len)) != OK) {
 		exit(r);
 	}
@@ -364,27 +362,32 @@ init_bundled_proc(char *name,
 		exit(4);
 	}
 
+	log(0, "proc new");
 	l1_mapped_pa = get_ram(0x4000, 0x1000);
 	if (l1_mapped_pa == nil) {
 		exit(4);
 	}
 
+	log(0, "proc new");
 	l1_table_va = map_addr(l1_table_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_table_va == nil) {
 		exit(5);
 	}
 
+	log(0, "proc new");
 	l1_mapped_va = map_addr(l1_mapped_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_mapped_va == nil) {
 		exit(5);
 	}
 
+	log(0, "proc new");
 	memset(l1_mapped_va, 0, 0x4000);
 	
 	proc_init_l1(l1_table_va);
-	
-	*p_pid = proc_new(pid(), main_eid, priority, l1_table_pa);
-	if (*p_pid < 0) {
+
+	log(0, "proc new");
+		
+	if (proc_new(priority, l1_table_pa, p_pid, p_eid) != OK) {
 		exit(8);
 	}
 
@@ -453,29 +456,27 @@ init_bundled_proc(char *name,
 		exit(0x11);
 	}
 
-	*m_eid = endpoint_create(*p_pid);
-	if (*m_eid < 0) {
-		exit(0x12);
-	}
+	union proc_msg rq, rp;
 
-	*p_eid = endpoint_connect(pid(), *p_pid, *m_eid);
-	if (*p_eid < 0) {
-		exit(0x12);
-	}
+	rq.start.type = PROC_start_req;
+	rq.start.pc = USER_ADDR;
+	rq.start.sp = USER_ADDR;
 
-	m.start.type = PROC_start_req;
-	m.start.pc = USER_ADDR;
-	m.start.sp = USER_ADDR;
+	endpoint_offer(main_eid);
 
 	log(LOG_INFO, "start bundled proc pid %i %s", *p_pid, name);
 
-	return mesg(*p_eid, &m, &rp) == OK;
+	if (mesg(*p_eid, &rq, &rp) != OK) {
+		exit(0x12);
+	}
+
+	return true;
 }
 
 	void
 init_procs(void)
 {
-	int i, p_pid, p_main_eid, p_con_eid;
+	int i, p_pid, p_eid;
 	size_t off;
 
 	if (pool_init(&frame_pool, sizeof(struct addr_frame)) != OK) {
@@ -492,11 +493,9 @@ init_procs(void)
 	off = info->bundle_pa;
 
 	for (i = 0; i < nbundled_idle; i++) {
-		init_bundled_proc(bundled_idle[i].name,
-				0,
-				off,
-				bundled_idle[i].len,
-				&p_pid, &p_main_eid, &p_con_eid);
+		init_bundled_proc(bundled_idle[i].name, 0,
+				off, bundled_idle[i].len,
+				&p_pid, &p_eid);
 
 		off += bundled_idle[i].len;
 	}
@@ -504,11 +503,9 @@ init_procs(void)
 	off = board_init_bundled_drivers(off);
 
 	for (i = 0; i < nbundled_procs; i++) {
-		init_bundled_proc(bundled_procs[i].name,
-				1,
-				off,
-				bundled_procs[i].len,
-				&p_pid, &p_main_eid, &p_con_eid);
+		init_bundled_proc(bundled_procs[i].name, 1,
+				off, bundled_procs[i].len,
+				&p_pid, &p_eid);
 
 		off += bundled_procs[i].len;
 	}

@@ -1,4 +1,4 @@
-all: boot.elf boot.list kernel.list 
+all: boot.elf 
 
 ARCH = arm
 BOARD = vexpress-a9

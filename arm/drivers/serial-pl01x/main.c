@@ -65,56 +65,34 @@ handle_read(int eid, int from, union serial_req *rq)
 }
 
 	void
-main(void)
+main(int p_eid)
 {
-	uint8_t m[MESSAGE_LEN];
-	int from;
-
-	while (true) {
-		if (recv(EID_ANY, &from, m) < 0) {
-			exit(1);
-		}
-
-		exit(0);
-	}
-
-#if 0
-	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-	char dev_name[MESSAGE_LEN];
-
 	size_t regs_pa, regs_len;
-	union dev_reg_req drq;
-	union dev_reg_rsp drp;
 	union serial_req rq;
+	union proc0_req prq;
+	union proc0_rsp prp;
 	int eid, from;
 
-	recv(0, init_m);
-	regs_pa = init_m[0];
-	regs_len = init_m[1];
-	
-	recv(0, dev_name);
+	parent_eid = p_eid;
+
+	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.resource_type = RESOURCE_get_regs;
+
+	mesg(parent_eid, &prq, &prp);
+
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	regs_pa  = prp.get_resource.result.regs.pa;
+	regs_len = prp.get_resource.result.regs.len;
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		exit(ERR);
 	}
 
-	drq.type = DEV_REG_register_req;
-	drq.reg.pid = pid();
-	snprintf(drq.reg.name, sizeof(drq.reg.name),
-			"%s", dev_name);
-
-	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
-		exit(ERR);
-	}
-
-	if (drp.reg.ret != OK) {
-		exit(drp.reg.ret);
-	}
-
-	puts("pl01x ready at ");
-	puts(dev_name);
-	puts("\n");
+	puts("pl01x ready\n");
 	
 	while (true) {
 		if ((eid = recv(EID_ANY, &from, &rq)) < 0) continue;
@@ -130,6 +108,5 @@ main(void)
 				break;
 		}
 	}
-#endif
 }
 
