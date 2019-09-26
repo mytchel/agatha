@@ -124,32 +124,25 @@ schedule(proc_t *n)
 
 		debug_sched("proc %i ran for %i ticks\n", up->pid, passed);
 
-		if (up->in_irq) {
-			debug_sched("proc %i still handling irq\n", up->pid);
-			if (set_label(up->irq_label)) {
-				return;
-			}
-		} else {
-			if (set_label(&up->label)) {
-				debug_sched("proc %i back up\n", up->pid);
-				return;
-			}
+		if (set_label(&up->label)) {
+			debug_sched("proc %i back up\n", up->pid);
+			return;
+		}
 
-			up->ts -= passed;
-			if (up->ts < 0) up->ts = 0;
+		up->ts -= passed;
+		if (up->ts < 0) up->ts = 0;
 
-			if (n != nil) {
-				n->ts += up->ts; 
-			}
+		if (n != nil) {
+			n->ts += up->ts; 
+		}
 
-			if (up->state != PROC_ready) {
-				up->ts = 0;
+		if (up->state != PROC_ready) {
+			up->ts = 0;
 
-			} else if (up->state == PROC_ready && up->list == nil) {
-				add_to_list_tail(&ready[up->priority]
-					.queue[ready[up->priority].q], 
-					up);
-			}
+		} else if (up->state == PROC_ready && up->list == nil) {
+			add_to_list_tail(&ready[up->priority]
+				.queue[ready[up->priority].q], 
+				up);
 		}
 	}
 

@@ -9,7 +9,15 @@
 #define nirq 1020
 
 void (*kernel_handlers[nirq])(size_t) = { nil };
-struct irq_handler user_handlers[nirq] = { { false } };
+
+struct user_handler {
+	bool setup;
+	bool active;
+	endpoint_t *e;
+	uint32_t signal;
+};
+
+struct user_handler user_handlers[nirq] = { { false } };
 
 static volatile struct gic_dst_regs *dregs;
 static volatile struct gic_cpu_regs *cregs;
@@ -52,14 +60,17 @@ irq_clear(size_t irqn)
 	dregs->icpend[irqn / 32] = 1 << (irqn % 32);
 }
 
-	void
-irq_end(size_t irqn)
+	int
+irq_ack(size_t irqn)
 {
+	user_handlers[irqn].active = false;
 	cregs->eoi = irqn;
+
+	return OK;
 }
 
 	int
-irq_add_kernel(void (*func)(size_t), size_t irqn)
+irq_add_kernel(size_t irqn, void (*func)(size_t))
 {
 	kernel_handlers[irqn] = func;
 
@@ -69,30 +80,21 @@ irq_add_kernel(void (*func)(size_t), size_t irqn)
 }
 
 	int
-irq_add_user(struct intr_mapping *m)
+irq_add_user(size_t irqn, endpoint_t *e, uint32_t signal)
 {
-	if (user_handlers[m->irqn].registered) {
+	if (user_handlers[irqn].setup) {
 		return ERR;
 	}
 
-	memcpy(&user_handlers[m->irqn].map, m,
-			sizeof(struct intr_mapping));
+	user_handlers[irqn].setup = true;
+	user_handlers[irqn].e = e;
+	user_handlers[irqn].signal = signal;
+	user_handlers[irqn].active = false;
 
-	user_handlers[m->irqn].registered = true;
+	debug_info("adding irq %i for endpoint %i with signal 0x%x\n",
+			irqn, e->id, signal);
 
-	debug_info("adding irq %i for %i with func 0x%x, arg 0x%x, sp 0x%x\n",
-			m->irqn, m->pid, m->func, m->arg, m->sp);
-
-	irq_enable(m->irqn);
-
-	return OK;
-}
-
-	int
-irq_remove_user(size_t irqn)
-{
-	user_handlers[irqn].registered = false;
-	irq_disable(irqn);
+	irq_enable(irqn);
 
 	return OK;
 }
@@ -113,8 +115,15 @@ irq_handler(void)
 		debug_sched("kernel int %i\n", irqn);
 		kernel_handlers[irqn](irqn);
 
-	} else if (irq_send(&user_handlers[irqn]) == OK) {
-		schedule(nil);
+	} else if (user_handlers[irqn].setup) {
+		if (user_handlers[irqn].active) {
+			debug_warn("got irq %i while still handling it!\n", irqn);
+		}
+
+		user_handlers[irqn].active = true;
+
+		debug_warn("signaling\n");
+		signal(user_handlers[irqn].e, user_handlers[irqn].signal);
 
 	} else {
 		debug_info("got unhandled interrupt %i!\n", irqn);
@@ -171,7 +180,7 @@ systick(size_t irq)
 {
 	pt_regs->t_intr = 1;
 
-	irq_end(irq);
+	irq_ack(irq);
 
 	schedule(nil);
 }
@@ -182,7 +191,7 @@ pt_wd_init(void)
 	/* Enable interrupt, no prescaler. */
 	pt_regs->t_control = (1<<2);
 
-	irq_add_kernel(&systick, 29);
+	irq_add_kernel(29, &systick);
 
 	/* Disable watch dog timer. */
 	pt_regs->wd_disable = 0x12345678;

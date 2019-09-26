@@ -244,8 +244,10 @@ main(int p_eid)
 	log_init("init");
 
 	log(LOG_INFO, "init starting");
-	log(LOG_INFO, "init starting");
-	log(LOG_INFO, "init starting");
+
+#if 1
+	
+#endif
 
 #if 0	
 	if (map_init_file(init) != OK) {

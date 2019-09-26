@@ -17,9 +17,6 @@ struct proc_list {
 struct proc {
 	label_t label;
 
-	bool in_irq;
-	label_t *irq_label;
-
 	procstate_t state;
 	int pid;
 	
@@ -190,22 +187,13 @@ size_t
 systick_passed(void);
 
 int
-irq_add_kernel(void (*func)(size_t), size_t irqn);
-
-void
-irq_end_kernel(size_t irqn);
+irq_add_kernel(size_t irqn, void (*func)(size_t));
 
 int
-irq_add_user(struct intr_mapping *map);
+irq_add_user(size_t irqn, endpoint_t *e, uint32_t signal);
 
 int
-irq_remove_user(size_t irqn);
-
-int
-irq_exit(void);
-
-void
-irq_run_active(void);
+irq_ack(size_t irqn);
 
 extern proc_t *up;
 

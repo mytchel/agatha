@@ -4,7 +4,6 @@
 
 .global proc_new
 .global proc_setup
-.global intr_register
 .global kern_debug
 
 
@@ -18,13 +17,6 @@ proc_new:
 proc_setup:
 	push {r12, lr}
 	mov r12, #SYSCALL_PROC_SETUP
-	svc 0
-	pop {r12, pc}
-
-
-intr_register:
-	push {r12, lr}
-	mov r12, #SYSCALL_INTR_REGISTER
 	svc 0
 	pop {r12, pc}
 

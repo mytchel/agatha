@@ -11,7 +11,7 @@
 #define SYSCALL_PROC_SETUP        8
 
 #define SYSCALL_INTR_REGISTER     9
-#define SYSCALL_INTR_EXIT        10
+#define SYSCALL_INTR_ACK         10
 
 #define SYSCALL_ENDPOINT_CREATE  11
 #define SYSCALL_ENDPOINT_OFFER   12

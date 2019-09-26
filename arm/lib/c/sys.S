@@ -8,7 +8,6 @@
 .global panic
 
 .global exit
-.global intr_exit
 .global yield
 .global mesg
 .global recv
@@ -21,6 +20,7 @@
 .global proc_new
 .global va_table
 .global intr_register
+.global intr_ack
 
 _start:
 	bl main
@@ -51,13 +51,6 @@ yield:
 pid:
 	push {r12, lr}
 	mov r12, #SYSCALL_PID
-	svc 0
-	pop {r12, pc}
-
-
-intr_exit:
-	push {r12, lr}
-	mov r12, #SYSCALL_INTR_EXIT
 	svc 0
 	pop {r12, pc}
 
@@ -107,6 +100,20 @@ endpoint_offer:
 endpoint_accept:
 	push {r12, lr}
 	mov r12, #SYSCALL_ENDPOINT_ACCEPT
+	svc 0
+	pop {r12, pc}
+
+
+intr_register:
+	push {r12, lr}
+	mov r12, #SYSCALL_INTR_REGISTER
+	svc 0
+	pop {r12, pc}
+
+
+intr_ack:
+	push {r12, lr}
+	mov r12, #SYSCALL_INTR_ACK
 	svc 0
 	pop {r12, pc}
 

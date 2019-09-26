@@ -34,7 +34,10 @@ exit(uint32_t code)
 	__attribute__((noreturn));
 
 int
-intr_exit(void);
+intr_ack(size_t irqn);
+
+int
+intr_register(size_t irqn, int eid, uint32_t signal);
 
 /* Utils */
 

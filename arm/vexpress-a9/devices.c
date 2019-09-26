@@ -49,7 +49,7 @@ struct service services[] = {
 		{ { RESOURCE_type_log, "log" }, 
 		  { 0, nil } },
 	},
-
+/*
 	{ 
 		0, 0,
 		"timer1", "arm/drivers/timer-sp804",
@@ -57,7 +57,7 @@ struct service services[] = {
 		{ { RESOURCE_type_log, "log" }, 
 		  { 0, nil } },
 	},
-
+*/
 	{
 		0, 0,
 		"log", "procs/log",

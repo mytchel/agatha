@@ -59,7 +59,7 @@ claim_irq(size_t irqn)
 #endif
 
 static void
-handle_set(int eid, int mid, union timer_req *rq)
+handle_set(int eid, int from, union timer_req *rq)
 {
 #if 0
 	struct timer *t;
@@ -92,14 +92,14 @@ handle_set(int eid, int mid, union timer_req *rq)
 	union timer_rsp rp;
 	rp.set.type = TIMER_set_rsp;
 	rp.set.ret = OK;
-	reply(eid, mid, &rp);
+	reply(eid, from, &rp);
 }
 
 static void
 check_timers(void)
 {
-	struct timer *t;
 	uint32_t elipsed = (last_set - regs->t[0].cur) / 1000;
+	struct timer *t;
 
 	log(LOG_INFO, "0x%x since last check", elipsed);
 
@@ -126,7 +126,7 @@ set_timer(void)
 
 	for (t = timers; t != nil; t = t->next) {
 		if (t->set) {
-			if (!is_set || t->time_ms < last_set) {
+			if (!is_set || t->time_ms < set) {
 				set = t->time_ms;
 				is_set = true;
 			}
@@ -134,7 +134,7 @@ set_timer(void)
 	}
 
 	if (is_set) {
-		log(LOG_INFO, "set timer to 0x%x", set);
+		log(LOG_INFO, "set timer to %i ms", set);
 		last_set = set * 1000;
 		regs->t[0].ctrl = 0;
 		regs->t[0].load	= last_set;
@@ -150,22 +150,32 @@ set_timer(void)
 }
 
 	int
-main(void)
+main(int p_eid)
 {
-	int eid, mid;
-
-	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-
 	size_t regs_pa, regs_len;
 	size_t irqn;
 
-	recv(EID_ANY, &mid, init_m);
+	union proc0_req prq;
+	union proc0_rsp prp;
+	int eid, from;
 
-	regs_pa = init_m[0];
-	regs_len = init_m[1];
-	irqn = init_m[2];
-
+	parent_eid = p_eid;
+	
 	log_init("timer0");
+	log(LOG_INFO, "start");
+
+	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.resource_type = RESOURCE_type_regs;
+
+	log(LOG_INFO, "get regs");
+	mesg(parent_eid, &prq, &prp);
+
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	regs_pa  = prp.get_resource.result.regs.pa;
+	regs_len = prp.get_resource.result.regs.len;
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
@@ -173,34 +183,51 @@ main(void)
 		return ERR;
 	}
 
+	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.resource_type = RESOURCE_type_int;
+
+	log(LOG_INFO, "get int");
+	mesg(parent_eid, &prq, &prp);
+
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	irqn = prp.get_resource.result.irqn;
+
 	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x with irq %i", 
 		pid(), regs_pa, regs, irqn);
 
 	timers = nil;
 
+	log(LOG_INFO, "clear");
 	set_timer();
-/*
-	if (claim_irq(irqn) != OK) {
+
+	log(LOG_INFO, "register int");
+	int main_eid = endpoint_create();
+	if (intr_register(irqn, main_eid, 0x14) != OK) {
 		log(LOG_FATAL, "failed to register int");
 		return ERR;
 	}
-*/
 
 	while (true) {
 		union timer_req rq;
 
-		if ((eid = recv(EID_ANY, &mid, &rq)) < 0) {
+		if ((eid = recv(EID_ANY, &from, &rq)) < 0) {
 			return ERR;
 		}
 
-		if (mid == MID_SIGNAL) {
+		if (from == PID_SIGNAL) {
+			log(LOG_INFO, "got int 0x%x, status = 0x%x!", 
+				rq.type, regs->t[0].status_raw);
+			regs->t[0].clr = regs->t[0].status_raw;
 			check_timers();
 			set_timer();
 
 		} else {
 			switch (rq.type) {
 			case TIMER_set_req:
-				handle_set(eid, mid, &rq);
+				handle_set(eid, from, &rq);
 				break;
 
 			default:

@@ -83,7 +83,7 @@ proc_create_endpoint_connect(endpoint_t *o)
 	return e;
 }
 
-static void
+void
 endpoint_log_waiting(endpoint_t *e)
 {
 	proc_t *p;
@@ -102,9 +102,6 @@ endpoint_get_pending(endpoint_t *e, int *pid, uint8_t *m)
 {
 	proc_t *p;
 
-	debug_info("%i checking %i\n", up->pid, e->id);
-	endpoint_log_waiting(e);
-
 	if (e->listen.signal != 0) {
 		((uint32_t *) m)[0] = e->listen.signal;
 		e->listen.signal = 0;
@@ -112,13 +109,8 @@ endpoint_get_pending(endpoint_t *e, int *pid, uint8_t *m)
 		return true;
 	}
 
-	debug_info("%i check list %i\n", up->pid, e->id);
 	for (p = e->listen.waiting.head; p != nil; p = p->wnext) {
-		debug_info("%i list %i proc %i in state %i\n", up->pid, e->id,
-			p->pid, p->state);
-
 		if (p->state == PROC_block_send) {
-			debug_info("ok\n");
 			memcpy(m, p->m, MESSAGE_LEN);
 
 			if (p->offer != nil) {
@@ -150,7 +142,6 @@ recv(endpoint_t *from, int *pid, uint8_t *m)
 
 	while (true) {
 		if (from != nil) {
-			debug_info("%i check from %i\n", up->pid, from->id);
 			if (endpoint_get_pending(from, pid, m)) {
 				return e;
 			}
@@ -183,8 +174,6 @@ reply(endpoint_t *e, int pid, uint8_t *m)
 
 	debug_info("proc %i reply eid %i\n", up->pid, e->id);
 
-	endpoint_log_waiting(e);
-
 	for (p = e->listen.waiting.head; p != nil; p = p->next) {
 		if (p->state == PROC_block_reply && p->pid == pid) {
 			break;
@@ -216,9 +205,6 @@ reply(endpoint_t *e, int pid, uint8_t *m)
 		up->offer = nil;
 	}
 
-	debug_info("proc %i endpoint %i now:\n", up->pid, e->id);
-	endpoint_log_waiting(e);
-
 	proc_ready(p);
 	schedule(p);
 	
@@ -249,8 +235,6 @@ mesg(endpoint_t *e, uint8_t *rq, uint8_t *rp)
 	debug_info("proc %i send to e %i -> %i proc %i\n",
 		up->pid, e->id, o->id, p->pid);
 	
-	endpoint_log_waiting(o);
-
 	memcpy(up->m, rq, MESSAGE_LEN);
 
 	up->state = PROC_block_send;
@@ -264,10 +248,6 @@ mesg(endpoint_t *e, uint8_t *rq, uint8_t *rp)
 
 	up->wnext = nil;
 	o->listen.waiting.tail = up;
-
-	debug_info("added to list\n");
-	debug_info("proc %i endpoint %i now:\n", up->pid, o->id);
-	endpoint_log_waiting(o);
 
 	if (p->state == PROC_block_recv 
 		&& (p->recv_from == nil || p->recv_from == o))
@@ -290,6 +270,8 @@ signal(endpoint_t *e, uint32_t s)
 	endpoint_t *o;
 	proc_t *p;
 
+	debug_info("proc %i signal to 0x%x with 0x%x\n", up->pid, e->id, s);
+
 	if (e->mode != ENDPOINT_connect) {
 		debug_warn("proc %i tried to signal on non connect endpoint\n",
 			up->pid);
@@ -298,7 +280,9 @@ signal(endpoint_t *e, uint32_t s)
 
 	o = e->connect.other;
 	p = o->listen.holder;
-	
+
+	o->listen.signal |= s;
+
 	if (p->state == PROC_free || p->state == PROC_fault) {
 		debug_warn("endpoint holder %i in bad state %i\n", 
 			p->pid, p->state);
@@ -308,7 +292,9 @@ signal(endpoint_t *e, uint32_t s)
 	if (p->state == PROC_block_recv 
 		&& (p->recv_from == nil || p->recv_from == o))
 	{
+		debug_info("wake proc %i\n", p->pid);
 		proc_ready(p);
+		schedule(p);
 	} 
 
 	return OK;
@@ -590,22 +576,36 @@ sys_endpoint_accept(void)
 }
 
 	size_t
-sys_intr_register(struct intr_mapping *map)
+sys_intr_register(int irqn, int eid, uint32_t signal)
 {
-	if (up->pid != 1) {
-		debug_warn("proc %i is not root!\n", up->pid);
+	endpoint_t *o, *e;
+		
+	debug_info("%i intr register irq %i eid %i\n", up->pid, irqn, eid);
+
+	o = proc_find_endpoint(up->listening, eid);
+	if (o == nil) {
+		debug_warn("%i endpoint %i not found\n", up->pid, eid);
 		return ERR;
 	}
 
-	return irq_add_user(map);
+	e = proc_create_endpoint_connect(o);
+	if (e == nil) {
+		return ERR;
+	}
+
+	e->next = nil;
+
+	return irq_add_user(irqn, e, signal);
 }
 
 	size_t
 sys_intr_ack(int irqn)
 {
-	debug_info("%i called sys intr_exit\n", up->pid);
+	debug_info("%i called sys intr_ack\n", up->pid);
 
-	irq_end(irqn);
+	irq_ack(irqn);
+
+	return OK;
 }
 
 	size_t

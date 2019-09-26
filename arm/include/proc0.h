@@ -102,6 +102,7 @@ union proc0_rsp {
 			struct {
 				size_t pa, len;
 			} regs;
+			int irqn;
 		} result;
 	} get_resource;
 

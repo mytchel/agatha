@@ -6,7 +6,7 @@
 struct irq_handler *active_irq = nil;
 
 	int
-irq_send(struct irq_handler *h)
+irq_send(endpoint_t *e, uint32_t signal)
 {
 	return ERR;
 #if 0

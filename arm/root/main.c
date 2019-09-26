@@ -219,11 +219,10 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 			log(0, "giving proc %i its int %i", 
 				from, s->device.irqn);
 
-			log(0, "todo");
-
 			s->device.has_irq = true;
 
-			rp.get_resource.ret = ERR;
+			rp.get_resource.result.irqn = s->device.irqn;
+			rp.get_resource.ret = OK;
 		} else {
 			rp.get_resource.ret = ERR;
 		}
