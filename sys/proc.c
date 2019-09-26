@@ -153,8 +153,6 @@ schedule(proc_t *n)
 		}
 	}
 
-	irq_run_active();
-
 	if (n != nil && n->state == PROC_ready) {
 		if (n->ts > MIN_TIME_SLICE) {
 			debug_sched("use given\n");

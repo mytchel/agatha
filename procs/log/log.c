@@ -32,31 +32,32 @@ void
 send_logs(void)
 {
 	union serial_req rq;
+	union serial_rsp rp;
 
 	if (log_output_eid == -1) {
 		return;
-	} else if (start == end) {
-		return;
 	}
 
-	rq.write.type = SERIAL_write_req;
+	while (start < end) {
+		rq.write.type = SERIAL_write_req;
 
-	rq.write.len = end - start;
-	if (start < end) {
 		rq.write.len = end - start;
-	} else {
-		rq.write.len = sizeof(buf) - start;
+		if (start < end) {
+			rq.write.len = end - start;
+		} else {
+			rq.write.len = sizeof(buf) - start;
+		}
+
+		if (rq.write.len > sizeof(rq.write.data)) {
+			rq.write.len = sizeof(rq.write.data);
+		}
+
+		memcpy(rq.write.data, buf + start, rq.write.len);
+
+		mesg(log_output_eid, &rq, &rp);
+
+		start = (start + rq.write.len) % sizeof(buf);
 	}
-
-	if (rq.write.len > sizeof(rq.write.data)) {
-		rq.write.len = sizeof(rq.write.data);
-	}
-
-	memcpy(rq.write.data, buf + start, rq.write.len);
-
-	mesg(log_output_eid, &rq, &rq);
-
-	start = (start + rq.write.len) % sizeof(buf);
 }
 
 void

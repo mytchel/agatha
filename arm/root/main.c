@@ -199,10 +199,10 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		rp.get_resource.ret = ERR;
 		break;
 
+	case RESOURCE_type_log:
 	case RESOURCE_type_timer:
 	case RESOURCE_type_block:
 	case RESOURCE_type_net:
-	case RESOURCE_type_log:
 	case RESOURCE_type_serial:
 		r = find_service_resource(s, rq->get_resource.resource_type);
 		if (r != nil) {

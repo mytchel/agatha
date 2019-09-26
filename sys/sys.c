@@ -601,11 +601,11 @@ sys_intr_register(struct intr_mapping *map)
 }
 
 	size_t
-sys_intr_exit(int irqn)
+sys_intr_ack(int irqn)
 {
 	debug_info("%i called sys intr_exit\n", up->pid);
 
-	return irq_exit();
+	irq_end(irqn);
 }
 
 	size_t
@@ -624,13 +624,13 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_SIGNAL]           = (void *) &sys_signal,
 	[SYSCALL_PID]              = (void *) &sys_pid,
 	[SYSCALL_EXIT]             = (void *) &sys_exit,
-	[SYSCALL_INTR_EXIT]        = (void *) &sys_intr_exit,
 	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
 	[SYSCALL_PROC_SETUP]       = (void *) &sys_proc_setup,
 	[SYSCALL_ENDPOINT_CREATE]  = (void *) &sys_endpoint_create,
 	[SYSCALL_ENDPOINT_OFFER]   = (void *) &sys_endpoint_offer,
 	[SYSCALL_ENDPOINT_ACCEPT]  = (void *) &sys_endpoint_accept,
 	[SYSCALL_INTR_REGISTER]    = (void *) &sys_intr_register,
+	[SYSCALL_INTR_ACK]         = (void *) &sys_intr_ack,
 	[SYSCALL_DEBUG]            = (void *) &sys_debug,
 };
 

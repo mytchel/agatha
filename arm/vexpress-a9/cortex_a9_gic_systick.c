@@ -71,8 +71,6 @@ irq_add_kernel(void (*func)(size_t), size_t irqn)
 	int
 irq_add_user(struct intr_mapping *m)
 {
-	return ERR;
-#if 0
 	if (user_handlers[m->irqn].registered) {
 		return ERR;
 	}
@@ -88,7 +86,6 @@ irq_add_user(struct intr_mapping *m)
 	irq_enable(m->irqn);
 
 	return OK;
-#endif
 }
 
 	int
@@ -116,7 +113,7 @@ irq_handler(void)
 		debug_sched("kernel int %i\n", irqn);
 		kernel_handlers[irqn](irqn);
 
-	} else if (irq_enter(&user_handlers[irqn]) == OK) {
+	} else if (irq_send(&user_handlers[irqn]) == OK) {
 		schedule(nil);
 
 	} else {

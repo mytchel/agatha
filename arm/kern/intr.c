@@ -6,27 +6,7 @@
 struct irq_handler *active_irq = nil;
 
 	int
-irq_exit(void)
-{
-#if 0
-	if (active_irq == nil || 
-			active_irq->map.pid != up->pid) {
-
-		return ERR;
-	}
-
-	active_irq->exiting = true;
-
-	debug_sched("exiting irq %i on pid %i\n",
-			active_irq->map.irqn, up->pid);
-
-	schedule(nil);
-#endif
-	return ERR;
-}
-
-	int
-irq_enter(struct irq_handler *h)
+irq_send(struct irq_handler *h)
 {
 	return ERR;
 #if 0
