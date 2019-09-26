@@ -10,13 +10,24 @@
 #include <pool.h>
 #include "kern.h"
 
-struct device {
-	char name[256];
-	char compatable[256];
-	size_t reg, len;
-	size_t irqn;
+struct service {
 	int pid, eid;
-	bool has_regs;
+
+	char name[32];
+	char bin[256];
+	
+	struct {
+		bool is_device;
+		size_t reg, len;
+		size_t irqn;
+		bool has_regs;
+		bool has_irq;
+	} device;
+
+	struct {
+		int type;
+		char *name;
+	} resources[16];
 };
 
 struct addr_frame {
@@ -83,12 +94,10 @@ add_ram(size_t start, size_t len);
 void
 board_init_ram(void);
 
-size_t
-board_init_bundled_drivers(size_t bundle_offset);
-
 extern struct kernel_info *info;
+
 extern int main_eid;
 
-extern struct device devices[];
-extern size_t ndevices;
+extern struct service services[];
+extern size_t nservices;
 

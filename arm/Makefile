@@ -18,7 +18,7 @@ BUNDLE_ELF =
 include $(L)/Makefile
 .endfor
 
-.for P in $(PROCS) $(IDLE) $(DRIVERS)
+.for P in $(IDLE) $(DRIVERS) $(PROCS) 
 include $(P)/Makefile
 BUNDLE_BIN += $(P)/out.bin
 BUNDLE_ELF += $(P)/out.elf
@@ -57,7 +57,7 @@ bundle.bin bundle.c: $(BUNDLE_BIN) $(BUNDLE_ELF)
 	@echo 'BUNDLE idle    : ' $(IDLE)
 	@echo 'BUNDLE drivers : ' $(DRIVERS)
 	@echo 'BUNDLE procs   : ' $(PROCS)
-	@PROCS="$(PROCS)" IDLE="$(IDLE)" DRIVERS="$(DRIVERS)" sh arm/mkbundle.sh
+	@IDLE="$(IDLE)" PROCS="$(DRIVERS) $(PROCS)" sh arm/mkbundle.sh
 
 CLEAN += bundle.c
 CLEAN += $(BUNDLE_BIN)

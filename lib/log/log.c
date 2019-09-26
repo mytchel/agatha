@@ -21,7 +21,7 @@ log_init(char *name)
 	union log_rsp lrp;
 
 	prq.get_resource.type = PROC0_get_resource_req;
-	prq.get_resource.resource_type = RESOURCE_get_log;
+	prq.get_resource.resource_type = RESOURCE_type_log;
 
 	mesg(parent_eid, &prq, &prp);
 	if (prp.get_resource.ret != OK) {

@@ -76,7 +76,7 @@ main(int p_eid)
 	parent_eid = p_eid;
 
 	prq.get_resource.type = PROC0_get_resource_req;
-	prq.get_resource.resource_type = RESOURCE_get_regs;
+	prq.get_resource.resource_type = RESOURCE_type_regs;
 
 	mesg(parent_eid, &prq, &prp);
 

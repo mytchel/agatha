@@ -137,28 +137,38 @@ handle_addr_give(int eid, int from, union proc0_req *rq)
 	return reply(eid, from, &rp);
 }
 
-struct device *
-find_device_pid(int pid)
+struct service *
+find_service_pid(int pid)
 {
 	int i;
 
-	for (i = 0; i < ndevices; i++) {
-		if (devices[i].pid == pid) {
-			return &devices[i];
+	for (i = 0; i < nservices; i++) {
+		if (services[i].pid == pid) {
+			return &services[i];
 		}
 	}
 
 	return nil;
 }
 
-struct device *
-find_device_name(char *name)
+struct service *
+find_service_resource(struct service *s, int type)
 {
+	char *name = nil;
 	int i;
 
-	for (i = 0; i < ndevices; i++) {
-		if (strncmp(devices[i].name, name, sizeof(devices[i].name))) {
-			return &devices[i];
+	for (i = 0; i < 32; i++) {
+		if (s->resources[i].type == RESOURCE_type_none) {
+			return nil;
+		} else if (s->resources[i].type == type) {
+			name = s->resources[i].name;
+			break;
+		}
+	}
+
+	for (i = 0; i < nservices; i++) {
+		if (strncmp(services[i].name, name, sizeof(services[i].name))) {
+			return &services[i];
 		}
 	}
 
@@ -170,58 +180,70 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 {
 	union proc0_rsp rp;
 	struct addr_frame *f;
-	struct device *dev;
+	struct service *s, *r;
 
 	log(0, "get resource from %i", from);
 
 	rp.get_resource.type = PROC0_get_resource_rsp;
+	rp.get_resource.ret = ERR;
+
+	s = find_service_pid(from);
+	if (s == nil) {
+		log(0, "proc %i not a service", from);
+		rp.get_resource.ret = ERR;
+		return reply(eid, from, &rp);
+	}
 
 	switch (rq->get_resource.resource_type) {
 	default:
-	case RESOURCE_get_timer:
-	case RESOURCE_get_block:
-	case RESOURCE_get_net:
-	case RESOURCE_get_int:
 		rp.get_resource.ret = ERR;
 		break;
-	
-	case RESOURCE_get_log:
-		rp.get_resource.ret = ERR;
+
+	case RESOURCE_type_timer:
+	case RESOURCE_type_block:
+	case RESOURCE_type_net:
+	case RESOURCE_type_log:
+	case RESOURCE_type_serial:
+		r = find_service_resource(s, rq->get_resource.resource_type);
+		if (r != nil) {
+			endpoint_offer(r->eid);
+
+			rp.get_resource.ret = OK;
+		} else {
+			rp.get_resource.ret = ERR;
+		}
 		break;
 	
-	case RESOURCE_get_serial:
-		dev = find_device_name("serial0");
-		if (dev == nil) {
+	case RESOURCE_type_int:
+		if (s->device.is_device && !s->device.has_irq) {
+			log(0, "giving proc %i its int %i", 
+				from, s->device.irqn);
+
+			log(0, "todo");
+
+			s->device.has_irq = true;
+
 			rp.get_resource.ret = ERR;
-			return reply(eid, from, &rp);
+		} else {
+			rp.get_resource.ret = ERR;
 		}
 
-		endpoint_offer(dev->eid);
-
-		rp.get_resource.ret = OK;
 		break;
-
-	case RESOURCE_get_regs:
-		dev = find_device_pid(from);
-		if (dev == nil) {
-			log(0, "proc %i not bound to a device", from);
-			rp.get_resource.ret = ERR;
-			return reply(eid, from, &rp);
-		}
-
-		if (!dev->has_regs) {
+	
+	case RESOURCE_type_regs:
+		if (s->device.is_device && !s->device.has_regs) {
 			log(0, "giving proc %i its regs 0x%x 0x%x",
-				from, dev->reg, dev->len);
+				from, s->device.reg, s->device.len);
 
-			dev->has_regs = true;
+			s->device.has_regs = true;
 
-			f = frame_new(PAGE_ALIGN_DN(dev->reg),
-					PAGE_ALIGN(dev->len));
+			f = frame_new(PAGE_ALIGN_DN(s->device.reg),
+					PAGE_ALIGN(s->device.len));
 
 			proc_give_addr(from, f);
 
-			rp.get_resource.result.regs.pa = dev->reg;
-			rp.get_resource.result.regs.len = dev->len;
+			rp.get_resource.result.regs.pa = s->device.reg;
+			rp.get_resource.result.regs.len = s->device.len;
 			rp.get_resource.ret = OK;
 		} else {
 			rp.get_resource.ret = ERR;

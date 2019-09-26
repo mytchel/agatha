@@ -476,7 +476,8 @@ init_bundled_proc(char *name,
 	void
 init_procs(void)
 {
-	int i, p_pid, p_eid;
+	int i, s, pri, p_pid, p_eid;
+	struct service *ser;
 	size_t off;
 
 	if (pool_init(&frame_pool, sizeof(struct addr_frame)) != OK) {
@@ -500,13 +501,22 @@ init_procs(void)
 		off += bundled_idle[i].len;
 	}
 
-	off = board_init_bundled_drivers(off);
-
 	for (i = 0; i < nbundled_procs; i++) {
-		init_bundled_proc(bundled_procs[i].name, 1,
-				off, bundled_procs[i].len,
-				&p_pid, &p_eid);
+		for (s = 0; s < nservices; s++) {
+			ser = &services[s];
+			if (!strcmp(ser->bin, bundled_procs[i].name))
+				continue;
 
+			if (ser->pid > 0) 
+				continue;
+
+			pri = ser->device.is_device ? 2 : 1;
+
+			init_bundled_proc(bundled_procs[i].name, pri,
+					off, bundled_procs[i].len,
+					&ser->pid, &ser->eid);
+		}
+		
 		off += bundled_procs[i].len;
 	}
 }

@@ -47,13 +47,14 @@ union proc0_req {
 
 	struct {
 		uint32_t type;
-#define RESOURCE_get_log        0
-#define RESOURCE_get_regs       1
-#define RESOURCE_get_int        2
-#define RESOURCE_get_timer      3
-#define RESOURCE_get_serial     4
-#define RESOURCE_get_block      5
-#define RESOURCE_get_net        6
+#define RESOURCE_type_none       0
+#define RESOURCE_type_log        1
+#define RESOURCE_type_regs       2
+#define RESOURCE_type_int        3
+#define RESOURCE_type_timer      4
+#define RESOURCE_type_serial     5
+#define RESOURCE_type_block      6
+#define RESOURCE_type_net        7
 		int resource_type;
 	} get_resource;
 

@@ -12,13 +12,6 @@ P=$(sh arm/bundle.sh \
 	$IDLE)
 
 P=$(sh arm/bundle.sh \
-	bundled_drivers \
-	bundle.bin \
-	bundle.c \
-	$P \
-	$DRIVERS)
-
-P=$(sh arm/bundle.sh \
 	bundled_procs \
 	bundle.bin \
 	bundle.c \
