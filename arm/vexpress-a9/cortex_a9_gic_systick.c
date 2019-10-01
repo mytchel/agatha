@@ -6,22 +6,37 @@
 #include <arm/cortex_a9_pt_wd.h>
 
 /* maximum. will probably be lower as in dst_init */
-#define nirq 1020
+#define nirq 128 
+/*1020*/
 
 void (*kernel_handlers[nirq])(size_t) = { nil };
 
-struct user_handler {
-	bool setup;
-	bool active;
-	endpoint_t *e;
-	uint32_t signal;
-};
-
-struct user_handler user_handlers[nirq] = { { false } };
+capability_t user_handlers[nirq] = { 0 };
 
 static volatile struct gic_dst_regs *dregs;
 static volatile struct gic_cpu_regs *cregs;
 static volatile struct cortex_a9_pt_wd_regs *pt_regs;
+
+void
+give_root_interrupts(proc_t *p)
+{
+	capability_t *c;
+	interrupt_t *i;
+	size_t n;
+
+	for (n = 0; n < nirq; n++) {
+		c = &user_handlers[n];
+
+		c->type = CAP_interrupt;
+		c->id = 4000 + n;
+
+		i = &c->c.interrupt;
+		i->irqn = n;
+
+		c->next = p->caps;
+		p->caps = c;
+	}
+}
 
 	void
 gic_set_group(size_t irqn, uint32_t g)
@@ -60,39 +75,16 @@ irq_clear(size_t irqn)
 	dregs->icpend[irqn / 32] = 1 << (irqn % 32);
 }
 
-	int
+	void
 irq_ack(size_t irqn)
 {
-	user_handlers[irqn].active = false;
 	cregs->eoi = irqn;
-
-	return OK;
 }
 
 	int
 irq_add_kernel(size_t irqn, void (*func)(size_t))
 {
 	kernel_handlers[irqn] = func;
-
-	irq_enable(irqn);
-
-	return OK;
-}
-
-	int
-irq_add_user(size_t irqn, endpoint_t *e, uint32_t signal)
-{
-	if (user_handlers[irqn].setup) {
-		return ERR;
-	}
-
-	user_handlers[irqn].setup = true;
-	user_handlers[irqn].e = e;
-	user_handlers[irqn].signal = signal;
-	user_handlers[irqn].active = false;
-
-	debug_info("adding irq %i for endpoint %i with signal 0x%x\n",
-			irqn, e->id, signal);
 
 	irq_enable(irqn);
 
@@ -115,15 +107,12 @@ irq_handler(void)
 		debug_sched("kernel int %i\n", irqn);
 		kernel_handlers[irqn](irqn);
 
-	} else if (user_handlers[irqn].setup) {
-		if (user_handlers[irqn].active) {
-			debug_warn("got irq %i while still handling it!\n", irqn);
-		}
-
-		user_handlers[irqn].active = true;
+	} else if (user_handlers[irqn].c.interrupt.other != nil) {
 
 		debug_warn("signaling\n");
-		signal(user_handlers[irqn].e, user_handlers[irqn].signal);
+
+		signal(user_handlers[irqn].c.interrupt.other,
+			user_handlers[irqn].c.interrupt.signal);
 
 	} else {
 		debug_info("got unhandled interrupt %i!\n", irqn);

@@ -204,8 +204,8 @@ main(int p_eid)
 	set_timer();
 
 	log(LOG_INFO, "register int");
-	int main_eid = endpoint_create();
-	if (intr_register(irqn, main_eid, 0x14) != OK) {
+	int int_eid = endpoint_create();
+	if (intr_connect(irqn, int_eid, 0x14) != OK) {
 		log(LOG_FATAL, "failed to register int");
 		return ERR;
 	}
@@ -218,12 +218,15 @@ main(int p_eid)
 		}
 
 		if (from == PID_SIGNAL) {
-			log(LOG_INFO, "got int 0x%x, status = 0x%x!", 
-				rq.type, regs->t[0].status_raw);
-			regs->t[0].clr = regs->t[0].status_raw;
-			check_timers();
-			set_timer();
-
+			if (eid == int_eid) {
+				log(LOG_INFO, "got int 0x%x, status = 0x%x!", 
+					rq.type, regs->t[0].status_raw);
+				regs->t[0].clr = regs->t[0].status_raw;
+				check_timers();
+				set_timer();
+			} else {
+				log(LOG_INFO, "someone is sending us a signal?");
+			}
 		} else {
 			switch (rq.type) {
 			case TIMER_set_req:

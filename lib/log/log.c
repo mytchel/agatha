@@ -28,7 +28,7 @@ log_init(char *name)
 		exit(ERR);
 	}
 
-	log_eid = endpoint_accept();
+	log_eid = cap_accept();
 	if (log_eid < 0) {
 		exit(ERR);
 	}

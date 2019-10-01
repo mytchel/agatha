@@ -181,6 +181,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 	union proc0_rsp rp;
 	struct addr_frame *f;
 	struct service *s, *r;
+	int nid;
 
 	log(0, "get resource from %i", from);
 
@@ -206,7 +207,12 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 	case RESOURCE_type_serial:
 		r = find_service_resource(s, rq->get_resource.resource_type);
 		if (r != nil) {
-			endpoint_offer(r->eid);
+			log(0, "giving proc %i resource type %i eid %i pid %i",
+				from, rq->get_resource.resource_type, r->eid, r->pid);
+
+			nid = endpoint_connect(r->eid);
+
+			cap_offer(nid);
 
 			rp.get_resource.ret = OK;
 		} else {

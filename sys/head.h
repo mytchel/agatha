@@ -8,7 +8,11 @@
 
 typedef struct proc proc_t;
 typedef struct proc_list proc_list_t;
-typedef struct endpoint endpoint_t;
+typedef struct capability capability_t;
+
+typedef struct endpoint_listen endpoint_listen_t;
+typedef struct endpoint_connect endpoint_connect_t;
+typedef struct interrupt interrupt_t;
 
 struct proc_list {
 	proc_t *head, *tail;
@@ -26,42 +30,53 @@ struct proc {
 
 	int ts;
 	proc_list_t *list;		
-	proc_t *prev, *next;
+	proc_t *sprev, *snext;
 
-	int mid;
+	size_t vspace;
+
 	uint8_t m[MESSAGE_LEN];
 	proc_t *wprev, *wnext;
 
-	endpoint_t *recv_from;
-	endpoint_t *listening;
-	endpoint_t *sending;
-	endpoint_t *offer;
+	endpoint_listen_t *recv_from;
 
-	size_t vspace;
+	capability_t *caps;
+	capability_t *offering;
+	capability_t *offered;
 };
 
 typedef enum {
-	ENDPOINT_listen,
-	ENDPOINT_connect
-} endpoint_mode_t;
+	CAP_endpoint_listen,
+	CAP_endpoint_connect,
+	CAP_interrupt,
+} capability_type_t;
 
-struct endpoint {
-	endpoint_t *next;
+struct endpoint_listen {
+	proc_t *holder;
+	uint32_t signal;
+	proc_list_t waiting;
+};
 
+struct endpoint_connect {
+	endpoint_listen_t *other;
+};
+
+struct interrupt {
+	size_t irqn;
+	endpoint_listen_t *other;
+	uint32_t signal;
+};
+
+struct capability {
+	capability_t *next;
 	int id;
 
-	endpoint_mode_t mode;
+	capability_type_t type;
 
-	struct {
-		proc_t *holder;
-		uint32_t signal;
-		proc_list_t waiting;
-		int next_mid;
-	} listen;
-
-	struct {
-		endpoint_t *other;
-	} connect;
+	union {
+		endpoint_listen_t listen;
+		endpoint_connect_t connect;
+		interrupt_t interrupt;
+	} c;
 };
 
 proc_t *
@@ -82,20 +97,28 @@ find_proc(int pid);
 void
 schedule(proc_t *next);
 
-endpoint_t *
-endpoint_accept(void);
+
+void
+capability_offer(capability_t *c);
+
+capability_t *
+capability_accept(void);
+
+
+
+capability_t *
+recv(capability_t *from, int *pid, uint8_t *m);
 
 int
-mesg(endpoint_t *e, uint8_t *rq, uint8_t *rp);
-
-endpoint_t *
-recv(endpoint_t *e, int *mid, uint8_t *m);
+reply(endpoint_listen_t *l, int pid, uint8_t *m);
 
 int
-reply(endpoint_t *e, int mid, uint8_t *m);
+mesg(endpoint_listen_t *c, uint8_t *rq, uint8_t *rp);
 
 int
-signal(endpoint_t *e, uint32_t s);
+signal(endpoint_listen_t *c, uint32_t s);
+
+
 
 void
 memcpy(void *dst, const void *src, size_t len);
@@ -189,10 +212,10 @@ systick_passed(void);
 int
 irq_add_kernel(size_t irqn, void (*func)(size_t));
 
-int
-irq_add_user(size_t irqn, endpoint_t *e, uint32_t signal);
+void
+irq_enable(size_t irqn);
 
-int
+void
 irq_ack(size_t irqn);
 
 extern proc_t *up;

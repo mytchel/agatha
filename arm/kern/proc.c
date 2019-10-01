@@ -19,7 +19,7 @@ void
 __attribute__((noreturn))
 proc_start(void)
 {
-	endpoint_t *e, *e_main;
+	capability_t *c, *c_main;
 	union proc_msg m;
 	label_t u = {0};
 	int pid;
@@ -27,7 +27,7 @@ proc_start(void)
 	debug_info("proc %i starting\n", up->pid);
 
 	while (true) {
-		if ((e = recv(nil, &pid, (uint8_t *) &m)) == nil) {
+		if ((c = recv(nil, &pid, (uint8_t *) &m)) == nil) {
 			continue;
 		} else if (pid == PID_SIGNAL) {
 			continue;
@@ -36,20 +36,20 @@ proc_start(void)
 		}
 	}
 
-	debug_info("got start, reply on eid %i\n", e->id);
+	debug_info("got start, reply on cid %i\n", c->id);
 
-	e_main = endpoint_accept();
+	c_main = capability_accept();
 
 	m.start.type = PROC_start_rsp;
 
-	reply(e, pid, (uint8_t *) &m);
+	reply(&c->c.listen, pid, (uint8_t *) &m);
 
 	u.psr = MODE_USR;
 	u.pc = m.start.pc;
 	u.sp = m.start.sp;
 
-	if (e_main != nil) {
-		u.regs[0] = e_main->id;
+	if (c_main != nil) {
+		u.regs[0] = c_main->id;
 	} else {
 		u.regs[0] = -1;
 	}

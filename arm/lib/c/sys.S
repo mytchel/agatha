@@ -9,17 +9,22 @@
 
 .global exit
 .global yield
+.global pid
+
+.global proc_new
+
 .global mesg
 .global recv
 .global reply
 .global signal
+
+.global cap_offer
+.global cap_accept
+
 .global endpoint_create
-.global endpoint_offer
-.global endpoint_accept
-.global pid
-.global proc_new
-.global va_table
-.global intr_register
+.global endpoint_connect
+
+.global intr_connect
 .global intr_ack
 
 _start:
@@ -81,7 +86,21 @@ signal:
 	mov r12, #SYSCALL_SIGNAL
 	svc 0
 	pop {r12, pc}
+
 	
+cap_offer:
+	push {r12, lr}
+	mov r12, #SYSCALL_CAP_OFFER
+	svc 0
+	pop {r12, pc}
+
+
+cap_accept:
+	push {r12, lr}
+	mov r12, #SYSCALL_CAP_ACCEPT
+	svc 0
+	pop {r12, pc}
+
 
 endpoint_create:
 	push {r12, lr}
@@ -90,23 +109,16 @@ endpoint_create:
 	pop {r12, pc}
 
 
-endpoint_offer:
+endpoint_connect:
 	push {r12, lr}
-	mov r12, #SYSCALL_ENDPOINT_OFFER
+	mov r12, #SYSCALL_ENDPOINT_CONNECT
 	svc 0
 	pop {r12, pc}
 
 
-endpoint_accept:
+intr_connect:
 	push {r12, lr}
-	mov r12, #SYSCALL_ENDPOINT_ACCEPT
-	svc 0
-	pop {r12, pc}
-
-
-intr_register:
-	push {r12, lr}
-	mov r12, #SYSCALL_INTR_REGISTER
+	mov r12, #SYSCALL_INTR_CONNECT
 	svc 0
 	pop {r12, pc}
 

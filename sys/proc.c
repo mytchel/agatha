@@ -2,8 +2,8 @@
 
 #define MIN_TIME_SLICE        10
 
-void add_to_list_tail(proc_list_t *l, proc_t *p);
-void remove_from_list(proc_list_t *l, proc_t *p);
+static void add_to_list_tail(proc_list_t *l, proc_t *p);
+static void remove_from_list(proc_list_t *l, proc_t *p);
 
 struct ready_list {
 	struct proc_list queue[2];
@@ -17,38 +17,38 @@ proc_t *up = nil;
 static uint32_t nextpid = 1;
 static proc_t procs[MAX_PROCS] = { 0 };
 
-	void
+	static void
 add_to_list_tail(proc_list_t *l, proc_t *p)
 {
 	p->list = l;
 
-	p->next = nil;
-	p->prev = l->tail;
+	p->snext = nil;
+	p->sprev = l->tail;
 
 	if (l->tail == nil) {
 		l->head = p;
 	} else {
-		l->tail->next = p;
+		l->tail->snext = p;
 	}
 
 	l->tail = p;
 }
 
-	void
+	static void
 remove_from_list(proc_list_t *l, proc_t *p)
 {
 	p->list = nil;
 
-	if (p->prev != nil) {
-		p->prev->next = p->next;
+	if (p->sprev != nil) {
+		p->sprev->snext = p->snext;
 	} else {
-		l->head = p->next;
+		l->head = p->snext;
 	}
 
-	if (p->next != nil) {
-		p->next->prev = p->prev;
+	if (p->snext != nil) {
+		p->snext->sprev = p->sprev;
 	} else {
-		l->tail = p->prev;
+		l->tail = p->sprev;
 	}
 }
 
@@ -79,7 +79,7 @@ next_proc(void)
 
 		p = ready[q].queue[ready[q].q].head; 
 		while (p != nil) {
-			n = p->next;
+			n = p->snext;
 
 			if (p->state == PROC_ready) {
 				if (p->ts > MIN_TIME_SLICE) {
@@ -103,7 +103,7 @@ next_proc(void)
 		debug_sched_v("switch queues\n");
 
 		ready[q].q = (ready[q].q + 1) % 2;
-		for (p = ready[q].queue[ready[q].q].head; p != nil; p = p->next) {
+		for (p = ready[q].queue[ready[q].q].head; p != nil; p = p->snext) {
 			p->ts = SYSTICK;
 		}
 

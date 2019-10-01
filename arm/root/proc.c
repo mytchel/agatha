@@ -347,12 +347,10 @@ init_bundled_proc(char *name,
 
 	memcpy(code_va, start_va, len);
 
-	log(0, "unmap 0x%x 0x%x", code_va, len);
 	if ((r = unmap_addr(code_va, len)) != OK) {
 		exit(r);
 	}
 
-	log(0, "proc new");
 	if ((r = unmap_addr(start_va, len)) != OK) {
 		exit(r);
 	}
@@ -362,31 +360,25 @@ init_bundled_proc(char *name,
 		exit(4);
 	}
 
-	log(0, "proc new");
 	l1_mapped_pa = get_ram(0x4000, 0x1000);
 	if (l1_mapped_pa == nil) {
 		exit(4);
 	}
 
-	log(0, "proc new");
 	l1_table_va = map_addr(l1_table_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_table_va == nil) {
 		exit(5);
 	}
 
-	log(0, "proc new");
 	l1_mapped_va = map_addr(l1_mapped_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_mapped_va == nil) {
 		exit(5);
 	}
 
-	log(0, "proc new");
 	memset(l1_mapped_va, 0, 0x4000);
 	
 	proc_init_l1(l1_table_va);
 
-	log(0, "proc new");
-		
 	if (proc_new(priority, l1_table_pa, p_pid, p_eid) != OK) {
 		exit(8);
 	}
@@ -462,7 +454,11 @@ init_bundled_proc(char *name,
 	rq.start.pc = USER_ADDR;
 	rq.start.sp = USER_ADDR;
 
-	endpoint_offer(main_eid);
+	int p_m_eid;
+
+	p_m_eid = endpoint_connect(main_eid);
+
+	cap_offer(p_m_eid);
 
 	log(LOG_INFO, "start bundled proc pid %i %s", *p_pid, name);
 

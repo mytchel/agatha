@@ -203,7 +203,7 @@ main(int p_eid)
 		exit(ERR);
 	}
 
-	log_output_eid = endpoint_accept();
+	log_output_eid = cap_accept();
 
 	char *s = "log starting\n";
 	add_log(s, strlen(s));
