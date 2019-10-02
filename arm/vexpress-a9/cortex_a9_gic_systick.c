@@ -6,8 +6,7 @@
 #include <arm/cortex_a9_pt_wd.h>
 
 /* maximum. will probably be lower as in dst_init */
-#define nirq 128 
-/*1020*/
+#define nirq 128 /*1020*/
 
 void (*kernel_handlers[nirq])(size_t) = { nil };
 
@@ -109,7 +108,7 @@ irq_handler(void)
 
 	} else if (user_handlers[irqn].c.interrupt.other != nil) {
 
-		debug_warn("signaling\n");
+		debug_warn("signaling for int %i\n", irqn);
 
 		signal(user_handlers[irqn].c.interrupt.other,
 			user_handlers[irqn].c.interrupt.signal);
@@ -147,21 +146,29 @@ gic_cpu_init(void)
 	cregs->priority = 0xff;
 }
 
-static size_t systick_set;
-
 	void
 set_systick(size_t t)
 {
-	systick_set = t;
-
-	pt_regs->t_load = systick_set;
-	pt_regs->t_control |= 1;
+	pt_regs->t_load = t;
+	pt_regs->t_control = 
+		(0xff << 8) | /* Prescaler */
+		(1 << 2) | /* Enable int */
+		1; /* Enable timer */
 }
 
 	size_t
 systick_passed(void)
 {
-	return systick_set - pt_regs->t_count;
+	pt_regs->t_control = 0;
+
+	if (pt_regs->t_load < pt_regs->t_count) {
+		/* Either I am doing something wrong or there is a bug in qemu
+		   but the count sometimes becomes ~ 0x1080,0000 for no reason
+		   that I can see */
+		return 1;
+	} 
+
+	return pt_regs->t_load - pt_regs->t_count;
 }
 
 	static void 
@@ -177,8 +184,8 @@ systick(size_t irq)
 static void
 pt_wd_init(void)
 {
-	/* Enable interrupt, no prescaler. */
-	pt_regs->t_control = (1<<2);
+	/* Disable timer */
+	pt_regs->t_control = 0;
 
 	irq_add_kernel(29, &systick);
 

@@ -120,7 +120,7 @@ next_proc(void)
 schedule(proc_t *n)
 {
 	if (up != nil) {
-		int passed = systick_passed();
+		size_t passed = systick_passed();
 
 		debug_sched("proc %i ran for %i ticks\n", up->pid, passed);
 
@@ -169,7 +169,7 @@ schedule(proc_t *n)
 				up->pid, up->ts);
 
 		mmu_switch(up->vspace);
-		set_systick(up->ts);
+		set_systick(SYSTICK);/*up->ts);*/
 		goto_label(&up->label);
 
 	} else {
@@ -232,6 +232,9 @@ proc_ready(proc_t *p)
 
 	p->state = PROC_ready;
 	if (p->list == nil) {
+		/* TODO: don't need to do this if we are about
+		   to switch to the proc */
+
 		add_to_list_tail(&ready[p->priority]
 			.queue[(ready[p->priority].q + 1) % 2], 
 			p);

@@ -12,6 +12,7 @@
 #include <mbr.h>
 #include <fs.h>
 #include <fat.h>
+#include <timer.h>
 #include <log.h>
 
 #if 0
@@ -246,7 +247,65 @@ main(int p_eid)
 	log(LOG_INFO, "init starting");
 
 #if 1
-	
+	union proc0_req prq;
+	union proc0_rsp prp;
+
+	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.resource_type = RESOURCE_type_timer;
+
+	mesg(parent_eid, &prq, &prp);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	int timer_eid = cap_accept();
+	if (timer_eid < 0) {
+		exit(ERR);
+	}
+
+	int timer_lid = endpoint_create();
+	int timer_leid = endpoint_connect(timer_lid);
+
+	union timer_req rq;
+	union timer_rsp rp;
+
+	rq.create.type = TIMER_create_req;
+	rq.create.signal = 0x111;
+
+	cap_offer(timer_leid);
+
+	mesg(timer_eid, &rq, &rp);
+	if (rp.create.ret != OK) {
+		exit(ERR);
+	}
+
+	int timer_id = rp.create.id;
+
+	while (true) {
+		rq.set.type = TIMER_set_req;
+		rq.set.id = timer_id;
+		rq.set.time_ms = 5 * 1000;
+
+		mesg(timer_eid, &rq, &rp);
+		if (rp.set.ret != OK) {
+			exit(ERR);
+		}
+
+		uint8_t t[MESSAGE_LEN];
+		int t_pid;
+
+		while (true) {
+			recv(timer_lid, &t_pid, t);
+			if (t_pid == PID_SIGNAL) {
+				uint32_t signal = ((uint32_t *) t)[0];
+				log(LOG_INFO, "got timer signal 0x%x", signal);
+				break;
+			} else {
+				log(LOG_WARNING, "how did we get another message?");
+			}
+		}
+	}
+
 #endif
 
 #if 0	

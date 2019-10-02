@@ -4,12 +4,14 @@ union timer_req {
 
 	struct {
 		uint32_t type;
-		uint32_t time_ms;
-	} set;
+		uint32_t signal;
+	} create;
 
 	struct {
 		uint32_t type;
-	} triggered;
+		int id;
+		uint32_t time_ms;
+	} set;
 };
 
 union timer_rsp {
@@ -23,11 +25,12 @@ union timer_rsp {
 	struct {
 		uint32_t type;
 		int ret;
-	} set;
+		int id;
+	} create;
 
 	struct {
 		uint32_t type;
 		int ret;
-	} triggered;
+	} set;
 };
 

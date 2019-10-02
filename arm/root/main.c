@@ -227,6 +227,8 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 
 			s->device.has_irq = true;
 
+			cap_offer(s->device.irqn + 4000);
+
 			rp.get_resource.result.irqn = s->device.irqn;
 			rp.get_resource.ret = OK;
 		} else {

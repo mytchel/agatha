@@ -270,10 +270,12 @@ signal(endpoint_listen_t *l, uint32_t s)
 	if (p->state == PROC_block_recv 
 		&& (p->recv_from == nil || p->recv_from == l))
 	{
-		debug_info("wake proc %i\n", p->pid);
+		debug_warn("wake proc %i\n", p->pid);
 		proc_ready(p);
 		schedule(p);
-	} 
+	} else {
+		debug_warn("signal proc %i not waiting\n", p->pid);
+	}
 
 	return OK;
 }
@@ -352,7 +354,7 @@ sys_signal(int cid, uint32_t s)
 		return ERR;
 	}
 
-	return signal(&c->c.listen, s);
+	return signal(c->c.connect.other, s);
 }
 
 	size_t
@@ -455,19 +457,44 @@ sys_endpoint_connect(int cid)
 }
 
 	size_t
-sys_intr_connect(int id, int eid, uint32_t signal)
+sys_intr_connect(int iid, int eid, uint32_t signal)
 {
-	debug_info("%i intr connect %i to %i\n", up->pid, id, eid);
+	capability_t *i, *e;
 
-	return ERR;
+	debug_info("%i intr connect %i to %i\n", up->pid, iid, eid);
+
+	i = proc_find_capability(up, iid);
+	e = proc_find_capability(up, eid);
+
+	if (i == nil || e == nil) {
+		return ERR;
+	} else if (e->type != CAP_endpoint_listen) {
+		return ERR;
+	}
+
+	i->c.interrupt.other = &e->c.listen;
+	i->c.interrupt.signal = signal;
+
+	irq_enable(i->c.interrupt.irqn);
+	
+	return OK;
 }
 
 	size_t
-sys_intr_ack(int id)
+sys_intr_ack(int iid)
 {
-	debug_info("%i intr ack %i\n", up->pid, id);
+	capability_t *i;
 
-	return ERR;
+	debug_info("%i intr ack %i\n", up->pid, iid);
+
+	i = proc_find_capability(up, iid);
+	if (i == nil) {
+		return ERR;
+	}
+
+	irq_ack(i->c.interrupt.irqn);
+
+	return OK;
 }
 
 	size_t

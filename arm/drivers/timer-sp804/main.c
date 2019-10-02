@@ -14,8 +14,12 @@
 
 struct timer {
 	struct timer *next;
+	int id;
 
 	int pid;
+	int endpoint;
+	uint32_t signal;
+
 	bool set;
 	uint32_t time_ms;
 };
@@ -25,70 +29,63 @@ static volatile struct sp804_timer_regs *regs;
 static bool is_set = false;
 static uint32_t last_set;
 static struct timer *timers = nil;
+static int next_id = 0;
 
-#if 0
-static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
-static void intr_handler(int irqn, void *arg)
+static void
+handle_create(int eid, int from, union timer_req *rq)
 {
-	uint8_t m[MESSAGE_LEN];
+	union timer_rsp rp;
+	struct timer *t;
+	int n_eid;
 
-	regs->t[0].clr = 1;
-	send(pid(), m);
+	n_eid = cap_accept();
 
-	intr_exit();
-}
-
-int
-claim_irq(size_t irqn)
-{
-	union proc0_req rq;
-	union proc0_rsp rp;
-
-	rq.irq_reg.type = PROC0_irq_reg_req;
-	rq.irq_reg.irqn = irqn;
-	rq.irq_reg.func = &intr_handler;
-	rq.irq_reg.arg = nil;
-	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack)];
-
-	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
-		return ERR;
+	if (n_eid == nil) {
+		log(LOG_WARNING, "cap accept failed");
+		return;
 	}
 
-	return OK;
+	t = malloc(sizeof(struct timer));
+	if (t == nil) {
+		log(LOG_WARNING, "out of mem");
+		return;
+	}
+
+	log(LOG_INFO, "create new timer");
+
+	t->id = next_id++;
+
+	t->pid = from;
+	t->endpoint = n_eid;
+	t->signal = rq->create.signal;
+
+	t->next = timers;
+	timers = t;
+
+	rp.create.type = TIMER_create_rsp;
+	rp.create.ret = OK;
+	rp.create.id = t->id;
+	reply(eid, from, &rp);
 }
-#endif
 
 static void
 handle_set(int eid, int from, union timer_req *rq)
 {
-#if 0
 	struct timer *t;
 
 	for (t = timers; t != nil; t = t->next) {
-		if (t->pid == from) {
+		if (t->pid == from && t->id == rq->set.id) {
 			break;
 		}
 	}
 
 	if (t == nil) {
-		t = malloc(sizeof(struct timer));
-		if (t == nil) {
-			log(LOG_WARNING, "out of mem");
-			return;
-		}
-
-		log(LOG_INFO, "adding new timer");
-
-		t->pid = from;
-
-		t->next = timers;
-		timers = t;
+		return;
 	}
 
 	t->set = true;
 	t->time_ms = rq->set.time_ms;
 
-#endif
 	union timer_rsp rp;
 	rp.set.type = TIMER_set_rsp;
 	rp.set.ret = OK;
@@ -109,6 +106,8 @@ check_timers(void)
 		if (t->time_ms <= elipsed) {
 			log(LOG_INFO, "timer passed");
 			t->set = false;
+
+			signal(t->endpoint, t->signal);
 		} else {
 			log(LOG_INFO, "decrease time");
 			t->time_ms -= elipsed;
@@ -193,6 +192,13 @@ main(int p_eid)
 		exit(ERR);
 	}
 
+	int irq_cap_id;
+
+	irq_cap_id = cap_accept();
+	if (irq_cap_id < 0) {
+		exit(ERR);
+	}
+
 	irqn = prp.get_resource.result.irqn;
 
 	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x with irq %i", 
@@ -205,7 +211,7 @@ main(int p_eid)
 
 	log(LOG_INFO, "register int");
 	int int_eid = endpoint_create();
-	if (intr_connect(irqn, int_eid, 0x14) != OK) {
+	if (intr_connect(irq_cap_id, int_eid, 0x14) != OK) {
 		log(LOG_FATAL, "failed to register int");
 		return ERR;
 	}
@@ -219,9 +225,15 @@ main(int p_eid)
 
 		if (from == PID_SIGNAL) {
 			if (eid == int_eid) {
+				uint32_t status_raw = regs->t[0].status_raw;
+
+				regs->t[0].clr = status_raw;
+
+				intr_ack(irq_cap_id);
+
 				log(LOG_INFO, "got int 0x%x, status = 0x%x!", 
-					rq.type, regs->t[0].status_raw);
-				regs->t[0].clr = regs->t[0].status_raw;
+					rq.type, status_raw);
+
 				check_timers();
 				set_timer();
 			} else {
@@ -229,6 +241,10 @@ main(int p_eid)
 			}
 		} else {
 			switch (rq.type) {
+			case TIMER_create_req:
+				handle_create(eid, from, &rq);
+				break;
+
 			case TIMER_set_req:
 				handle_set(eid, from, &rq);
 				break;
@@ -236,6 +252,8 @@ main(int p_eid)
 			default:
 				break;
 			}
+	
+			set_timer();
 		}
 	}
 

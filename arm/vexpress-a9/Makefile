@@ -28,7 +28,7 @@ BOARD_KERNEL_SRC_C = \
 	arm/vexpress-a9/serial_pl01x.c \
 	arm/vexpress-a9/kernel.c
 
-CFLAGS  += -DSYSTICK=0xfffffff
+CFLAGS  += -DSYSTICK=1000000
 LDFLAGS += 
 
 include arm/Makefile

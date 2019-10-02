@@ -35,13 +35,12 @@ send_logs(void)
 	union serial_rsp rp;
 
 	if (log_output_eid == -1) {
-		return;
+		exit(ERR);
 	}
 
-	while (start < end) {
+	while (start != end) {
 		rq.write.type = SERIAL_write_req;
 
-		rq.write.len = end - start;
 		if (start < end) {
 			rq.write.len = end - start;
 		} else {
@@ -54,7 +53,11 @@ send_logs(void)
 
 		memcpy(rq.write.data, buf + start, rq.write.len);
 
-		mesg(log_output_eid, &rq, &rp);
+		if (mesg(log_output_eid, &rq, &rp) != OK) {
+			exit(ERR);
+		} else if (rp.write.ret != OK) {
+			exit(ERR);
+		}
 
 		start = (start + rq.write.len) % sizeof(buf);
 	}

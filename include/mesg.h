@@ -91,6 +91,8 @@ typedef enum {
 	NET_read_req,
 	NET_read_rsp,
 
+	TIMER_create_req,
+	TIMER_create_rsp,
 	TIMER_set_req,
 	TIMER_set_rsp,
 

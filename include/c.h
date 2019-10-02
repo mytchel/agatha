@@ -21,10 +21,20 @@ int
 endpoint_create(void);
 
 int
-endpoint_offer(int eid);
+endpoint_connect(int eid);
 
 int
-endpoint_accept(void);
+intr_connect(int iid, int eid, uint32_t signal);
+
+int
+intr_ack(int iid);
+
+int
+cap_offer(int eid);
+
+int
+cap_accept(void);
+
 
 int
 pid(void);
@@ -33,11 +43,6 @@ void
 exit(uint32_t code)
 	__attribute__((noreturn));
 
-int
-intr_ack(size_t irqn);
-
-int
-intr_register(size_t irqn, int eid, uint32_t signal);
 
 /* Utils */
 
