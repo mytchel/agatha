@@ -20,8 +20,12 @@ struct service {
 		bool is_device;
 		size_t reg, len;
 		size_t irqn;
+
 		bool has_regs;
 		bool has_irq;
+
+		struct addr_frame *reg_frame;
+		int irqn_id;
 	} device;
 
 	struct {

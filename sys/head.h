@@ -209,6 +209,9 @@ set_systick(size_t ticks);
 size_t
 systick_passed(void);
 
+capability_t *
+get_user_int_cap(size_t irqn);
+
 int
 irq_add_kernel(size_t irqn, void (*func)(size_t));
 

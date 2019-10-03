@@ -5,9 +5,6 @@
 void
 init_kernel_drivers();
 
-void
-give_root_interrupts(proc_t *p);
-
 #define root_l1_va      0x01000
 #define root_l2_va      0x05000
 #define root_info_va    0x06000
@@ -102,8 +99,6 @@ init_root(struct kernel_info *info)
 		panic("root proc (%i) doesn't have root pid (%i)!\n",
 			p->pid, ROOT_PID);
 	}
-
-	give_root_interrupts(p);
 
 	debug_info("func label %i, stack top at 0x%x\n",
 			p->pid, p->kstack + KSTACK_LEN);

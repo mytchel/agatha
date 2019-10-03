@@ -10,31 +10,34 @@
 
 void (*kernel_handlers[nirq])(size_t) = { nil };
 
-capability_t user_handlers[nirq] = { 0 };
+capability_t user_handler[nirq] = { 0 };
+bool user_handler_given[nirq] = { false };
 
 static volatile struct gic_dst_regs *dregs;
 static volatile struct gic_cpu_regs *cregs;
 static volatile struct cortex_a9_pt_wd_regs *pt_regs;
 
-void
-give_root_interrupts(proc_t *p)
+capability_t *
+get_user_int_cap(size_t irqn)
 {
 	capability_t *c;
 	interrupt_t *i;
-	size_t n;
 
-	for (n = 0; n < nirq; n++) {
-		c = &user_handlers[n];
-
-		c->type = CAP_interrupt;
-		c->id = 4000 + n;
-
-		i = &c->c.interrupt;
-		i->irqn = n;
-
-		c->next = p->caps;
-		p->caps = c;
+	if (user_handler_given[irqn]) {
+		return nil;
 	}
+
+	user_handler_given[irqn] = true;
+
+	c = &user_handler[irqn];
+
+	c->type = CAP_interrupt;
+	c->id = irqn; /* Just set it to this for now. */
+
+	i = &c->c.interrupt;
+	i->irqn = irqn;
+
+	return &user_handler[irqn];
 }
 
 	void
@@ -106,12 +109,12 @@ irq_handler(void)
 		debug_sched("kernel int %i\n", irqn);
 		kernel_handlers[irqn](irqn);
 
-	} else if (user_handlers[irqn].c.interrupt.other != nil) {
+	} else if (user_handler[irqn].c.interrupt.other != nil) {
 
 		debug_warn("signaling for int %i\n", irqn);
 
-		signal(user_handlers[irqn].c.interrupt.other,
-			user_handlers[irqn].c.interrupt.signal);
+		signal(user_handler[irqn].c.interrupt.other,
+			user_handler[irqn].c.interrupt.signal);
 
 	} else {
 		debug_info("got unhandled interrupt %i!\n", irqn);
@@ -163,8 +166,8 @@ systick_passed(void)
 
 	if (pt_regs->t_load < pt_regs->t_count) {
 		/* Either I am doing something wrong or there is a bug in qemu
-		   but the count sometimes becomes ~ 0x1080,0000 for no reason
-		   that I can see */
+		   but the count sometimes jumps ~ 0x1080,0000 when the timer
+		   is enabled for no reason that I can see */
 		return 1;
 	} 
 

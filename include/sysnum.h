@@ -21,5 +21,7 @@
 
 #define SYSCALL_DEBUG            15
 
-#define NSYSCALLS                16
+#define SYSCALL_INTR_CREATE      16
+
+#define NSYSCALLS                17
 

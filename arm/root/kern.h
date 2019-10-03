@@ -10,3 +10,6 @@ proc_setup(int pid, procstate_t state);
 int
 kern_debug(char *s);
 
+int
+intr_create(size_t irqn);
+

@@ -457,6 +457,28 @@ sys_endpoint_connect(int cid)
 }
 
 	size_t
+sys_intr_create(int irqn)
+{
+	capability_t *c;
+
+	if (up->pid != ROOT_PID) {
+		return ERR;
+	}
+
+	c = get_user_int_cap(irqn);
+	if (c == nil) {
+		return ERR;
+	}
+
+	c->id = next_cap_id++;
+
+	c->next = up->caps;
+	up->caps = c;
+
+	return c->id;
+}
+
+	size_t
 sys_intr_connect(int iid, int eid, uint32_t signal)
 {
 	capability_t *i, *e;
@@ -467,6 +489,8 @@ sys_intr_connect(int iid, int eid, uint32_t signal)
 	e = proc_find_capability(up, eid);
 
 	if (i == nil || e == nil) {
+		return ERR;
+	} else if (i->type != CAP_interrupt) {
 		return ERR;
 	} else if (e->type != CAP_endpoint_listen) {
 		return ERR;
@@ -489,6 +513,8 @@ sys_intr_ack(int iid)
 
 	i = proc_find_capability(up, iid);
 	if (i == nil) {
+		return ERR;
+	} else if (i->type != CAP_interrupt) {
 		return ERR;
 	}
 
@@ -580,11 +606,6 @@ sys_proc_setup(int pid, procstate_t state)
 {
 	proc_t *p;
 
-	if (up->pid != 1) {
-		debug_warn("proc %i is not root!\n", up->pid);
-		return ERR;
-	}
-
 	p = find_proc(pid);
 	if (p == nil) {
 		return ERR;
@@ -631,6 +652,7 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_CAP_ACCEPT]       = (void *) &sys_cap_accept,
 	[SYSCALL_ENDPOINT_CREATE]  = (void *) &sys_endpoint_create,
 	[SYSCALL_ENDPOINT_CONNECT] = (void *) &sys_endpoint_connect,
+	[SYSCALL_INTR_CREATE]      = (void *) &sys_intr_create,
 	[SYSCALL_INTR_CONNECT]     = (void *) &sys_intr_connect,
 	[SYSCALL_INTR_ACK]         = (void *) &sys_intr_ack,
 	[SYSCALL_DEBUG]            = (void *) &sys_debug,

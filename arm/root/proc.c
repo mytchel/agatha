@@ -496,6 +496,25 @@ init_procs(void)
 
 		off += bundled_idle[i].len;
 	}
+	
+	for (s = 0; s < nservices; s++) {
+		ser = &services[s];
+
+		if (!ser->device.is_device) continue;
+
+		log(0, "create frame for dev '%s'", ser->name);
+
+		ser->device.reg_frame = 
+			frame_new(PAGE_ALIGN_DN(ser->device.reg),
+					PAGE_ALIGN(ser->device.len));
+
+		if (ser->device.irqn > 0) {
+			log(0, "create int for dev '%s'", ser->name);
+			ser->device.irqn_id = intr_create(ser->device.irqn);
+		} else {
+			ser->device.irqn_id = -1;
+		}
+	}
 
 	for (i = 0; i < nbundled_procs; i++) {
 		for (s = 0; s < nservices; s++) {

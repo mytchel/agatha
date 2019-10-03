@@ -5,6 +5,7 @@
 .global proc_new
 .global proc_setup
 .global kern_debug
+.global intr_create
 
 
 proc_new:
@@ -26,6 +27,14 @@ kern_debug:
 	mov r12, #SYSCALL_DEBUG
 	svc 0
 	pop {r12, pc}
+
+
+intr_create:
+	push {r12, lr}
+	mov r12, #SYSCALL_INTR_CREATE
+	svc 0
+	pop {r12, pc}
+
 
 
 

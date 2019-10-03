@@ -178,9 +178,8 @@ find_service_resource(struct service *s, int type)
 	int
 handle_get_resource(int eid, int from, union proc0_req *rq)
 {
-	union proc0_rsp rp;
-	struct addr_frame *f;
 	struct service *s, *r;
+	union proc0_rsp rp;
 	int nid;
 
 	log(0, "get resource from %i", from);
@@ -227,7 +226,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 
 			s->device.has_irq = true;
 
-			cap_offer(s->device.irqn + 4000);
+			cap_offer(s->device.irqn_id);
 
 			rp.get_resource.result.irqn = s->device.irqn;
 			rp.get_resource.ret = OK;
@@ -244,10 +243,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 
 			s->device.has_regs = true;
 
-			f = frame_new(PAGE_ALIGN_DN(s->device.reg),
-					PAGE_ALIGN(s->device.len));
-
-			proc_give_addr(from, f);
+			proc_give_addr(from, s->device.reg_frame);
 
 			rp.get_resource.result.regs.pa = s->device.reg;
 			rp.get_resource.result.regs.len = s->device.len;
