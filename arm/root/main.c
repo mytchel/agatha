@@ -180,7 +180,9 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 {
 	struct service *s, *r;
 	union proc0_rsp rp;
-	int nid;
+	int give_cap;
+
+	give_cap = 0;
 
 	log(0, "get resource from %i", from);
 
@@ -209,9 +211,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 			log(0, "giving proc %i resource type %i eid %i pid %i",
 				from, rq->get_resource.resource_type, r->eid, r->pid);
 
-			nid = endpoint_connect(r->eid);
-
-			cap_offer(nid);
+			give_cap = endpoint_connect(r->eid);
 
 			rp.get_resource.ret = OK;
 		} else {
@@ -221,12 +221,12 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 	
 	case RESOURCE_type_int:
 		if (s->device.is_device && !s->device.has_irq) {
-			log(0, "giving proc %i its int %i", 
-				from, s->device.irqn);
+			log(0, "giving proc %i its int %i, cap id %i", 
+				from, s->device.irqn, s->device.irqn_id);
 
 			s->device.has_irq = true;
 
-			cap_offer(s->device.irqn_id);
+			give_cap = s->device.irqn_id;
 
 			rp.get_resource.result.irqn = s->device.irqn;
 			rp.get_resource.ret = OK;
@@ -255,7 +255,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		break;
 	}
 
-	return reply(eid, from, &rp);
+	return reply_cap(eid, from, &rp, give_cap);
 }
 
 #if 0

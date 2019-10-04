@@ -13,13 +13,13 @@
 
 .global proc_new
 
+.global mesg_cap
 .global mesg
+.global recv_cap
 .global recv
+.global reply_cap
 .global reply
 .global signal
-
-.global cap_offer
-.global cap_accept
 
 .global endpoint_create
 .global endpoint_connect
@@ -61,13 +61,16 @@ pid:
 
 
 mesg:
+	mov r3, #0
+mesg_cap:
 	push {r12, lr}
 	mov r12, #SYSCALL_MESG
 	svc 0
 	pop {r12, pc}
 	
-	
 recv:
+	mov r3, #0
+recv_cap:
 	push {r12, lr}
 	mov r12, #SYSCALL_RECV
 	svc 0
@@ -75,6 +78,8 @@ recv:
 
 	
 reply:
+	mov r3, #0
+reply_cap:
 	push {r12, lr}
 	mov r12, #SYSCALL_REPLY
 	svc 0
@@ -88,20 +93,6 @@ signal:
 	pop {r12, pc}
 
 	
-cap_offer:
-	push {r12, lr}
-	mov r12, #SYSCALL_CAP_OFFER
-	svc 0
-	pop {r12, pc}
-
-
-cap_accept:
-	push {r12, lr}
-	mov r12, #SYSCALL_CAP_ACCEPT
-	svc 0
-	pop {r12, pc}
-
-
 endpoint_create:
 	push {r12, lr}
 	mov r12, #SYSCALL_ENDPOINT_CREATE

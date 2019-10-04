@@ -32,15 +32,15 @@ static struct timer *timers = nil;
 static int next_id = 0;
 
 static void
-handle_create(int eid, int from, union timer_req *rq)
+handle_create(int eid, int from, union timer_req *rq, int cid)
 {
 	union timer_rsp rp;
 	struct timer *t;
 	int n_eid;
 
-	n_eid = cap_accept();
+	n_eid = cid;
 
-	if (n_eid == nil) {
+	if (n_eid == 0) {
 		log(LOG_WARNING, "cap accept failed");
 		return;
 	}
@@ -156,7 +156,7 @@ main(int p_eid)
 
 	union proc0_req prq;
 	union proc0_rsp prp;
-	int eid, from;
+	int eid, from, cid;
 
 	parent_eid = p_eid;
 	
@@ -186,7 +186,7 @@ main(int p_eid)
 	prq.get_resource.resource_type = RESOURCE_type_int;
 
 	log(LOG_INFO, "get int");
-	mesg(parent_eid, &prq, &prp);
+	mesg_cap(parent_eid, &prq, &prp, &cid);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
@@ -194,7 +194,7 @@ main(int p_eid)
 
 	int irq_cap_id;
 
-	irq_cap_id = cap_accept();
+	irq_cap_id = cid;
 	if (irq_cap_id < 0) {
 		exit(ERR);
 	}
@@ -219,7 +219,7 @@ main(int p_eid)
 	while (true) {
 		union timer_req rq;
 
-		if ((eid = recv(EID_ANY, &from, &rq)) < 0) {
+		if ((eid = recv_cap(EID_ANY, &from, &rq, &cid)) < 0) {
 			return ERR;
 		}
 
@@ -242,7 +242,7 @@ main(int p_eid)
 		} else {
 			switch (rq.type) {
 			case TIMER_create_req:
-				handle_create(eid, from, &rq);
+				handle_create(eid, from, &rq, cid);
 				break;
 
 			case TIMER_set_req:

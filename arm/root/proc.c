@@ -458,11 +458,9 @@ init_bundled_proc(char *name,
 
 	p_m_eid = endpoint_connect(main_eid);
 
-	cap_offer(p_m_eid);
-
 	log(LOG_INFO, "start bundled proc pid %i %s", *p_pid, name);
 
-	if (mesg(*p_eid, &rq, &rp) != OK) {
+	if (mesg_cap(*p_eid, &rq, &rp, &p_m_eid) != OK) {
 		exit(0x12);
 	}
 

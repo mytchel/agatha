@@ -6,22 +6,22 @@ int
 yield(void);
 
 int
-mesg_cap(int eid, void *rq, void *rp, int *gid, int *rid);
+mesg_cap(int eid, void *rq, void *rp, int *cid);
 
 int
 mesg(int eid, void *rq, void *rp);
 
 int
-recv_cap(int eid, int *pid, void *m, int *rid);
+recv_cap(int eid, int *pid, void *m, int *cid);
 
 int
 recv(int eid, int *pid, void *m);
 
 int
-reply_cap(int eid, int pid, void *recv, int *rid);
+reply_cap(int eid, int pid, void *m, int cid);
 
 int
-reply(int eid, int pid, void *recv);
+reply(int eid, int pid, void *m);
 
 int
 signal(int eid, uint32_t s);
@@ -37,13 +37,6 @@ intr_connect(int iid, int eid, uint32_t signal);
 
 int
 intr_ack(int iid);
-
-int
-cap_offer(int eid);
-
-int
-cap_accept(void);
-
 
 int
 pid(void);

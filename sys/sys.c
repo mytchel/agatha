@@ -12,10 +12,15 @@
 static cap_t caps[MAX_CAP] = { 0 };
 static size_t n_caps = 0;
 static cap_t *free_caps = nil;
-static size_t next_cap_id = 1;
 
 #define MAX_OBJ 32
 static obj_untyped_t objs[MAX_OBJ] = { 0 };
+
+int
+cap_offer(int cid);
+
+cap_t *
+cap_accept(void);
 
 cap_t *
 cap_create(proc_t *p)
@@ -35,7 +40,7 @@ cap_create(proc_t *p)
 	c = free_caps;
 	free_caps = c->next;
 
-	c->id = next_cap_id++;
+	c->id = ++p->next_cap_id;
 
 	c->next = p->caps;
 	p->caps = c;
@@ -43,7 +48,7 @@ cap_create(proc_t *p)
 	return c;
 }
 
-void *
+obj_untyped_t *
 obj_create(void)
 {
 	size_t i;
@@ -64,7 +69,7 @@ proc_endpoint_create(proc_t *p)
 	obj_endpoint_t *e;
 	cap_t *c;
 
-	e = obj_create();
+	e = (obj_endpoint_t *) obj_create();
 	if (e == nil) {
 		return nil;
 	}
@@ -124,7 +129,7 @@ proc_find_cap(proc_t *p, int cid)
 }
 
 bool
-endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m)
+endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m, int *cid)
 {
 	proc_t *p;
 
@@ -132,6 +137,7 @@ endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m)
 		((uint32_t *) m)[0] = e->signal;
 		e->signal = 0;
 		*pid = PID_SIGNAL;
+		if (cid != nil) *cid = 0;
 		return true;
 	}
 
@@ -147,6 +153,18 @@ endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m)
 				p->give.perm = 0;
 			}
 
+			if (cid != nil) {
+ 				cap_t *c = cap_accept();
+
+				if (c != nil) {
+					debug_info("%i recv got cap id %i\n", up->pid, *cid);
+					*cid = c->id;
+				} else {
+					debug_warn("%i recv didn't get cap\n", up->pid);
+					*cid = 0;
+				}
+			}
+
 			p->state = PROC_block_reply;
 			*pid = p->pid;
 			return true;
@@ -157,13 +175,13 @@ endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m)
 }
 
 cap_t *
-recv(cap_t *from, int *pid, uint8_t *m)
+recv(cap_t *from, int *pid, uint8_t *m, int *cid)
 {
 	cap_t *c;
 
 	while (true) {
 		if (from != nil) {
-			if (endpoint_get_pending((obj_endpoint_t *) from->obj, pid, m)) {
+			if (endpoint_get_pending((obj_endpoint_t *) from->obj, pid, m, cid)) {
 				return from;
 			}
 			
@@ -171,7 +189,7 @@ recv(cap_t *from, int *pid, uint8_t *m)
 		} else {
 			for (c = up->caps; c != nil; c = c->next) {
 				if ((c->perm & CAP_read) && c->obj->h.type == OBJ_endpoint) {
-					if (endpoint_get_pending((obj_endpoint_t *) c->obj, pid, m)) {
+					if (endpoint_get_pending((obj_endpoint_t *) c->obj, pid, m, cid)) {
 						return c;
 					}
 				}
@@ -188,7 +206,7 @@ recv(cap_t *from, int *pid, uint8_t *m)
 }
 
 int
-reply(obj_endpoint_t *e, int pid, uint8_t *m)
+reply(obj_endpoint_t *e, int pid, uint8_t *m, int cid)
 {
 	proc_t *p;
 
@@ -218,6 +236,11 @@ reply(obj_endpoint_t *e, int pid, uint8_t *m)
 
 	memcpy(p->m, m, MESSAGE_LEN);
 
+	if (cid != 0) {
+		debug_info("%i offer cap id %i\n", up->pid, cid);
+		cap_offer(cid);
+	}
+
 	if (up->give.obj != nil) {
 		p->take.obj = up->give.obj;
 		p->take.perm = up->give.perm;
@@ -233,7 +256,7 @@ reply(obj_endpoint_t *e, int pid, uint8_t *m)
 }
 
 int
-mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp)
+mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, int *cid)
 {
 	proc_t *p;
 
@@ -246,6 +269,11 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp)
 	}
 
 	memcpy(up->m, rq, MESSAGE_LEN);
+
+	if (cid != nil && *cid != 0) {
+		debug_info("%i offer cap id %i\n", up->pid, *cid);
+		cap_offer(*cid);
+	}
 
 	up->state = PROC_block_send;
 
@@ -272,6 +300,17 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp)
 	}
 
 	memcpy(rp, up->m, MESSAGE_LEN);
+
+	if (cid != nil) {
+		cap_t *c = cap_accept();
+		if (c != nil) {
+			debug_info("%i mesg got cap id %i\n", up->pid, *cid);
+			*cid = c->id;
+		} else {
+			debug_warn("%i mesg didn't get cap\n", up->pid);
+			*cid = 0;
+		}
+	}
 
 	return OK;
 }
@@ -305,16 +344,16 @@ signal(obj_endpoint_t *e, uint32_t s)
 }
 
 int
-sys_recv(int cid, int *pid, uint8_t *m)
+sys_recv(int from, int *pid, uint8_t *m, int *cid)
 {
 	cap_t *c;
 
 	debug_info("%i recv %i\n", up->pid, cid);
 
-	if (cid == EID_ANY) {
+	if (from == EID_ANY) {
 		c = nil;
 	} else {
-		c = proc_find_cap(up, cid);
+		c = proc_find_cap(up, from);
 		if (c == nil) {
 			return ERR;
 		} else if (!(c->perm & CAP_read) || c->obj->h.type != OBJ_endpoint) {
@@ -322,7 +361,7 @@ sys_recv(int cid, int *pid, uint8_t *m)
 		}
 	}
 
-	c = recv(c, pid, m);
+	c = recv(c, pid, m, cid);
 	if (c == nil) {
 		return ERR;
 	}
@@ -331,47 +370,47 @@ sys_recv(int cid, int *pid, uint8_t *m)
 }
 
 int
-sys_mesg(int cid, uint8_t *rq, uint8_t *rp)
+sys_mesg(int to, uint8_t *rq, uint8_t *rp, int *cid)
 {
 	cap_t *c;
 
-	debug_info("%i mesg %i\n", up->pid, cid);
+	debug_info("%i mesg %i\n", up->pid, to);
 
-	c = proc_find_cap(up, cid);
+	c = proc_find_cap(up, to);
 	if (c == nil) {
 		return ERR;
 	} else if (!(c->perm & CAP_write) || c->obj->h.type != OBJ_endpoint) {
 		return ERR;
 	}
 
-	return mesg((obj_endpoint_t *) c->obj, rq, rp);
+	return mesg((obj_endpoint_t *) c->obj, rq, rp, cid);
 }
 
 int
-sys_reply(int cid, int pid, uint8_t *m)
+sys_reply(int to, int pid, uint8_t *m, int cid, int test)
 {
 	cap_t *c;
 
-	debug_info("%i reply %i pid %i\n", up->pid, cid, pid);
+	debug_info("%i reply %i pid %i, give cap %i\n", up->pid, to, pid, cid);
 
-	c = proc_find_cap(up, cid);
+	c = proc_find_cap(up, to);
 	if (c == nil) {
 		return ERR;
 	} else if (!(c->perm & CAP_read) || c->obj->h.type != OBJ_endpoint) {
 		return ERR;
 	}
 
-	return reply((obj_endpoint_t *) c->obj, pid, m);
+	return reply((obj_endpoint_t *) c->obj, pid, m, cid);
 }
 
 int
-sys_signal(int cid, uint32_t s)
+sys_signal(int to, uint32_t s)
 {
 	cap_t *c;
 
-	debug_info("%i signal %i 0x%x\n", up->pid, cid, s);
+	debug_info("%i signal %i 0x%x\n", up->pid, to, s);
 
-	c = proc_find_cap(up, cid);
+	c = proc_find_cap(up, to);
 	if (c == nil) {
 		return ERR;
 	} else if (!(c->perm & CAP_write) || c->obj->h.type != OBJ_endpoint) {
@@ -381,8 +420,8 @@ sys_signal(int cid, uint32_t s)
 	return signal((obj_endpoint_t *) c->obj, s);
 }
 
-	size_t
-sys_cap_offer(int cid)
+int
+cap_offer(int cid)
 {
 	cap_t *c;
 
@@ -420,6 +459,12 @@ cap_accept(void)
 	up->take.obj = nil;
 
 	return c;
+}
+
+	size_t
+sys_cap_offer(int cid)
+{
+	return cap_offer(cid);
 }
 
 	size_t
@@ -487,7 +532,7 @@ sys_intr_create(int irqn)
 		return ERR;
 	}
 
-	i = obj_create();
+	i = (obj_intr_t *) obj_create();
 	if (i == nil) {
 		return ERR;
 	}

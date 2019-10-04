@@ -19,15 +19,15 @@ void
 __attribute__((noreturn))
 proc_start(void)
 {
-	cap_t *c, *c_main;
 	union proc_msg m;
 	label_t u = {0};
-	int pid;
+	int pid, c_main;
+	cap_t *c;
 
 	debug_info("proc %i starting\n", up->pid);
 
 	while (true) {
-		if ((c = recv(nil, &pid, (uint8_t *) &m)) == nil) {
+		if ((c = recv(nil, &pid, (uint8_t *) &m, &c_main)) == nil) {
 			continue;
 		} else if (pid == PID_SIGNAL) {
 			continue;
@@ -38,21 +38,15 @@ proc_start(void)
 
 	debug_info("got start, reply on cid %i\n", c->id);
 
-	c_main = cap_accept();
-
 	m.start.type = PROC_start_rsp;
 
-	reply((obj_endpoint_t *) c->obj, pid, (uint8_t *) &m);
+	reply((obj_endpoint_t *) c->obj, pid, (uint8_t *) &m, 0);
 
 	u.psr = MODE_USR;
 	u.pc = m.start.pc;
 	u.sp = m.start.sp;
 
-	if (c_main != nil) {
-		u.regs[0] = c_main->id;
-	} else {
-		u.regs[0] = -1;
-	}
+	u.regs[0] = c_main;
 
 	debug(DEBUG_INFO, "proc %i start with pc=0x%x sp=0x%x\n", 
 			up->pid, u.pc, u.sp);

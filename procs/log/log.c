@@ -201,12 +201,10 @@ main(int p_eid)
 	prq.get_resource.type = PROC0_get_resource_req;
 	prq.get_resource.resource_type = RESOURCE_type_serial;
 
-	mesg(parent_eid, &prq, &prp);
+	mesg_cap(parent_eid, &prq, &prp, &log_output_eid);
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
-
-	log_output_eid = cap_accept();
 
 	char *s = "log starting\n";
 	add_log(s, strlen(s));

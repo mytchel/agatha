@@ -249,16 +249,16 @@ main(int p_eid)
 #if 1
 	union proc0_req prq;
 	union proc0_rsp prp;
+	int timer_eid;
 
 	prq.get_resource.type = PROC0_get_resource_req;
 	prq.get_resource.resource_type = RESOURCE_type_timer;
 
-	mesg(parent_eid, &prq, &prp);
+	mesg_cap(parent_eid, &prq, &prp, &timer_eid);
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
 
-	int timer_eid = cap_accept();
 	if (timer_eid < 0) {
 		exit(ERR);
 	}
@@ -272,9 +272,8 @@ main(int p_eid)
 	rq.create.type = TIMER_create_req;
 	rq.create.signal = 0x111;
 
-	cap_offer(timer_leid);
-
-	mesg(timer_eid, &rq, &rp);
+	int t = timer_leid;
+	mesg_cap(timer_eid, &rq, &rp, &t);
 	if (rp.create.ret != OK) {
 		exit(ERR);
 	}

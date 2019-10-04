@@ -83,13 +83,16 @@ struct proc {
 	size_t vspace;
 
 	uint8_t m[MESSAGE_LEN];
+	int m_ret;
+
 	struct cap_transfer give;
 	struct cap_transfer take;
 
 	proc_t *wprev, *wnext;
 
 	obj_endpoint_t *recv_from;
-	
+
+	int next_cap_id;
 	cap_t *caps;
 };
 
@@ -112,22 +115,15 @@ void
 schedule(proc_t *next);
 
 
-void
-cap_offer(cap_t *c);
 
 cap_t *
-cap_accept(void);
-
-
-
-cap_t *
-recv(cap_t *from, int *pid, uint8_t *m);
+recv(cap_t *from, int *pid, uint8_t *m, int *cid);
 
 int
-reply(obj_endpoint_t *l, int pid, uint8_t *m);
+reply(obj_endpoint_t *l, int pid, uint8_t *m, int cid);
 
 int
-mesg(obj_endpoint_t *c, uint8_t *rq, uint8_t *rp);
+mesg(obj_endpoint_t *c, uint8_t *rq, uint8_t *rp, int *cid);
 
 int
 signal(obj_endpoint_t *c, uint32_t s);
