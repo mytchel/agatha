@@ -12,6 +12,7 @@ init_kernel_drivers();
 #define root_code_va    USER_ADDR
 
 static size_t va_next = 0;
+static size_t max_kernel_va;
 
 static uint32_t *kernel_l1;
 static uint32_t *kernel_l2;
@@ -126,6 +127,10 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 	va = va_next;
 	va_next += len;
 
+	if (va > max_kernel_va) {
+		panic("out of kernel mappings 0x%x > max 0x%x\n", va, max_kernel_va);
+	}
+
 	map_pages(kernel_l2, pa, va, len, ap, cache);
 
 	return (void *) (va + off);
@@ -145,6 +150,9 @@ main(struct kernel_info *info)
 	kernel_l1 = (uint32_t *) info->kernel.l1_va;
 	kernel_l2 = (uint32_t *) info->kernel.l2_va;
 
+	max_kernel_va = info->kernel_va + 
+		((info->kernel.l2_len / TABLE_SIZE) * TABLE_AREA);
+
 	va_next = info->kernel.l2_va + info->kernel.l2_len;
 
 	unmap_l2(kernel_l1,
@@ -156,6 +164,7 @@ main(struct kernel_info *info)
 	init_kernel_drivers();
 
 	debug(DEBUG_INFO, "kernel mapped at 0x%x\n", info->kernel_va);
+	debug(DEBUG_INFO, "max kernel va = 0x%x\n", max_kernel_va);
 	debug(DEBUG_INFO, "info mapped at   0x%x\n", info);
 	debug(DEBUG_INFO, "boot   0x%x 0x%x\n", info->boot_pa, info->boot_len);
 	debug(DEBUG_INFO, "kernel 0x%x 0x%x\n", info->kernel_pa, info->kernel_len);

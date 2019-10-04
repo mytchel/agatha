@@ -18,36 +18,10 @@ struct proc_list {
 	proc_t *head, *tail;
 };
 
-struct proc {
-	label_t label;
-
-	procstate_t state;
-	int pid;
-	
-	uint32_t kstack[KSTACK_LEN/sizeof(uint32_t)];
-
-	int priority;
-
-	int ts;
-	proc_list_t *list;		
-	proc_t *sprev, *snext;
-
-	size_t vspace;
-
-	uint8_t m[MESSAGE_LEN];
-	proc_t *wprev, *wnext;
-
-	endpoint_listen_t *recv_from;
-
-	capability_t *caps;
-	capability_t *offering;
-	capability_t *offered;
-};
-
 typedef enum {
-	CAP_endpoint_listen,
-	CAP_endpoint_connect,
-	CAP_interrupt,
+	CAP_recv,
+	CAP_send,
+	CAP_intr,
 } capability_type_t;
 
 struct endpoint_listen {
@@ -77,6 +51,55 @@ struct capability {
 		endpoint_connect_t connect;
 		interrupt_t interrupt;
 	} c;
+};
+/*
+struct object {
+	uint32_t type;
+	uint32_t size;
+	uint32_t refs;
+	uint8_t body[];
+};
+
+typedef enum {
+	CAP_endpoint,
+	CAP_intr,
+} cap_type_t;
+
+#define CAP_write  1
+#define CAP_read   2
+
+struct capability {
+	capability_t *next;
+	int id;
+	uint32_t permisions;
+	object_t *object;
+};
+*/
+struct proc {
+	label_t label;
+
+	procstate_t state;
+	int pid;
+	
+	uint32_t kstack[KSTACK_LEN/sizeof(uint32_t)];
+
+	int priority;
+
+	int ts;
+	proc_list_t *list;		
+	proc_t *sprev, *snext;
+
+	size_t vspace;
+
+	uint8_t m[MESSAGE_LEN];
+	capability_t give;
+	capability_t got;
+
+	proc_t *wprev, *wnext;
+
+	endpoint_listen_t *recv_from;
+	
+	capability_t *caps;
 };
 
 proc_t *
@@ -209,8 +232,11 @@ set_systick(size_t ticks);
 size_t
 systick_passed(void);
 
-capability_t *
-get_user_int_cap(size_t irqn);
+bool
+intr_cap_claim(size_t irqn);
+
+void
+intr_cap_connect(size_t irqn, endpoint_listen_t *e, uint32_t s);
 
 int
 irq_add_kernel(size_t irqn, void (*func)(size_t));

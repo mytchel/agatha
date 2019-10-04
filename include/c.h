@@ -6,10 +6,19 @@ int
 yield(void);
 
 int
+mesg_cap(int eid, void *rq, void *rp, int *gid, int *rid);
+
+int
 mesg(int eid, void *rq, void *rp);
 
 int
+recv_cap(int eid, int *pid, void *m, int *rid);
+
+int
 recv(int eid, int *pid, void *m);
+
+int
+reply_cap(int eid, int pid, void *recv, int *rid);
 
 int
 reply(int eid, int pid, void *recv);

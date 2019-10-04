@@ -49,7 +49,7 @@ proc_create_endpoint_listener(proc_t *p)
 		return nil;
 	}
 
-	c->type = CAP_endpoint_listen;
+	c->type = CAP_recv;
 	c->c.listen.holder = p;
 	c->c.listen.signal = 0;
 	c->c.listen.waiting.head = nil;
@@ -74,7 +74,7 @@ proc_create_endpoint_connect(proc_t *p, endpoint_listen_t *l)
 		return nil;
 	}
 
-	c->type = CAP_endpoint_connect;
+	c->type = CAP_send;
 	c->c.connect.other = l;
 
 	c->next = p->caps;
@@ -116,12 +116,12 @@ endpoint_get_pending(capability_t *c, int *pid, uint8_t *m)
 	for (p = l->waiting.head; p != nil; p = p->wnext) {
 		if (p->state == PROC_block_send) {
 			memcpy(m, p->m, MESSAGE_LEN);
-
+/*
 			if (p->offering != nil) {
 				up->offered = p->offering;
 				p->offering = nil;
 			}
-
+*/
 			p->state = PROC_block_reply;
 			*pid = p->pid;
 			return true;
@@ -136,10 +136,6 @@ recv(capability_t *from, int *pid, uint8_t *m)
 {
 	capability_t *c;
 
-	if (from != nil && from->type != CAP_endpoint_listen) {
-		return nil;
-	}
-
 	while (true) {
 		if (from != nil) {
 			if (endpoint_get_pending(from, pid, m)) {
@@ -149,7 +145,7 @@ recv(capability_t *from, int *pid, uint8_t *m)
 			up->recv_from = &from->c.listen;
 		} else {
 			for (c = up->caps; c != nil; c = c->next) {
-				if (c->type == CAP_endpoint_listen) {
+				if (c->type == CAP_recv) {
 					if (endpoint_get_pending(c, pid, m)) {
 						return c;
 					}
@@ -196,12 +192,12 @@ reply(endpoint_listen_t *l, int pid, uint8_t *m)
 	}
 
 	memcpy(p->m, m, MESSAGE_LEN);
-
+/*
 	if (up->offering != nil) {
 		p->offered = up->offering;
 		up->offering = nil;
 	}
-
+*/
 	proc_ready(p);
 	schedule(p);
 	
@@ -293,7 +289,7 @@ sys_recv(int cid, int *pid, uint8_t *m)
 		c = proc_find_capability(up, cid);
 		if (c == nil) {
 			return ERR;
-		} else if (c->type != CAP_endpoint_listen) {
+		} else if (c->type != CAP_recv) {
 			return ERR;
 		}
 	}
@@ -316,7 +312,7 @@ sys_mesg(int cid, uint8_t *rq, uint8_t *rp)
 	c = proc_find_capability(up, cid);
 	if (c == nil) {
 		return ERR;
-	} else if (c->type != CAP_endpoint_connect) {
+	} else if (c->type != CAP_send) {
 		return ERR;
 	}
 
@@ -333,7 +329,7 @@ sys_reply(int cid, int pid, uint8_t *m)
 	c = proc_find_capability(up, cid);
 	if (c == nil) {
 		return ERR;
-	} else if (c->type != CAP_endpoint_listen) {
+	} else if (c->type != CAP_recv) {
 		return ERR;
 	}
 
@@ -350,7 +346,7 @@ sys_signal(int cid, uint32_t s)
 	c = proc_find_capability(up, cid);
 	if (c == nil) {
 		return ERR;
-	} else if (c->type != CAP_endpoint_connect) {
+	} else if (c->type != CAP_send) {
 		return ERR;
 	}
 
@@ -360,6 +356,8 @@ sys_signal(int cid, uint32_t s)
 	size_t
 sys_cap_offer(int cid)
 {
+	return ERR;
+#if 0
 	capability_t **c, *n;
 
 	debug_info("proc %i wants to offer cid %i\n",
@@ -375,6 +373,21 @@ sys_cap_offer(int cid)
 		return ERR;
 	}
 
+	switch ((*c)->type) {
+	case CAP_recv:
+		return ERR;
+
+	case CAP_intr:
+		if ((*c)->c.interrupt.other != nil) {
+			return ERR;
+		}
+
+		break;
+
+	default:
+		break;
+	}
+
 	n = *c;
 	*c = n->next;
 
@@ -382,11 +395,14 @@ sys_cap_offer(int cid)
 	up->offering = n;
 	
 	return OK;
+#endif
 }
 
 capability_t *
 capability_accept(void)
 {
+	return nil;
+#if 0
 	capability_t *c;
 
 	c = up->offered;
@@ -401,6 +417,7 @@ capability_accept(void)
 	up->caps = c;
 
 	return c;
+#endif
 }
 
 	size_t
@@ -440,9 +457,9 @@ sys_endpoint_connect(int cid)
 		return ERR;
 	}
 	
-	if (c->type == CAP_endpoint_listen) {
+	if (c->type == CAP_recv) {
 		l = &c->c.listen;
-	} else if (c->type == CAP_endpoint_connect) {
+	} else if (c->type == CAP_send) {
 		l = c->c.connect.other;
 	} else {
 		return ERR;
@@ -463,14 +480,20 @@ sys_intr_create(int irqn)
 
 	if (up->pid != ROOT_PID) {
 		return ERR;
+	} else if (!intr_cap_claim(irqn)) {
+		return ERR;
 	}
 
-	c = get_user_int_cap(irqn);
+	c = capability_create();
 	if (c == nil) {
 		return ERR;
 	}
 
-	c->id = next_cap_id++;
+	c->type = CAP_intr;
+
+	c->c.interrupt.irqn = irqn;
+	c->c.interrupt.other = nil;
+	c->c.interrupt.signal = 0;
 
 	c->next = up->caps;
 	up->caps = c;
@@ -490,16 +513,18 @@ sys_intr_connect(int iid, int eid, uint32_t signal)
 
 	if (i == nil || e == nil) {
 		return ERR;
-	} else if (i->type != CAP_interrupt) {
+	} else if (i->type != CAP_intr) {
 		return ERR;
-	} else if (e->type != CAP_endpoint_listen) {
+	} else if (e->type != CAP_recv) {
 		return ERR;
 	}
 
 	i->c.interrupt.other = &e->c.listen;
 	i->c.interrupt.signal = signal;
 
-	irq_enable(i->c.interrupt.irqn);
+	intr_cap_connect(i->c.interrupt.irqn,
+		i->c.interrupt.other,
+		i->c.interrupt.signal);
 	
 	return OK;
 }
@@ -514,7 +539,7 @@ sys_intr_ack(int iid)
 	i = proc_find_capability(up, iid);
 	if (i == nil) {
 		return ERR;
-	} else if (i->type != CAP_interrupt) {
+	} else if (i->type != CAP_intr) {
 		return ERR;
 	}
 

@@ -10,34 +10,41 @@
 
 void (*kernel_handlers[nirq])(size_t) = { nil };
 
-capability_t user_handler[nirq] = { 0 };
+endpoint_listen_t *user_handler_e[nirq] = { nil };
+uint32_t user_handler_s[nirq] = { 0 };
 bool user_handler_given[nirq] = { false };
 
 static volatile struct gic_dst_regs *dregs;
 static volatile struct gic_cpu_regs *cregs;
 static volatile struct cortex_a9_pt_wd_regs *pt_regs;
 
-capability_t *
-get_user_int_cap(size_t irqn)
+bool
+intr_cap_claim(size_t i)
 {
-	capability_t *c;
-	interrupt_t *i;
-
-	if (user_handler_given[irqn]) {
-		return nil;
+	if (user_handler_given[i]) {
+		return false;
 	}
 
-	user_handler_given[irqn] = true;
+	user_handler_given[i] = true;
+	return true;
+}
 
-	c = &user_handler[irqn];
+void
+intr_cap_connect(size_t i, endpoint_listen_t *e, uint32_t s)
+{
+	user_handler_e[i] = e;
+	user_handler_s[i] = s;
 
-	c->type = CAP_interrupt;
-	c->id = irqn; /* Just set it to this for now. */
+	irq_enable(i);
+}
 
-	i = &c->c.interrupt;
-	i->irqn = irqn;
+void
+irq_cap_disconnect(size_t i)
+{
+	user_handler_e[i] = nil;
+	user_handler_s[i] = 0;
 
-	return &user_handler[irqn];
+	irq_disable(i);
 }
 
 	void
@@ -109,12 +116,11 @@ irq_handler(void)
 		debug_sched("kernel int %i\n", irqn);
 		kernel_handlers[irqn](irqn);
 
-	} else if (user_handler[irqn].c.interrupt.other != nil) {
+	} else if (user_handler_e[irqn] != nil) {
 
 		debug_warn("signaling for int %i\n", irqn);
 
-		signal(user_handler[irqn].c.interrupt.other,
-			user_handler[irqn].c.interrupt.signal);
+		signal(user_handler_e[irqn], user_handler_s[irqn]);
 
 	} else {
 		debug_info("got unhandled interrupt %i!\n", irqn);
