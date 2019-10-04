@@ -10,7 +10,7 @@
 
 void (*kernel_handlers[nirq])(size_t) = { nil };
 
-endpoint_listen_t *user_handler_e[nirq] = { nil };
+obj_endpoint_t *user_handler_e[nirq] = { nil };
 uint32_t user_handler_s[nirq] = { 0 };
 bool user_handler_given[nirq] = { false };
 
@@ -30,7 +30,7 @@ intr_cap_claim(size_t i)
 }
 
 void
-intr_cap_connect(size_t i, endpoint_listen_t *e, uint32_t s)
+intr_cap_connect(size_t i, obj_endpoint_t *e, uint32_t s)
 {
 	user_handler_e[i] = e;
 	user_handler_s[i] = s;

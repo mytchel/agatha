@@ -8,73 +8,64 @@
 
 typedef struct proc proc_t;
 typedef struct proc_list proc_list_t;
-typedef struct capability capability_t;
 
-typedef struct endpoint_listen endpoint_listen_t;
-typedef struct endpoint_connect endpoint_connect_t;
-typedef struct interrupt interrupt_t;
+typedef struct cap cap_t;
+typedef union obj_untyped obj_untyped_t;
+typedef struct obj_endpoint obj_endpoint_t;
+typedef struct obj_intr obj_intr_t;
 
 struct proc_list {
 	proc_t *head, *tail;
 };
 
 typedef enum {
-	CAP_recv,
-	CAP_send,
-	CAP_intr,
-} capability_type_t;
+	OBJ_untyped = 0,
+	OBJ_endpoint,
+	OBJ_intr,
+} obj_type_t;
 
-struct endpoint_listen {
+struct obj_head {
+	size_t refs;
+	obj_type_t type;
+};
+
+struct obj_endpoint {
+	struct obj_head h;
+
 	proc_t *holder;
 	uint32_t signal;
 	proc_list_t waiting;
 };
 
-struct endpoint_connect {
-	endpoint_listen_t *other;
-};
+struct obj_intr {
+	struct obj_head h;
 
-struct interrupt {
 	size_t irqn;
-	endpoint_listen_t *other;
+	obj_endpoint_t *end;
 	uint32_t signal;
 };
 
-struct capability {
-	capability_t *next;
-	int id;
-
-	capability_type_t type;
-
-	union {
-		endpoint_listen_t listen;
-		endpoint_connect_t connect;
-		interrupt_t interrupt;
-	} c;
+union obj_untyped {
+	struct obj_head h;
+	obj_endpoint_t endpoint;
+	obj_intr_t intr;
 };
-/*
-struct object {
-	uint32_t type;
-	uint32_t size;
-	uint32_t refs;
-	uint8_t body[];
-};
-
-typedef enum {
-	CAP_endpoint,
-	CAP_intr,
-} cap_type_t;
 
 #define CAP_write  1
 #define CAP_read   2
 
-struct capability {
-	capability_t *next;
+struct cap {
+	cap_t *next;
 	int id;
-	uint32_t permisions;
-	object_t *object;
+	uint32_t perm;
+	obj_untyped_t *obj;
 };
-*/
+
+struct cap_transfer {
+	uint32_t perm;
+	obj_untyped_t *obj;
+};
+
 struct proc {
 	label_t label;
 
@@ -92,14 +83,14 @@ struct proc {
 	size_t vspace;
 
 	uint8_t m[MESSAGE_LEN];
-	capability_t give;
-	capability_t got;
+	struct cap_transfer give;
+	struct cap_transfer take;
 
 	proc_t *wprev, *wnext;
 
-	endpoint_listen_t *recv_from;
+	obj_endpoint_t *recv_from;
 	
-	capability_t *caps;
+	cap_t *caps;
 };
 
 proc_t *
@@ -122,24 +113,24 @@ schedule(proc_t *next);
 
 
 void
-capability_offer(capability_t *c);
+cap_offer(cap_t *c);
 
-capability_t *
-capability_accept(void);
+cap_t *
+cap_accept(void);
 
 
 
-capability_t *
-recv(capability_t *from, int *pid, uint8_t *m);
-
-int
-reply(endpoint_listen_t *l, int pid, uint8_t *m);
+cap_t *
+recv(cap_t *from, int *pid, uint8_t *m);
 
 int
-mesg(endpoint_listen_t *c, uint8_t *rq, uint8_t *rp);
+reply(obj_endpoint_t *l, int pid, uint8_t *m);
 
 int
-signal(endpoint_listen_t *c, uint32_t s);
+mesg(obj_endpoint_t *c, uint8_t *rq, uint8_t *rp);
+
+int
+signal(obj_endpoint_t *c, uint32_t s);
 
 
 
@@ -236,7 +227,7 @@ bool
 intr_cap_claim(size_t irqn);
 
 void
-intr_cap_connect(size_t irqn, endpoint_listen_t *e, uint32_t s);
+intr_cap_connect(size_t irqn, obj_endpoint_t *e, uint32_t s);
 
 int
 irq_add_kernel(size_t irqn, void (*func)(size_t));

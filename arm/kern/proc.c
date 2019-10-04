@@ -19,7 +19,7 @@ void
 __attribute__((noreturn))
 proc_start(void)
 {
-	capability_t *c, *c_main;
+	cap_t *c, *c_main;
 	union proc_msg m;
 	label_t u = {0};
 	int pid;
@@ -38,11 +38,11 @@ proc_start(void)
 
 	debug_info("got start, reply on cid %i\n", c->id);
 
-	c_main = capability_accept();
+	c_main = cap_accept();
 
 	m.start.type = PROC_start_rsp;
 
-	reply(&c->c.listen, pid, (uint8_t *) &m);
+	reply((obj_endpoint_t *) c->obj, pid, (uint8_t *) &m);
 
 	u.psr = MODE_USR;
 	u.pc = m.start.pc;

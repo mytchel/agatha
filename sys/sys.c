@@ -8,19 +8,22 @@
 
    */
 
-#define MAX_CAPS 32
-static capability_t caps[MAX_CAPS] = { 0 };
+#define MAX_CAP 64
+static cap_t caps[MAX_CAP] = { 0 };
 static size_t n_caps = 0;
-static capability_t *free_caps = nil;
+static cap_t *free_caps = nil;
 static size_t next_cap_id = 1;
 
-capability_t *
-capability_create(void)
+#define MAX_OBJ 32
+static obj_untyped_t objs[MAX_OBJ] = { 0 };
+
+cap_t *
+cap_create(proc_t *p)
 {
-	capability_t *c;
+	cap_t *c;
 
 	if (free_caps == nil) {
-		if (n_caps < MAX_CAPS) {
+		if (n_caps < MAX_CAP) {
 			free_caps= &caps[n_caps++];
 			free_caps->next = nil;
 		} else {
@@ -34,62 +37,82 @@ capability_create(void)
 
 	c->id = next_cap_id++;
 
-	c->next = nil;
+	c->next = p->caps;
+	p->caps = c;
 
 	return c;
 }
 
-capability_t *
-proc_create_endpoint_listener(proc_t *p)
+void *
+obj_create(void)
 {
-	capability_t *c;
+	size_t i;
 
-	c = capability_create();
+	for (i = 0; i < MAX_OBJ; i++) {
+		if (objs[i].h.type == OBJ_untyped) {
+			return (void *) &objs[i];
+		}
+	}
+
+	debug_warn("out of objs!\n");
+	return nil;
+}
+
+cap_t *
+proc_endpoint_create(proc_t *p)
+{
+	obj_endpoint_t *e;
+	cap_t *c;
+
+	e = obj_create();
+	if (e == nil) {
+		return nil;
+	}
+
+	c = cap_create(p);
 	if (c == nil) {
 		return nil;
 	}
 
-	c->type = CAP_recv;
-	c->c.listen.holder = p;
-	c->c.listen.signal = 0;
-	c->c.listen.waiting.head = nil;
-	c->c.listen.waiting.tail = nil;
+	e->h.refs = 1;
+	e->h.type = OBJ_endpoint;
 
-	c->next = p->caps;
-	p->caps = c;
+	e->holder = p;
+	e->signal = 0;
+	e->waiting.head = nil;
+	e->waiting.tail = nil;
 
-	debug_info("proc %i making listener endpoint %i\n",
-		p->pid, c->id);
+	c->perm = CAP_read;
+	c->obj = (obj_untyped_t *) e;
+
+	debug_info("proc %i making endpoint 0x%x, cap %i\n", p->pid, e, c->id);
 
 	return c;
 }
 
-capability_t *
-proc_create_endpoint_connect(proc_t *p, endpoint_listen_t *l)
+cap_t *
+proc_endpoint_connect(proc_t *p, obj_endpoint_t *e)
 {
-	capability_t *c;
+	cap_t *c;
 
-	c = capability_create();
+	c = cap_create(p);
 	if (c == nil) {
 		return nil;
 	}
 
-	c->type = CAP_send;
-	c->c.connect.other = l;
+	c->perm = CAP_write;
+	c->obj = (obj_untyped_t *) e;
 
-	c->next = p->caps;
-	p->caps = c;
-
-	debug_info("making connect eid %i to proc %i\n",
-		c->id, l->holder->pid);
+	debug_info("proc %i connect endpoint 0x%x, cap %i\n",
+		p->pid, e, c->id);
 
 	return c;
 }
 
-capability_t *
-proc_find_capability(proc_t *p, int cid)
+cap_t *
+proc_find_cap(proc_t *p, int cid)
 {
-	capability_t *c;
+	cap_t *c;
 
 	for (c = p->caps; c != nil; c = c->next) {
 		if (c->id == cid) {
@@ -101,27 +124,29 @@ proc_find_capability(proc_t *p, int cid)
 }
 
 bool
-endpoint_get_pending(capability_t *c, int *pid, uint8_t *m)
+endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m)
 {
-	endpoint_listen_t *l = &c->c.listen;
 	proc_t *p;
 
-	if (l->signal != 0) {
-		((uint32_t *) m)[0] = l->signal;
-		l->signal = 0;
+	if (e->signal != 0) {
+		((uint32_t *) m)[0] = e->signal;
+		e->signal = 0;
 		*pid = PID_SIGNAL;
 		return true;
 	}
 
-	for (p = l->waiting.head; p != nil; p = p->wnext) {
+	for (p = e->waiting.head; p != nil; p = p->wnext) {
 		if (p->state == PROC_block_send) {
 			memcpy(m, p->m, MESSAGE_LEN);
-/*
-			if (p->offering != nil) {
-				up->offered = p->offering;
-				p->offering = nil;
+
+			if (p->give.obj != nil) {
+				up->take.obj = p->give.obj;
+				up->take.perm = p->give.perm;
+
+				p->give.obj = 0;
+				p->give.perm = 0;
 			}
-*/
+
 			p->state = PROC_block_reply;
 			*pid = p->pid;
 			return true;
@@ -131,22 +156,22 @@ endpoint_get_pending(capability_t *c, int *pid, uint8_t *m)
 	return false;
 }
 
-capability_t *
-recv(capability_t *from, int *pid, uint8_t *m)
+cap_t *
+recv(cap_t *from, int *pid, uint8_t *m)
 {
-	capability_t *c;
+	cap_t *c;
 
 	while (true) {
 		if (from != nil) {
-			if (endpoint_get_pending(from, pid, m)) {
+			if (endpoint_get_pending((obj_endpoint_t *) from->obj, pid, m)) {
 				return from;
 			}
 			
-			up->recv_from = &from->c.listen;
+			up->recv_from = (obj_endpoint_t *) from->obj;
 		} else {
 			for (c = up->caps; c != nil; c = c->next) {
-				if (c->type == CAP_recv) {
-					if (endpoint_get_pending(c, pid, m)) {
+				if ((c->perm & CAP_read) && c->obj->h.type == OBJ_endpoint) {
+					if (endpoint_get_pending((obj_endpoint_t *) c->obj, pid, m)) {
 						return c;
 					}
 				}
@@ -163,11 +188,11 @@ recv(capability_t *from, int *pid, uint8_t *m)
 }
 
 int
-reply(endpoint_listen_t *l, int pid, uint8_t *m)
+reply(obj_endpoint_t *e, int pid, uint8_t *m)
 {
 	proc_t *p;
 
-	for (p = l->waiting.head; p != nil; p = p->wnext) {
+	for (p = e->waiting.head; p != nil; p = p->wnext) {
 		if (p->state == PROC_block_reply && p->pid == pid) {
 			break;
 		}
@@ -182,22 +207,25 @@ reply(endpoint_listen_t *l, int pid, uint8_t *m)
 	if (p->wprev != nil) {
 		p->wprev->wnext = p->wnext;
 	} else {
-		l->waiting.head = p->wnext;
+		e->waiting.head = p->wnext;
 	}
 
 	if (p->wnext != nil) {
 		p->wnext->wprev = p->wprev;
 	} else {
-		l->waiting.tail = p->wprev;
+		e->waiting.tail = p->wprev;
 	}
 
 	memcpy(p->m, m, MESSAGE_LEN);
-/*
-	if (up->offering != nil) {
-		p->offered = up->offering;
-		up->offering = nil;
+
+	if (up->give.obj != nil) {
+		p->take.obj = up->give.obj;
+		p->take.perm = up->give.perm;
+
+		up->give.obj = 0;
+		up->give.perm = 0;
 	}
-*/
+
 	proc_ready(p);
 	schedule(p);
 	
@@ -205,11 +233,11 @@ reply(endpoint_listen_t *l, int pid, uint8_t *m)
 }
 
 int
-mesg(endpoint_listen_t *l, uint8_t *rq, uint8_t *rp)
+mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp)
 {
 	proc_t *p;
 
-	p = l->holder;
+	p = e->holder;
 
 	if (p->state == PROC_free || p->state == PROC_fault) {
 		debug_warn("endpoint holder %i in bad state %i\n", 
@@ -221,18 +249,18 @@ mesg(endpoint_listen_t *l, uint8_t *rq, uint8_t *rp)
 
 	up->state = PROC_block_send;
 
-	up->wprev = l->waiting.tail;
+	up->wprev = e->waiting.tail;
 	if (up->wprev != nil) {
 		up->wprev->wnext = up;
 	} else {
-		l->waiting.head = up;
+		e->waiting.head = up;
 	}
 
 	up->wnext = nil;
-	l->waiting.tail = up;
+	e->waiting.tail = up;
 
 	if (p->state == PROC_block_recv 
-		&& (p->recv_from == nil || p->recv_from == l))
+		&& (p->recv_from == nil || p->recv_from == e))
 	{
 		debug_info("wake %i\n", p->pid);
 		proc_ready(p);
@@ -249,13 +277,13 @@ mesg(endpoint_listen_t *l, uint8_t *rq, uint8_t *rp)
 }
 
 int
-signal(endpoint_listen_t *l, uint32_t s)
+signal(obj_endpoint_t *e, uint32_t s)
 {
 	proc_t *p;
 
-	p = l->holder;
+	p = e->holder;
 
-	l->signal |= s;
+	e->signal |= s;
 
 	if (p->state == PROC_free || p->state == PROC_fault) {
 		debug_warn("endpoint holder %i in bad state %i\n", 
@@ -264,7 +292,7 @@ signal(endpoint_listen_t *l, uint32_t s)
 	}
 
 	if (p->state == PROC_block_recv 
-		&& (p->recv_from == nil || p->recv_from == l))
+		&& (p->recv_from == nil || p->recv_from == e))
 	{
 		debug_warn("wake proc %i\n", p->pid);
 		proc_ready(p);
@@ -279,17 +307,17 @@ signal(endpoint_listen_t *l, uint32_t s)
 int
 sys_recv(int cid, int *pid, uint8_t *m)
 {
-	capability_t *c;
+	cap_t *c;
 
 	debug_info("%i recv %i\n", up->pid, cid);
 
 	if (cid == EID_ANY) {
 		c = nil;
 	} else {
-		c = proc_find_capability(up, cid);
+		c = proc_find_cap(up, cid);
 		if (c == nil) {
 			return ERR;
-		} else if (c->type != CAP_recv) {
+		} else if (!(c->perm & CAP_read) || c->obj->h.type != OBJ_endpoint) {
 			return ERR;
 		}
 	}
@@ -305,127 +333,103 @@ sys_recv(int cid, int *pid, uint8_t *m)
 int
 sys_mesg(int cid, uint8_t *rq, uint8_t *rp)
 {
-	capability_t *c;
+	cap_t *c;
 
 	debug_info("%i mesg %i\n", up->pid, cid);
 
-	c = proc_find_capability(up, cid);
+	c = proc_find_cap(up, cid);
 	if (c == nil) {
 		return ERR;
-	} else if (c->type != CAP_send) {
+	} else if (!(c->perm & CAP_write) || c->obj->h.type != OBJ_endpoint) {
 		return ERR;
 	}
 
-	return mesg(c->c.connect.other, rq, rp);
+	return mesg((obj_endpoint_t *) c->obj, rq, rp);
 }
 
 int
 sys_reply(int cid, int pid, uint8_t *m)
 {
-	capability_t *c;
+	cap_t *c;
 
 	debug_info("%i reply %i pid %i\n", up->pid, cid, pid);
 
-	c = proc_find_capability(up, cid);
+	c = proc_find_cap(up, cid);
 	if (c == nil) {
 		return ERR;
-	} else if (c->type != CAP_recv) {
+	} else if (!(c->perm & CAP_read) || c->obj->h.type != OBJ_endpoint) {
 		return ERR;
 	}
 
-	return reply(&c->c.listen, pid, m);
+	return reply((obj_endpoint_t *) c->obj, pid, m);
 }
 
 int
 sys_signal(int cid, uint32_t s)
 {
-	capability_t *c;
+	cap_t *c;
 
 	debug_info("%i signal %i 0x%x\n", up->pid, cid, s);
 
-	c = proc_find_capability(up, cid);
+	c = proc_find_cap(up, cid);
 	if (c == nil) {
 		return ERR;
-	} else if (c->type != CAP_send) {
+	} else if (!(c->perm & CAP_write) || c->obj->h.type != OBJ_endpoint) {
 		return ERR;
 	}
 
-	return signal(c->c.connect.other, s);
+	return signal((obj_endpoint_t *) c->obj, s);
 }
 
 	size_t
 sys_cap_offer(int cid)
 {
-	return ERR;
-#if 0
-	capability_t **c, *n;
+	cap_t *c;
 
-	debug_info("proc %i wants to offer cid %i\n",
-		up->pid, cid);
-
-	for (c = &up->caps; *c != nil; c = &(*c)->next) {
-		if ((*c)->id == cid) {
-			break;
-		}
-	}
-
-	if (*c == nil) {
+	c = proc_find_cap(up, cid);
+	if (c == nil) {
 		return ERR;
 	}
-
-	switch ((*c)->type) {
-	case CAP_recv:
-		return ERR;
-
-	case CAP_intr:
-		if ((*c)->c.interrupt.other != nil) {
-			return ERR;
-		}
-
-		break;
-
-	default:
-		break;
-	}
-
-	n = *c;
-	*c = n->next;
-
-	n->next = up->offering;
-	up->offering = n;
 	
+	debug_info("%i offer obj 0x%x\n", up->pid, c->obj);
+
+	up->give.perm = c->perm;
+	up->give.obj = c->obj;
+
 	return OK;
-#endif
 }
 
-capability_t *
-capability_accept(void)
+cap_t *
+cap_accept(void)
 {
-	return nil;
-#if 0
-	capability_t *c;
+	cap_t *c;
 
-	c = up->offered;
+	if (up->take.obj == nil) {
+		return nil;
+	}
 
+	c = cap_create(up);
 	if (c == nil) {
 		return nil;
 	}
-	
-	up->offered = c->next;
 
-	c->next = up->caps;
-	up->caps = c;
+	c->perm = up->take.perm;
+	c->obj = up->take.obj;
+
+	up->take.perm = 0;
+	up->take.obj = nil;
 
 	return c;
-#endif
 }
 
 	size_t
 sys_cap_accept(void)
 {
-	capability_t *c;
+	cap_t *c;
 
-	c = capability_accept();
+	debug_info("%i accept obj 0x%x\n", up->pid, up->take.obj);
+
+	c = cap_accept();
 	if (c == nil) {
 		return ERR;
 	}
@@ -436,12 +440,14 @@ sys_cap_accept(void)
 	size_t
 sys_endpoint_create(void)
 {
-	capability_t *c;
+	cap_t *c;
 
-	c = proc_create_endpoint_listener(up);
+	c = proc_endpoint_create(up);
 	if (c == nil) {
 		return ERR;
 	}
+
+	debug_info("%i create endpoint obj 0x%x, cap id %i\n", up->pid, c->obj, c->id);
 
 	return c->id;
 }
@@ -449,26 +455,24 @@ sys_endpoint_create(void)
 	size_t
 sys_endpoint_connect(int cid)
 {
-	capability_t *c, *n;
-	endpoint_listen_t *l;
+	obj_endpoint_t *l;
+	cap_t *c, *n;
 
-	c = proc_find_capability(up, cid);
+	c = proc_find_cap(up, cid);
 	if (c == nil) {
 		return ERR;
-	}
-	
-	if (c->type == CAP_recv) {
-		l = &c->c.listen;
-	} else if (c->type == CAP_send) {
-		l = c->c.connect.other;
-	} else {
+	} else if (c->obj->h.type != OBJ_endpoint) {
 		return ERR;
+	} else {
+		l = (obj_endpoint_t *) c->obj;
 	}
 
-	n = proc_create_endpoint_connect(up, l);
+	n = proc_endpoint_connect(up, l);
 	if (n == nil) {
 		return ERR;
 	}
+	
+	debug_info("%i connect endpoint obj 0x%x, cap id %i\n", up->pid, c->obj, n->id);
 
 	return n->id;
 }
@@ -476,27 +480,40 @@ sys_endpoint_connect(int cid)
 	size_t
 sys_intr_create(int irqn)
 {
-	capability_t *c;
+	obj_intr_t *i;
+	cap_t *c;
 
 	if (up->pid != ROOT_PID) {
 		return ERR;
-	} else if (!intr_cap_claim(irqn)) {
+	}
+
+	i = obj_create();
+	if (i == nil) {
 		return ERR;
 	}
 
-	c = capability_create();
+	c = cap_create(up);
 	if (c == nil) {
 		return ERR;
 	}
 
-	c->type = CAP_intr;
+	if (!intr_cap_claim(irqn)) {
+		debug_warn("intr cap claim failed, TODO free resources\n");
+		return ERR;
+	}
 
-	c->c.interrupt.irqn = irqn;
-	c->c.interrupt.other = nil;
-	c->c.interrupt.signal = 0;
+	i->h.refs = 1;
+	i->h.type = OBJ_intr;
 
-	c->next = up->caps;
-	up->caps = c;
+	i->irqn = irqn;
+	i->end = nil;
+	i->signal = 0;
+
+	c->perm = CAP_write;
+	c->obj = (obj_untyped_t *) i;
+
+	debug_info("%i create intr obj 0x%x, cap id %i irqn %i\n", 
+		up->pid, c->obj, c->id, irqn);
 
 	return c->id;
 }
@@ -504,27 +521,31 @@ sys_intr_create(int irqn)
 	size_t
 sys_intr_connect(int iid, int eid, uint32_t signal)
 {
-	capability_t *i, *e;
+	obj_endpoint_t *oe;
+	obj_intr_t *oi;
+	cap_t *i, *e;
 
 	debug_info("%i intr connect %i to %i\n", up->pid, iid, eid);
 
-	i = proc_find_capability(up, iid);
-	e = proc_find_capability(up, eid);
+	i = proc_find_cap(up, iid);
+	e = proc_find_cap(up, eid);
 
 	if (i == nil || e == nil) {
 		return ERR;
-	} else if (i->type != CAP_intr) {
+	} else if (i->obj->h.type != OBJ_intr) {
 		return ERR;
-	} else if (e->type != CAP_recv) {
+	} else if (e->obj->h.type != OBJ_endpoint || !(e->perm & CAP_read)) {
 		return ERR;
 	}
 
-	i->c.interrupt.other = &e->c.listen;
-	i->c.interrupt.signal = signal;
+	oi = (obj_intr_t *) i->obj;
+	oe = (obj_endpoint_t *) e->obj;
 
-	intr_cap_connect(i->c.interrupt.irqn,
-		i->c.interrupt.other,
-		i->c.interrupt.signal);
+	oi->end = oe;
+	oi->signal = signal;
+
+	intr_cap_connect(oi->irqn,
+		oi->end, oi->signal);
 	
 	return OK;
 }
@@ -532,18 +553,21 @@ sys_intr_connect(int iid, int eid, uint32_t signal)
 	size_t
 sys_intr_ack(int iid)
 {
-	capability_t *i;
+	obj_intr_t *i;
+	cap_t *c;
 
 	debug_info("%i intr ack %i\n", up->pid, iid);
 
-	i = proc_find_capability(up, iid);
-	if (i == nil) {
+	c = proc_find_cap(up, iid);
+	if (c == nil) {
 		return ERR;
-	} else if (i->type != CAP_intr) {
+	} else if (c->obj->h.type != OBJ_intr) {
 		return ERR;
 	}
 
-	irq_ack(i->c.interrupt.irqn);
+	i = (obj_intr_t *) c->obj;
+
+	irq_ack(i->irqn);
 
 	return OK;
 }
@@ -590,7 +614,7 @@ sys_exit(uint32_t code)
 	size_t
 sys_proc_new(size_t vspace, int priority, int *p_id, int *e_id)
 {
-	capability_t *m, *e;
+	cap_t *m, *e;
 	proc_t *p;
 
 	debug_info("%i proc new\n", up->pid);
@@ -601,12 +625,12 @@ sys_proc_new(size_t vspace, int priority, int *p_id, int *e_id)
 		return ERR;
 	}
 
-	m = proc_create_endpoint_listener(p);
+	m = proc_endpoint_create(p);
 	if (m == nil) {
 		return ERR;
 	}
 
-	e = proc_create_endpoint_connect(up, &m->c.listen);
+	e = proc_endpoint_connect(up, (obj_endpoint_t *) m->obj);
 	if (e == nil) {
 		return ERR;
 	}
