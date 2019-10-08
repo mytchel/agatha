@@ -10,18 +10,31 @@ typedef struct proc proc_t;
 typedef struct proc_list proc_list_t;
 
 typedef struct cap cap_t;
-typedef union obj_untyped obj_untyped_t;
+typedef struct obj_untyped obj_untyped_t;
 typedef struct obj_endpoint obj_endpoint_t;
+typedef struct obj_caplist obj_caplist_t;
 typedef struct obj_intr obj_intr_t;
 
 struct proc_list {
 	proc_t *head, *tail;
 };
 
+#define CAP_write  1
+#define CAP_read   2
+
+struct cap {
+	cap_t *prev, *next;
+	int id;
+	uint32_t perm;
+	obj_untyped_t *obj;
+};
+
 typedef enum {
 	OBJ_untyped = 0,
 	OBJ_endpoint,
+	OBJ_caplist,
 	OBJ_intr,
+	OBJ_type_n,
 } obj_type_t;
 
 struct obj_head {
@@ -45,20 +58,18 @@ struct obj_intr {
 	uint32_t signal;
 };
 
-union obj_untyped {
+struct obj_caplist {
 	struct obj_head h;
-	obj_endpoint_t endpoint;
-	obj_intr_t intr;
+
+	size_t n;
+	cap_t caps[];
 };
 
-#define CAP_write  1
-#define CAP_read   2
-
-struct cap {
-	cap_t *prev, *next;
-	int id;
-	uint32_t perm;
-	obj_untyped_t *obj;
+struct obj_untyped {
+	struct obj_head h;
+	size_t len;
+	size_t used;
+	uint8_t body[];
 };
 
 struct proc {
@@ -123,6 +134,8 @@ int
 signal(obj_endpoint_t *c, uint32_t s);
 
 
+
+#define align(x, a) (((x) + a - 1) & (~(a-1)))
 
 void
 memcpy(void *dst, const void *src, size_t len);
@@ -190,8 +203,28 @@ cap_add(proc_t *p, cap_t *c);
 void
 cap_remove(proc_t *p, cap_t *c);
 
-obj_untyped_t *
-obj_create(void);
+
+size_t
+obj_untyped_size(size_t n);
+
+size_t
+obj_endpoint_size(size_t n);
+
+size_t
+obj_caplist_size(size_t n);
+
+extern size_t (*obj_size_funcs[OBJ_type_n])(size_t n);
+
+void
+obj_untyped_init(proc_t *p, void *o, size_t n);
+
+void
+obj_endpoint_init(proc_t *p, void *o, size_t n);
+
+void
+obj_caplist_init(proc_t *p, void *o, size_t n);
+
+extern void (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n);
 
 cap_t *
 proc_find_cap(proc_t *p, int cid);
@@ -268,6 +301,12 @@ set_systick(size_t ticks);
 
 size_t
 systick_passed(void);
+
+void *
+kernel_map(size_t pa, size_t len, bool cache);
+
+void
+kernel_unmap(void *addr, size_t len);
 
 extern proc_t *up;
 

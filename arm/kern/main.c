@@ -38,12 +38,10 @@ init_root(struct kernel_info *info)
 
 	l1 = kernel_map(info->root.l1_pa,
 			info->root.l1_len,
-			AP_RW_RW,
 			false);
 
 	l2 = kernel_map(info->root.l2_pa,
 			info->root.l2_len,
-			AP_RW_RW,
 			false);
 
 	memcpy(l1,
@@ -116,7 +114,7 @@ init_root(struct kernel_info *info)
 /* TODO: these don't do much */
 
 	void *
-kernel_map(size_t pa, size_t len, int ap, bool cache)
+kernel_map(size_t pa, size_t len, bool cache)
 {
 	size_t va, off;
 
@@ -131,7 +129,7 @@ kernel_map(size_t pa, size_t len, int ap, bool cache)
 		panic("out of kernel mappings 0x%x > max 0x%x\n", va, max_kernel_va);
 	}
 
-	map_pages(kernel_l2, pa, va, len, ap, cache);
+	map_pages(kernel_l2, pa, va, len, AP_RW_NO, cache);
 
 	return (void *) (va + off);
 }

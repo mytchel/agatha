@@ -34,7 +34,7 @@ void
 init_devs(void);
 
 void *
-kernel_map(size_t pa, size_t len, int ap, bool cache);
+kernel_map(size_t pa, size_t len, bool cache);
 
 void
 kernel_unmap(void *va, size_t len);

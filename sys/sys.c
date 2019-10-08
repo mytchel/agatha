@@ -13,9 +13,6 @@ static cap_t caps[MAX_CAP] = { 0 };
 static size_t n_caps = 0;
 static cap_t *free_caps = nil;
 
-#define MAX_OBJ 32
-static obj_untyped_t objs[MAX_OBJ] = { 0 };
-
 cap_t *
 cap_create(proc_t *p)
 {
@@ -77,53 +74,136 @@ cap_remove(proc_t *p, cap_t *c)
 		c->next->prev = c->prev;
 }
 
-obj_untyped_t *
-obj_create(void)
+size_t
+sys_obj_create(size_t pa, size_t len)
 {
-	size_t i;
-
-	for (i = 0; i < MAX_OBJ; i++) {
-		if (objs[i].h.type == OBJ_untyped) {
-			return (void *) &objs[i];
-		}
-	}
-
-	debug_warn("out of objs!\n");
-	return nil;
-}
-
-cap_t *
-proc_endpoint_create(proc_t *p)
-{
-	obj_endpoint_t *e;
+	obj_untyped_t *o;
 	cap_t *c;
 
-	e = (obj_endpoint_t *) obj_create();
-	if (e == nil) {
-		return nil;
+	if (up->pid != ROOT_PID) {
+		return ERR;
 	}
 
-	c = cap_create(p);
+	c = cap_create(up);
 	if (c == nil) {
-		return nil;
+		return ERR;
 	}
 
-	cap_add(p, c);
+	o = kernel_map(pa, len, true);
+	if (o == nil) {
+		return ERR;
+	}
 
-	e->h.refs = 1;
-	e->h.type = OBJ_endpoint;
+	o->h.refs = 0;
+	o->h.type = OBJ_untyped;
+
+	o->len = len;
+	o->used = 0;
+
+	c->perm = CAP_write | CAP_read;
+	c->obj = o;
+
+	cap_add(up, c);
+
+	return c->id;
+}
+
+size_t 
+obj_untyped_size(size_t n)
+{
+	if (n < sizeof(obj_untyped_t)) {
+		return 0;
+	} 
+
+	return n;
+}
+
+size_t 
+obj_endpoint_size(size_t n)
+{
+	return sizeof(obj_endpoint_t);
+}
+
+size_t 
+obj_caplist_size(size_t n)
+{
+	return sizeof(obj_caplist_t) 
+			+ sizeof(cap_t) * n;
+}
+
+size_t
+sys_obj_retype(int cid, obj_type_t type, size_t n)
+{
+	obj_untyped_t *o, *no;
+	cap_t *c, *nc;
+	size_t len;
+
+	c = proc_find_cap(up, cid);
+	if (c == nil) {
+		return ERR;
+	}
+
+	o = c->obj;
+	if (o->h.type != OBJ_untyped) {
+		return ERR;
+	}
+
+	len = obj_size_funcs[type](n);
+	if (len == 0) {
+		return ERR;
+	}
+
+	len = align(len, sizeof(size_t));
+
+	if (o->len - o->used < len) {
+		return ERR;
+	}
+
+	nc = cap_create(up);
+	if (nc == nil) {
+		return ERR;
+	}
+
+	no = (void *) &o->body[o->used];
+	o->used += len;
+
+	no->h.type = type;
+	no->h.refs = 1;
+
+	obj_init_funcs[type](up, no, n);
+
+	nc->obj = no;
+	nc->perm = CAP_read | CAP_write;
+
+	return c->id;
+}
+
+void
+obj_untyped_init(proc_t *p, void *o, size_t n)
+{
+	obj_untyped_t *u = o;
+
+	u->len = n;
+	u->used = 0;
+}
+
+void
+obj_endpoint_init(proc_t *p, void *o, size_t n)
+{
+	obj_endpoint_t *e = o;
+
+	debug_info("proc %i making endpoint 0x%x\n", p->pid, e);
 
 	e->holder = p;
 	e->signal = 0;
 	e->waiting.head = nil;
 	e->waiting.tail = nil;
+}
 
-	c->perm = CAP_read;
-	c->obj = (obj_untyped_t *) e;
-
-	debug_info("proc %i making endpoint 0x%x, cap %i\n", p->pid, e, c->id);
-
-	return c;
+void
+obj_caplist_init(proc_t *p, void *o, size_t n)
+{
+	debug_info("proc %i making caplist 0x%x size %i\n", p->pid, o, n);
 }
 
 cap_t *
@@ -139,7 +219,7 @@ proc_endpoint_connect(proc_t *p, obj_endpoint_t *e)
 	cap_add(p, c);
 
 	c->perm = CAP_write;
-	c->obj = (obj_untyped_t *) e;
+	c->obj = (void *) e;
 
 	debug_info("proc %i connect endpoint 0x%x, cap %i\n",
 		p->pid, e, c->id);
@@ -482,21 +562,6 @@ sys_signal(int to, uint32_t s)
 	}
 
 	return signal((obj_endpoint_t *) c->obj, s);
-}
-
-	size_t
-sys_endpoint_create(void)
-{
-	cap_t *c;
-
-	c = proc_endpoint_create(up);
-	if (c == nil) {
-		return ERR;
-	}
-
-	debug_info("%i create endpoint obj 0x%x, cap id %i\n", up->pid, c->obj, c->id);
-
-	return c->id;
 }
 
 	size_t

@@ -211,8 +211,7 @@ init_cortex_a9_gic_systick(size_t base)
 	regs_pa = base;
 	regs_len = 0x2000;
 
-	regs = (size_t) kernel_map(regs_pa, regs_len,
-			AP_RW_NO, false);
+	regs = (size_t) kernel_map(regs_pa, regs_len, false);
 
 	cregs = (struct gic_cpu_regs *) 
 		(regs + 0x100);

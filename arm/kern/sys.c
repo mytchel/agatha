@@ -2,10 +2,10 @@
 #include <sysnum.h>
 
 	size_t
-sys_intr_create(int irqn)
+sys_intr_init(int cid, int irqn)
 {
-	obj_intr_t *i;
-	cap_t *c;
+	obj_intr_t *o;
+	cap_t *i;
 
 	debug_info("%i create intr %i\n", up->pid, irqn);
 
@@ -13,13 +13,13 @@ sys_intr_create(int irqn)
 		return ERR;
 	}
 
-	i = (obj_intr_t *) obj_create();
+	i = proc_find_cap(up, cid);
 	if (i == nil) {
 		return ERR;
 	}
 
-	c = cap_create(up);
-	if (c == nil) {
+	o = (void *) i->obj;
+	if (o->h.type != OBJ_intr) {
 		return ERR;
 	}
 
@@ -27,23 +27,10 @@ sys_intr_create(int irqn)
 		debug_warn("intr cap claim failed, TODO free resources\n");
 		return ERR;
 	}
+	
+	o->irqn = irqn;
 
-	cap_add(up, c);
-
-	i->h.refs = 1;
-	i->h.type = OBJ_intr;
-
-	i->irqn = irqn;
-	i->end = nil;
-	i->signal = 0;
-
-	c->perm = CAP_write;
-	c->obj = (obj_untyped_t *) i;
-
-	debug_info("%i create intr obj 0x%x, cap id %i irqn %i\n", 
-		up->pid, c->obj, c->id, irqn);
-
-	return c->id;
+	return OK;
 }
 
 	size_t
@@ -68,6 +55,12 @@ sys_intr_connect(int iid, int eid, uint32_t signal)
 
 	oi = (obj_intr_t *) i->obj;
 	oe = (obj_endpoint_t *) e->obj;
+
+	if (oi->irqn == 0) {
+		debug_warn("%i tried to connect intr that hasn't been setup\n", 
+			up->pid);
+		return ERR;
+	}
 
 	oi->end = oe;
 	oi->signal = signal;
@@ -103,6 +96,8 @@ sys_intr_ack(int iid)
 	size_t
 sys_proc_new(size_t vspace, int priority, int *p_id, int *e_id)
 {
+	return ERR;
+#if 0
 	cap_t *m, *e;
 	proc_t *p;
 
@@ -137,7 +132,37 @@ sys_proc_new(size_t vspace, int priority, int *p_id, int *e_id)
 	*e_id = e->id;
 
 	return OK;
+#endif
 }
+
+size_t
+obj_intr_size(size_t n)
+{
+	return sizeof(obj_intr_t);
+}
+
+void 
+obj_intr_init(proc_t *p, void *o, size_t n)
+{
+	obj_intr_t *i = o;
+
+	i->irqn = 0;
+	i->end = nil;
+	i->signal = 0;
+}
+
+
+size_t (*obj_size_funcs[OBJ_type_n])(size_t n) = {
+
+};
+
+void (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n) = {
+	[OBJ_untyped]             = obj_untyped_init,
+	[OBJ_endpoint]            = obj_endpoint_init,
+	[OBJ_caplist]             = obj_caplist_init,
+	
+	[OBJ_intr]                = obj_intr_init,
+};
 
 void *systab[NSYSCALLS] = {
 	[SYSCALL_YIELD]            = (void *) &sys_yield,
@@ -155,7 +180,7 @@ void *systab[NSYSCALLS] = {
 
 	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
 
-	[SYSCALL_INTR_CREATE]      = (void *) &sys_intr_create,
+	[SYSCALL_INTR_CREATE]      = (void *) &sys_intr_init,
 	[SYSCALL_INTR_CONNECT]     = (void *) &sys_intr_connect,
 	[SYSCALL_INTR_ACK]         = (void *) &sys_intr_ack,
 };

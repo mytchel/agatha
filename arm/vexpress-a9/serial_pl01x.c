@@ -29,7 +29,7 @@ init_pl01x(size_t regs_pa)
 {
 	size_t regs_len = 1 << 12;
 
-	regs = kernel_map(regs_pa, regs_len, AP_RW_NO, false);
+	regs = kernel_map(regs_pa, regs_len, false);
 
 	debug_puts = &puts;
 
