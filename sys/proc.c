@@ -169,7 +169,7 @@ schedule(proc_t *n)
 				up->pid, up->ts);
 
 		mmu_switch(up->vspace);
-		set_systick(SYSTICK);/*up->ts);*/
+		set_systick(up->ts);
 		goto_label(&up->label);
 
 	} else {
@@ -194,6 +194,14 @@ proc_new(int priority, size_t vspace)
 	p->priority = priority;
 	
 	p->ts = SYSTICK;
+
+	p->cap0.prev = nil;
+	p->cap0.next = nil;
+	p->cap0.id = 0;
+	p->cap0.perm = 0;
+	p->cap0.obj = nil;
+
+	p->caps = &p->cap0;
 
 	return p;
 }

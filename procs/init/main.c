@@ -251,7 +251,7 @@ main(int p_eid)
 	union proc0_rsp prp;
 	int timer_eid;
 
-	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_timer;
 
 	mesg_cap(parent_eid, &prq, &prp, &timer_eid);
@@ -269,7 +269,7 @@ main(int p_eid)
 	union timer_req rq;
 	union timer_rsp rp;
 
-	rq.create.type = TIMER_create_req;
+	rq.create.type = TIMER_create;
 	rq.create.signal = 0x111;
 
 	int t = timer_leid;
@@ -281,7 +281,7 @@ main(int p_eid)
 	int timer_id = rp.create.id;
 
 	while (true) {
-		rq.set.type = TIMER_set_req;
+		rq.set.type = TIMER_set;
 		rq.set.id = timer_id;
 		rq.set.time_ms = 5 * 1000;
 

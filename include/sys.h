@@ -19,27 +19,3 @@ typedef enum {
 	PROC_block_reply,
 } procstate_t;
 
-union proc_msg {
-	uint8_t raw[MESSAGE_LEN];
-	uint32_t type;
-
-	struct {
-		uint32_t type;
-		size_t pc;
-		size_t sp;
-	} start;
-
-	struct {
-		uint32_t type;
-		size_t pc;
-		int fault_flags;
-		size_t data_addr;
-	} fault;
-
-	struct {
-		size_t type;
-		uint32_t code;
-		char message[MESSAGE_LEN - sizeof(uint8_t) * 2];
-	} exit;
-};
-

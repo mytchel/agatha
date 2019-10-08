@@ -39,7 +39,7 @@ send_logs(void)
 	}
 
 	while (start != end) {
-		rq.write.type = SERIAL_write_req;
+		rq.write.type = SERIAL_write;
 
 		if (start < end) {
 			rq.write.len = end - start;
@@ -93,7 +93,7 @@ handle_register(int eid, int from, union log_req *rq)
 	size_t len;
 	int i;
 
-	rp.reg.type = LOG_register_rsp;
+	rp.reg.type = LOG_register;
 	rp.reg.ret = ERR;
 	
 	for (i = 0; i < MAX_SERVICES; i++) {
@@ -152,7 +152,7 @@ handle_log(int eid, int from, union log_req *rq)
 	char *level;
 	size_t len;
 
-	rp.log.type = LOG_log_rsp;
+	rp.log.type = LOG_log;
 
 	s = find_service(from);
 	if (s == nil) {
@@ -198,9 +198,10 @@ main(int p_eid)
 		services[i].pid = -1;
 	}
 
-	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_serial;
 
+	log_output_eid = 0;
 	mesg_cap(parent_eid, &prq, &prp, &log_output_eid);
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
@@ -215,11 +216,11 @@ main(int p_eid)
 		if (from == PID_NONE) continue;
 
 		switch (rq.type) {
-		case LOG_register_req:
+		case LOG_register:
 			handle_register(eid, from, &rq);
 			break;
 
-		case LOG_log_req:
+		case LOG_log:
 			handle_log(eid, from, &rq);
 			break;
 		}

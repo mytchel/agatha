@@ -20,8 +20,10 @@ log_init(char *name)
 	union log_req lrq;
 	union log_rsp lrp;
 
-	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_log;
+
+	log_eid = 0;
 
 	mesg_cap(parent_eid, &prq, &prp, &log_eid);
 	if (prp.get_resource.ret != OK) {
@@ -32,7 +34,7 @@ log_init(char *name)
 		exit(ERR);
 	}
 
-	lrq.reg.type = LOG_register_req;
+	lrq.reg.type = LOG_register;
 	snprintf(lrq.reg.name, sizeof(lrq.reg.name),
 		 	"%s", name);
 
@@ -58,7 +60,7 @@ log(int level, char *fmt, ...)
 			fmt, a);
 	va_end(a);
 
-	rq.log.type = LOG_log_req;
+	rq.log.type = LOG_log;
 	rq.log.level = level;
 
 	mesg(log_eid, &rq, &rp);

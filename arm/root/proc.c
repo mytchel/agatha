@@ -448,11 +448,10 @@ init_bundled_proc(char *name,
 		exit(0x11);
 	}
 
-	union proc_msg rq, rp;
+	uint32_t start_rq[MESSAGE_LEN/4], start_rp[MESSAGE_LEN/4];
 
-	rq.start.type = PROC_start_req;
-	rq.start.pc = USER_ADDR;
-	rq.start.sp = USER_ADDR;
+	start_rq[0] = USER_ADDR;
+	start_rq[1] = USER_ADDR;
 
 	int p_m_eid;
 
@@ -460,7 +459,7 @@ init_bundled_proc(char *name,
 
 	log(LOG_INFO, "start bundled proc pid %i %s", *p_pid, name);
 
-	if (mesg_cap(*p_eid, &rq, &rp, &p_m_eid) != OK) {
+	if (mesg_cap(*p_eid, start_rq, start_rp, &p_m_eid) != OK) {
 		exit(0x12);
 	}
 

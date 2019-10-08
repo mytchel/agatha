@@ -55,13 +55,8 @@ union obj_untyped {
 #define CAP_read   2
 
 struct cap {
-	cap_t *next;
+	cap_t *prev, *next;
 	int id;
-	uint32_t perm;
-	obj_untyped_t *obj;
-};
-
-struct cap_transfer {
 	uint32_t perm;
 	obj_untyped_t *obj;
 };
@@ -84,9 +79,7 @@ struct proc {
 
 	uint8_t m[MESSAGE_LEN];
 	int m_ret;
-
-	struct cap_transfer give;
-	struct cap_transfer take;
+	cap_t *give, *take;
 
 	proc_t *wprev, *wnext;
 
@@ -94,6 +87,7 @@ struct proc {
 
 	int next_cap_id;
 	cap_t *caps;
+	cap_t cap0;
 };
 
 proc_t *
@@ -180,9 +174,65 @@ debug(int code, const char *fmt, ...);
 #define debug_sched_v(X, ...)
 #endif
 
-
 void
 panic(const char *fmt, ...);
+
+
+cap_t *
+cap_create(proc_t *p);
+
+void
+cap_free(proc_t *p, cap_t *c);
+
+void
+cap_add(proc_t *p, cap_t *c);
+
+void
+cap_remove(proc_t *p, cap_t *c);
+
+obj_untyped_t *
+obj_create(void);
+
+cap_t *
+proc_find_cap(proc_t *p, int cid);
+
+cap_t *
+proc_endpoint_create(proc_t *p);
+
+cap_t *
+proc_endpoint_connect(proc_t *p, obj_endpoint_t *e);
+
+
+size_t
+sys_yield(void);
+
+size_t
+sys_pid(void);
+
+size_t
+sys_exit(uint32_t code);
+
+size_t
+sys_mesg(int to, uint8_t *rq, uint8_t *rp, int *cid);
+
+size_t
+sys_recv(int from, int *pid, uint8_t *m, int *cid);
+
+size_t
+sys_reply(int to, int pid, uint8_t *m, int cid);
+
+size_t
+sys_signal(int to, uint32_t s);
+
+size_t
+sys_endpoint_create(void);
+
+size_t
+sys_endpoint_connect(int cid);
+
+size_t
+sys_debug(char *s);
+
 
 /* Machine dependant. */
 
@@ -218,21 +268,6 @@ set_systick(size_t ticks);
 
 size_t
 systick_passed(void);
-
-bool
-intr_cap_claim(size_t irqn);
-
-void
-intr_cap_connect(size_t irqn, obj_endpoint_t *e, uint32_t s);
-
-int
-irq_add_kernel(size_t irqn, void (*func)(size_t));
-
-void
-irq_enable(size_t irqn);
-
-void
-irq_ack(size_t irqn);
 
 extern proc_t *up;
 

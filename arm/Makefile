@@ -6,7 +6,6 @@ LIBS += \
 	lib/mem \
 	lib/string \
 	lib/block \
-	lib/fat \
 	lib/log \
 	lib/net \
 	lib/sdmmc
@@ -42,6 +41,7 @@ KERNEL_SRC_C = \
 	arm/kern/main.c \
 	arm/kern/proc.c \
 	arm/kern/intr.c \
+	arm/kern/sys.c \
 	arm/lib/c/mmu.c \
 	sys/debug.c \
 	sys/proc.c \

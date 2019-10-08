@@ -62,7 +62,7 @@ handle_create(int eid, int from, union timer_req *rq, int cid)
 	t->next = timers;
 	timers = t;
 
-	rp.create.type = TIMER_create_rsp;
+	rp.create.type = TIMER_create;
 	rp.create.ret = OK;
 	rp.create.id = t->id;
 	reply(eid, from, &rp);
@@ -87,7 +87,7 @@ handle_set(int eid, int from, union timer_req *rq)
 	t->time_ms = rq->set.time_ms;
 
 	union timer_rsp rp;
-	rp.set.type = TIMER_set_rsp;
+	rp.set.type = TIMER_set;
 	rp.set.ret = OK;
 	reply(eid, from, &rp);
 }
@@ -163,7 +163,7 @@ main(int p_eid)
 	log_init("timer0");
 	log(LOG_INFO, "start");
 
-	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_regs;
 
 	log(LOG_INFO, "get regs");
@@ -182,7 +182,7 @@ main(int p_eid)
 		return ERR;
 	}
 
-	prq.get_resource.type = PROC0_get_resource_req;
+	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_int;
 
 	log(LOG_INFO, "get int");
@@ -241,11 +241,11 @@ main(int p_eid)
 			}
 		} else {
 			switch (rq.type) {
-			case TIMER_create_req:
+			case TIMER_create:
 				handle_create(eid, from, &rq, cid);
 				break;
 
-			case TIMER_set_req:
+			case TIMER_set:
 				handle_set(eid, from, &rq);
 				break;
 

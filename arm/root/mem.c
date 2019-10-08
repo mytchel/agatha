@@ -274,9 +274,7 @@ addr_unmap(size_t va, size_t len)
 		l2[L2X(va + o)] = L2_FAULT;
 	}
 
-	log(LOG_INFO, "yield");
 	yield();
-	log(LOG_INFO, "back from yield");
 
 	return OK;
 }

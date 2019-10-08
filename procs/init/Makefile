@@ -3,7 +3,7 @@ PROCS_INIT_OUT = procs/init/out.elf
 PROCS_INIT_SRC_C = \
 	procs/init/main.c
 
-PROCS_INIT_LIBS = lib/fat lib/log $(USER_LIBS)
+PROCS_INIT_LIBS = lib/log $(USER_LIBS)
 
 PROCS_INIT_OBJECTS = \
 	$(PROCS_INIT_SRC_C:%.c=%.o) \

@@ -14,11 +14,6 @@ enum {
  	PROC0_ERR_ADDR_DENIED = -8,
 };
 
-struct proc0_irq {
-	uint32_t type;
-	size_t irq;
-};
-
 union proc0_req {
 	uint8_t raw[MESSAGE_LEN];
 	uint32_t type;
@@ -57,18 +52,6 @@ union proc0_req {
 #define RESOURCE_type_net        7
 		int resource_type;
 	} get_resource;
-
-	struct {
-		uint32_t type;
-		size_t irqn;
-		void *func;
-		void *arg;
-		void *sp;
-	} irq_reg;
-
-	struct {
-		uint32_t type;
-	} proc;
 };
 
 union proc0_rsp {
@@ -105,16 +88,5 @@ union proc0_rsp {
 			int irqn;
 		} result;
 	} get_resource;
-
-	struct {
-		uint32_t type;
-		int ret;
-	} irq_reg;
-
-	struct {
-		uint32_t type;
-		int ret;
-		int pid;
-	} proc;
 };
 

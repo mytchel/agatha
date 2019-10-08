@@ -1,4 +1,4 @@
-#include "../../sys/head.h"
+#include "head.h"
 #include "fns.h"
 #include "trap.h"
 

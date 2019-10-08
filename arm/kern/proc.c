@@ -1,4 +1,4 @@
-#include "../../sys/head.h"
+#include "head.h"
 #include "fns.h"
 #include "trap.h"
 
@@ -19,7 +19,7 @@ void
 __attribute__((noreturn))
 proc_start(void)
 {
-	union proc_msg m;
+	uint32_t m[MESSAGE_LEN/4];
 	label_t u = {0};
 	int pid, c_main;
 	cap_t *c;
@@ -29,22 +29,18 @@ proc_start(void)
 	while (true) {
 		if ((c = recv(nil, &pid, (uint8_t *) &m, &c_main)) == nil) {
 			continue;
-		} else if (pid == PID_SIGNAL) {
-			continue;
-		} else if (m.start.type == PROC_start_req) {
+		} else {
 			break;
 		}
 	}
 
 	debug_info("got start, reply on cid %i\n", c->id);
 
-	m.start.type = PROC_start_rsp;
-
-	reply((obj_endpoint_t *) c->obj, pid, (uint8_t *) &m, 0);
+	reply((obj_endpoint_t *) c->obj, pid, (void *) m, 0);
 
 	u.psr = MODE_USR;
-	u.pc = m.start.pc;
-	u.sp = m.start.sp;
+	u.pc = m[0];
+	u.sp = m[1];
 
 	u.regs[0] = c_main;
 

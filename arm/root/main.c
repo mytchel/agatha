@@ -27,7 +27,7 @@ handle_addr_req(int eid, int from, union proc0_req *rq)
 	union proc0_rsp rp;
 	size_t pa, len;
 
-	rp.addr_req.type = PROC0_addr_req_rsp;
+	rp.addr_req.type = PROC0_addr_req;
 
 	len = rq->addr_req.len;
 	if (len != PAGE_ALIGN(len)) {
@@ -69,7 +69,7 @@ handle_addr_map(int eid, int from, union proc0_req *rq)
 		from, rq->addr_map.pa, rq->addr_map.len,
 		rq->addr_map.va);
 
-	rp.addr_map.type = PROC0_addr_map_rsp;
+	rp.addr_map.type = PROC0_addr_map;
 
 	len = rq->addr_map.len;
 	if (len != PAGE_ALIGN(len)) {
@@ -104,7 +104,7 @@ handle_addr_give(int eid, int from, union proc0_req *rq)
 	size_t pa, len;
 	int to;
 
-	rp.addr_give.type = PROC0_addr_give_rsp;
+	rp.addr_give.type = PROC0_addr_give;
 
 	to = rq->addr_give.to;
 
@@ -186,7 +186,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 
 	log(0, "get resource from %i", from);
 
-	rp.get_resource.type = PROC0_get_resource_rsp;
+	rp.get_resource.type = PROC0_get_resource;
 	rp.get_resource.ret = ERR;
 
 	s = find_service_pid(from);
@@ -258,58 +258,6 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 	return reply_cap(eid, from, &rp, give_cap);
 }
 
-#if 0
-int
-handle_irq_reg(int from, union proc0_req *rq)
-{
-	struct intr_mapping map;
-	union proc0_rsp rp;
-
-	map.pid = from;
-	map.irqn = rq->irq_reg.irqn;
-	map.func = rq->irq_reg.func;
-	map.arg = rq->irq_reg.arg;
-	map.sp = rq->irq_reg.sp;
-
-	rp.irq_reg.type = PROC0_irq_reg_rsp;
-	rp.irq_reg.ret = intr_register(&map);
-	return send(from, &rp);
-}
-
-	int
-handle_proc(int from, union proc0_req *rq)
-{
-	union proc0_rsp rp;
-
-	rp.proc.type = PROC0_proc_rsp;
-	rp.proc.ret = ERR;
-	return send(from, &rp);
-}
-
-int
-handle_fault(int from, union proc_msg *m)
-{
-	log(0, "proc %i fault flags %i at pc 0x%x", 
-			from, m->fault.fault_flags, m->fault.pc);
-
-	if ((m->fault.fault_flags & 3) == 3) {
-		log(0, "for addr 0x%x", m->fault.data_addr);
-	}
-
-	return OK;
-}
-
-int
-handle_exit(int from, union proc_msg *m)
-{
-	log(0, "proc %i exit with 0x%x",
-			from, m->exit.code);
-
-	return OK;
-}
-
-#endif
-
 	void
 main(struct kernel_info *i)
 {
@@ -339,39 +287,21 @@ main(struct kernel_info *i)
 				from, eid, ((uint32_t *) m)[0]);
 
 		switch (((uint32_t *) m)[0]) {
-			case PROC0_addr_req_req:
+			case PROC0_addr_req:
 				handle_addr_req(eid, from, (union proc0_req *) m);
 				break;
 
-			case PROC0_addr_map_req:
+			case PROC0_addr_map:
 				handle_addr_map(eid, from, (union proc0_req *) m);
 				break;
 
-			case PROC0_addr_give_req:
+			case PROC0_addr_give:
 				handle_addr_give(eid, from, (union proc0_req *) m);
 				break;
 			
-			case PROC0_get_resource_req:
+			case PROC0_get_resource:
 				handle_get_resource(eid, from, (union proc0_req *) m);
 				break;
-
-/*
-			case PROC0_irq_reg_req:
-				handle_irq_reg(from, (union proc0_req *) m);
-				break;
-
-			case PROC0_proc_req:
-				handle_proc(from, (union proc0_req *) m);
-				break;
-
-			case PROC_fault_msg:
-				handle_fault(from, (union proc_msg *) m);
-				break;
-
-			case PROC_exit_msg:
-				handle_exit(from, (union proc_msg *) m);
-				break;
-*/
 		};
 	}
 }
