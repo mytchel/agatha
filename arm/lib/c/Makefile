@@ -1,11 +1,12 @@
 ARM_LIB_C_LIB = arm/lib/c/lib.a
 
 ARM_LIB_C_SRC_A = \
-	arm/lib/c/sys.S
+	arm/lib/c/sys_call.S
 
 ARM_LIB_C_SRC_C = \
 	arm/lib/c/mmu.c \
 	arm/lib/c/parent.c \
+	arm/lib/c/sys.c \
 	arm/lib/c/addr.c
 
 ARM_LIB_C_OBJECTS = \

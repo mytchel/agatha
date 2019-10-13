@@ -45,10 +45,15 @@ void
 exit(uint32_t code)
 	__attribute__((noreturn));
 
+int
+proc_setup(int cid, size_t vspace, size_t priority, int p_eid);
+
+int
+proc_start(int cid, size_t pc, size_t sp);
 
 /* Utils */
 
-#define align(x, a)  (((x) + a - 1) & (~(a-1)))
+#define align_up(x, a)  (((x) + a - 1) & (~(a-1)))
 
 	void
 raise(void)

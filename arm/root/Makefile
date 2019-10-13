@@ -1,7 +1,7 @@
 ARM_ROOT_OUT = arm/root/out.elf
 
 ARM_ROOT_SRC_A = \
-	arm/lib/c/sys.S \
+	arm/lib/c/sys_call.S \
 	arm/root/kern.S
 
 ARM_ROOT_SRC_C = \
@@ -10,6 +10,7 @@ ARM_ROOT_SRC_C = \
 	arm/root/proc.c \
 	arm/lib/c/addr.c \
 	arm/lib/c/mmu.c \
+	arm/lib/c/sys.c \
 	lib/mem/util.c \
 	$(TARGET)/devices.c \
 	bundle.c 
@@ -25,6 +26,8 @@ ARM_ROOT_OBJECTS = \
 
 CLEAN += $(ARM_ROOT_OBJECTS)
 CLEAN += $(ARM_ROOT_OUT)
+CLEAN += $(ARM_ROOT_OUT:%.elf=%.bin)
+CLEAN += $(ARM_ROOT_OUT:%.elf=%.list)
 
 $(ARM_ROOT_OUT): $(USER.LD) $(ARM_ROOT_OBJECTS)
 	@echo LD $@ 

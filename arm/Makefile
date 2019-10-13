@@ -66,7 +66,7 @@ CLEAN += $(BUNDLE_ELF)
 include arm/root/Makefile
 
 root.bin: arm/root/out.bin
-	@cp arm/root/out.bin root.bin
+	cp arm/root/out.bin root.bin
 
 kernel.bo: kernel.bin
 bundle.bo: bundle.bin

@@ -11,7 +11,10 @@
 .global yield
 .global pid
 
-.global proc_new
+.global obj_retype
+
+.global proc_setup
+.global proc_start
 
 .global mesg_cap
 .global mesg
@@ -21,7 +24,6 @@
 .global reply
 .global signal
 
-.global endpoint_create
 .global endpoint_connect
 
 .global intr_connect
@@ -56,6 +58,20 @@ yield:
 pid:
 	push {r12, lr}
 	mov r12, #SYSCALL_PID
+	svc 0
+	pop {r12, pc}
+	
+
+proc_setup:
+	push {r12, lr}
+	mov r12, #SYSCALL_PROC_SETUP
+	svc 0
+	pop {r12, pc}
+
+
+proc_start:
+	push {r12, lr}
+	mov r12, #SYSCALL_PROC_START
 	svc 0
 	pop {r12, pc}
 
@@ -93,9 +109,9 @@ signal:
 	pop {r12, pc}
 
 	
-endpoint_create:
+obj_retype:
 	push {r12, lr}
-	mov r12, #SYSCALL_ENDPOINT_CREATE
+	mov r12, #SYSCALL_OBJ_RETYPE
 	svc 0
 	pop {r12, pc}
 

@@ -1,4 +1,5 @@
 #include "head.h"
+#include <sysobj.h>
 #include <arm/mmu.h>
 #include "../bundle.h"
 #include <log.h>
@@ -331,57 +332,78 @@ init_bundled_proc(char *name,
 
 	code_pa = get_ram(len, 0x1000);
 	if (code_pa == nil) {
+		log(LOG_INFO, "out of mem");
 		exit(1);
 	}
 
 	code_va = map_addr(code_pa, len, MAP_RW|MAP_DEV);
 	if (code_va == nil) {
-		log(LOG_INFO, "map code 0x%x failed", code_pa);
-		exit(2);
+		log(LOG_INFO, "map failed");
+		exit(1);
 	}
 
 	start_va = map_addr(start, len, MAP_RO|MAP_DEV);
 	if (start_va == nil) {
-		exit(3);
+		log(LOG_INFO, "map failed");
+		exit(1);
 	}
 
 	memcpy(code_va, start_va, len);
 
 	if ((r = unmap_addr(code_va, len)) != OK) {
+		log(LOG_INFO, "unmap failed");
 		exit(r);
 	}
 
 	if ((r = unmap_addr(start_va, len)) != OK) {
+		log(LOG_INFO, "unmap failed");
 		exit(r);
 	}
 	
 	l1_table_pa = get_ram(0x4000, 0x4000);
 	if (l1_table_pa == nil) {
-		exit(4);
+		log(LOG_INFO, "out of mem");
+		exit(1);
 	}
 
 	l1_mapped_pa = get_ram(0x4000, 0x1000);
 	if (l1_mapped_pa == nil) {
-		exit(4);
+		log(LOG_INFO, "out of mem");
+		exit(1);
 	}
 
 	l1_table_va = map_addr(l1_table_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_table_va == nil) {
-		exit(5);
+		log(LOG_INFO, "map failed");
+		exit(1);
 	}
 
 	l1_mapped_va = map_addr(l1_mapped_pa, 0x4000, MAP_RW|MAP_DEV);
 	if (l1_mapped_va == nil) {
-		exit(5);
+		log(LOG_INFO, "map failed");
+		exit(1);
 	}
 
 	memset(l1_mapped_va, 0, 0x4000);
 	
 	proc_init_l1(l1_table_va);
 
-	if (proc_new(priority, l1_table_pa, p_pid, p_eid) != OK) {
-		exit(8);
+	int p_m_eid;
+
+	p_m_eid = endpoint_connect(main_eid);
+
+	int p_cid = obj_retype(1, OBJ_proc, 1);
+	if (p_cid < 0) {
+		log(LOG_INFO, "retype obj failed %i", p_cid);
+		exit(1);
 	}
+
+	if (proc_setup(p_cid, l1_table_pa, priority, p_m_eid) < 0) {
+		log(LOG_INFO, "proc setup failed");
+		exit(1);
+	}
+
+	*p_pid = 1;
 
 	procs[*p_pid].l1.table = l1_table_va;
 	procs[*p_pid].l1.mapped = l1_mapped_va;
@@ -392,20 +414,25 @@ init_bundled_proc(char *name,
 
 	l2_pa = get_ram(0x1000, 0x1000);
 	if (l2_pa == nil) {
-		exit(6);
+		log(LOG_INFO, "out of mem");
+		exit(1);
 	}
 
 	if ((f = frame_new(l2_pa, 0x1000)) == nil) {
-		exit(0x9);
+		log(LOG_INFO, "out of mem");
+		exit(1);
 	}
 
 	if ((r = proc_give_addr(*p_pid, f)) != OK) {
-		exit(0xa);
+		log(LOG_INFO, "give addr failed");
+		exit(1);
 	}
 
 	if ((r = proc_map(*p_pid, l2_pa, 
 				0, 0x1000, 
-				MAP_TABLE)) != OK) {
+				MAP_TABLE)) != OK) 
+	{
+		log(LOG_INFO, "proc map failed");
 		exit(r);
 	}
 
@@ -414,20 +441,25 @@ init_bundled_proc(char *name,
 	size_t stack_len = 0x2000;
 	stack_pa = get_ram(stack_len, 0x1000); 
 	if (stack_pa == nil) {
-		exit(7);
+		log(LOG_INFO, "out of mem");
+		exit(1);
 	}
 
 	if ((f = frame_new(stack_pa, stack_len)) == nil) {
+		log(LOG_INFO, "out of mem");
 		exit(0xb);
 	}
 
 	if ((r = proc_give_addr(*p_pid, f)) != OK) {
+		log(LOG_INFO, "give addr failed");
 		exit(0xc);
 	}
 
 	if ((r = proc_map(*p_pid, stack_pa, 
 				USER_ADDR - stack_len, stack_len, 
-				MAP_MEM|MAP_RW)) != OK) {
+				MAP_MEM|MAP_RW)) != OK) 
+	{
+		log(LOG_INFO, "proc map failed");
 		exit(0x10);
 	}
 
@@ -448,19 +480,11 @@ init_bundled_proc(char *name,
 		exit(0x11);
 	}
 
-	uint32_t start_rq[MESSAGE_LEN/4], start_rp[MESSAGE_LEN/4];
-
-	start_rq[0] = USER_ADDR;
-	start_rq[1] = USER_ADDR;
-
-	int p_m_eid;
-
-	p_m_eid = endpoint_connect(main_eid);
-
 	log(LOG_INFO, "start bundled proc pid %i %s", *p_pid, name);
 
-	if (mesg_cap(*p_eid, start_rq, start_rp, &p_m_eid) != OK) {
-		exit(0x12);
+	if (proc_start(p_cid, USER_ADDR, USER_ADDR) < 0) {
+		log(LOG_INFO, "proc start failed");
+		exit(10);
 	}
 
 	return true;

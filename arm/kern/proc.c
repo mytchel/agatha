@@ -3,46 +3,37 @@
 #include "trap.h"
 
 void
+func_label_h(void);
+
+void
 func_label(label_t *l, 
            size_t stack,
            size_t stacklen,
-           size_t func)
+           size_t func,
+           size_t arg0,
+           size_t arg1)
 {
 	memset(l, 0, sizeof(struct label));
 
+	uint32_t *s = (uint32_t *) (stack + stacklen);
+	*(--s) = func;
+	*(--s) = arg1;
+	*(--s) = arg0;
+
 	l->psr = MODE_SVC;
-	l->sp = (uint32_t) stack + stacklen;
-	l->pc = (uint32_t) func;
+	l->sp = (uint32_t) s;
+	l->pc = (uint32_t) &func_label_h;
 }
 
 void
 __attribute__((noreturn))
-proc_start(void)
+proc_start(size_t pc, size_t sp)
 {
-	uint32_t m[MESSAGE_LEN/4];
-	label_t u = {0};
-	int pid, c_main;
-	cap_t *c;
-
-	debug_info("proc %i starting\n", up->pid);
-
-	while (true) {
-		if ((c = recv(nil, &pid, (uint8_t *) &m, &c_main)) == nil) {
-			continue;
-		} else {
-			break;
-		}
-	}
-
-	debug_info("got start, reply on cid %i\n", c->id);
-
-	reply((obj_endpoint_t *) c->obj, pid, (void *) m, 0);
+	label_t u;
 
 	u.psr = MODE_USR;
-	u.pc = m[0];
-	u.sp = m[1];
-
-	u.regs[0] = c_main;
+	u.pc = pc;
+	u.sp = sp;
 
 	debug(DEBUG_INFO, "proc %i start with pc=0x%x sp=0x%x\n", 
 			up->pid, u.pc, u.sp);

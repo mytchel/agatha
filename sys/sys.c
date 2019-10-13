@@ -1,5 +1,4 @@
 #include "head.h"
-#include <sysnum.h>
 
 /* TODO: 
 
@@ -80,6 +79,8 @@ sys_obj_create(size_t pa, size_t len)
 	obj_untyped_t *o;
 	cap_t *c;
 
+	debug_info("%i obj create 0x%x 0x%x\n", up->pid, pa, len);
+
 	if (up->pid != ROOT_PID) {
 		return ERR;
 	}
@@ -97,13 +98,15 @@ sys_obj_create(size_t pa, size_t len)
 	o->h.refs = 0;
 	o->h.type = OBJ_untyped;
 
-	o->len = len;
-	o->used = 0;
+	obj_untyped_init(up, o, len);
 
 	c->perm = CAP_write | CAP_read;
 	c->obj = o;
 
 	cap_add(up, c);
+
+	debug_info("%i obj create 0x%x cap id %i\n", 
+		up->pid, o, c->id);
 
 	return c->id;
 }
@@ -121,6 +124,7 @@ obj_untyped_size(size_t n)
 size_t 
 obj_endpoint_size(size_t n)
 {
+	if (n != 1) return 0;
 	return sizeof(obj_endpoint_t);
 }
 
@@ -131,63 +135,18 @@ obj_caplist_size(size_t n)
 			+ sizeof(cap_t) * n;
 }
 
-size_t
-sys_obj_retype(int cid, obj_type_t type, size_t n)
-{
-	obj_untyped_t *o, *no;
-	cap_t *c, *nc;
-	size_t len;
-
-	c = proc_find_cap(up, cid);
-	if (c == nil) {
-		return ERR;
-	}
-
-	o = c->obj;
-	if (o->h.type != OBJ_untyped) {
-		return ERR;
-	}
-
-	len = obj_size_funcs[type](n);
-	if (len == 0) {
-		return ERR;
-	}
-
-	len = align(len, sizeof(size_t));
-
-	if (o->len - o->used < len) {
-		return ERR;
-	}
-
-	nc = cap_create(up);
-	if (nc == nil) {
-		return ERR;
-	}
-
-	no = (void *) &o->body[o->used];
-	o->used += len;
-
-	no->h.type = type;
-	no->h.refs = 1;
-
-	obj_init_funcs[type](up, no, n);
-
-	nc->obj = no;
-	nc->perm = CAP_read | CAP_write;
-
-	return c->id;
-}
-
-void
+int
 obj_untyped_init(proc_t *p, void *o, size_t n)
 {
 	obj_untyped_t *u = o;
 
-	u->len = n;
+	u->len = n - sizeof(obj_untyped_t);
 	u->used = 0;
+
+	return OK;
 }
 
-void
+int
 obj_endpoint_init(proc_t *p, void *o, size_t n)
 {
 	obj_endpoint_t *e = o;
@@ -198,12 +157,82 @@ obj_endpoint_init(proc_t *p, void *o, size_t n)
 	e->signal = 0;
 	e->waiting.head = nil;
 	e->waiting.tail = nil;
+	
+	return OK;
 }
 
-void
+int
 obj_caplist_init(proc_t *p, void *o, size_t n)
 {
 	debug_info("proc %i making caplist 0x%x size %i\n", p->pid, o, n);
+	
+	return OK;
+}
+
+size_t
+sys_obj_retype(int cid, obj_type_t type, size_t n)
+{
+	obj_untyped_t *o, *no;
+	cap_t *c, *nc;
+	size_t len;
+	int r;
+
+	debug_info("%i obj retype %i type %i len %i\n", 
+		up->pid, cid, type, n);
+
+	c = proc_find_cap(up, cid);
+	if (c == nil) {
+		debug_warn("cap not found\n");
+		return ERR;
+	}
+
+	debug_info("cap found\n");
+
+	o = c->obj;
+	if (o->h.type != OBJ_untyped) {
+		return ERR;
+	}
+
+	debug_info("find size\n");
+
+	len = obj_size_funcs[type](n);
+	if (len == 0) {
+		return ERR;
+	}
+
+	debug_info("need size %i\n", len);
+
+	/* TODO: does this align up or down */
+	debug_warn("align len was %i\n", len);
+	len = align_up(len, sizeof(size_t));
+	debug_warn("align len now %i\n", len);
+
+	if (o->len - o->used < len) {
+		return ERR;
+	}
+
+	no = (void *) &o->body[o->used];
+	no->h.type = type;
+	no->h.refs = 1;
+
+	r = obj_init_funcs[type](up, no, n);
+	if (r != OK) {
+		return r;
+	}
+
+	o->used += len;
+
+	nc = cap_create(up);
+	if (nc == nil) {
+		return ERR;
+	}
+
+	nc->obj = no;
+	nc->perm = CAP_read | CAP_write;
+
+	cap_add(up, nc);
+
+	return nc->id;
 }
 
 cap_t *
@@ -231,6 +260,8 @@ cap_t *
 proc_find_cap(proc_t *p, int cid)
 {
 	cap_t *c;
+
+	if (cid == 0) return nil;
 
 	for (c = p->caps; c != nil; c = c->next) {
 		if (c->id == cid) {
@@ -626,6 +657,108 @@ sys_exit(uint32_t code)
 	panic("schedule returned to exit!\n");
 
 	return ERR;
+}
+
+size_t
+obj_proc_size(size_t n)
+{
+	if (n != 1) return 0;
+	return sizeof(obj_proc_t);
+}
+
+int
+obj_proc_init(proc_t *p, void *a, size_t n)
+{
+	obj_proc_t *o = a;
+
+	o->proc = nil;
+
+	return OK;
+}
+
+size_t
+sys_proc_setup(int cid, size_t vspace, size_t priority, int p_eid)
+{
+	obj_proc_t *o;
+	cap_t *c, *pe;
+	proc_t *n;
+
+	debug_info("%i proc setup cid %i with vspace 0x%x, priority %i\n", 
+		up->pid, cid, vspace, priority);
+
+	c = proc_find_cap(up, cid);
+	if (c == nil) {
+		debug_warn("%i couln't find cid %i\n", up->pid, cid);
+		return ERR;
+	} else if (c->obj->h.type != OBJ_proc) {
+		debug_warn("%i obj type bad %i : %i\n", up->pid, cid, c->obj->h.type);
+		return ERR;
+	} else {
+		o = (obj_proc_t *) c->obj;
+	}
+
+	pe = proc_find_cap(up, p_eid);
+	if (pe == nil) {
+		debug_warn("%i couln't find cid %i\n", up->pid, p_eid);
+		return ERR;
+	} else if (pe->obj->h.type != OBJ_endpoint) {
+		return ERR;
+	}
+
+	n = proc_new(priority, vspace);
+	if (n == nil) {
+		debug_warn("proc_new failed\n");
+		return ERR;
+	}
+
+	o->proc = n;
+	n->obj = o;
+
+	cap_remove(up, pe);
+	cap_add(n, pe);
+
+	debug_info("new proc %i setup with vspace 0x%x, priority %i\n", 
+		n->pid, n->vspace, n->priority);
+
+	return OK;
+}
+
+size_t
+sys_proc_start(int cid, size_t pc, size_t sp)
+{
+	obj_proc_t *o;
+	proc_t *n;
+	cap_t *c;
+
+	debug_info("%i proc start cid %i\n", up->pid, cid);
+
+	c = proc_find_cap(up, cid);
+	if (c == nil) {
+		return ERR;
+	} else if (c->obj->h.type != OBJ_proc) {
+		return ERR;
+	} else {
+		o = (obj_proc_t *) c->obj;
+	}
+
+	n = o->proc;
+	
+	debug_info("%i proc start pid %i\n", up->pid, n->pid);
+
+	func_label(&n->label, 
+		(size_t) n->kstack, KSTACK_LEN,
+		(size_t) &proc_start,
+		pc, sp);
+
+	debug_info("%i proc ready pid %i\n", up->pid, n->pid);
+
+	proc_ready(n);
+
+	debug_info("%i proc %i started\n", up->pid, n->pid);
+
+	schedule(n);
+
+	return OK;
 }
 
 		size_t

@@ -104,7 +104,8 @@ init_root(struct kernel_info *info)
 
 	func_label(&p->label, 
 			(size_t) p->kstack, KSTACK_LEN, 
-			(size_t) &root_start);
+			(size_t) &root_start,
+			0, 0);
 
 	proc_ready(p);
 
@@ -188,7 +189,7 @@ main(struct kernel_info *info)
 
 	kernel_unmap(info, info->info_len);
 
-	debug(DEBUG_SCHED, "scheduling root\n");
+	debug_info("scheduling root\n");
 
 	schedule(p1);
 }

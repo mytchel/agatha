@@ -5,7 +5,7 @@ SECTIONS
 	.text ALIGN(4096) :
 	{
 		_text_start = .;
-		*sys.o(.text)
+		*sys_call.o(.text)
 		*(.text)
 		_text_end = .;
 	}

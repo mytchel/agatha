@@ -1,6 +1,8 @@
 #include <types.h>
 #include <mach.h>
 #include <sys.h>
+#include <sysnum.h>
+#include <sysobj.h>
 #include <err.h>
 #include <mesg.h>
 #include <stdarg.h>
@@ -13,6 +15,7 @@ typedef struct cap cap_t;
 typedef struct obj_untyped obj_untyped_t;
 typedef struct obj_endpoint obj_endpoint_t;
 typedef struct obj_caplist obj_caplist_t;
+typedef struct obj_proc obj_proc_t;
 typedef struct obj_intr obj_intr_t;
 
 struct proc_list {
@@ -28,14 +31,6 @@ struct cap {
 	uint32_t perm;
 	obj_untyped_t *obj;
 };
-
-typedef enum {
-	OBJ_untyped = 0,
-	OBJ_endpoint,
-	OBJ_caplist,
-	OBJ_intr,
-	OBJ_type_n,
-} obj_type_t;
 
 struct obj_head {
 	size_t refs;
@@ -65,6 +60,12 @@ struct obj_caplist {
 	cap_t caps[];
 };
 
+struct obj_proc {
+	struct obj_head h;
+
+	proc_t *proc;
+};
+
 struct obj_untyped {
 	struct obj_head h;
 	size_t len;
@@ -74,6 +75,8 @@ struct obj_untyped {
 
 struct proc {
 	label_t label;
+
+	obj_proc_t *obj;
 
 	procstate_t state;
 	int pid;
@@ -135,7 +138,7 @@ signal(obj_endpoint_t *c, uint32_t s);
 
 
 
-#define align(x, a) (((x) + a - 1) & (~(a-1)))
+#define align_up(x, a) (((x) + a - 1) & (~(a-1)))
 
 void
 memcpy(void *dst, const void *src, size_t len);
@@ -213,18 +216,24 @@ obj_endpoint_size(size_t n);
 size_t
 obj_caplist_size(size_t n);
 
+size_t
+obj_proc_size(size_t n);
+
 extern size_t (*obj_size_funcs[OBJ_type_n])(size_t n);
 
-void
+int
 obj_untyped_init(proc_t *p, void *o, size_t n);
 
-void
+int
 obj_endpoint_init(proc_t *p, void *o, size_t n);
 
-void
+int
 obj_caplist_init(proc_t *p, void *o, size_t n);
 
-extern void (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n);
+int
+obj_proc_init(proc_t *p, void *o, size_t n);
+
+extern int (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n);
 
 cap_t *
 proc_find_cap(proc_t *p, int cid);
@@ -244,6 +253,18 @@ sys_pid(void);
 
 size_t
 sys_exit(uint32_t code);
+
+size_t
+sys_obj_create(size_t pa, size_t len);
+
+size_t
+sys_obj_retype(int cid, obj_type_t type, size_t n);
+
+size_t
+sys_proc_setup(int cid, size_t vspace, size_t priority, int p_eid);
+
+size_t
+sys_proc_start(int cid, size_t pc, size_t sp);
 
 size_t
 sys_mesg(int to, uint8_t *rq, uint8_t *rp, int *cid);
@@ -285,10 +306,12 @@ void
 func_label(label_t *l, 
 		size_t stack, 
 		size_t stacklen,
-		size_t pc);
+		size_t pc,
+		size_t arg0,
+		size_t arg1);
 
 void
-proc_start(void) __attribute__((noreturn));
+proc_start(size_t pc, size_t sp) __attribute__((noreturn));
 
 bool
 cas(void *addr, void *old, void *new);

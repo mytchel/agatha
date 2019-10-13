@@ -2,16 +2,9 @@
 
 .section .text
 
-.global proc_new
 .global kern_debug
 .global intr_create
-
-
-proc_new:
-	push {r12, lr}
-	mov r12, #SYSCALL_PROC_NEW
-	svc 0
-	pop {r12, pc}
+.global obj_create
 
 
 kern_debug:
@@ -28,6 +21,9 @@ intr_create:
 	pop {r12, pc}
 
 
-
-
+obj_create:
+	push {r12, lr}
+	mov r12, #SYSCALL_OBJ_CREATE
+	svc 0
+	pop {r12, pc}
 

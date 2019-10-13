@@ -270,13 +270,26 @@ main(struct kernel_info *i)
 	log(0, "kernel starts at 0x%x", info->kernel_va);
 	log(0, "boot starts at 0x%x", info->boot_pa);
 
+	init_mem();
+
+	size_t pa, len;
+	len = 0x1000;
+	pa = get_ram(len, 0x1000);
+	if (pa == nil) {
+		exit(2);
+	}
+
+	int cid = obj_create(pa, len);
+	if (cid < 0) {
+		exit(3);
+	}
+
 	main_eid = endpoint_create();
 	if (main_eid < 0) {
 		log(0, "ERROR creating main endpoint %i", main_eid);
 		exit(1);
 	}
 
-	init_mem();
 	init_procs();
 
 	while (true) {

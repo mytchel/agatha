@@ -1,5 +1,4 @@
 #include "head.h"
-#include <sysnum.h>
 
 	size_t
 sys_intr_init(int cid, int irqn)
@@ -93,55 +92,13 @@ sys_intr_ack(int iid)
 	return OK;
 }
 
-	size_t
-sys_proc_new(size_t vspace, int priority, int *p_id, int *e_id)
-{
-	return ERR;
-#if 0
-	cap_t *m, *e;
-	proc_t *p;
-
-	debug_info("%i proc new\n", up->pid);
-
-	p = proc_new(vspace, priority);
-	if (p == nil) {
-		debug_warn("proc_new failed\n");
-		return ERR;
-	}
-
-	m = proc_endpoint_create(p);
-	if (m == nil) {
-		return ERR;
-	}
-
-	e = proc_endpoint_connect(up, (obj_endpoint_t *) m->obj);
-	if (e == nil) {
-		return ERR;
-	}
-
-	debug_info("new proc %i with vspace 0x%x\n", 
-			p->pid, vspace);
-
-	func_label(&p->label, 
-			(size_t) p->kstack, KSTACK_LEN,
-			(size_t) &proc_start);
-
-	proc_ready(p);
-
-	*p_id = p->pid;
-	*e_id = e->id;
-
-	return OK;
-#endif
-}
-
 size_t
 obj_intr_size(size_t n)
 {
 	return sizeof(obj_intr_t);
 }
 
-void 
+int
 obj_intr_init(proc_t *p, void *o, size_t n)
 {
 	obj_intr_t *i = o;
@@ -149,17 +106,24 @@ obj_intr_init(proc_t *p, void *o, size_t n)
 	i->irqn = 0;
 	i->end = nil;
 	i->signal = 0;
+
+	return OK;
 }
 
-
 size_t (*obj_size_funcs[OBJ_type_n])(size_t n) = {
-
+	[OBJ_untyped]             = obj_untyped_size,
+	[OBJ_endpoint]            = obj_endpoint_size,
+	[OBJ_caplist]             = obj_caplist_size,
+	[OBJ_proc]                = obj_proc_size,
+	
+	[OBJ_intr]                = obj_intr_size,
 };
 
-void (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n) = {
+int (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n) = {
 	[OBJ_untyped]             = obj_untyped_init,
 	[OBJ_endpoint]            = obj_endpoint_init,
 	[OBJ_caplist]             = obj_caplist_init,
+	[OBJ_proc]                = obj_proc_init,
 	
 	[OBJ_intr]                = obj_intr_init,
 };
@@ -169,19 +133,22 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_PID]              = (void *) &sys_pid,
 	[SYSCALL_EXIT]             = (void *) &sys_exit,
 
+	[SYSCALL_OBJ_CREATE]       = (void *) &sys_obj_create,
+	[SYSCALL_OBJ_RETYPE]       = (void *) &sys_obj_retype,
+
 	[SYSCALL_MESG]             = (void *) &sys_mesg,
 	[SYSCALL_RECV]             = (void *) &sys_recv,
 	[SYSCALL_REPLY]            = (void *) &sys_reply,
 	[SYSCALL_SIGNAL]           = (void *) &sys_signal,
-	[SYSCALL_ENDPOINT_CREATE]  = (void *) &sys_endpoint_create,
 	[SYSCALL_ENDPOINT_CONNECT] = (void *) &sys_endpoint_connect,
 
-	[SYSCALL_DEBUG]            = (void *) &sys_debug,
-
-	[SYSCALL_PROC_NEW]         = (void *) &sys_proc_new,
+	[SYSCALL_PROC_SETUP]       = (void *) &sys_proc_setup,
+	[SYSCALL_PROC_START]       = (void *) &sys_proc_start,
 
 	[SYSCALL_INTR_CREATE]      = (void *) &sys_intr_init,
 	[SYSCALL_INTR_CONNECT]     = (void *) &sys_intr_connect,
 	[SYSCALL_INTR_ACK]         = (void *) &sys_intr_ack,
+	
+	[SYSCALL_DEBUG]            = (void *) &sys_debug,
 };
 

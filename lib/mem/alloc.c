@@ -30,7 +30,7 @@ insert_chunk(size_t bin, struct chunk *c)
 
 	for (p = &bins[bin]; *p != nil; p = &(*p)->next) {
 		if (bin < BIN_MAX) {
-			a = (size_t) c == align((size_t) c, CHUNK_SIZE(bin + 1));
+			a = (size_t) c == align_up((size_t) c, CHUNK_SIZE(bin + 1));
 			
 			if (a && (size_t) c + CHUNK_SIZE(bin) == (size_t) (*p)->next) {
 				
