@@ -18,13 +18,13 @@ int
 obj_merge(int cid_l, int cid_h);
 
 int
-mesg_cap(int eid, void *rq, void *rp, int *cid);
+mesg_cap(int eid, void *rq, void *rp, int cid);
 
 int
 mesg(int eid, void *rq, void *rp);
 
 int
-recv_cap(int eid, int *pid, void *m, int *cid);
+recv_cap(int eid, int *pid, void *m, int cid);
 
 int
 recv(int eid, int *pid, void *m);

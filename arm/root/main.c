@@ -224,11 +224,11 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		r = find_service_resource(s, rq->get_resource.resource_type);
 		if (r != nil) {
 			log(0, "giving proc %i resource type %i eid %i pid %i",
-				from, rq->get_resource.resource_type, r->eid, r->pid);
+				from, rq->get_resource.resource_type, r->connect_eid, r->pid);
 
-			give_cap = endpoint_connect(r->eid, get_free_cap_id());
+			give_cap = get_free_cap_id();
 
-			rp.get_resource.ret = OK;
+			rp.get_resource.ret = endpoint_connect(r->connect_eid, give_cap);
 		} else {
 			rp.get_resource.ret = ERR;
 		}

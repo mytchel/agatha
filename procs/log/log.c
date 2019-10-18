@@ -185,14 +185,12 @@ handle_log(int eid, int from, union log_req *rq)
 }
 
 	void
-main(int p_eid)
+main(void)
 {
 	union proc0_req prq;
 	union proc0_rsp prp;
 	union log_req rq;
 	int eid, from, i;
-
-	parent_eid = p_eid;
 
 	for (i = 0; i < MAX_SERVICES; i++) {
 		services[i].pid = -1;
@@ -201,8 +199,9 @@ main(int p_eid)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_serial;
 
-	log_output_eid = 0;
-	mesg_cap(parent_eid, &prq, &prp, &log_output_eid);
+	log_output_eid = get_free_cap_id();
+
+	mesg_cap(CID_PARENT, &prq, &prp, log_output_eid);
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}

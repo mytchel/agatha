@@ -315,7 +315,7 @@ bool
 init_bundled_proc(char *name,
 		int priority,
 		size_t start, size_t len,
-		int *p_pid, int *p_eid)
+		int *p_pid)
 {
 	size_t code_pa, stack_pa;
 	uint32_t *code_va, *start_va;
@@ -388,10 +388,10 @@ init_bundled_proc(char *name,
 	
 	proc_init_l1(l1_table_va);
 
-	int p_m_eid, p_cid;
+	int eid, p_cid;
 
-	p_m_eid = endpoint_connect(main_eid, get_free_cap_id());
-	if (p_m_eid < 0) {
+	eid = get_free_cap_id();
+	if (endpoint_connect(main_eid, eid) != OK) {
 		exit(1);
 	}
 
@@ -400,7 +400,7 @@ init_bundled_proc(char *name,
 		exit(1);
 	}
 
-	*p_pid = proc_setup(p_cid, l1_table_pa, priority, p_m_eid);
+	*p_pid = proc_setup(p_cid, l1_table_pa, priority, eid);
 	if (*p_pid < 0) {
 		log(LOG_INFO, "proc setup failed");
 		exit(1);
@@ -494,7 +494,7 @@ init_bundled_proc(char *name,
 	void
 init_procs(void)
 {
-	int i, s, pri, p_pid, p_eid;
+	int i, s, pri, p_pid;
 	struct service *ser;
 	size_t off;
 
@@ -524,6 +524,15 @@ init_procs(void)
 
 		log(0, "service %s listen endpoint %i", 
 			ser->name, ser->listen_eid);
+		
+		ser->connect_eid = get_free_cap_id();
+		if (endpoint_connect(ser->listen_eid, ser->connect_eid) != OK) {
+			log(0, "failed to connect to listen endpoint");
+			exit(1);
+		}
+
+		log(0, "service %s connect endpoint %i", 
+			ser->name, ser->connect_eid);
 	
 		if (ser->device.is_device) {
 			if (ser->device.reg != 0) {
@@ -572,7 +581,7 @@ init_procs(void)
 	for (i = 0; i < nbundled_idle; i++) {
 		init_bundled_proc(bundled_idle[i].name, 0,
 				off, bundled_idle[i].len,
-				&p_pid, &p_eid);
+				&p_pid);
 
 		off += bundled_idle[i].len;
 	}
@@ -592,7 +601,7 @@ init_procs(void)
 
 			init_bundled_proc(bundled_procs[i].name, pri,
 					off, bundled_procs[i].len,
-					&ser->pid, &ser->eid);
+					&ser->pid);
 		}
 		
 		off += bundled_procs[i].len;

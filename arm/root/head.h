@@ -11,8 +11,6 @@
 #include "kern.h"
 
 struct service {
-	int pid, eid;
-
 	char name[32];
 	char bin[256];
 	
@@ -33,7 +31,9 @@ struct service {
 		char *name;
 	} resources[16];
 		
+	int pid;
 	int listen_eid;
+	int connect_eid;
 };
 
 struct addr_frame {
@@ -91,8 +91,7 @@ proc_unmap(int pid, size_t va, size_t len);
 bool
 init_bundled_proc(char *name, int priority,
 		size_t prog_pa, size_t len,
-		int *p_pid, 
-		int *p_eid);
+		int *p_pid);
 
 void
 add_ram(size_t start, size_t len);

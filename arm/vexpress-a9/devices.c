@@ -10,14 +10,12 @@
 struct service services[] = {
 
 	{ 
-		0, 0,
 		"sysreg", "arm/drivers/sysreg-sp810",
 		{ true, 0x10000000, 0x1000, 0, false, false },
 		{ { 0, nil } },
 	},
 
 	{ 
-		0, 0,
 		"serial0", "arm/drivers/serial-pl01x",
 		{ true, 0x10009000, 0x1000, 37, false, false },
 		{ { 0, nil } },
@@ -25,7 +23,6 @@ struct service services[] = {
 
 	
 	{ 
-		0, 0,
 		"sd0", "arm/drivers/mmc-pl18x",
 		{ true, 0x10005000, 0x1000, 41, false, false },
 		{ { RESOURCE_type_log, "log" },
@@ -34,7 +31,6 @@ struct service services[] = {
 	},
 
 	{ 
-		0, 0,
 		"net0", "arm/drivers/virtio/net",
 		{ true, 0x10013000 + 0x200 * 3, 0x200, 32 + 40 + 3, false, false },
 		{ { RESOURCE_type_log, "log" }, 
@@ -43,7 +39,6 @@ struct service services[] = {
 	},
 
 	{ 
-		0, 0,
 		"timer0", "arm/drivers/timer-sp804",
 		{ true, 0x10011000, 0x1000, 32 + 2, false, false },
 		{ { RESOURCE_type_log, "log" }, 
@@ -51,7 +46,6 @@ struct service services[] = {
 	},
 /*
 	{ 
-		0, 0,
 		"timer1", "arm/drivers/timer-sp804",
 		{ true, 0x10012000, 0x1000, 32 + 3, false, false },
 		{ { RESOURCE_type_log, "log" }, 
@@ -59,7 +53,6 @@ struct service services[] = {
 	},
 */
 	{
-		0, 0,
 		"log", "procs/log",
 		{ false },
 		{ { RESOURCE_type_serial, "serial0" },
@@ -67,7 +60,6 @@ struct service services[] = {
 	},
 
 	{
-		0, 0,
 		"init", "procs/init",
 		{ false },
 		{ { RESOURCE_type_log, "log" },

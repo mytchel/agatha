@@ -16,8 +16,6 @@ get_more_caps(void)
 
 	int n = 255;
 
-	log(0, "get more caps");
-
 	len = 0x1000;
 	pa = request_memory(len);
 	if (pa == nil) {

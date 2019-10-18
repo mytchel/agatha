@@ -118,13 +118,13 @@ schedule(obj_proc_t *next);
 
 
 cap_t *
-recv(cap_t *from, int *pid, uint8_t *m, int *cid);
+recv(cap_t *from, int *pid, uint8_t *m, cap_t *o);
 
 int
-reply(obj_endpoint_t *l, int pid, uint8_t *m, int cid);
+reply(obj_endpoint_t *l, int pid, uint8_t *m, cap_t *o);
 
 int
-mesg(obj_endpoint_t *c, uint8_t *rq, uint8_t *rp, int *cid);
+mesg(obj_endpoint_t *c, uint8_t *rq, uint8_t *rp, cap_t *o);
 
 int
 signal(obj_endpoint_t *c, uint32_t s);
@@ -246,10 +246,10 @@ size_t
 sys_proc_start(int cid, size_t pc, size_t sp);
 
 size_t
-sys_mesg(int to, uint8_t *rq, uint8_t *rp, int *cid);
+sys_mesg(int to, uint8_t *rq, uint8_t *rp, int cid);
 
 size_t
-sys_recv(int from, int *pid, uint8_t *m, int *cid);
+sys_recv(int from, int *pid, uint8_t *m, int cid);
 
 size_t
 sys_reply(int to, int pid, uint8_t *m, int cid);

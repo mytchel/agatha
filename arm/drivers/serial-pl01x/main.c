@@ -76,13 +76,11 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
 
-	mount_cid = 0;
+	mount_cid = get_free_cap_id();
 
-	mesg_cap(CID_PARENT, &prq, &prp, &mount_cid);
+	mesg_cap(CID_PARENT, &prq, &prp, mount_cid);
 
 	if (prp.get_resource.ret != OK) {
-		exit(ERR);
-	} else if (mount_cid <= 0) {
 		exit(ERR);
 	}
 

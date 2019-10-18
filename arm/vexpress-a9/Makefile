@@ -17,7 +17,7 @@ DRIVERS = \
 #	arm/drivers/video-pl111
 
 PROCS = \
-#	procs/log \
+	procs/log \
 #	procs/init \
 #	procs/net_test \
 #	procs/ui
