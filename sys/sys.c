@@ -1,16 +1,25 @@
 #include "head.h"
 
-/* TODO: 
-
-	Endpoint pool should be per process and allocated
-	by the process.
-
-   */
-
 #define MAX_CAP 64
 static cap_t caps[MAX_CAP] = { 0 };
 static size_t n_caps = 0;
 static cap_t *free_caps = nil;
+
+cap_t *
+proc_find_cap(proc_t *p, int cid)
+{
+	cap_t *c;
+
+	if (cid == 0) return nil;
+
+	for (c = p->caps; c != nil; c = c->next) {
+		if (c->id == cid) {
+			return c;
+		}
+	}
+
+	return nil;
+}
 
 cap_t *
 cap_create(proc_t *p)
@@ -82,6 +91,19 @@ sys_obj_create(size_t pa, size_t len)
 	cap_t *c;
 
 	debug_info("%i obj create 0x%x 0x%x\n", up->pid, pa, len);
+
+	size_t mlen = 0x1000;
+
+	while (true) {
+		if (mlen > len) {
+			debug_info("%i obj create bad size %i\n", up->pid, len);
+			return ERR;
+		} else if (mlen == len) {
+			break;
+		} else {
+			mlen <<= 1;
+		}
+	}
 
 	c = cap_create(up);
 	if (c == nil) {
@@ -323,43 +345,6 @@ sys_obj_merge(int cid_l, int cid_h)
 	return OK;
 }
 
-
-cap_t *
-proc_endpoint_connect(proc_t *p, obj_endpoint_t *e)
-{
-	cap_t *c;
-
-	c = cap_create(p);
-	if (c == nil) {
-		return nil;
-	}
-
-	cap_add(p, c);
-
-	c->perm = CAP_write;
-	c->obj = (void *) e;
-
-	debug_info("proc %i connect endpoint 0x%x, cap %i\n",
-		p->pid, e, c->id);
-
-	return c;
-}
-
-cap_t *
-proc_find_cap(proc_t *p, int cid)
-{
-	cap_t *c;
-
-	if (cid == 0) return nil;
-
-	for (c = p->caps; c != nil; c = c->next) {
-		if (c->id == cid) {
-			return c;
-		}
-	}
-
-	return nil;
-}
 
 bool
 endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m, int *cid, cap_t *t)
@@ -702,12 +687,18 @@ sys_endpoint_connect(int cid)
 		l = (obj_endpoint_t *) c->obj;
 	}
 
-	n = proc_endpoint_connect(up, l);
+	n = cap_create(up);
 	if (n == nil) {
-		return ERR;
+		return nil;
 	}
-	
-	debug_info("%i connect endpoint obj 0x%x, cap id %i\n", up->pid, c->obj, n->id);
+
+	cap_add(up, n);
+
+	n->perm = CAP_write;
+	n->obj = (void *) l;
+
+	debug_info("%i connect endpoint obj 0x%x, cap id %i\n", 
+		up->pid, c->obj, n->id);
 
 	return n->id;
 }

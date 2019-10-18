@@ -237,12 +237,6 @@ extern int (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n);
 cap_t *
 proc_find_cap(proc_t *p, int cid);
 
-cap_t *
-proc_endpoint_create(proc_t *p);
-
-cap_t *
-proc_endpoint_connect(proc_t *p, obj_endpoint_t *e);
-
 
 size_t
 sys_yield(void);

@@ -388,11 +388,12 @@ init_bundled_proc(char *name,
 	
 	proc_init_l1(l1_table_va);
 
-	int p_m_eid;
+	int p_m_eid, p_cid;
 
 	p_m_eid = endpoint_connect(main_eid);
-
-	int p_cid;
+	if (p_m_eid < 0) {
+		exit(1);
+	}
 
 	p_cid = obj_create_h(OBJ_proc, 1);
 	if (p_cid < 0) {
