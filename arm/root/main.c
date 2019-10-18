@@ -201,6 +201,21 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		rp.get_resource.ret = ERR;
 		break;
 
+	case RESOURCE_type_mount:
+		if (s->listen_eid >= 0) {
+			log(0, "give proc %i mount endpoint %i", from, s->listen_eid);
+
+			give_cap = s->listen_eid;
+			s->listen_eid = 0;
+			
+			rp.get_resource.ret = OK;
+		} else {
+			log(0, "cannot give proc %i mount endpoint", from);
+			rp.get_resource.ret = ERR;
+		}
+
+		break;
+
 	case RESOURCE_type_log:
 	case RESOURCE_type_timer:
 	case RESOURCE_type_block:
@@ -222,11 +237,11 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 	case RESOURCE_type_int:
 		if (s->device.is_device && !s->device.has_irq) {
 			log(0, "giving proc %i its int %i, cap id %i", 
-				from, s->device.irqn, s->device.irqn_id);
+				from, s->device.irqn, s->device.irq_cid);
 
 			s->device.has_irq = true;
 
-			give_cap = s->device.irqn_id;
+			give_cap = s->device.irq_cid;
 
 			rp.get_resource.result.irqn = s->device.irqn;
 			rp.get_resource.ret = OK;

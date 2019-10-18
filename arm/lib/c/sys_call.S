@@ -11,7 +11,10 @@
 .global yield
 .global pid
 
+.global obj_create
 .global obj_retype
+.global obj_split
+.global obj_merge
 
 .global proc_setup
 .global proc_start
@@ -109,9 +112,30 @@ signal:
 	pop {r12, pc}
 
 	
+obj_create:
+	push {r12, lr}
+	mov r12, #SYSCALL_OBJ_CREATE
+	svc 0
+	pop {r12, pc}
+
+
 obj_retype:
 	push {r12, lr}
 	mov r12, #SYSCALL_OBJ_RETYPE
+	svc 0
+	pop {r12, pc}
+
+
+obj_split:
+	push {r12, lr}
+	mov r12, #SYSCALL_OBJ_SPLIT
+	svc 0
+	pop {r12, pc}
+
+
+obj_merge:
+	push {r12, lr}
+	mov r12, #SYSCALL_OBJ_MERGE
 	svc 0
 	pop {r12, pc}
 

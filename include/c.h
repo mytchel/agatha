@@ -1,9 +1,21 @@
 /* Syscalls */
 
-extern int parent_eid;
+#define CID_PARENT   1
 
 int
 yield(void);
+
+int
+obj_create(size_t pa, size_t len);
+
+int
+obj_retype(int cid, int type, size_t n);
+
+int
+obj_split(int cid);
+
+int
+obj_merge(int cid_l, int cid_h);
 
 int
 mesg_cap(int eid, void *rq, void *rp, int *cid);

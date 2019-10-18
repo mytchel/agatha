@@ -46,9 +46,9 @@ sys_intr_connect(int iid, int eid, uint32_t signal)
 
 	if (i == nil || e == nil) {
 		return ERR;
-	} else if (i->obj->h.type != OBJ_intr) {
+	} else if (i->obj->type != OBJ_intr) {
 		return ERR;
-	} else if (e->obj->h.type != OBJ_endpoint || !(e->perm & CAP_read)) {
+	} else if (e->obj->type != OBJ_endpoint || !(e->perm & CAP_read)) {
 		return ERR;
 	}
 
@@ -81,7 +81,7 @@ sys_intr_ack(int iid)
 	c = proc_find_cap(up, iid);
 	if (c == nil) {
 		return ERR;
-	} else if (c->obj->h.type != OBJ_intr) {
+	} else if (c->obj->type != OBJ_intr) {
 		return ERR;
 	}
 
@@ -145,7 +145,7 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_PROC_SETUP]       = (void *) &sys_proc_setup,
 	[SYSCALL_PROC_START]       = (void *) &sys_proc_start,
 
-	[SYSCALL_INTR_CREATE]      = (void *) &sys_intr_init,
+	[SYSCALL_INTR_INIT]        = (void *) &sys_intr_init,
 	[SYSCALL_INTR_CONNECT]     = (void *) &sys_intr_connect,
 	[SYSCALL_INTR_ACK]         = (void *) &sys_intr_ack,
 	

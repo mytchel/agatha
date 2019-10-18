@@ -12,6 +12,7 @@ typedef struct proc proc_t;
 typedef struct proc_list proc_list_t;
 
 typedef struct cap cap_t;
+typedef struct obj_head obj_head_t;
 typedef struct obj_untyped obj_untyped_t;
 typedef struct obj_endpoint obj_endpoint_t;
 typedef struct obj_caplist obj_caplist_t;
@@ -29,12 +30,12 @@ struct cap {
 	cap_t *prev, *next;
 	int id;
 	uint32_t perm;
-	obj_untyped_t *obj;
+	obj_head_t *obj;
 };
 
 struct obj_head {
 	size_t refs;
-	obj_type_t type;
+	int type;
 };
 
 struct obj_endpoint {
@@ -69,8 +70,6 @@ struct obj_proc {
 struct obj_untyped {
 	struct obj_head h;
 	size_t len;
-	size_t used;
-	uint8_t body[];
 };
 
 struct proc {
@@ -258,7 +257,13 @@ size_t
 sys_obj_create(size_t pa, size_t len);
 
 size_t
-sys_obj_retype(int cid, obj_type_t type, size_t n);
+sys_obj_retype(int cid, int type, size_t n);
+
+size_t
+sys_obj_split(int cid);
+
+size_t
+sys_obj_merge(int cid_l, int cid_h);
 
 size_t
 sys_proc_setup(int cid, size_t vspace, size_t priority, int p_eid);

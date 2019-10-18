@@ -3,8 +3,7 @@
 .section .text
 
 .global kern_debug
-.global intr_create
-.global obj_create
+.global intr_init
 
 
 kern_debug:
@@ -14,16 +13,9 @@ kern_debug:
 	pop {r12, pc}
 
 
-intr_create:
+intr_init:
 	push {r12, lr}
-	mov r12, #SYSCALL_INTR_CREATE
-	svc 0
-	pop {r12, pc}
-
-
-obj_create:
-	push {r12, lr}
-	mov r12, #SYSCALL_OBJ_CREATE
+	mov r12, #SYSCALL_INTR_INIT
 	svc 0
 	pop {r12, pc}
 

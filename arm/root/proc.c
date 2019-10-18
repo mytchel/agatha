@@ -392,18 +392,18 @@ init_bundled_proc(char *name,
 
 	p_m_eid = endpoint_connect(main_eid);
 
-	int p_cid = obj_retype(1, OBJ_proc, 1);
+	int p_cid;
+
+	p_cid = obj_create_h(OBJ_proc, 1);
 	if (p_cid < 0) {
-		log(LOG_INFO, "retype obj failed %i", p_cid);
 		exit(1);
 	}
 
-	if (proc_setup(p_cid, l1_table_pa, priority, p_m_eid) < 0) {
+	*p_pid = proc_setup(p_cid, l1_table_pa, priority, p_m_eid);
+	if (*p_pid < 0) {
 		log(LOG_INFO, "proc setup failed");
 		exit(1);
 	}
-
-	*p_pid = 1;
 
 	procs[*p_pid].l1.table = l1_table_va;
 	procs[*p_pid].l1.mapped = l1_mapped_va;
@@ -508,6 +508,52 @@ init_procs(void)
 		exit(1);
 	}
 
+	log(0, "setup services");
+
+	for (s = 0; s < nservices; s++) {
+		ser = &services[s];
+
+		log(0, "setup service %s", ser->name);
+
+		ser->listen_eid = endpoint_create();
+		log(0, "service %s listen endpoint %i", 
+			ser->name, ser->listen_eid);
+	
+		if (ser->device.is_device) {
+			if (ser->device.reg != 0) {
+				log(0, "service %s create reg frame 0x%x 0x%x", 
+					ser->name, ser->device.reg, ser->device.len);
+
+				ser->device.reg_frame = 
+					frame_new(PAGE_ALIGN_DN(ser->device.reg),
+							PAGE_ALIGN(ser->device.len));
+			} else {
+				ser->device.reg_frame = nil;
+			}
+
+			if (ser->device.irqn > 0) {
+				log(0, "service %s create int %i", 
+					ser->name, ser->device.irqn);
+				int cid;
+
+				cid = obj_create_h(OBJ_intr, 1);
+				if (cid < 0) {
+					log(0, "failed to create obj for intr");
+
+				} else if (intr_init(cid, ser->device.irqn) != OK) {
+					log(0, "intr init for %i irqn %i failed", 
+						cid, ser->device.irqn);
+				}
+
+				ser->device.irq_cid = cid;
+			} else {
+				ser->device.irq_cid = -1;
+			}
+		}
+	}
+
+	log(0, "setup idle");
+
 	off = info->bundle_pa;
 
 	for (i = 0; i < nbundled_idle; i++) {
@@ -518,24 +564,7 @@ init_procs(void)
 		off += bundled_idle[i].len;
 	}
 	
-	for (s = 0; s < nservices; s++) {
-		ser = &services[s];
-
-		if (!ser->device.is_device) continue;
-
-		log(0, "create frame for dev '%s'", ser->name);
-
-		ser->device.reg_frame = 
-			frame_new(PAGE_ALIGN_DN(ser->device.reg),
-					PAGE_ALIGN(ser->device.len));
-
-		if (ser->device.irqn > 0) {
-			log(0, "create int for dev '%s'", ser->name);
-			ser->device.irqn_id = intr_create(ser->device.irqn);
-		} else {
-			ser->device.irqn_id = -1;
-		}
-	}
+	log(0, "setup procs");
 
 	for (i = 0; i < nbundled_procs; i++) {
 		for (s = 0; s < nservices; s++) {

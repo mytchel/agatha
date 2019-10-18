@@ -65,20 +65,31 @@ handle_read(int eid, int from, union serial_req *rq)
 }
 
 	void
-main(int p_eid)
+main(void)
 {
 	size_t regs_pa, regs_len;
 	union serial_req rq;
 	union proc0_req prq;
 	union proc0_rsp prp;
-	int eid, from;
+	int mount_cid, eid, from;
 
-	parent_eid = p_eid;
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_mount;
+
+	mount_cid = 0;
+
+	mesg_cap(CID_PARENT, &prq, &prp, &mount_cid);
+
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	} else if (mount_cid <= 0) {
+		exit(ERR);
+	}
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_regs;
 
-	mesg(parent_eid, &prq, &prp);
+	mesg(CID_PARENT, &prq, &prp);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);

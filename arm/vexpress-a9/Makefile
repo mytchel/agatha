@@ -9,7 +9,7 @@ IDLE = \
 	procs/idle 
 
 DRIVERS = \
-#	arm/drivers/serial-pl01x \
+	arm/drivers/serial-pl01x \
 #	arm/drivers/timer-sp804 \
 #	arm/drivers/mmc-pl18x \
 #	arm/drivers/virtio/net \

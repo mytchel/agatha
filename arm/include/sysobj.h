@@ -1,12 +1,10 @@
-typedef enum {
-	OBJ_untyped = 0,
-	OBJ_endpoint,
-	OBJ_caplist,
-	OBJ_proc,
-	OBJ_intr,
-	OBJ_type_n
-} obj_type_t;
+#define OBJ_untyped    0
+#define OBJ_endpoint   1
+#define OBJ_caplist    2
+#define OBJ_proc       3
 
-int
-obj_retype(int cid, obj_type_t type, size_t n);
+#define OBJ_intr       4
+
+#define OBJ_type_n     5
+
 

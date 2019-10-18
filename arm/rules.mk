@@ -17,7 +17,7 @@ CFLAGS += \
 
 LDFLAGS += \
   -Larm/lib \
-  -L/usr/local/lib/gcc/$(CROSS)/6.3.1 
+  -L/usr/local/lib/gcc/$(CROSS)/7.4.1 
 
 LDFLAGS_USER += \
 	$(LDFLAGS) \

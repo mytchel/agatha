@@ -25,13 +25,15 @@ struct service {
 		bool has_irq;
 
 		struct addr_frame *reg_frame;
-		int irqn_id;
+		int irq_cid;
 	} device;
 
 	struct {
 		int type;
 		char *name;
 	} resources[16];
+		
+	int listen_eid;
 };
 
 struct addr_frame {
