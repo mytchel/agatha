@@ -5,6 +5,8 @@
 void
 init_kernel_drivers();
 
+uint8_t root_obj[0x1000] = { 0 };
+
 #define root_l1_va      0x01000
 #define root_l2_va      0x05000
 #define root_info_va    0x06000
@@ -22,6 +24,8 @@ root_start(void)
 {
 	label_t u = {0};
 
+	debug_info("root drop to user\n");
+
 	u.psr = MODE_USR;
 	u.sp = root_stack_va + 0x1000;
 	u.pc = root_code_va;
@@ -30,11 +34,15 @@ root_start(void)
 	drop_to_user(&u);
 }
 
-	static proc_t *
+	static obj_proc_t *
 init_root(struct kernel_info *info)
 {
 	uint32_t *l1, *l2;
-	proc_t *p;
+	obj_proc_t *p;
+	
+	p = (void *) root_obj;
+	p->h.type = OBJ_proc;
+	p->h.refs = 1;
 
 	l1 = kernel_map(info->root.l1_pa,
 			info->root.l1_len,
@@ -89,9 +97,8 @@ init_root(struct kernel_info *info)
 	kernel_unmap(l1, info->root.l1_len);
 	kernel_unmap(l2, info->root.l2_len);
 
-	p = proc_new(1, info->root.l1_pa);
-	if (p == nil) {
-		panic("Failed to create root!\n");
+	if (proc_init(p, 1, info->root.l1_pa) != OK) {
+		panic("Failed to init root!\n");
 	}
 
 	if (p->pid != ROOT_PID) {
@@ -144,7 +151,7 @@ kernel_unmap(void *addr, size_t len)
 	void
 main(struct kernel_info *info)
 {
-	proc_t *p1;
+	obj_proc_t *p;
 
 	kernel_l1 = (uint32_t *) info->kernel.l1_va;
 	kernel_l2 = (uint32_t *) info->kernel.l2_va;
@@ -185,12 +192,12 @@ main(struct kernel_info *info)
 			info->root.l2_pa, 
 			info->root.l2_len);
 
-	p1 = init_root(info);
+	p = init_root(info);
 
 	kernel_unmap(info, info->info_len);
 
 	debug_info("scheduling root\n");
 
-	schedule(p1);
+	schedule(p);
 }
 

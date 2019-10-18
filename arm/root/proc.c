@@ -390,7 +390,7 @@ init_bundled_proc(char *name,
 
 	int p_m_eid, p_cid;
 
-	p_m_eid = endpoint_connect(main_eid);
+	p_m_eid = endpoint_connect(main_eid, get_free_cap_id());
 	if (p_m_eid < 0) {
 		exit(1);
 	}
@@ -517,6 +517,11 @@ init_procs(void)
 		log(0, "setup service %s", ser->name);
 
 		ser->listen_eid = endpoint_create();
+		if (ser->listen_eid < 0) {
+			log(0, "failed to create listen endpoint");
+			exit(1);
+		}
+
 		log(0, "service %s listen endpoint %i", 
 			ser->name, ser->listen_eid);
 	
@@ -528,6 +533,11 @@ init_procs(void)
 				ser->device.reg_frame = 
 					frame_new(PAGE_ALIGN_DN(ser->device.reg),
 							PAGE_ALIGN(ser->device.len));
+
+				if (ser->device.reg_frame == nil) {
+					log(0, "failed to create reg frame");
+					exit(1);
+				}
 			} else {
 				ser->device.reg_frame = nil;
 			}
@@ -540,10 +550,12 @@ init_procs(void)
 				cid = obj_create_h(OBJ_intr, 1);
 				if (cid < 0) {
 					log(0, "failed to create obj for intr");
+					exit(1);
 
 				} else if (intr_init(cid, ser->device.irqn) != OK) {
 					log(0, "intr init for %i irqn %i failed", 
 						cid, ser->device.irqn);
+					exit(1);
 				}
 
 				ser->device.irq_cid = cid;

@@ -226,7 +226,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 			log(0, "giving proc %i resource type %i eid %i pid %i",
 				from, rq->get_resource.resource_type, r->eid, r->pid);
 
-			give_cap = endpoint_connect(r->eid);
+			give_cap = endpoint_connect(r->eid, get_free_cap_id());
 
 			rp.get_resource.ret = OK;
 		} else {
@@ -286,18 +286,6 @@ main(struct kernel_info *i)
 	log(0, "boot starts at 0x%x", info->boot_pa);
 
 	init_mem();
-
-	size_t pa, len;
-	len = 0x1000;
-	pa = get_ram(len, 0x1000);
-	if (pa == nil) {
-		exit(2);
-	}
-
-	int cid = obj_create(pa, len);
-	if (cid < 0) {
-		exit(3);
-	}
 
 	main_eid = endpoint_create();
 	if (main_eid < 0) {

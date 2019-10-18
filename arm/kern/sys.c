@@ -99,7 +99,7 @@ obj_intr_size(size_t n)
 }
 
 int
-obj_intr_init(proc_t *p, void *o, size_t n)
+obj_intr_init(obj_proc_t *p, void *o, size_t n)
 {
 	obj_intr_t *i = o;
 
@@ -119,7 +119,7 @@ size_t (*obj_size_funcs[OBJ_type_n])(size_t n) = {
 	[OBJ_intr]                = obj_intr_size,
 };
 
-int (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n) = {
+int (*obj_init_funcs[OBJ_type_n])(obj_proc_t *p, void *o, size_t n) = {
 	[OBJ_untyped]             = obj_untyped_init,
 	[OBJ_endpoint]            = obj_endpoint_init,
 	[OBJ_caplist]             = obj_caplist_init,

@@ -2,8 +2,8 @@
 
 #define MIN_TIME_SLICE        10
 
-static void add_to_list_tail(proc_list_t *l, proc_t *p);
-static void remove_from_list(proc_list_t *l, proc_t *p);
+static void add_to_list_tail(proc_list_t *l, obj_proc_t *p);
+static void remove_from_list(proc_list_t *l, obj_proc_t *p);
 
 struct ready_list {
 	struct proc_list queue[2];
@@ -12,15 +12,15 @@ struct ready_list {
 
 struct ready_list ready[PRIORITY_MAX] = { 0 };
 
-proc_t *up = nil;
+obj_proc_t *up = nil;
 
 static uint32_t nextpid = 1;
-static proc_t procs[MAX_PROCS] = { 0 };
+static obj_proc_t *procs[MAX_PROCS] = { nil };
 
 	static void
-add_to_list_tail(proc_list_t *l, proc_t *p)
+add_to_list_tail(proc_list_t *l, obj_proc_t *p)
 {
-	p->list = l;
+	p->slist = l;
 
 	p->snext = nil;
 	p->sprev = l->tail;
@@ -35,9 +35,9 @@ add_to_list_tail(proc_list_t *l, proc_t *p)
 }
 
 	static void
-remove_from_list(proc_list_t *l, proc_t *p)
+remove_from_list(proc_list_t *l, obj_proc_t *p)
 {
-	p->list = nil;
+	p->slist = nil;
 
 	if (p->sprev != nil) {
 		p->sprev->snext = p->snext;
@@ -52,23 +52,25 @@ remove_from_list(proc_list_t *l, proc_t *p)
 	}
 }
 
-	static proc_t *
+	static obj_proc_t *
 next_proc(void)
 {
-	proc_t *p, *n;
+	obj_proc_t *p, *n;
 	int q;
 
 #if DEBUG_LEVEL >= DEBUG_SCHED_V
 	int i;
 	for (i = 0; i < MAX_PROCS; i++) {
-		if (procs[i].state == PROC_free) continue;
-		if (procs[i].list == nil) {
+		p = procs[i];
+		if (p == nil) continue;
+		if (p->state == PROC_free) continue;
+		if (p->list == nil) {
 			debug_sched_v("proc %i pri %i in state %i\n", 
-					procs[i].pid, procs[i].priority, procs[i].state);
+					p->pid, p->priority, p->state);
 		} else {
-			int list = procs[i].list == &ready[procs[i].priority].queue[0] ? 0 : 1;
+			int list = p->slist == &ready[p->priority].queue[0] ? 0 : 1;
 			debug_sched_v("proc %i pri %i in state %i in list %i\n", 
-					procs[i].pid, procs[i].priority, procs[i].state, list);
+					p->pid, p->priority, p->state, list);
 		}
 	}
 #endif
@@ -117,7 +119,7 @@ next_proc(void)
 }
 
 	void
-schedule(proc_t *n)
+schedule(obj_proc_t *n)
 {
 	if (up != nil) {
 		size_t passed = systick_passed();
@@ -139,7 +141,7 @@ schedule(proc_t *n)
 		if (up->state != PROC_ready) {
 			up->ts = 0;
 
-		} else if (up->state == PROC_ready && up->list == nil) {
+		} else if (up->state == PROC_ready && up->slist == nil) {
 			add_to_list_tail(&ready[up->priority]
 				.queue[ready[up->priority].q], 
 				up);
@@ -151,7 +153,7 @@ schedule(proc_t *n)
 			debug_sched("use given\n");
 			up = n;
 
-		} else if (n->list == nil) {
+		} else if (n->slist == nil) {
 			debug_sched("put given on next queue\n");
 			add_to_list_tail(&ready[n->priority].queue[(ready[n->priority].q + 1) % 2], n);
 			up = next_proc();
@@ -177,17 +179,16 @@ schedule(proc_t *n)
 	}
 }
 
-	proc_t *
-proc_new(int priority, size_t vspace)
+	int
+proc_init(obj_proc_t *p, int priority, size_t vspace)
 {
 	int pid;
-	proc_t *p;
 
 	pid = nextpid++;
 
-	p = &procs[pid];
+	procs[pid] = p;
 
-	memset(p, 0, sizeof(proc_t));
+	memset(&p->label, 0, sizeof(label_t));
 
 	p->pid = pid;
 	p->vspace = vspace;
@@ -195,51 +196,63 @@ proc_new(int priority, size_t vspace)
 	
 	p->ts = SYSTICK;
 
-	p->cap0.prev = nil;
-	p->cap0.next = nil;
-	p->cap0.id = 0;
-	p->cap0.perm = 0;
-	p->cap0.obj = nil;
+	p->slist = nil;
+	p->sprev = nil;
+	p->snext = nil;
 
-	p->caps = &p->cap0;
+	p->wprev = nil;
+	p->wnext = nil;
+	p->state = PROC_fault;
 
-	return p;
-}
+	p->initial_caps[0].next = &p->initial_caps[1];
+	p->initial_caps[0].perm = 0;
+	p->initial_caps[0].id = 0;
+	p->initial_caps[1].next = &p->initial_caps[2];
+	p->initial_caps[1].perm = 0;
+	p->initial_caps[1].id = 1;
+	p->initial_caps[2].perm = 0;
+	p->initial_caps[2].next = nil;
+	p->initial_caps[2].id = 2;
 
-	int
-proc_free(proc_t *p)
-{
-	debug_sched("free %i\n", p->pid);
+	p->caps = &p->initial_caps[0];
 
-	if (p->list != nil) {
-		remove_from_list(p->list, p);
-	}
-
-	p->pid = -1;
+	p->next_cap_id = 3;
 
 	return OK;
 }
 
 	int
-proc_fault(proc_t *p)
+proc_free(obj_proc_t *p)
+{
+	debug_sched("free %i\n", p->pid);
+
+	if (p->slist != nil) {
+		remove_from_list(p->slist, p);
+	}
+
+	return OK;
+}
+
+	int
+proc_fault(obj_proc_t *p)
 {
 	debug_sched("fault %i\n", p->pid);
 
 	p->state = PROC_fault;
-	if (p->list != nil) {
-		remove_from_list(p->list, p);
+	if (p->slist != nil) {
+		remove_from_list(p->slist, p);
 	}
 
 	return OK;
 }
 
 	int
-proc_ready(proc_t *p)
+proc_ready(obj_proc_t *p)
 {
 	debug_sched("ready %i\n", p->pid);
 
 	p->state = PROC_ready;
-	if (p->list == nil) {
+	if (p->slist == nil) {
 		/* TODO: don't need to do this if we are about
 		   to switch to the proc */
 
@@ -251,11 +264,13 @@ proc_ready(proc_t *p)
 	return OK;
 }
 
-	proc_t *
+	obj_proc_t *
 find_proc(int pid)
 {
-	if (pid < MAX_PROCS) {
-		return procs[pid].state != PROC_free ? &procs[pid] : nil;
+	if (pid < 0) {
+		return nil;
+	} else if (pid < MAX_PROCS) {
+		return procs[pid];
 	} else {
 		return nil;
 	}

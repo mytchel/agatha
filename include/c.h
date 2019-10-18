@@ -6,13 +6,13 @@ int
 yield(void);
 
 int
-obj_create(size_t pa, size_t len);
+obj_create(int cid, size_t pa, size_t len);
 
 int
 obj_retype(int cid, int type, size_t n);
 
 int
-obj_split(int cid);
+obj_split(int cid, int nid);
 
 int
 obj_merge(int cid_l, int cid_h);
@@ -42,7 +42,7 @@ int
 endpoint_create(void);
 
 int
-endpoint_connect(int eid);
+endpoint_connect(int cid, int nid);
 
 int
 intr_connect(int iid, int eid, uint32_t signal);

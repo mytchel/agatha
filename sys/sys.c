@@ -1,12 +1,7 @@
 #include "head.h"
 
-#define MAX_CAP 64
-static cap_t caps[MAX_CAP] = { 0 };
-static size_t n_caps = 0;
-static cap_t *free_caps = nil;
-
 cap_t *
-proc_find_cap(proc_t *p, int cid)
+proc_find_cap(obj_proc_t *p, int cid)
 {
 	cap_t *c;
 
@@ -21,76 +16,14 @@ proc_find_cap(proc_t *p, int cid)
 	return nil;
 }
 
-cap_t *
-cap_create(proc_t *p)
-{
-	cap_t *c;
-
-	if (free_caps == nil) {
-		if (n_caps < MAX_CAP) {
-			free_caps= &caps[n_caps++];
-			free_caps->next = nil;
-		} else {
-			debug_warn("out of capabilities!\n");
-			return nil;
-		}
-	}
-
-	c = free_caps;
-	free_caps = c->next;
-
-	c->id = 0;
-	c->prev = nil;
-	c->next = nil;
-
-	debug_info("%i create cap %i\n", p->pid, c->id);
-
-	return c;
-}
-
-void
-cap_free(proc_t *p, cap_t *c)
-{
-	debug_info("%i free cap %i\n", p->pid, c->id);
-
-	c->next = free_caps;
-	free_caps = c;
-}
-
-void
-cap_add(proc_t *p, cap_t *c)
-{
-	debug_info("%i add cap %i\n", p->pid, c->id);
-
-	c->prev = p->caps;
-	c->next = p->caps->next;
-
-	if (c->next != nil) {
-		c->next->prev = c;
-	}
-	
-	p->caps->next = c;
-
-	c->id = ++p->next_cap_id;
-}
-
-void
-cap_remove(proc_t *p, cap_t *c)
-{
-	debug_info("%i rem cap %i\n", p->pid, c->id);
-
-	c->prev->next = c->next;
-	if (c->next != nil)
-		c->next->prev = c->prev;
-}
-
 size_t
-sys_obj_create(size_t pa, size_t len)
+sys_obj_create(int cid, size_t pa, size_t len)
 {
 	obj_untyped_t *o;
 	cap_t *c;
 
-	debug_info("%i obj create 0x%x 0x%x\n", up->pid, pa, len);
+	debug_info("%i obj create %i 0x%x 0x%x\n", 
+		up->pid, cid, pa, len);
 
 	size_t mlen = 0x1000;
 
@@ -105,8 +38,14 @@ sys_obj_create(size_t pa, size_t len)
 		}
 	}
 
-	c = cap_create(up);
+	c = proc_find_cap(up, cid);
 	if (c == nil) {
+		debug_warn("%i obj create couldnt find cap %i\n", 
+			up->pid, cid);
+		return ERR;
+	} else if (c->perm != 0) {
+		debug_warn("%i obj create cap %i bad perm %i\n", 
+			up->pid, cid, c->perm);
 		return ERR;
 	}
 
@@ -123,12 +62,10 @@ sys_obj_create(size_t pa, size_t len)
 	c->perm = CAP_write | CAP_read;
 	c->obj = (obj_head_t *) o;
 
-	cap_add(up, c);
-
 	debug_info("%i obj create 0x%x cap id %i\n", 
 		up->pid, o, c->id);
 
-	return c->id;
+	return OK;
 }
 
 size_t 
@@ -156,7 +93,7 @@ obj_caplist_size(size_t n)
 }
 
 int
-obj_untyped_init(proc_t *p, void *o, size_t n)
+obj_untyped_init(obj_proc_t *p, void *o, size_t n)
 {
 	obj_untyped_t *u = o;
 
@@ -166,7 +103,7 @@ obj_untyped_init(proc_t *p, void *o, size_t n)
 }
 
 int
-obj_endpoint_init(proc_t *p, void *o, size_t n)
+obj_endpoint_init(obj_proc_t *p, void *o, size_t n)
 {
 	obj_endpoint_t *e = o;
 
@@ -181,11 +118,28 @@ obj_endpoint_init(proc_t *p, void *o, size_t n)
 }
 
 int
-obj_caplist_init(proc_t *p, void *o, size_t n)
+obj_caplist_init(obj_proc_t *p, void *o, size_t n)
 {
+	obj_caplist_t *l = o;
+	cap_t *c;
+	int i;
+
 	debug_info("proc %i making caplist 0x%x size %i\n", p->pid, o, n);
+
+	l->n = n;
+
+	for (i = 0; i < n; i++) {
+		c = &l->caps[i];
+
+		c->id = p->next_cap_id++;
+		c->perm = 0;
+		c->obj = nil;
+
+		c->next = p->caps->next;
+		p->caps->next = c;
+	}
 	
-	return OK;
+	return l->caps[0].id;
 }
 
 size_t
@@ -238,7 +192,7 @@ sys_obj_retype(int cid, int type, size_t n)
 }
 
 size_t
-sys_obj_split(int cid)
+sys_obj_split(int cid, int nid)
 {
 	obj_untyped_t *o, *no;
 	cap_t *c, *nc;
@@ -250,14 +204,20 @@ sys_obj_split(int cid)
 	if (c == nil) {
 		debug_warn("cap not found\n");
 		return ERR;
-	}
-
-	debug_info("cap found\n");
-
-	if (c->obj->type != OBJ_untyped) {
+	} else if (!(c->perm & CAP_write)) {
+		return ERR;
+	} else if (c->obj->type != OBJ_untyped) {
 		return ERR;
 	}
-	
+
+	nc = proc_find_cap(up, nid);
+	if (c == nil) {
+		debug_warn("cap not found\n");
+		return ERR;
+	} else if (nc->perm != 0) {
+		return ERR;
+	}
+
 	o = (obj_untyped_t *) c->obj;
 
 	len = align_up(o->len / 2, sizeof(size_t));
@@ -266,11 +226,6 @@ sys_obj_split(int cid)
 		up->pid, o->len, len);
 
 	if (len < sizeof(obj_untyped_t)) {
-		return ERR;
-	}
-
-	nc = cap_create(up);
-	if (nc == nil) {
 		return ERR;
 	}
 
@@ -286,8 +241,6 @@ sys_obj_split(int cid)
 
 	nc->obj = (void *) no;
 	nc->perm = CAP_read | CAP_write;
-
-	cap_add(up, nc);
 
 	debug_info("%i add cap %i for obj 0x%x\n", 
 		up->pid, nc->id, no);
@@ -339,8 +292,8 @@ sys_obj_merge(int cid_l, int cid_h)
 
 	ol->len += oh->len;
 
-	cap_remove(up, ch);
-	cap_free(up, ch);
+	ch->obj = nil;
+	ch->perm = 0;
 
 	return OK;
 }
@@ -349,7 +302,7 @@ sys_obj_merge(int cid_l, int cid_h)
 bool
 endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m, int *cid, cap_t *t)
 {
-	proc_t *p;
+	obj_proc_t *p;
 
 	if (e->signal != 0) {
 		((uint32_t *) m)[0] = e->signal;
@@ -364,7 +317,7 @@ endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m, int *cid, cap_t *t
 			p->state = PROC_block_reply;
 
 			memcpy(m, p->m, MESSAGE_LEN);
-
+/*
 			if (p->give != nil) {
 				if (t == nil) {
 					panic("%i send to %i with cap but not accepting, TODO: handle this\n", p->pid, up->pid);
@@ -387,7 +340,7 @@ endpoint_get_pending(obj_endpoint_t *e, int *pid, uint8_t *m, int *cid, cap_t *t
 				cap_free(up, t);
 				*cid = -1;
 			}
-
+*/
 			*pid = p->pid;
 			return true;
 		}
@@ -400,7 +353,7 @@ cap_t *
 recv(cap_t *from, int *pid, uint8_t *m, int *cid)
 {
 	cap_t *c, *t;
-
+/*
 	if (cid != nil) {
 		t = cap_create(up);
 		if (t == nil) {
@@ -409,7 +362,7 @@ recv(cap_t *from, int *pid, uint8_t *m, int *cid)
 	} else {
 		t = nil;
 	}
-
+*/
 	while (true) {
 		if (from != nil) {
 			if (endpoint_get_pending((obj_endpoint_t *) from->obj, pid, m, cid, t)) {
@@ -439,7 +392,7 @@ recv(cap_t *from, int *pid, uint8_t *m, int *cid)
 int
 reply(obj_endpoint_t *e, int pid, uint8_t *m, int cid)
 {
-	proc_t *p;
+	obj_proc_t *p;
 	cap_t *c;
 
 	if (cid != 0) {
@@ -477,6 +430,7 @@ reply(obj_endpoint_t *e, int pid, uint8_t *m, int cid)
 
 	memcpy(p->m, m, MESSAGE_LEN);
 
+/*
 	if (c != nil) {
 		debug_info("%i offer cap id %i\n", up->pid, cid);
 		if (p->take == nil) {
@@ -489,6 +443,7 @@ reply(obj_endpoint_t *e, int pid, uint8_t *m, int cid)
 			cap_free(up, c);
 		}
 	}
+	*/
 
 	proc_ready(p);
 	schedule(p);
@@ -499,13 +454,13 @@ reply(obj_endpoint_t *e, int pid, uint8_t *m, int cid)
 int
 mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, int *cid)
 {
-	proc_t *p;
+	obj_proc_t *p;
 	cap_t *c;
 
 	p = e->holder;
 
 	memcpy(up->m, rq, MESSAGE_LEN);
-
+/*
 	if (cid != nil) {
 		if (*cid != 0) {
 			debug_info("%i give cap id %i\n", up->pid, *cid);
@@ -527,7 +482,7 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, int *cid)
 		up->give = nil;
 		up->take = nil;
 	}
-
+*/
 	up->state = PROC_block_send;
 
 	up->wprev = e->waiting.tail;
@@ -554,6 +509,7 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, int *cid)
 
 	memcpy(rp, up->m, MESSAGE_LEN);
 
+/*
 	if (cid != nil) {
 		c = up->take;
 		if (c->perm == 0) {
@@ -566,6 +522,7 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, int *cid)
 			*cid = c->id;
 		}
 	}
+*/
 
 	return OK;
 }
@@ -573,7 +530,7 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, int *cid)
 int
 signal(obj_endpoint_t *e, uint32_t s)
 {
-	proc_t *p;
+	obj_proc_t *p;
 
 	p = e->holder;
 
@@ -673,7 +630,7 @@ sys_signal(int to, uint32_t s)
 }
 
 	size_t
-sys_endpoint_connect(int cid)
+sys_endpoint_connect(int cid, int nid)
 {
 	obj_endpoint_t *l;
 	cap_t *c, *n;
@@ -687,12 +644,12 @@ sys_endpoint_connect(int cid)
 		l = (obj_endpoint_t *) c->obj;
 	}
 
-	n = cap_create(up);
+	n = proc_find_cap(up, nid);
 	if (n == nil) {
-		return nil;
+		return ERR;
+	} else if (n->perm != 0) {
+		return ERR;
 	}
-
-	cap_add(up, n);
 
 	n->perm = CAP_write;
 	n->obj = (void *) l;
@@ -750,11 +707,12 @@ obj_proc_size(size_t n)
 }
 
 int
-obj_proc_init(proc_t *p, void *a, size_t n)
+obj_proc_init(obj_proc_t *p, void *a, size_t n)
 {
 	obj_proc_t *o = a;
 
-	o->proc = nil;
+	memset(((uint8_t *) o) + sizeof(obj_head_t), 0,
+		sizeof(obj_proc_t) - sizeof(obj_head_t));
 
 	return OK;
 }
@@ -764,7 +722,6 @@ sys_proc_setup(int cid, size_t vspace, size_t priority, int p_eid)
 {
 	obj_proc_t *o;
 	cap_t *c, *pe;
-	proc_t *n;
 
 	debug_info("%i proc setup cid %i with vspace 0x%x, priority %i\n", 
 		up->pid, cid, vspace, priority);
@@ -784,36 +741,32 @@ sys_proc_setup(int cid, size_t vspace, size_t priority, int p_eid)
 	if (pe == nil) {
 		debug_warn("%i couln't find cid %i\n", up->pid, p_eid);
 		return ERR;
+	} else if (!(pe->perm & CAP_write)) {
+		return ERR;
 	} else if (pe->obj->type != OBJ_endpoint) {
 		return ERR;
 	}
 
-	n = proc_new(priority, vspace);
-	if (n == nil) {
-		debug_warn("proc_new failed\n");
+	if (proc_init(o, priority, vspace) != OK) {
+		debug_warn("proc_init failed\n");
 		return ERR;
 	}
 
-	o->proc = n;
-	n->obj = o;
+	o->initial_caps[1].perm = CAP_write;
+	o->initial_caps[1].obj = pe->obj;
 
-	cap_remove(up, pe);
-	cap_add(n, pe);
+	pe->perm = 0;
 
 	debug_info("new proc %i setup with vspace 0x%x, priority %i\n", 
-		n->pid, n->vspace, n->priority);
+		o->pid, o->vspace, o->priority);
 
-	debug_info("new proc parent cid = %i\n",
-		pe->id);
-
-	return n->pid;
+	return o->pid;
 }
 
 size_t
 sys_proc_start(int cid, size_t pc, size_t sp)
 {
 	obj_proc_t *o;
-	proc_t *n;
 	cap_t *c;
 
 	debug_info("%i proc start cid %i\n", up->pid, cid);
@@ -827,20 +780,16 @@ sys_proc_start(int cid, size_t pc, size_t sp)
 		o = (obj_proc_t *) c->obj;
 	}
 
-	n = o->proc;
-	
-	debug_info("%i proc start pid %i\n", up->pid, n->pid);
+	debug_info("%i proc start pid %i\n", up->pid, o->pid);
 
-	func_label(&n->label, 
-		(size_t) n->kstack, KSTACK_LEN,
+	func_label(&o->label, 
+		(size_t) o->kstack, KSTACK_LEN,
 		(size_t) &proc_start,
 		pc, sp);
 
-	debug_info("%i proc ready pid %i\n", up->pid, n->pid);
+	debug_info("%i proc ready pid %i\n", up->pid, o->pid);
 
-	proc_ready(n);
-
-	debug_info("%i proc %i started\n", up->pid, n->pid);
+	proc_ready(o);
 
 	return OK;
 }

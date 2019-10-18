@@ -8,7 +8,6 @@
 #include <stdarg.h>
 #include <string.h>
 
-typedef struct proc proc_t;
 typedef struct proc_list proc_list_t;
 
 typedef struct cap cap_t;
@@ -20,14 +19,14 @@ typedef struct obj_proc obj_proc_t;
 typedef struct obj_intr obj_intr_t;
 
 struct proc_list {
-	proc_t *head, *tail;
+	obj_proc_t *head, *tail;
 };
 
 #define CAP_write  1
 #define CAP_read   2
 
 struct cap {
-	cap_t *prev, *next;
+	cap_t *next;
 	int id;
 	uint32_t perm;
 	obj_head_t *obj;
@@ -41,7 +40,7 @@ struct obj_head {
 struct obj_endpoint {
 	struct obj_head h;
 
-	proc_t *holder;
+	obj_proc_t *holder;
 	uint32_t signal;
 	proc_list_t waiting;
 };
@@ -64,18 +63,9 @@ struct obj_caplist {
 struct obj_proc {
 	struct obj_head h;
 
-	proc_t *proc;
-};
+	cap_t initial_caps[3];
 
-struct obj_untyped {
-	struct obj_head h;
-	size_t len;
-};
-
-struct proc {
 	label_t label;
-
-	obj_proc_t *obj;
 
 	procstate_t state;
 	int pid;
@@ -85,8 +75,8 @@ struct proc {
 	int priority;
 
 	int ts;
-	proc_list_t *list;		
-	proc_t *sprev, *snext;
+	proc_list_t *slist;
+	obj_proc_t *sprev, *snext;
 
 	size_t vspace;
 
@@ -94,32 +84,36 @@ struct proc {
 	int m_ret;
 	cap_t *give, *take;
 
-	proc_t *wprev, *wnext;
+	obj_proc_t *wprev, *wnext;
 
 	obj_endpoint_t *recv_from;
 
 	int next_cap_id;
 	cap_t *caps;
-	cap_t cap0;
 };
 
-proc_t *
-proc_new(int priority, size_t vspace);
+struct obj_untyped {
+	struct obj_head h;
+	size_t len;
+};
 
 int
-proc_ready(proc_t *p);
+proc_init(obj_proc_t *p, int priority, size_t vspace);
 
 int
-proc_fault(proc_t *p);
+proc_ready(obj_proc_t *p);
 
 int
-proc_free(proc_t *p);
+proc_fault(obj_proc_t *p);
 
-proc_t *
+int
+proc_free(obj_proc_t *p);
+
+obj_proc_t *
 find_proc(int pid);
 
 void
-schedule(proc_t *next);
+schedule(obj_proc_t *next);
 
 
 
@@ -192,20 +186,6 @@ debug(int code, const char *fmt, ...);
 void
 panic(const char *fmt, ...);
 
-
-cap_t *
-cap_create(proc_t *p);
-
-void
-cap_free(proc_t *p, cap_t *c);
-
-void
-cap_add(proc_t *p, cap_t *c);
-
-void
-cap_remove(proc_t *p, cap_t *c);
-
-
 size_t
 obj_untyped_size(size_t n);
 
@@ -221,21 +201,21 @@ obj_proc_size(size_t n);
 extern size_t (*obj_size_funcs[OBJ_type_n])(size_t n);
 
 int
-obj_untyped_init(proc_t *p, void *o, size_t n);
+obj_untyped_init(obj_proc_t *p, void *o, size_t n);
 
 int
-obj_endpoint_init(proc_t *p, void *o, size_t n);
+obj_endpoint_init(obj_proc_t *p, void *o, size_t n);
 
 int
-obj_caplist_init(proc_t *p, void *o, size_t n);
+obj_caplist_init(obj_proc_t *p, void *o, size_t n);
 
 int
-obj_proc_init(proc_t *p, void *o, size_t n);
+obj_proc_init(obj_proc_t *p, void *o, size_t n);
 
-extern int (*obj_init_funcs[OBJ_type_n])(proc_t *p, void *o, size_t n);
+extern int (*obj_init_funcs[OBJ_type_n])(obj_proc_t *p, void *o, size_t n);
 
 cap_t *
-proc_find_cap(proc_t *p, int cid);
+proc_find_cap(obj_proc_t *p, int cid);
 
 
 size_t
@@ -248,13 +228,13 @@ size_t
 sys_exit(uint32_t code);
 
 size_t
-sys_obj_create(size_t pa, size_t len);
+sys_obj_create(int cid, size_t pa, size_t len);
 
 size_t
 sys_obj_retype(int cid, int type, size_t n);
 
 size_t
-sys_obj_split(int cid);
+sys_obj_split(int cid, int nid);
 
 size_t
 sys_obj_merge(int cid_l, int cid_h);
@@ -281,7 +261,7 @@ size_t
 sys_endpoint_create(void);
 
 size_t
-sys_endpoint_connect(int cid);
+sys_endpoint_connect(int cid, int nid);
 
 size_t
 sys_debug(char *s);
@@ -330,7 +310,7 @@ kernel_map(size_t pa, size_t len, bool cache);
 void
 kernel_unmap(void *addr, size_t len);
 
-extern proc_t *up;
+extern obj_proc_t *up;
 
 extern void (*debug_puts)(const char *);
 
