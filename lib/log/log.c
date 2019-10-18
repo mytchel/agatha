@@ -23,14 +23,10 @@ log_init(char *name)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_log;
 
-	log_eid = 0;
+	log_eid = get_free_cap_id();
 
-	mesg_cap(parent_eid, &prq, &prp, &log_eid);
+	mesg_cap(CID_PARENT, &prq, &prp, log_eid);
 	if (prp.get_resource.ret != OK) {
-		exit(ERR);
-	}
-
-	if (log_eid < 0) {
 		exit(ERR);
 	}
 

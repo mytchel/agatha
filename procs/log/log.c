@@ -191,6 +191,7 @@ main(void)
 	union proc0_rsp prp;
 	union log_req rq;
 	int eid, from, i;
+	int main_eid;
 
 	for (i = 0; i < MAX_SERVICES; i++) {
 		services[i].pid = -1;
@@ -202,6 +203,16 @@ main(void)
 	log_output_eid = get_free_cap_id();
 
 	mesg_cap(CID_PARENT, &prq, &prp, log_output_eid);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_mount;
+
+	main_eid = get_free_cap_id();
+
+	mesg_cap(CID_PARENT, &prq, &prp, main_eid);
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}

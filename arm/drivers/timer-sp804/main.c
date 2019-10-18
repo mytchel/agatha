@@ -149,7 +149,7 @@ set_timer(void)
 }
 
 	int
-main(int p_eid)
+main(void)
 {
 	size_t regs_pa, regs_len;
 	size_t irqn;
@@ -158,16 +158,26 @@ main(int p_eid)
 	union proc0_rsp prp;
 	int eid, from, cid;
 
-	parent_eid = p_eid;
-	
 	log_init("timer0");
 	log(LOG_INFO, "start");
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_mount;
+
+	int mount_eid;
+	mount_eid = get_free_cap_id();
+
+	mesg_cap(CID_PARENT, &prq, &prp, mount_eid);
+
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_regs;
 
 	log(LOG_INFO, "get regs");
-	mesg(parent_eid, &prq, &prp);
+	mesg(CID_PARENT, &prq, &prp);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
@@ -185,17 +195,13 @@ main(int p_eid)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_int;
 
+	int irq_cap_id;
+	irq_cap_id = get_free_cap_id();
+
 	log(LOG_INFO, "get int");
-	mesg_cap(parent_eid, &prq, &prp, &cid);
+	mesg_cap(CID_PARENT, &prq, &prp, irq_cap_id);
 
 	if (prp.get_resource.ret != OK) {
-		exit(ERR);
-	}
-
-	int irq_cap_id;
-
-	irq_cap_id = cid;
-	if (irq_cap_id < 0) {
 		exit(ERR);
 	}
 
@@ -219,7 +225,9 @@ main(int p_eid)
 	while (true) {
 		union timer_req rq;
 
-		if ((eid = recv_cap(EID_ANY, &from, &rq, &cid)) < 0) {
+		cid = get_free_cap_id();
+
+		if ((eid = recv_cap(EID_ANY, &from, &rq, cid)) < 0) {
 			return ERR;
 		}
 

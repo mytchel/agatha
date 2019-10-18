@@ -238,10 +238,8 @@ read_init_file(char *f, size_t size)
 #endif
 
 	void
-main(int p_eid)
+main(void)
 {
-	parent_eid = p_eid;
-
 	log_init("init");
 
 	log(LOG_INFO, "init starting");
@@ -249,22 +247,23 @@ main(int p_eid)
 #if 1
 	union proc0_req prq;
 	union proc0_rsp prp;
-	int timer_eid;
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_timer;
+	
+	int timer_eid = get_free_cap_id();
 
-	mesg_cap(parent_eid, &prq, &prp, &timer_eid);
+	mesg_cap(CID_PARENT, &prq, &prp, timer_eid);
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
 
-	if (timer_eid < 0) {
+	int timer_lid = endpoint_create();
+	int timer_leid = get_free_cap_id();
+	
+	if (endpoint_connect(timer_lid, timer_leid) != OK) {
 		exit(ERR);
 	}
-
-	int timer_lid = endpoint_create();
-	int timer_leid = endpoint_connect(timer_lid);
 
 	union timer_req rq;
 	union timer_rsp rp;
@@ -272,8 +271,7 @@ main(int p_eid)
 	rq.create.type = TIMER_create;
 	rq.create.signal = 0x111;
 
-	int t = timer_leid;
-	mesg_cap(timer_eid, &rq, &rp, &t);
+	mesg_cap(timer_eid, &rq, &rp, timer_leid);
 	if (rp.create.ret != OK) {
 		exit(ERR);
 	}

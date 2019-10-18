@@ -10,7 +10,7 @@ IDLE = \
 
 DRIVERS = \
 	arm/drivers/serial-pl01x \
-#	arm/drivers/timer-sp804 \
+	arm/drivers/timer-sp804 \
 #	arm/drivers/mmc-pl18x \
 #	arm/drivers/virtio/net \
 #	arm/drivers/ethernet-lan9118 \
@@ -18,7 +18,7 @@ DRIVERS = \
 
 PROCS = \
 	procs/log \
-#	procs/init \
+	procs/init \
 #	procs/net_test \
 #	procs/ui
 
