@@ -200,7 +200,10 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_serial;
 
-	log_output_eid = get_free_cap_id();
+	log_output_eid = kcap_alloc();
+	if (log_output_eid < 0) {
+		exit(ERR);
+	}
 
 	mesg_cap(CID_PARENT, &prq, &prp, log_output_eid);
 	if (prp.get_resource.ret != OK) {
@@ -210,7 +213,10 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
 
-	main_eid = get_free_cap_id();
+	main_eid = kcap_alloc();
+	if (main_eid < 0) {
+		exit(ERR);
+	}
 
 	mesg_cap(CID_PARENT, &prq, &prp, main_eid);
 	if (prp.get_resource.ret != OK) {

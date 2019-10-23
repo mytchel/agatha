@@ -76,7 +76,10 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
 
-	mount_cid = get_free_cap_id();
+	mount_cid = kcap_alloc();
+	if (mount_cid < 0) {
+		exit(ERR);
+	}
 
 	mesg_cap(CID_PARENT, &prq, &prp, mount_cid);
 

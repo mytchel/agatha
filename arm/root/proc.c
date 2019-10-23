@@ -1,5 +1,4 @@
 #include "head.h"
-#include <sysobj.h>
 #include <arm/mmu.h>
 #include "../bundle.h"
 #include <log.h>
@@ -390,12 +389,12 @@ init_bundled_proc(char *name,
 
 	int eid, p_cid;
 
-	eid = get_free_cap_id();
+	eid = kcap_alloc();
 	if (endpoint_connect(main_eid, eid) != OK) {
 		exit(1);
 	}
 
-	p_cid = obj_create_h(OBJ_proc, 1);
+	p_cid = kobj_alloc(OBJ_proc, 1);
 	if (p_cid < 0) {
 		exit(1);
 	}
@@ -516,7 +515,7 @@ init_procs(void)
 
 		log(0, "setup service %s", ser->name);
 
-		ser->listen_eid = endpoint_create();
+		ser->listen_eid = kobj_alloc(OBJ_endpoint, 1);
 		if (ser->listen_eid < 0) {
 			log(0, "failed to create listen endpoint");
 			exit(1);
@@ -525,7 +524,7 @@ init_procs(void)
 		log(0, "service %s listen endpoint %i", 
 			ser->name, ser->listen_eid);
 		
-		ser->connect_eid = get_free_cap_id();
+		ser->connect_eid = kcap_alloc();
 		if (endpoint_connect(ser->listen_eid, ser->connect_eid) != OK) {
 			log(0, "failed to connect to listen endpoint");
 			exit(1);
@@ -556,7 +555,7 @@ init_procs(void)
 					ser->name, ser->device.irqn);
 				int cid;
 
-				cid = obj_create_h(OBJ_intr, 1);
+				cid = kobj_alloc(OBJ_intr, 1);
 				if (cid < 0) {
 					log(0, "failed to create obj for intr");
 					exit(1);

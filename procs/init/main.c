@@ -1,6 +1,8 @@
 #include <types.h>
 #include <err.h>
+#include <mach.h>
 #include <sys.h>
+#include <sysobj.h>
 #include <c.h>
 #include <mesg.h>
 #include <proc0.h>
@@ -251,16 +253,26 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_timer;
 	
-	int timer_eid = get_free_cap_id();
+	int timer_eid = kcap_alloc();
+	if (timer_eid < 0) {
+		exit(ERR);
+	}
 
 	mesg_cap(CID_PARENT, &prq, &prp, timer_eid);
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
 
-	int timer_lid = endpoint_create();
-	int timer_leid = get_free_cap_id();
-	
+	int timer_lid = kobj_alloc(OBJ_endpoint, 1);
+	if (timer_lid < 0) {
+		exit(ERR);
+	}
+		
+	int timer_leid = kcap_alloc();
+	if (timer_leid < 0) {
+		exit(ERR);
+	}
+
 	if (endpoint_connect(timer_lid, timer_leid) != OK) {
 		exit(ERR);
 	}

@@ -6,6 +6,18 @@ int
 yield(void);
 
 int
+kcap_alloc(void);
+
+void
+kcap_free(int cid);
+
+int
+kobj_alloc(int type, size_t n);
+
+void
+kobj_free(int cid);
+
+int
 obj_create(int cid, size_t pa, size_t len);
 
 int
@@ -37,9 +49,6 @@ reply(int eid, int pid, void *m);
 
 int
 signal(int eid, uint32_t s);
-
-int
-endpoint_create(void);
 
 int
 endpoint_connect(int cid, int nid);

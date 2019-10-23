@@ -52,6 +52,8 @@ sys_obj_create(int cid, size_t pa, size_t len)
 		return ERR;
 	}
 
+	memset(o, 0, len);
+
 	o->h.refs = 0;
 	o->h.type = OBJ_untyped;
 
@@ -177,8 +179,6 @@ sys_obj_retype(int cid, int type, size_t n)
 
 	debug_info("need size %i\n", len);
 
-	len = align_up(len, sizeof(size_t));
-
 	if (o->len < len) {
 		return ERR;
 	}
@@ -196,7 +196,7 @@ sys_obj_split(int cid, int nid)
 	cap_t *c, *nc;
 	size_t len;
 
-	debug_info("%i obj split %i\n", up->pid, cid);
+	debug_info("%i obj split %i into %i\n", up->pid, cid, nid);
 
 	c = proc_find_cap(up, cid);
 	if (c == nil) {
@@ -218,10 +218,10 @@ sys_obj_split(int cid, int nid)
 
 	o = (obj_untyped_t *) c->obj;
 
-	len = align_up(o->len / 2, sizeof(size_t));
+	len = o->len >> 1;;
 
 	debug_info("%i split obj 0x%x of len %i into %i\n",
-		up->pid, o->len, len);
+		up->pid, o->len, len, nid);
 
 	if (len < sizeof(obj_untyped_t)) {
 		return ERR;
@@ -240,10 +240,10 @@ sys_obj_split(int cid, int nid)
 	nc->obj = (void *) no;
 	nc->perm = CAP_read | CAP_write;
 
-	debug_info("%i add cap %i for obj 0x%x\n", 
+	debug_info("%i set cap %i for obj 0x%x\n", 
 		up->pid, nc->id, no);
 
-	return nc->id;
+	return OK;
 }
 
 size_t

@@ -226,7 +226,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 			log(0, "giving proc %i resource type %i eid %i pid %i",
 				from, rq->get_resource.resource_type, r->connect_eid, r->pid);
 
-			give_cap = get_free_cap_id();
+			give_cap = kcap_alloc();
 
 			rp.get_resource.ret = endpoint_connect(r->connect_eid, give_cap);
 		} else {
@@ -287,7 +287,7 @@ main(struct kernel_info *i)
 
 	init_mem();
 
-	main_eid = endpoint_create();
+	main_eid = kobj_alloc(OBJ_endpoint, 1);
 	if (main_eid < 0) {
 		log(0, "ERROR creating main endpoint %i", main_eid);
 		exit(1);

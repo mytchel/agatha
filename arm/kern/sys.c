@@ -135,6 +135,8 @@ void *systab[NSYSCALLS] = {
 
 	[SYSCALL_OBJ_CREATE]       = (void *) &sys_obj_create,
 	[SYSCALL_OBJ_RETYPE]       = (void *) &sys_obj_retype,
+	[SYSCALL_OBJ_SPLIT]        = (void *) &sys_obj_split,
+	[SYSCALL_OBJ_MERGE]        = (void *) &sys_obj_merge,
 
 	[SYSCALL_MESG]             = (void *) &sys_mesg,
 	[SYSCALL_RECV]             = (void *) &sys_recv,

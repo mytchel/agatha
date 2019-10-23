@@ -2,6 +2,7 @@
 #include <mach.h>
 #include <err.h>
 #include <sys.h>
+#include <sysobj.h>
 #include <c.h>
 #include <mesg.h>
 #include <stdarg.h>

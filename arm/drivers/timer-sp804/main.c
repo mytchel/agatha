@@ -1,9 +1,10 @@
 #include <types.h>
 #include <err.h>
+#include <mach.h>
 #include <sys.h>
+#include <sysobj.h>
 #include <c.h>
 #include <mesg.h>
-#include <mach.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
@@ -165,7 +166,10 @@ main(void)
 	prq.get_resource.resource_type = RESOURCE_type_mount;
 
 	int mount_eid;
-	mount_eid = get_free_cap_id();
+	mount_eid = kcap_alloc();
+	if (mount_eid < 0) {
+		exit(ERR);
+	}
 
 	mesg_cap(CID_PARENT, &prq, &prp, mount_eid);
 
@@ -196,7 +200,10 @@ main(void)
 	prq.get_resource.resource_type = RESOURCE_type_int;
 
 	int irq_cap_id;
-	irq_cap_id = get_free_cap_id();
+	irq_cap_id = kcap_alloc();
+	if (irq_cap_id < 0) {
+		exit(ERR);
+	}
 
 	log(LOG_INFO, "get int");
 	mesg_cap(CID_PARENT, &prq, &prp, irq_cap_id);
@@ -216,7 +223,7 @@ main(void)
 	set_timer();
 
 	log(LOG_INFO, "register int");
-	int int_eid = endpoint_create();
+	int int_eid = kobj_alloc(OBJ_endpoint, 1);
 	if (intr_connect(irq_cap_id, int_eid, 0x14) != OK) {
 		log(LOG_FATAL, "failed to register int");
 		return ERR;
@@ -225,13 +232,15 @@ main(void)
 	while (true) {
 		union timer_req rq;
 
-		cid = get_free_cap_id();
+		cid = kcap_alloc();
 
 		if ((eid = recv_cap(EID_ANY, &from, &rq, cid)) < 0) {
 			return ERR;
 		}
 
 		if (from == PID_SIGNAL) {
+			kcap_free(cid);
+
 			if (eid == int_eid) {
 				uint32_t status_raw = regs->t[0].status_raw;
 
@@ -254,10 +263,12 @@ main(void)
 				break;
 
 			case TIMER_set:
+				kcap_free(cid);
 				handle_set(eid, from, &rq);
 				break;
 
 			default:
+				kcap_free(cid);
 				break;
 			}
 	
