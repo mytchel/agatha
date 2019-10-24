@@ -1,8 +1,7 @@
 #define KSTACK_LEN       1024
 
-#ifndef MAX_PROCS
-#define MAX_PROCS 16
-#endif
+#define PRIORITY_MAX       16
+#define MAX_PROCS          16
 
 typedef struct label label_t;
 

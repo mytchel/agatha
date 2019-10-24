@@ -3,6 +3,14 @@
 #define OBJ_caplist  2
 #define OBJ_proc     3
 
+typedef enum {
+	PROC_fault = 0,
+	PROC_ready,
+	PROC_block_recv,
+	PROC_block_send,
+	PROC_block_reply,
+} procstate_t;
+
 typedef struct proc_list proc_list_t;
 
 typedef struct cap cap_t;
