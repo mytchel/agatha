@@ -219,8 +219,6 @@ addr_map(size_t pa, size_t va, size_t len, int flags)
 		cache = true;
 	} else if ((flags & MAP_TYPE_MASK) == MAP_DEV) {
 		cache = false;
-	} else if ((flags & MAP_TYPE_MASK) == MAP_SHARED) {
-		cache = false;
 	} else {
 		return PROC0_ERR_FLAGS;
 	}

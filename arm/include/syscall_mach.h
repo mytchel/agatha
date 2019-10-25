@@ -1,0 +1,49 @@
+int
+intr_connect(int cid, int eid, uint32_t signal);
+
+int
+intr_ack(int cid);
+
+#define MAP_RO    (0<<0)
+#define MAP_RW    (1<<0)
+
+#define MAP_TYPE_MASK   (7<<1)
+#define MAP_MEM         (0<<1)
+#define MAP_DEV         (1<<1)
+
+/* Need to be able to alter l2 for an l1 that is not the
+   current procs.
+   Need to be able to give an l1 away with all of the frames
+   for its capabilities. Possibly give the frame cap's too?
+   or have unmap put the memory into a new cap/frame object?
+   Mapped frames should only be findable through the table?
+   Should the kernel map the l2 table when it needs to edit it?
+   It think it will need to.
+
+   Could make it so the cap is invalidated when the page / l2
+   is mapped into the l1 and stored in the l1 as a list.
+   Then when pages / l2s are unmapped a new cap it fulled
+   out pointing to an object popped off the l1's list. Or
+   the original object for the page / l2.
+
+   Or we could make it so the caps are kept and not given
+   to the new proc with the l1 table. The parent keeps them
+   and the child cannot edit what the parent setup for it
+   other than adding to it.
+*/
+
+#if 0
+
+int
+frame_page_map(int tid, int cid, void *addr, int flags);
+
+int
+frame_page_unmap(int tid, int nid, void *addr, size_t len);
+
+int
+frame_l2_map(int tid, int cid, void *va);
+
+int
+frame_l2_unmap(int tid, int nid, void *addr, size_t len);
+
+#endif

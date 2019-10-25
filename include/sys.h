@@ -6,3 +6,5 @@
 #define PID_SIGNAL        0
 #define EID_ANY           0
 
+#define CID_PARENT        1
+

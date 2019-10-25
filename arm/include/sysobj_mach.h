@@ -1,5 +1,5 @@
 #define OBJ_intr    4
-#define OBJ_type_n  5
+#define OBJ_type_n  6
 
 typedef struct obj_intr obj_intr_t;
 

@@ -186,8 +186,6 @@ proc_map_normal(int pid,
 		cache = true;
 	} else if ((flags & MAP_TYPE_MASK) == MAP_DEV) {
 		cache = false;
-	} else if ((flags & MAP_TYPE_MASK) == MAP_SHARED) {
-		cache = false;
 	} else {
 		return PROC0_ERR_FLAGS;
 	}
@@ -301,9 +299,6 @@ proc_map(int pid,
 		case MAP_MEM:
 		case MAP_DEV:
 			return proc_map_normal(pid, pa, va, len, flags);
-
-		case MAP_SHARED:
-			return ERR;
 
 		default:
 			return ERR;

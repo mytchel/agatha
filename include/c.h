@@ -1,78 +1,4 @@
-/* Syscalls */
-
-#define CID_PARENT   1
-
-int
-yield(void);
-
-int
-kcap_alloc(void);
-
-void
-kcap_free(int cid);
-
-int
-kobj_alloc(int type, size_t n);
-
-void
-kobj_free(int cid);
-
-int
-obj_create(int cid, size_t pa, size_t len);
-
-int
-obj_retype(int cid, int type, size_t n);
-
-int
-obj_split(int cid, int nid);
-
-int
-obj_merge(int cid_l, int cid_h);
-
-int
-mesg_cap(int eid, void *rq, void *rp, int cid);
-
-int
-mesg(int eid, void *rq, void *rp);
-
-int
-recv_cap(int eid, int *pid, void *m, int cid);
-
-int
-recv(int eid, int *pid, void *m);
-
-int
-reply_cap(int eid, int pid, void *m, int cid);
-
-int
-reply(int eid, int pid, void *m);
-
-int
-signal(int eid, uint32_t s);
-
-int
-endpoint_connect(int cid, int nid);
-
-int
-intr_connect(int iid, int eid, uint32_t signal);
-
-int
-intr_ack(int iid);
-
-int
-pid(void);
-
-void
-exit(uint32_t code)
-	__attribute__((noreturn));
-
-int
-proc_setup(int cid, size_t vspace, size_t priority, int p_eid);
-
-int
-proc_start(int cid, size_t pc, size_t sp);
-
-/* Utils */
+#include <syscall.h>
 
 #define align_up(x, a)  (((x) + a - 1) & (~(a-1)))
 
@@ -94,15 +20,6 @@ memcmp(const void *a, const void *b, size_t len);
 
 /* Address space management */
 
-#define MAP_RO         (0<<0)
-#define MAP_RW         (1<<0)
-
-#define MAP_TYPE_MASK  (7<<1) 
-
-#define MAP_MEM        (0<<1)
-#define MAP_DEV        (1<<1) 
-#define MAP_SHARED     (2<<1) 
-
 int
 unmap_addr(void *a, size_t len);
 
@@ -117,12 +34,25 @@ release_addr(size_t pa, size_t len);
 
 int
 give_addr(int to, 
-		size_t pa, size_t len);
+	size_t pa, size_t len);
 
+/* Lib utils */
 
 void *
 malloc(size_t size);
 
 void
 free(void *ptr);
+
+int
+kcap_alloc(void);
+
+void
+kcap_free(int cid);
+
+int
+kobj_alloc(int type, size_t n);
+
+void
+kobj_free(int cid);
 
