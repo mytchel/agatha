@@ -376,6 +376,8 @@ struct mmc {
 
 	volatile void *base;
 	int irqn;
+	int irq_eid;
+	int irq_cid;
 
 	struct mmc_cid cid;
 	

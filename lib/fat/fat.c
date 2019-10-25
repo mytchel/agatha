@@ -8,13 +8,12 @@
 #include <stdarg.h>
 #include <string.h>
 #include <log.h>
-#include <dev_reg.h>
 #include <block.h>
 #include <fs.h>
 #include <fat.h>
 
 	int
-fat_init(struct fat *fat, int block_pid, 
+fat_init(struct fat *fat, int block_eid, 
 		size_t block_size, size_t p_start, size_t p_size)
 {
   struct fat_bs *bs;
@@ -23,7 +22,7 @@ fat_init(struct fat *fat, int block_pid,
 
 	memset(fat, 0, sizeof(struct fat));
 
-	fat->block_pid = block_pid;
+	fat->block_eid = block_eid;
 	fat->block_size = block_size;
 
 	fat->start = p_start;
@@ -490,13 +489,13 @@ fat_read_blocks(struct fat *fat, size_t pa, size_t len,
 	union block_rsp rp;
 	int ret;
 
-	log(LOG_INFO, "give block pid %i from 0x%x 0x%x", fat->block_pid, pa, len);
-	if ((ret = give_addr(fat->block_pid, pa, len)) != OK) {
+	log(LOG_INFO, "give block pid %i from 0x%x 0x%x", fat->block_eid, pa, len);
+	if ((ret = give_addr(fat->block_eid, pa, len)) != OK) {
 		log(LOG_INFO, "block give addr failed %i", ret);
 		return ERR;
 	}
 
-	rq.read.type = BLOCK_read_req;
+	rq.read.type = BLOCK_read;
 	rq.read.pa = pa;
 	rq.read.len = len;
 	rq.read.start = fat->start * fat->block_size + start;
@@ -504,7 +503,7 @@ fat_read_blocks(struct fat *fat, size_t pa, size_t len,
 	
 	log(LOG_INFO, "block sending request for 0x%x 0x%x", rq.read.start, r_len);
 	
-	if (mesg(fat->block_pid, &rq, &rp) != OK) {
+	if (mesg(fat->block_eid, &rq, &rp) != OK) {
 		log(LOG_INFO, "block mesg failed");
 		return ERR;
 	} else if (rp.read.ret != OK) {

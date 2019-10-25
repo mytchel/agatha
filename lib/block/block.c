@@ -7,26 +7,25 @@
 #include <stdarg.h>
 #include <string.h>
 #include <block.h>
-#include <dev_reg.h>
 
 	int
 handle_info(struct block_dev *dev,
-		int from,
+		int eid, int from,
 		union block_req *rq)
 {
 	union block_rsp rp;
 
-	rp.info.type = BLOCK_info_rsp;
+	rp.info.type = BLOCK_info;
 	rp.info.ret = OK;
 	rp.info.block_size = dev->block_size;
 	rp.info.nblocks = dev->nblocks;
 
-	return send(from, &rp);
+	return reply(eid, from, &rp);
 }
 
 	int
 handle_read(struct block_dev *dev,
-		int from,
+		int eid, int from,
 		union block_req *rq)
 {
 	union block_rsp rp;
@@ -34,14 +33,14 @@ handle_read(struct block_dev *dev,
 	void *addr;
 	int ret;
 
-	rp.read.type = BLOCK_read_rsp;
+	rp.read.type = BLOCK_read;
 
 	if (rq->read.len < rq->read.r_len ||
 			rq->read.start % dev->block_size != 0 || 
 			rq->read.r_len % dev->block_size != 0) 
 	{
 		rp.read.ret = ERR;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 
 	start = rq->read.start / dev->block_size;
@@ -51,7 +50,7 @@ handle_read(struct block_dev *dev,
 		addr = map_addr(rq->read.pa, rq->read.len, MAP_RW);
 		if (addr == nil) {
 			rp.read.ret = ERR;
-			return send(from, &rp);
+			return reply(eid, from, &rp);
 		}
 
 		ret = dev->read_blocks_mapped(dev, addr, 
@@ -68,12 +67,12 @@ handle_read(struct block_dev *dev,
 
 	rp.read.ret = ret;
 
-	return send(from, &rp);
+	return reply(eid, from, &rp);
 }
 
 	int
 handle_write(struct block_dev *dev,
-		int from,
+		int eid, int from,
 		union block_req *rq)
 {
 	union block_rsp rp;
@@ -81,14 +80,14 @@ handle_write(struct block_dev *dev,
 	void *addr;
 	int ret;
 
-	rp.write.type = BLOCK_write_rsp;
+	rp.write.type = BLOCK_write;
 
 	if (rq->write.len < rq->write.w_len ||
 			rq->write.start % dev->block_size != 0 || 
 			rq->write.w_len % dev->block_size != 0) 
 	{
 		rp.write.ret = ERR;
-		return send(from, &rp);
+		return reply(eid, from, &rp);
 	}
 
 	start = rq->write.start / dev->block_size;
@@ -98,7 +97,7 @@ handle_write(struct block_dev *dev,
 		addr = map_addr(rq->write.pa, rq->write.len, MAP_RW);
 		if (addr == nil) {
 			rp.write.ret = ERR;
-			return send(from, &rp);
+			return reply(eid, from, &rp);
 		}
 
 		ret = dev->write_blocks_mapped(dev, addr, 
@@ -115,42 +114,30 @@ handle_write(struct block_dev *dev,
 
 	rp.write.ret = ret;
 
-	return send(from, &rp);
+	return reply(eid, from, &rp);
 }
 
 	int
 block_dev_register(struct block_dev *dev)
 {
-	union dev_reg_req drq;
-	union dev_reg_rsp drp;
 	union block_req brq;
-	int ret, from;
-
-	drq.reg.type = DEV_REG_register_req;
-	drq.reg.pid = pid();
-	memcpy(drq.reg.name, dev->name, sizeof(drq.reg.name));
-
-	if ((ret = mesg(DEV_REG_PID, &drq, &drp)) != OK)
-		return ret;
-
-	if (drp.reg.ret != OK)
-		return drp.reg.ret;
+	int eid, from;
 
 	while (true) {
-		if ((from = recv(-1, &brq)) < 0)
+		if ((eid = recv(EID_ANY, &from, &brq)) < 0)
 			continue;
 
 		switch (brq.type) {
-			case BLOCK_info_req:
-				handle_info(dev, from, &brq);
+			case BLOCK_info:
+				handle_info(dev, eid, from, &brq);
 				break;
 
-			case BLOCK_read_req:
-				handle_read(dev, from, &brq);
+			case BLOCK_read:
+				handle_read(dev, eid, from, &brq);
 				break;
 
-			case BLOCK_write_req:
-				handle_write(dev, from, &brq);
+			case BLOCK_write:
+				handle_write(dev, eid, from, &brq);
 				break;
 
 			default:

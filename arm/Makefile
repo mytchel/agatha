@@ -8,7 +8,8 @@ LIBS += \
 	lib/block \
 	lib/log \
 	lib/net \
-	lib/sdmmc
+	lib/sdmmc \
+	lib/fat
 
 BUNDLE_BIN =
 BUNDLE_ELF =

@@ -117,26 +117,22 @@ typedef enum { FAT16, FAT32 } fat_t;
 #define FIDSMAX 32
 
 struct fat {
-  int block_pid;
+	int block_eid;
 	size_t block_size;
 	size_t start, nblocks;
 
-  fat_t type;
+	fat_t type;
 
-  uint32_t bps;
-  uint32_t spc;
-
-  uint32_t spf;
-  uint8_t nft;
-
-  uint32_t nclusters;
-  uint32_t nsectors;
-  uint32_t reserved;
-
-  uint32_t rde;
-  uint32_t rootdir;
-  uint32_t dataarea;
-
+	uint32_t bps;
+	uint32_t spc;
+	uint32_t spf;
+	uint8_t nft;
+	uint32_t nclusters;
+	uint32_t nsectors;
+	uint32_t reserved;
+	uint32_t rde;
+	uint32_t rootdir;
+	uint32_t dataarea;
 	struct fat_file files[FIDSMAX];
 };
 

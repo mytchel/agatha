@@ -7,7 +7,6 @@
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
-#include <dev_reg.h>
 #include <arm/pl01x.h>
 #include <serial.h>
 

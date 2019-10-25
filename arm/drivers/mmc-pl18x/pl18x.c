@@ -14,30 +14,17 @@
 
 #include <types.h>
 #include <err.h>
-#include <sys.h>
-#include <c.h>
 #include <mach.h>
+#include <sys.h>
+#include <sysobj.h>
+#include <c.h>
 #include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
 #include <log.h>
-#include <dev_reg.h>
 #include <arm/pl18x.h>
 #include <sdmmc.h>
-
-static void intr_handler(int irqn, void *arg)
-{
-	struct mmc *mmc = arg;
-	volatile struct pl18x_regs *regs = mmc->base;
-	uint8_t m[MESSAGE_LEN];
-
-	regs->mask[0] = 0;
-
-	send(pid(), m);
-
-	intr_exit();
-}
 
 static void
 udelay(size_t us)
@@ -64,8 +51,18 @@ wait_for_command_end(struct mmc *mmc,
 	}
 
 	uint8_t m[MESSAGE_LEN];
+	int from;
+
 	regs->mask[0] = statusmask;
-	recv(pid(), m);
+
+	if (recv(mmc->irq_eid, &from, m) < 0) {
+		log(LOG_WARNING, "error getting irq");
+		return -1;
+	}
+	
+	regs->mask[0] = 0;
+
+	intr_ack(mmc->irq_cid);
 
 	hoststatus = regs->status & statusmask;
 
@@ -303,32 +300,65 @@ pl18x_init(volatile struct pl18x_regs *regs)
 	void
 main(void)
 {
-	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-	char dev_name[MESSAGE_LEN];
-
-	static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
 	struct mmc mmc = { 0 };
+
+	char dev_name[] = "test_mmc";
 
 	volatile struct pl18x_regs *regs;
 	size_t regs_pa, regs_len, irqn;
-	union proc0_req rq;
-	union proc0_rsp rp;
+
+	union proc0_req prq;
+	union proc0_rsp prp;
 	int ret;
 
-	recv(0, init_m);
-	regs_pa = init_m[0];
-	regs_len = init_m[1];
-	irqn = init_m[2];
-
-	recv(0, dev_name);
-
 	log_init(dev_name);
+
+	int mount_eid;
+	mount_eid = kcap_alloc();
+	if (mount_eid < 0) {
+		exit(ERR);
+	}
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_mount;
+
+	mesg_cap(CID_PARENT, &prq, &prp, mount_eid);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_regs;
+
+	mesg(CID_PARENT, &prq, &prp);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	regs_pa = prp.get_resource.result.regs.pa;
+	regs_len = prp.get_resource.result.regs.len;
 
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		log(LOG_FATAL, "pl18x failed to map registers!");
 		exit(ERR);
 	}
+
+	int irq_cap_id;
+	irq_cap_id = kcap_alloc();
+	if (irq_cap_id < 0) {
+		exit(ERR);
+	}
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_int;
+
+	mesg_cap(CID_PARENT, &prq, &prp, irq_cap_id);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	irqn = prp.get_resource.result.irqn;
 
 	log(LOG_INFO, "pl18x mapped from 0x%x -> 0x%x with irq %i",
 			regs_pa, regs, irqn);
@@ -339,8 +369,15 @@ main(void)
 		exit(ret);
 	}
 
+	int int_eid = kobj_alloc(OBJ_endpoint, 1);
+	if (intr_connect(irq_cap_id, int_eid, 0x1) != OK) {
+		exit(ERR);
+	}
+
 	mmc.base = regs;
 	mmc.irqn = irqn;
+	mmc.irq_eid = int_eid;
+	mmc.irq_cid = irq_cap_id;
 	mmc.name = dev_name;
 
 	mmc.voltages = 0xff8080;
@@ -348,17 +385,6 @@ main(void)
 	mmc.command = &do_command;
 	mmc.set_ios = &pl18x_set_ios;
 	mmc.reset = &pl18x_reset;
-
-	rq.irq_reg.type = PROC0_irq_reg_req;
-	rq.irq_reg.irqn = irqn;
-	rq.irq_reg.func = &intr_handler;
-	rq.irq_reg.arg = &mmc;
-	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack)];
-
-	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
-		log(LOG_FATAL, "failed to register interrupt %i", irqn);
-		exit(ERR);
-	}
 
 	ret = mmc_start(&mmc);
 	log(LOG_WARNING, "mmc_start returned %i!", ret);

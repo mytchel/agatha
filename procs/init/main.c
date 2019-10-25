@@ -9,38 +9,12 @@
 #include <mmu.h>
 #include <stdarg.h>
 #include <string.h>
-#include <dev_reg.h>
 #include <block.h>
 #include <mbr.h>
 #include <fs.h>
 #include <fat.h>
 #include <timer.h>
 #include <log.h>
-
-#if 0
-char *init = "sd0a:test";
-char *init_file;
-size_t init_pa, init_m_len, init_size;
-
-int
-get_device_pid(char *name)
-{
-	union dev_reg_req rq;
-	union dev_reg_rsp rp;
-
-	rq.find.type = DEV_REG_find_req;
-	rq.find.block = true;
-	snprintf(rq.find.name, sizeof(rq.find.name),
-			"%s", name);
-
-	if (mesg(DEV_REG_PID, &rq, &rp) != OK) {
-		return ERR;
-	} else if (rp.find.ret != OK) {
-		return ERR;
-	}
-
-	return rp.find.pid;
-}
 
 int
 read_blocks(int pid, size_t pa, size_t len,
@@ -55,7 +29,7 @@ read_blocks(int pid, size_t pa, size_t len,
 		return ERR;
 	}
 
-	rq.read.type = BLOCK_read_req;
+	rq.read.type = BLOCK_read;
 	rq.read.pa = pa;
 	rq.read.len = len;
 	rq.read.start = start;
@@ -72,31 +46,41 @@ read_blocks(int pid, size_t pa, size_t len,
 	return OK;
 }
 
-	int
-fat_local_init(struct fat *fat, int block_pid, int partition)
+size_t
+block_get_block_size(int eid)
 {
 	union block_req rq;
 	union block_rsp rp;
-	struct mbr *mbr;
-	size_t pa, len, block_size;
-	int ret;
 
-	fat->block_pid = block_pid;
-
-	log(LOG_INFO, "reading mbr from %i", fat->block_pid);
-
-	rq.info.type = BLOCK_info_req;
+	rq.info.type = BLOCK_info;
 	
-	if (mesg(block_pid, &rq, &rp) != OK) {
+	if (mesg(eid, &rq, &rp) != OK) {
 		log(LOG_FATAL, "block info mesg failed");
-		return ERR;
+		return 0;
 	} else if (rp.info.ret != OK) {
 		log(LOG_FATAL, "block info returned bad %i", rp.info.ret);
-		return ERR;
+		return 0;
 	}
 
-	block_size = rp.info.block_size;
+	return rp.info.block_size;
+}
 
+	int
+mbr_get_parition_info(int eid, int partition,
+	size_t *p_start, size_t *p_len)
+{
+	size_t block_size;
+	struct mbr *mbr;
+	size_t pa, len;
+	int ret;
+
+	log(LOG_INFO, "reading mbr from %i", eid);
+
+	block_size = block_get_block_size(eid);
+	if (block_size == 0) {
+		return ERR;
+	}
+		
 	log(LOG_INFO, "block size is 0x%x", block_size);
 
 	len = PAGE_ALIGN(sizeof(struct mbr));
@@ -108,7 +92,7 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 
 	log(LOG_INFO, "read mbr");
 
-	ret = read_blocks(block_pid, pa, len, 0, block_size);
+	ret = read_blocks(eid, pa, len, 0, block_size);
 	if (ret != OK) {
 		return ret;
 	}
@@ -132,89 +116,82 @@ fat_local_init(struct fat *fat, int block_pid, int partition)
 			mbr->parts[partition].lba,
 			mbr->parts[partition].sectors);
 
-	ret = fat_init(fat, block_pid, block_size,
-			mbr->parts[partition].lba,
-			mbr->parts[partition].sectors);
+	*p_start = mbr->parts[partition].lba;
+	*p_len = mbr->parts[partition].sectors;
 
-	if (ret != OK) {
-		log(LOG_FATAL, "error %i reading fat fs", ret);
+	unmap_addr(mbr, len);
+	release_addr(pa, len);
+
+	return OK;
+}
+
+	int
+fat_local_init(struct fat *fat, int eid, int partition)
+{
+	size_t p_start, p_len;
+	size_t block_size;
+	int ret;
+
+	block_size = block_get_block_size(eid);
+	if (block_size == 0) {
+		return ERR;
+	}
+		
+	if (mbr_get_parition_info(eid, partition, &p_start, &p_len) != OK) {
+		return ERR;
 	}
 
-	unmap_addr(mbr, len);	
-	release_addr(pa, len);
+	ret = fat_init(fat, eid, block_size, p_start, p_len);
+	if (ret != OK) {
+		log(LOG_FATAL, "error %i initing fat fs", ret);
+	}
 
 	return ret;
 }
 
-	int
-map_init_file(char *file)
+	size_t
+map_init_file(int block_eid, int partition, char *file_name,
+	size_t pa, size_t len)
 {
-	char block_dev[32], *file_name;
-	int i, block_pid, partition, fid;
 	struct fat_file *root, *f;
 	struct fat fat;
+	size_t rlen;
+	int fid;
 
-	log(LOG_INFO, "load %s", init);
-
-	for (i = 0; init[i] && init[i] != ':'; i++)
-		block_dev[i] = init[i];
-
-	block_dev[i-1] = 0;
-	file_name = &init[i+1];
-	partition = init[i-1] - 'a';
-
-	log(LOG_INFO, "find block device %s", block_dev);
-
-	do {
-		block_pid = get_device_pid(block_dev);
-	} while (block_pid < 0);
-
-	log(LOG_INFO, "mount fat fs %s pid %i parititon %i to read %s",
-			block_dev, block_pid, partition, file_name);
-
-	if (fat_local_init(&fat, block_pid, partition) != OK) {
+	if (fat_local_init(&fat, block_eid, partition) != OK) {
 		log(LOG_FATAL, "fat_local_init failed");
-		return ERR;
+		return 0;
 	}
 
 	root = &fat.files[FILE_root_fid];
 	fid = fat_file_find(&fat, root, file_name);
 	if (fid < 0) {
 		log(LOG_FATAL, "failed to find %s", file_name);
-		return ERR;
+		return 0;
 	}
 
 	f = &fat.files[fid];
 
-	init_m_len = PAGE_ALIGN(f->dsize);
-	init_size = f->size;
-
-	init_pa = request_memory(init_m_len);
-	if (init_pa == nil) {
-		log(LOG_FATAL, "request for 0x%x bytes failed", init_m_len);
-		return ERR;
+	rlen = f->size;
+	if (rlen > len) {
+		rlen = len;
 	}
 
 	if (fat_file_read(&fat, f,
-				init_pa, init_m_len,
-				0, init_size) != OK) {
+				pa, len,
+				0, rlen) != OK) 
+	{
 		log(LOG_FATAL, "error reading init file");
-		return ERR;
-	}
-
-	init_file = map_addr(init_pa, init_m_len, MAP_RO);
-	if (file == nil) {
-		log(LOG_FATAL, "failed to map init file");
-		return ERR;
+		return 0;
 	}
 
 	fat_file_clunk(&fat, f);
 
-	return OK;
+	return rlen;
 }
 
-	int
-read_init_file(char *f, size_t size)
+	void
+print_init_file(char *f, size_t size)
 {
 	char line[50];
 	log(LOG_INFO, "processing init file");
@@ -222,10 +199,10 @@ read_init_file(char *f, size_t size)
 	log(LOG_INFO, "---");
 
 	int i, l = 0;
-	for (i = 0; i < init_size; i++) {
-		line[l++] = init_file[i];
+	for (i = 0; i < size; i++) {
+		line[l++] = f[i];
 		
-		if (init_file[i] == '\n') {
+		if (f[i] == '\n') {
 			line[l-1] = 0;
 			log(LOG_INFO, "%s", line);
 			l = 0;
@@ -233,20 +210,91 @@ read_init_file(char *f, size_t size)
 	}
 
 	log(LOG_INFO, "---");
-
-	return OK;
 }
 
-#endif
-
-	void
-main(void)
+void
+test_fat_fs(void)
 {
-	log_init("init");
+	int partition = 0;
+	char *file_name = "test";
 
-	log(LOG_INFO, "init starting");
+	union proc0_req prq;
+	union proc0_rsp prp;
 
-#if 1
+	struct fat_file *root, *f;
+	struct fat fat;
+	int fid;
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_block;
+	
+	int block_eid = kcap_alloc();
+	if (block_eid < 0) {
+		log(LOG_FATAL, "failed alloc cap");
+		exit(ERR);
+	}
+
+	mesg_cap(CID_PARENT, &prq, &prp, block_eid);
+	if (prp.get_resource.ret != OK) {
+		log(LOG_FATAL, "failed to get block device");
+		exit(ERR);
+	}
+
+	if (fat_local_init(&fat, block_eid, partition) != OK) {
+		log(LOG_FATAL, "fat_local_init failed");
+		return;
+	}
+
+	root = &fat.files[FILE_root_fid];
+	fid = fat_file_find(&fat, root, file_name);
+	if (fid < 0) {
+		log(LOG_FATAL, "failed to find %s", file_name);
+		return;
+	}
+
+	f = &fat.files[fid];
+
+	size_t pa, len, rlen;
+	void *va;
+	
+	len = 0x1000;
+
+	rlen = f->size;
+	if (rlen > len) {
+		rlen = len;
+	}
+
+	pa = request_memory(len);
+	if (pa == nil) {
+		log(LOG_FATAL, "failed to get memory for file");
+		return;
+	}
+
+	if (fat_file_read(&fat, f,
+				pa, len,
+				0, rlen) != OK) 
+	{
+		log(LOG_FATAL, "error reading init file");
+		return;
+	}
+
+	fat_file_clunk(&fat, f);
+
+	va = map_addr(pa, len, MAP_RO);
+	if (va == nil) {
+		log(LOG_FATAL, "failed to map init file");
+		return;
+	}
+
+	print_init_file(va, rlen);
+
+	unmap_addr(va, len);
+	release_addr(pa, len);
+}
+
+void
+test_timer(void)
+{
 	union proc0_req prq;
 	union proc0_rsp prp;
 
@@ -290,7 +338,8 @@ main(void)
 
 	int timer_id = rp.create.id;
 
-	while (true) {
+	int i;
+	for (i = 0; i < 2; i++) {
 		rq.set.type = TIMER_set;
 		rq.set.id = timer_id;
 		rq.set.time_ms = 5 * 1000;
@@ -314,20 +363,21 @@ main(void)
 			}
 		}
 	}
+}
 
+	void
+main(void)
+{
+	log_init("init");
+
+	log(LOG_INFO, "init starting");
+
+#if 1
+	test_timer();
 #endif
 
-#if 0	
-	if (map_init_file(init) != OK) {
-		exit(1);
-	}
-
-	if (read_init_file(init_file, init_size) != OK) {
-		exit(2);
-	}
-
-	unmap_addr(init_file, init_m_len);
-	release_addr(init_pa, init_m_len);
+#if 1
+	test_fat_fs();
 #endif
 
 #if 0
