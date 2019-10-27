@@ -4,43 +4,13 @@
 .section .text
 
 .global _start
-.global vector_table_load
-
-/*
-   From U-Boot:
-   r2 = device tree blob address.
-   r3 = device tree blob size. Consistant strange number if no 
-   blob was given.
-   r6 = kernel address.
-
-   I have no idea what any of the other registers are set
-   for. r1, r5, r9, r12 seem to stay consistant regardless of the
-   presense of a device tree. r9 changes.
-
-	These are described somewhere in the u-boot code. I think
-	to do with booting linux which agatha is pretending to be.
- */
-
-
 _start:
 	ldr sp, = _stack_end
 
 	b main
 
-	ldr r0, = _bss_start
-	ldr r1, = _bss_end
-	mov r8, #0
-	mov r9, #0
-1:
-	stmia r0!, {r8, r9}
-	cmp r0, r1
-	blt 1b
 
-# void main(kernel_start, dtb_start);
-
-	b main
-
-
+.global vector_table_load
 vector_table_load:
 	@ Shift vector table to 0x00000000
 	@ See page 514 of ARM System Developers Guide

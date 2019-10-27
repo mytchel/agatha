@@ -59,6 +59,7 @@ ksys_init(void)
 		exit(1);
 	}
 
+#if 0
 	len = 0x1000;
 
 	pa = request_memory(len);
@@ -74,14 +75,14 @@ ksys_init(void)
 	if (pool_load(&kobj_pool, va, len) != OK) {
 		exit(1);
 	}
-
+#endif
 	if (pool_init(&kcap_pool, sizeof(kcap_list_t)) != OK) {
 		exit(1);
 	}
-
+#if 0
 	len = 0x1000;
 
-	pa = request_memory(len);
+	pa = request_memory(len, 0x1000);
 	if (pa == nil) {
 		exit(1);
 	}
@@ -94,18 +95,21 @@ ksys_init(void)
 	if (pool_load(&kcap_pool, va, len) != OK) {
 		exit(1);
 	}
-
+#endif
 	ready = true;
 }
 
 int
 kcap_get_more(void)
 {
+	log(LOG_INFO, "kcap get more");
+	log(LOG_WARNING, "kcap get more failed");
+	return ERR;
+#if 0
 	int n = cap_list_n;
 	size_t pa, len;
 	kcap_list_t *c;
 
-	log(0, "kcap get more");
 
 	len = 0x1000;
 	pa = request_memory(len);
@@ -120,7 +124,7 @@ kcap_get_more(void)
 	int cid = next_cap_list_cid;
 	next_cap_list_cid = 0;
 
-	log(0, "kcap get more into id %i", cid);
+	log(LOG_INFO, "kcap get more into id %i", cid);
 
 	if (obj_create(cid, pa, len) != OK) {
 		return ERR;
@@ -131,7 +135,7 @@ kcap_get_more(void)
 		return ERR;
 	}
 
-	log(0, "kcap get more new start id %i", r);
+	log(LOG_INFO, "kcap get more new start id %i", r);
 
 	c = pool_alloc(&kcap_pool);
 	if (c == nil) {
@@ -149,6 +153,7 @@ kcap_get_more(void)
 	c->caps[0] |= 1 << 0;
 
 	return OK;
+#endif
 }
 
 int
@@ -157,23 +162,23 @@ kcap_alloc(void)
 	kcap_list_t *c;
 	size_t o;
 
-	log(0, "kcap alloc");
+	log(LOG_INFO, "kcap alloc");
 
 	ksys_init();
 
 	for (c = kcap_lists; c != nil; c = c->next) {
-		log(0, "kcap check list %i", c->cid);
+		log(LOG_INFO, "kcap check list %i", c->cid);
 		for (o = 0; o < cap_list_n; o++) {
 			if (!(c->caps[o/32] & (1 << (o % 32)))) {
 				c->caps[o/32] |= 1 << (o % 32);
-				log(0, "kcap found free %i + %i", 
+				log(LOG_INFO, "kcap found free %i + %i", 
 					c->start_id, o);
 				return c->start_id + o;
 			}
 		}
 	}
 
-	log(0, "need more");
+	log(LOG_INFO, "need more");
 	if (kcap_get_more() != OK) {
 		return ERR;
 	}
@@ -190,6 +195,9 @@ kcap_free(int cid)
 static kobj_t *
 kobj_alloc_new(size_t len)
 {
+	log(LOG_WARNING, "kobj alloc new failing");
+	return nil;
+#if 0
 	kobj_t *o;
 	size_t pa;
 	int cid;
@@ -224,6 +232,7 @@ kobj_alloc_new(size_t len)
 	kobjs = o;
 
 	return o;
+#endif
 }
 
 bool
@@ -232,7 +241,7 @@ kobj_split(kobj_t *o)
 	kobj_t *n;
 	int nid;
 
-	log(0, "kobj split %i len %i", o->cid, o->len);
+	log(LOG_INFO, "kobj split %i len %i", o->cid, o->len);
 
 	if (o->type != OBJ_untyped) {
 		return false;
@@ -245,15 +254,15 @@ kobj_split(kobj_t *o)
 		return false;
 	}
 
-	log(0, "next id %i", nid);
+	log(LOG_INFO, "next id %i", nid);
 
 	n = pool_alloc(&kobj_pool);
 	if (n == nil) {
-		log(0, "alloc failed");
+		log(LOG_INFO, "alloc failed");
 		return false;
 	}
 
-	log(0, "have obj 0x%x", n);
+	log(LOG_INFO, "have obj 0x%x", n);
 
 	if (obj_split(o->cid, nid) != OK) {
 		return false;
@@ -268,7 +277,7 @@ kobj_split(kobj_t *o)
 	o->len = o->len >> 1;
 	o->next = n;
 
-	log(0, "now have %i and %i with len %i %i",
+	log(LOG_INFO, "now have %i and %i with len %i %i",
 		o->cid, n->cid, o->len, n->len);
 
 	return true;
@@ -296,7 +305,7 @@ kobj_alloc(int type, size_t n)
 	size_t l, len;
 	kobj_t *o, *f;
 
-	log(0, "kobj alloc %i %i", type, n);
+	log(LOG_INFO, "kobj alloc %i %i", type, n);
 
 	ksys_init();
 
@@ -309,7 +318,7 @@ kobj_alloc(int type, size_t n)
 	while (len < l)
 		len <<= 1;
 
-	log(0, "kobj alloc size %i / %i", l, len);
+	log(LOG_INFO, "kobj alloc size %i / %i", l, len);
 
 	f = nil;
 	for (o = kobjs; o != nil; o = o->next) {
@@ -328,7 +337,7 @@ kobj_alloc(int type, size_t n)
 		}
 	}
 
-	log(0, "kobj alloc now split %i to len %i",
+	log(LOG_INFO, "kobj alloc now split %i to len %i",
 		f->len, len);
 
 	while (len < f->len) {
@@ -337,7 +346,7 @@ kobj_alloc(int type, size_t n)
 		} 
 	}
 
-	log(0, "do retype with f 0x%x / %i", f, f->cid);
+	log(LOG_INFO, "do retype with f 0x%x / %i", f, f->cid);
 
 	if (obj_retype(f->cid, type, n) != OK) {
 		return ERR;

@@ -3,8 +3,6 @@
 
 .section .text
 
-.global _start
-
 /*
    From U-Boot:
    r2 = device tree blob address.
@@ -21,6 +19,7 @@
  */
 
 
+.global _start
 _start:
 	mov r9, r0
 
@@ -45,8 +44,6 @@ _start:
 
 	cps #MODE_SVC
 	ldr sp, =_ex_stack_top
-
-	mov r0, r9
 
 	b main
 

@@ -20,7 +20,15 @@
 #define SYSCALL_INTR_CONNECT     15
 #define SYSCALL_INTR_ACK         16
 
-#define SYSCALL_DEBUG            17
+#define SYSCALL_FRAME_SETUP      16
+#define SYSCALL_FRAME_INFO       17
+#define SYSCALL_FRAME_L1_SETUP   18
+#define SYSCALL_FRAME_L2_MAP     19
+#define SYSCALL_FRAME_L2_UNMAP   20
+#define SYSCALL_FRAME_MAP        21
+#define SYSCALL_FRAME_UNMAP      22
 
-#define NSYSCALLS                18
+#define SYSCALL_DEBUG            23
+
+#define NSYSCALLS                24
 

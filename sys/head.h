@@ -43,6 +43,7 @@ signal(obj_endpoint_t *c, uint32_t s);
 
 
 #define align_up(x, a) (((x) + a - 1) & (~(a-1)))
+#define align_down(x, a) (((x)) & (~(a-1)))
 
 void
 memcpy(void *dst, const void *src, size_t len);

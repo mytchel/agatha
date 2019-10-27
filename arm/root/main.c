@@ -21,44 +21,37 @@ log(int level, char *fmt, ...)
 }
 
 	int
-handle_addr_req(int eid, int from, union proc0_req *rq)
+handle_mem_req(int eid, int from, union proc0_req *rq)
 {
-	struct addr_frame *f;
 	union proc0_rsp rp;
-	size_t pa, len;
+	size_t len, align;
+	int cid;
 
-	rp.addr_req.type = PROC0_addr_req;
+	rp.mem_req.type = PROC0_mem_req;
 
-	len = rq->addr_req.len;
+	len = rq->mem_req.len;
 	if (len != PAGE_ALIGN(len)) {
-		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
+		rp.mem_req.ret = PROC0_ERR_ALIGNMENT;
 		return reply(eid, from, &rp);	
 	}
 	
-	pa = rq->addr_req.pa;
-	if (pa != PAGE_ALIGN(pa)) {
-		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
+	align = rq->mem_req.align;
+	if (align != PAGE_ALIGN(align)) {
+		rp.mem_req.ret = PROC0_ERR_ALIGNMENT;
 		return reply(eid, from, &rp);	
 	}
 
-	pa = get_ram(len, 0x1000);
-	if (pa == nil) {
-		rp.addr_req.ret = PROC0_ERR_ALIGNMENT;
+	cid = request_memory(len, align);
+	if (cid < 0) {
+		rp.mem_req.ret = PROC0_ERR_ALIGNMENT;
 		return reply(eid, from, &rp);	
 	}
 
-	rp.addr_req.pa = pa;
-
-	f = frame_new(pa, len);
-	if (f == nil) {
-		rp.addr_req.ret = ERR;
-		return reply(eid, from, &rp);
-	}
-
-	rp.addr_req.ret = proc_give_addr(from, f);
-	return reply(eid, from, &rp);
+	rp.mem_req.ret = OK;
+	return reply_cap(eid, from, &rp, cid);
 }
 
+#if 0
 	int
 handle_addr_map(int eid, int from, union proc0_req *rq)
 {
@@ -136,6 +129,7 @@ handle_addr_give(int eid, int from, union proc0_req *rq)
 	
 	return reply(eid, from, &rp);
 }
+#endif
 
 struct service *
 find_service_pid(int pid)
@@ -252,6 +246,9 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		break;
 	
 	case RESOURCE_type_regs:
+		rp.get_resource.ret = ERR;
+#if 0
+		return reply
 		if (s->device.is_device && !s->device.has_regs) {
 			log(0, "giving proc %i its regs 0x%x 0x%x",
 				from, s->device.reg, s->device.len);
@@ -266,7 +263,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		} else {
 			rp.get_resource.ret = ERR;
 		}
-
+#endif
 		break;
 	}
 
@@ -289,7 +286,7 @@ main(struct kernel_info *i)
 
 	main_eid = kobj_alloc(OBJ_endpoint, 1);
 	if (main_eid < 0) {
-		log(0, "ERROR creating main endpoint %i", main_eid);
+		log(0, "error creating main endpoint %i", main_eid);
 		exit(1);
 	}
 
@@ -303,10 +300,11 @@ main(struct kernel_info *i)
 				from, eid, ((uint32_t *) m)[0]);
 
 		switch (((uint32_t *) m)[0]) {
-			case PROC0_addr_req:
-				handle_addr_req(eid, from, (union proc0_req *) m);
+			case PROC0_mem_req:
+				handle_mem_req(eid, from, (union proc0_req *) m);
 				break;
 
+#if 0
 			case PROC0_addr_map:
 				handle_addr_map(eid, from, (union proc0_req *) m);
 				break;
@@ -314,6 +312,7 @@ main(struct kernel_info *i)
 			case PROC0_addr_give:
 				handle_addr_give(eid, from, (union proc0_req *) m);
 				break;
+#endif
 			
 			case PROC0_get_resource:
 				handle_get_resource(eid, from, (union proc0_req *) m);

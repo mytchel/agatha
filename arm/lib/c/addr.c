@@ -15,12 +15,12 @@
 #endif
 
 struct span {
-	uint32_t pa, va, len;
+	uint32_t va, len;
 	struct span **holder, *next;
 };
 
 struct l1_span {
-	uint32_t pa, va, len;
+	uint32_t va, len;
 
 	struct span *free, *mapped;
 
@@ -55,14 +55,6 @@ extern uint32_t *_text_end;
 extern uint32_t *_data_start;
 extern uint32_t *_data_end;
 
-int
-addr_unmap(size_t va, size_t len);
-
-int
-addr_map(size_t pa, size_t va, size_t len, int flags);
-
-int
-addr_map_l2s(size_t pa, size_t va, size_t table_len);
 
 	void
 addr_init(void)
@@ -320,7 +312,7 @@ map_free_addr(size_t pa, size_t len, int flags)
 	}
 
 	tlen = (TABLE_ALIGN(len) >> TABLE_SHIFT) * TABLE_SIZE;
-	l1_pa = request_memory(tlen);
+	l1_pa = request_memory(tlen, 0x1000);
 	if (l1_pa == nil) {
 		pool_free(&span_pool, fs);
 		return nil;
@@ -373,23 +365,26 @@ map_free_addr(size_t pa, size_t len, int flags)
 	static bool
 grow_pool(struct pool *p)
 {
+	return false;
+#if 0
 	size_t pa, len;
 	void *va;
 
 	len = PAGE_ALIGN(sizeof(struct pool_frame) + pool_obj_size(p) * 64);
 
-	pa = request_memory(len);
+	pa = request_memory(len, 0x1000);
 	if (pa == nil) {
 		return false;
 	}
 
 	va = map_addr(pa, len, MAP_RW|MAP_MEM);
 	if (va == nil) {
-		release_addr(pa, len);
+		release_mem(pa, len);
 		return false;
 	}
 
 	return pool_load(p, va, len) == OK;
+#endif
 }
 
 	static bool

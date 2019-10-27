@@ -15,4 +15,5 @@ irq_enable(size_t irqn);
 void
 irq_ack(size_t irqn);
 
+extern uint32_t *kernel_l1;
 

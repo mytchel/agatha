@@ -1,6 +1,7 @@
 #include <syscall.h>
 
 #define align_up(x, a)  (((x) + a - 1) & (~(a-1)))
+#define align_down(x, a)  (((x)) & (~(a-1)))
 
 	void
 raise(void)
@@ -18,25 +19,11 @@ memset(void *dst, uint8_t v, size_t len);
 bool
 memcmp(const void *a, const void *b, size_t len);
 
-/* Address space management */
+int
+request_memory(size_t len, size_t align);
 
 int
-unmap_addr(void *a, size_t len);
-
-void *
-map_addr(size_t pa, size_t len, int flags);
-
-size_t
-request_memory(size_t len);
-
-int
-release_addr(size_t pa, size_t len);
-
-int
-give_addr(int to, 
-	size_t pa, size_t len);
-
-/* Lib utils */
+release_memory(int cid);
 
 void *
 malloc(size_t size);

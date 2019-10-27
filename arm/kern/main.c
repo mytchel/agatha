@@ -16,8 +16,7 @@ uint8_t root_obj[0x1000] = { 0 };
 static size_t va_next = 0;
 static size_t max_kernel_va;
 
-static uint32_t *kernel_l1;
-static uint32_t *kernel_l2;
+uint32_t *kernel_l1 = nil;
 
 	static void
 root_start(void)
@@ -120,6 +119,8 @@ init_root(struct kernel_info *info)
 }
 
 /* TODO: these don't do much */
+
+static uint32_t *kernel_l2;
 
 	void *
 kernel_map(size_t pa, size_t len, bool cache)

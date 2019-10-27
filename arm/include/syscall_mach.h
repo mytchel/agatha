@@ -4,13 +4,6 @@ intr_connect(int cid, int eid, uint32_t signal);
 int
 intr_ack(int cid);
 
-#define MAP_RO    (0<<0)
-#define MAP_RW    (1<<0)
-
-#define MAP_TYPE_MASK   (7<<1)
-#define MAP_MEM         (0<<1)
-#define MAP_DEV         (1<<1)
-
 /* Need to be able to alter l2 for an l1 that is not the
    current procs.
    Need to be able to give an l1 away with all of the frames
@@ -30,15 +23,25 @@ intr_ack(int cid);
    to the new proc with the l1 table. The parent keeps them
    and the child cannot edit what the parent setup for it
    other than adding to it.
+
+  ...
+
+  When a frame is mapped its object is invalidated.
+  Then when it is unmapped a cap to an invalid frame object
+  is given which is fulled out with the details from the 
+  table.
+
+  L1 and L2 tables are mapped on demand for editing.
 */
 
-#if 0
+int
+frame_setup(int cid, int type, size_t pa, size_t len);
 
 int
-frame_page_map(int tid, int cid, void *addr, int flags);
+frame_info(int cid, int *type, size_t *pa, size_t *len);
 
 int
-frame_page_unmap(int tid, int nid, void *addr, size_t len);
+frame_l1_setup(int tid);
 
 int
 frame_l2_map(int tid, int cid, void *va);
@@ -46,4 +49,9 @@ frame_l2_map(int tid, int cid, void *va);
 int
 frame_l2_unmap(int tid, int nid, void *addr, size_t len);
 
-#endif
+int
+frame_page_map(int tid, int cid, void *addr);
+
+int
+frame_page_unmap(int tid, int nid, void *addr, size_t len);
+

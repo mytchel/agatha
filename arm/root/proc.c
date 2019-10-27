@@ -23,6 +23,7 @@ in the same way they can map L2 tables.
 
  */
 
+#if 0
 struct proc procs[MAX_PROCS] = { 0 };
 
 static uint8_t frame_pool_initial[sizeof(struct pool_frame)
@@ -304,7 +305,31 @@ proc_map(int pid,
 			return ERR;
 	}
 }
+#endif
 
+bool
+init_bundled_proc(char *name,
+		int priority,
+		size_t start, size_t len,
+		int *p_pid)
+{
+	int l1;
+
+	l1 = request_memory(0x4000, 0x4000);
+	if (l1 < 0) {
+		log(LOG_WARNING, "out of mem");
+		exit(1);
+	}
+
+
+	if (frame_l1_setup(l1) != OK) {
+		log(LOG_WARNING, "frame setup l1 failed");
+		exit(1);
+	}
+
+	return false;
+}
+#if 0
 bool
 init_bundled_proc(char *name,
 		int priority,
@@ -485,13 +510,16 @@ init_bundled_proc(char *name,
 	return true;
 }
 
+#endif
+
+
 	void
 init_procs(void)
 {
 	int i, s, pri, p_pid;
 	struct service *ser;
 	size_t off;
-
+#if 0
 	if (pool_init(&frame_pool, sizeof(struct addr_frame)) != OK) {
 		exit(1);
 	}
@@ -502,35 +530,37 @@ init_procs(void)
 	{
 		exit(1);
 	}
+#endif
 
-	log(0, "setup services");
+#if 0
+	log(LOG_INFO, "setup services");
 
 	for (s = 0; s < nservices; s++) {
 		ser = &services[s];
 
-		log(0, "setup service %s", ser->name);
+		log(LOG_WARNING, "setup service %s", ser->name);
 
 		ser->listen_eid = kobj_alloc(OBJ_endpoint, 1);
 		if (ser->listen_eid < 0) {
-			log(0, "failed to create listen endpoint");
+			log(LOG_WARNING, "failed to create listen endpoint");
 			exit(1);
 		}
 
-		log(0, "service %s listen endpoint %i", 
+		log(LOG_INFO, "service %s listen endpoint %i", 
 			ser->name, ser->listen_eid);
 		
 		ser->connect_eid = kcap_alloc();
 		if (endpoint_connect(ser->listen_eid, ser->connect_eid) != OK) {
-			log(0, "failed to connect to listen endpoint");
+			log(LOG_WARNING, "failed to connect to listen endpoint");
 			exit(1);
 		}
 
-		log(0, "service %s connect endpoint %i", 
+		log(LOG_INFO, "service %s connect endpoint %i", 
 			ser->name, ser->connect_eid);
 	
 		if (ser->device.is_device) {
 			if (ser->device.reg != 0) {
-				log(0, "service %s create reg frame 0x%x 0x%x", 
+				log(LOG_WARNING, "service %s create reg frame 0x%x 0x%x", 
 					ser->name, ser->device.reg, ser->device.len);
 
 				ser->device.reg_frame = 
@@ -538,7 +568,7 @@ init_procs(void)
 							PAGE_ALIGN(ser->device.len));
 
 				if (ser->device.reg_frame == nil) {
-					log(0, "failed to create reg frame");
+					log(LOG_WARNING, "failed to create reg frame");
 					exit(1);
 				}
 			} else {
@@ -546,17 +576,17 @@ init_procs(void)
 			}
 
 			if (ser->device.irqn > 0) {
-				log(0, "service %s create int %i", 
+				log(LOG_INFO, "service %s create int %i", 
 					ser->name, ser->device.irqn);
 				int cid;
 
 				cid = kobj_alloc(OBJ_intr, 1);
 				if (cid < 0) {
-					log(0, "failed to create obj for intr");
+					log(LOG_WARNING, "failed to create obj for intr");
 					exit(1);
 
 				} else if (intr_init(cid, ser->device.irqn) != OK) {
-					log(0, "intr init for %i irqn %i failed", 
+					log(LOG_WARNING, "intr init for %i irqn %i failed", 
 						cid, ser->device.irqn);
 					exit(1);
 				}
@@ -567,8 +597,9 @@ init_procs(void)
 			}
 		}
 	}
+#endif
 
-	log(0, "setup idle");
+	log(LOG_INFO, "setup idle");
 
 	off = info->bundle_pa;
 
@@ -579,8 +610,9 @@ init_procs(void)
 
 		off += bundled_idle[i].len;
 	}
-	
-	log(0, "setup procs");
+
+#if 0	
+	log(LOG_INFO, "setup procs");
 
 	for (i = 0; i < nbundled_procs; i++) {
 		for (s = 0; s < nservices; s++) {
@@ -600,6 +632,9 @@ init_procs(void)
 		
 		off += bundled_procs[i].len;
 	}
+
+#endif
+
 }
 
 

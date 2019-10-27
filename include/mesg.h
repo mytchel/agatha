@@ -1,8 +1,6 @@
 typedef enum {
 	PROC0_get_resource,
-	PROC0_addr_req,
-	PROC0_addr_map,
-	PROC0_addr_give,
+	PROC0_mem_req,
 
 	DEV_REG_find,
 	DEV_REG_register,

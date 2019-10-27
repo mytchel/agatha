@@ -24,12 +24,6 @@ LDFLAGS_USER += \
 	-T $(USER.LD) \
 	-Ttext $(USER_ADDR)
 
-USER_LIBS += \
-	arm/lib/c \
-	lib/pool \
-	lib/mem \
-	lib/string
-
 .bin.bo:
 	@echo BO $@
 	@$(OBJCOPY) -B arm -O elf32-littlearm -I binary \

@@ -3,13 +3,13 @@ include arm/rules.mk
 LIBS += \
 	arm/lib/c \
 	lib/pool \
-	lib/mem \
 	lib/string \
-	lib/block \
 	lib/log \
-	lib/net \
-	lib/sdmmc \
-	lib/fat
+#	lib/block \
+#	lib/net \
+#	lib/sdmmc \
+#	lib/fat
+#	lib/mem \
 
 BUNDLE_BIN =
 BUNDLE_ELF =

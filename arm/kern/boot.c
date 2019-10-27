@@ -41,6 +41,10 @@ main(uint32_t j)
 
 	memset(info, 0, sizeof(struct kernel_info));
 
+	info->boot_pa = (size_t) &_boot_start;
+	info->boot_len = (size_t) &_boot_end -
+		info->boot_pa;
+
 	info->kernel_pa    = (size_t) &_binary_kernel_bin_start;
 	info->kernel_len   = 
 		PAGE_ALIGN(&_binary_kernel_bin_end) - 
@@ -76,16 +80,11 @@ main(uint32_t j)
 
 	info->kernel_va = 0xff000000;
 
-	size_t info_va = 
-		info->kernel_va + info->kernel_len;
+	size_t info_va = info->kernel_va + info->kernel_len;
 
 	info->kernel.l1_va = info_va + info->info_len;
 
 	info->kernel.l2_va = info->kernel.l1_va + info->kernel.l1_len;
-
-	info->boot_pa = (size_t) &_boot_start;
-	info->boot_len = (size_t) &_boot_end -
-		info->boot_pa;
 
 	/* Set up temporary mapping to this code
 		 that will be unmapped once we jump into
@@ -108,7 +107,7 @@ main(uint32_t j)
 	map_l2(kernel_l1, 
 			(size_t) kernel_l2, 
 			info->kernel_va,
-		 	0x1000);
+		 	sizeof(kernel_l2));
 
 	map_pages(kernel_l2, 
 			info->kernel_pa, 
@@ -124,22 +123,20 @@ main(uint32_t j)
 
 	map_pages(kernel_l2, 
 			info->kernel.l1_pa, 
-			(size_t) info->kernel.l1_va, 
+			info->kernel.l1_va, 
 			info->kernel.l1_len, 
 			AP_RW_NO, false);
 
 	map_pages(kernel_l2, 
 			info->kernel.l2_pa,
-			(size_t) info->kernel.l2_va, 
+			info->kernel.l2_va, 
 			info->kernel.l2_len, 
 			AP_RW_NO, false);
 
 	mmu_load_ttb((uint32_t *) info->kernel.l1_pa);
 	mmu_invalidate();
 	mmu_enable();
-
-	jump(info_va, 
-			0,
-			info->kernel_va);
+	
+	jump(info_va, 0, info->kernel_va);
 }
 

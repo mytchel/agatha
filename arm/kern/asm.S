@@ -30,7 +30,6 @@ raise:
 jump:
 	mov sp, r1
 	mov pc, r2
-#	ldr pc, =#0xff000000
 	
 	
 set_intr:

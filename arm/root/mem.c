@@ -2,15 +2,6 @@
 #include <arm/mmu.h>
 #include <log.h>
 
-static struct {
-	struct {
-		size_t pa, len;
-		uint32_t *addr;
-	} mmu;
-
-	uint32_t *va[0x1000];
-} root_l1;
-
 struct addr_range {
 	size_t start, len;
 	struct addr_range *next;
@@ -133,8 +124,8 @@ addr_range_get_any(struct addr_range **head, size_t len, size_t align)
 	return nil;
 }
 
-	size_t
-get_ram(size_t len, size_t align)
+	int
+request_memory(size_t len, size_t align)
 {
 	struct addr_range *m;
 	size_t pa;
@@ -150,22 +141,30 @@ get_ram(size_t len, size_t align)
 
 	log(LOG_INFO, "giving away 0x%x 0x%x", pa, len);
 
-	return pa;
-}
+	int cid;
 
-	size_t
-request_memory(size_t len)
-{
-	return get_ram(len, 0x1000);
+	cid = kobj_alloc(OBJ_frame, 1);
+	if (cid < 0) {
+		log(LOG_WARNING, "frame alloc failed");
+		return ERR;
+	}
+
+	if (frame_setup(cid, FRAME_MEM, m->start, m->len) != OK) {
+		log(LOG_WARNING, "frame setup failed");
+		return ERR;
+	}
+
+	return cid;
 }
 
 	int
-release_addr(size_t pa, size_t len)
+release_memory(int cid)
 {
 	/* TODO */
 	return ERR;
 }
 
+#if 0
 /* TODO: should make this use the code in proc.c
 	 and manage itself like the other procs. */
 
@@ -277,6 +276,7 @@ addr_unmap(size_t va, size_t len)
 	return OK;
 }
 
+
 	void
 proc_init_l1(uint32_t *l1)
 {
@@ -298,6 +298,8 @@ proc_init_l1(uint32_t *l1)
 	log(LOG_INFO, "init l1 at 0x%x kva at 0x%x", l1, info->kernel_va);
 }
 
+#endif
+
 	void
 add_ram(size_t start, size_t len)
 {
@@ -305,7 +307,8 @@ add_ram(size_t start, size_t len)
 
 	m = pool_alloc(&addr_pool);
 	if (m == nil) {
-		raise();
+		log(LOG_FATAL, "pool alloc failed for adding ram");
+		exit(1);
 	}
 
 	m->start = start;
@@ -344,11 +347,15 @@ init_mem(void)
 
 	pool_free(&addr_pool, m);
 
+	log(LOG_INFO, "remove kernel range 0x%x 0x%x", info->kernel_pa, info->kernel_len);
+
 	if ((m = addr_range_get(&ram_free, info->kernel_pa, info->kernel_len)) == nil) {
 		exit(5);
 	}
 
 	pool_free(&addr_pool, m);
+
+	log(LOG_INFO, "remove root range 0x%x 0x%x", info->root_pa, info->root_len);
 
 	if ((m = addr_range_get(&ram_free, info->root_pa, info->root_len)) == nil) {
 		exit(6);
@@ -356,21 +363,12 @@ init_mem(void)
 
 	pool_free(&addr_pool, m);
 
+	log(LOG_INFO, "remove bundle range 0x%x 0x%x", info->bundle_pa, info->bundle_len);
+
 	if ((m = addr_range_get(&ram_free, info->bundle_pa, info->bundle_len)) == nil) {
 		exit(7);
 	}
 
 	pool_free(&addr_pool, m);
-
-	root_l1.mmu.pa = info->root.l1_pa;
-	root_l1.mmu.len = info->root.l1_len;
-	root_l1.mmu.addr = (uint32_t *) info->root.l1_va;
-
-	memset(root_l1.va, 0, sizeof(root_l1.va));
-
-	for (o = 0; (o << 10) < info->root.l2_len; o++) {
-		root_l1.va[L1X(info->root.l2_va) + o]
-			= (uint32_t *) (info->root.l2_va + (o << 10));
-	}
 }
 

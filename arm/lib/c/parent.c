@@ -7,108 +7,42 @@
 #include <arm/mmu.h>
 #include <proc0.h>
 
-	size_t
-request_memory(size_t len)
+	int
+request_memory(size_t len, size_t align)
 {
 	union proc0_req rq;
 	union proc0_rsp rp;
+	int cid;
 
 	if (len == 0) {
 		return nil;
 	}
 
+	cid = kcap_alloc();
+	if (cid < 0) {
+		return ERR;
+	}
+
 	len = PAGE_ALIGN(len);
 
-	rq.addr_req.type = PROC0_addr_req;
-	rq.addr_req.pa = nil;
-	rq.addr_req.len = len;
+	rq.mem_req.type = PROC0_mem_req;
+	rq.mem_req.len = len;
+	rq.mem_req.align = align;
 
-	if (mesg(CID_PARENT, &rq, &rp) != OK) {
-		return nil;
+	if (mesg_cap(CID_PARENT, &rq, &rp, cid) != OK) {
+		return ERR;
 	}
 
-	if (rp.addr_req.ret != OK) {
-		return nil;
+	if (rp.mem_req.ret != OK) {
+		return rp.mem_req.ret;
 	}
 
-	return rp.addr_req.pa;
+	return cid;
 }
 
 	int
-release_addr(size_t pa, size_t len)
+release_memory(int cid)
 {
-	return give_addr(CID_PARENT, pa, len);
-}
-
-int
-give_addr(int to, size_t pa, size_t len)
-{
-	union proc0_req rq;
-	union proc0_rsp rp;
-
-	rq.addr_give.type = PROC0_addr_give;
-	rq.addr_give.to = to;
-	rq.addr_give.pa = pa;
-	rq.addr_give.len = len;
-
-	if (mesg(CID_PARENT, &rq, &rp) != OK) {
-		return ERR;
-	}
-
-	return rp.addr_give.ret;
-}
-
-int
-addr_unmap(size_t va, size_t len)
-{
-	union proc0_req rq;
-	union proc0_rsp rp;
-
-	if (PAGE_ALIGN(va) != va) {
-		return nil;
-	}
-	
-	len = PAGE_ALIGN(len);
-
-	rq.addr_map.type = PROC0_addr_map;
-	rq.addr_map.len = len;
-	rq.addr_map.va = va;
-	rq.addr_map.pa = 0;
-	rq.addr_map.flags = MAP_REMOVE_LEAF;
-
-	if (mesg(CID_PARENT, &rq, &rp) != OK) {
-		return ERR;
-	}
-
-	return rp.addr_map.ret;
-}
-
-int
-addr_map(size_t pa, size_t va, size_t len, int flags)
-{
-	union proc0_req rq;
-	union proc0_rsp rp;
-	int r;
-
-	rq.addr_map.type = PROC0_addr_map;
-	rq.addr_map.pa = pa;
-	rq.addr_map.len = len;
-	rq.addr_map.va = va;
-	rq.addr_map.flags = flags;
-
-	if ((r = mesg(CID_PARENT, &rq, &rp)) != OK) {
-		return r;
-	}
-
-	return rp.addr_req.ret;
-}
-
-int
-addr_map_l2s(size_t pa, size_t va, size_t len)
-{
-	int r;
-
-	r = addr_map(pa, va, len, MAP_TABLE);
-	return r;
+	return ERR;
 }
 

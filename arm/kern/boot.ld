@@ -26,7 +26,7 @@ SECTIONS
 	.bundle :
 	{
 		kernel.bo(.bundle)
-			. = ALIGN(4096);
+		. = ALIGN(4096);
 		root.bo(.bundle)
 		. = ALIGN(4096);
 		bundle.bo(.bundle)

@@ -37,57 +37,11 @@ struct service {
 	int connect_eid;
 };
 
-struct addr_frame {
-	struct addr_frame *next;
-	size_t pa, len;
-	int table;
-	int mapped;
-};
-
-struct proc {
-	struct addr_frame *frames;
-
-	struct {
-		size_t table_pa, mapped_pa;
-		uint32_t *table;
-		uint32_t *mapped;
-	} l1;
-};
-
 void
 init_mem(void);
 
-size_t
-get_ram(size_t len, size_t align);
-
-void
-proc_init_l1(uint32_t *l1);
-
-
 void
 init_procs(void);
-
-struct addr_frame *
-frame_new(size_t pa, size_t len);
-
-void
-frame_free(struct addr_frame *f);
-
-int
-proc_give_addr(int pid, struct addr_frame *f);
-
-struct addr_frame *
-proc_get_addr(int pid, size_t pa, size_t len);
-
-struct addr_frame *
-proc_take_addr(int pid, size_t pa, size_t len);
-
-int
-proc_map(int pid, size_t pa, size_t va, size_t len, int flags);
-
-int
-proc_unmap(int pid, size_t va, size_t len);
-
 
 bool
 init_bundled_proc(char *name, int priority,

@@ -20,25 +20,9 @@ union proc0_req {
 
 	struct {
 		uint32_t type;
-		size_t pa;
 		size_t len;
-	} addr_req;
-
-	struct {
-		uint32_t type;
-		int pid;
-		size_t pa;
-		size_t va;
-		size_t len;
-		int flags;
-	} addr_map;
-
-	struct {
-		uint32_t type;
-		int to;
-		size_t pa;
-		size_t len;
-	} addr_give;
+		size_t align;
+	} mem_req;
 
 	struct {
 		uint32_t type;
@@ -68,18 +52,7 @@ union proc0_rsp {
 	struct {
 		uint32_t type;
 		int ret;
-		size_t pa;
-	} addr_req;
-
-	struct {
-		uint32_t type;
-		int ret;
-	} addr_map;
-
-	struct {
-		uint32_t type;
-		int ret;
-	} addr_give;
+	} mem_req;
 
 	struct {
 		uint32_t type;
