@@ -27,6 +27,16 @@ struct proc_list {
 #define CAP_write  1
 #define CAP_read   2
 
+/* TODO change caps to be stored in tables.
+   A proc gets an initial caplist of a set size
+   and can slot caplists into that caplist but 
+   it cannot go deeper. Then use the id like a 
+   virtual address with the top bits being the 
+   index in the root caplist and the bottom bits
+   being the index into the sub caplist if there
+   is one. 
+   */
+
 struct cap {
 	cap_t *next;
 	int id;
@@ -55,15 +65,11 @@ struct obj_endpoint {
 
 struct obj_caplist {
 	struct obj_head h;
-
-	size_t n;
-	cap_t caps[];
+	cap_t caps[255];
 };
 
 struct obj_proc {
 	struct obj_head h;
-
-	cap_t initial_caps[4];
 
 	label_t label;
 
@@ -88,8 +94,7 @@ struct obj_proc {
 
 	obj_endpoint_t *recv_from;
 
-	int next_cap_id;
-	cap_t *caps;
+	obj_caplist_t *cap_root;
 };
 
 #include <sysobj_mach.h>

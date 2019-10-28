@@ -2,8 +2,8 @@
 #include <mmu.h>
 #include <log.h>
 
-struct kernel_info *info;
-int main_eid;
+struct kernel_info *info = nil;
+int main_eid = -1;
 
 void
 log(int level, char *fmt, ...)
@@ -282,6 +282,11 @@ main(struct kernel_info *i)
 	log(0, "kernel_info at 0x%x", i);
 	log(0, "kernel starts at 0x%x", info->kernel_va);
 	log(0, "boot starts at 0x%x", info->boot_pa);
+
+	if (kobj_add_untyped(CID_L1+1, 0x1000) != OK) {
+		log(LOG_WARNING, "error adding initial object");
+		exit(1);
+	}
 
 	init_mem();
 

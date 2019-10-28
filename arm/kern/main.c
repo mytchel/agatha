@@ -6,6 +6,8 @@ void
 init_kernel_drivers();
 
 static uint8_t root_proc_obj[0x1000] = { 0 };
+static uint8_t root_caplist_obj[0x1000] = { 0 };
+static uint8_t root_untyped_obj[0x1000] = { 0 };
 static obj_frame_t root_l1 = { 0 };
 
 #define root_l1_va      0x01000
@@ -39,10 +41,27 @@ init_root(struct kernel_info *info)
 {
 	uint32_t *l1, *l2;
 	obj_proc_t *p;
-	
+	obj_caplist_t *c;
+
 	p = (void *) root_proc_obj;
 	p->h.type = OBJ_proc;
 	p->h.refs = 1;
+
+	int i;
+
+	c = (void *) root_caplist_obj;
+	c->h.type = OBJ_caplist;
+	c->h.refs = 1;
+	for (i = 0; i < 255; i++) {
+		c->caps[i].id = i;
+		c->caps[i].perm = 0;
+		c->caps[i].obj = nil;
+
+		if (i < 255)
+			c->caps[i].next = &c->caps[i+1];
+		else
+			c->caps[i].next = nil;
+	}
 
 	l1 = kernel_map(info->root.l1_pa,
 			info->root.l1_len,
@@ -107,16 +126,32 @@ init_root(struct kernel_info *info)
 	}
 
 	root_l1.h.refs = 1;
-	root_l1.type = OBJ_frame;
+	root_l1.h.type = OBJ_frame;
 	root_l1.pa = info->root.l1_pa;
 	root_l1.len = info->root.l1_len;
 	root_l1.type = FRAME_L1;
-	
-	p->initial_caps[CID_L1].obj = (void *) &root_l1;
-	p->initial_caps[CID_L1].perm = CAP_write | CAP_read;
 
-	debug_info("func label %i, stack top at 0x%x\n",
-			p->pid, p->kstack + KSTACK_LEN);
+	p->caps = &c->caps[0];
+
+	c->caps[CID_CLIST].obj = (void *) c;
+	c->caps[CID_CLIST].perm = CAP_write | CAP_read;
+
+	c->caps[CID_PARENT].obj = nil;
+	c->caps[CID_PARENT].perm = 0;
+
+	c->caps[CID_L1].obj = (void *) &root_l1;
+	c->caps[CID_L1].perm = CAP_write | CAP_read;
+
+	debug_info("root clist 0x%x\n", c);
+	debug_info("root l1 0x%x\n", &root_l1);
+
+	obj_untyped_t *root_initial_obj = (void *) root_untyped_obj;
+	root_initial_obj->h.type = OBJ_untyped;
+	root_initial_obj->h.refs = 1;
+	root_initial_obj->len = sizeof(root_untyped_obj);
+
+	c->caps[CID_L1+1].obj = (void *) root_initial_obj;
+	c->caps[CID_L1+1].perm = CAP_write | CAP_read;
 
 	func_label(&p->label, 
 			(size_t) p->kstack, KSTACK_LEN, 

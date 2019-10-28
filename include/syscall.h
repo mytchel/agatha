@@ -3,7 +3,7 @@ int
 yield(void);
 
 int
-obj_create(int cid, size_t pa, size_t len);
+obj_create(int fid, int nid);
 
 int
 obj_retype(int cid, int type, size_t n);
@@ -52,7 +52,10 @@ exit(uint32_t code)
 	__attribute__((noreturn));
 
 int
-proc_setup(int cid, size_t vspace, size_t priority, int p_eid);
+proc_setup(int cid, int l1, int clist, int parent_eid);
+
+int
+proc_set_priority(int cid, size_t priority);
 
 int
 proc_start(int cid, size_t pc, size_t sp);

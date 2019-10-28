@@ -5,6 +5,8 @@ proc_find_cap(obj_proc_t *p, int cid)
 {
 	cap_t *c;
 
+	debug_info("%i find cap %i\n", p->pid, cid);
+
 	for (c = p->caps; c != nil; c = c->next) {
 		if (c->id == cid) {
 			return c;
@@ -34,8 +36,8 @@ obj_endpoint_size(size_t n)
 size_t 
 obj_caplist_size(size_t n)
 {
-	return sizeof(obj_caplist_t) 
-			+ sizeof(cap_t) * n;
+	if (n != 1) return 0;
+	return sizeof(obj_caplist_t); 
 }
 
 int
@@ -70,22 +72,16 @@ obj_caplist_init(obj_proc_t *p, void *o, size_t n)
 	cap_t *c;
 	int i;
 
-	debug_info("proc %i making caplist 0x%x size %i\n", p->pid, o, n);
+	debug_info("proc %i making caplist 0x%x\n", p->pid, o);
 
-	l->n = n;
-
-	for (i = 0; i < n; i++) {
+	for (i = 0; i < 255; i++) {
 		c = &l->caps[i];
 
-		c->id = p->next_cap_id++;
 		c->perm = 0;
 		c->obj = nil;
-
-		c->next = p->caps->next;
-		p->caps->next = c;
 	}
 	
-	return l->caps[0].id;
+	return OK;
 }
 
 size_t
@@ -146,7 +142,8 @@ sys_obj_split(int cid, int nid)
 
 	c = proc_find_cap(up, cid);
 	if (c == nil) {
-		debug_warn("cap not found\n");
+		debug_warn("%i cap %i not found\n",
+			up->pid, cid);
 		return ERR;
 	} else if (!(c->perm & CAP_write)) {
 		return ERR;
@@ -156,7 +153,8 @@ sys_obj_split(int cid, int nid)
 
 	nc = proc_find_cap(up, nid);
 	if (c == nil) {
-		debug_warn("cap not found\n");
+		debug_warn("%i cap %i not found\n",
+			up->pid, nid);
 		return ERR;
 	} else if (nc->perm != 0) {
 		return ERR;
@@ -648,13 +646,13 @@ obj_proc_init(obj_proc_t *p, void *a, size_t n)
 }
 
 size_t
-sys_proc_setup(int cid, size_t vspace, size_t priority, int p_eid)
+sys_proc_setup(int cid, int l1, int clist, int p_eid)
 {
 	obj_proc_t *o;
 	cap_t *c, *pe;
 
-	debug_info("%i proc setup cid %i with vspace 0x%x, priority %i\n", 
-		up->pid, cid, vspace, priority);
+	debug_info("%i proc setup cid %i with vspace %i, clist %i, parent eid %i\n", 
+		up->pid, cid, l1, clist, p_eid);
 
 	c = proc_find_cap(up, cid);
 	if (c == nil) {
@@ -677,23 +675,40 @@ sys_proc_setup(int cid, size_t vspace, size_t priority, int p_eid)
 		return ERR;
 	}
 
-	if (proc_init(o, priority, vspace) != OK) {
+	return ERR;
+
+#if 0
+	pe = proc_find_cap(up, p_eid);
+	if (pe == nil) {
+		debug_warn("%i couln't find cid %i\n", up->pid, p_eid);
+		return ERR;
+	} else if (!(pe->perm & CAP_write)) {
+		return ERR;
+	} else if (pe->obj->type != OBJ_endpoint) {
+		return ERR;
+	}
+/*
+	o->initial_caps[1].perm = CAP_write;
+	o->initial_caps[1].obj = pe->obj;
+*/
+	pe->perm = 0;
+
+	if (proc_init(o, vspace) != OK) {
 		debug_warn("proc_init failed\n");
 		return ERR;
 	}
-
-	o->initial_caps[1].perm = CAP_write;
-	o->initial_caps[1].obj = pe->obj;
-
-	pe->perm = 0;
-
-	debug_info("new proc %i setup with vspace 0x%x, priority %i\n", 
-		o->pid, o->vspace, o->priority);
+#endif
 
 	return o->pid;
 }
 
 size_t
+sys_proc_set_priority(int cid, size_t priority)
+{
+	return OK;
+}
+
+	size_t
 sys_proc_start(int cid, size_t pc, size_t sp)
 {
 	obj_proc_t *o;

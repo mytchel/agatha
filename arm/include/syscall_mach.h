@@ -50,8 +50,8 @@ int
 frame_l2_unmap(int tid, int nid, void *addr, size_t len);
 
 int
-frame_page_map(int tid, int cid, void *addr);
+frame_map(int tid, int cid, void *addr);
 
 int
-frame_page_unmap(int tid, int nid, void *addr, size_t len);
+frame_unmap(int tid, int nid, void *addr, size_t len);
 

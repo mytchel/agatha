@@ -313,7 +313,64 @@ init_bundled_proc(char *name,
 		size_t start, size_t len,
 		int *p_pid)
 {
-	int l1;
+	int p_cid, eid, clist;
+	int l1, l2;
+	int code_bundle, code_new;
+	int stack;
+	void *bundle_va, *code_va;
+
+	log(LOG_INFO, "init bundled %s", name);
+
+	code_new = request_memory(len, 0x1000);
+	if (code_new < 0) {
+		log(LOG_WARNING, "out of mem");
+		exit(1);
+	}
+
+	stack = request_memory(0x1000, 0x1000);
+	if (stack < 0) {
+		log(LOG_WARNING, "out of mem");
+		exit(1);
+	}
+
+	code_bundle = kobj_alloc(OBJ_frame, 1);
+	if (code_bundle < 0) {
+		log(LOG_WARNING, "kobj alloc failed");
+		exit(1);
+	}
+
+	if (frame_setup(code_bundle, FRAME_MEM, start, len) != OK) {
+		log(LOG_WARNING, "frame setup failed");
+		exit(1);
+	}
+
+	log(LOG_INFO, "map code to copy");
+
+	bundle_va = (void *) 0x30000;
+	code_va = (void *) ((size_t) bundle_va + len);
+
+	if (frame_map(CID_L1, code_bundle, bundle_va) != OK) {
+		log(LOG_WARNING, "map failed");
+		exit(1);
+	}
+
+	if (frame_map(CID_L1, code_new, code_va) != OK) {
+		log(LOG_WARNING, "map failed");
+		exit(1);
+	}
+
+	log(LOG_INFO, "copy code");
+
+	memcpy(code_va, bundle_va, len);
+
+	log(LOG_INFO, "unmap code");
+
+	frame_unmap(CID_L1, code_bundle, bundle_va, len);
+	frame_unmap(CID_L1, code_new, code_va, len);
+
+	kobj_free(code_bundle);
+	
+	log(LOG_INFO, "setup address space");
 
 	l1 = request_memory(0x4000, 0x4000);
 	if (l1 < 0) {
@@ -321,14 +378,80 @@ init_bundled_proc(char *name,
 		exit(1);
 	}
 
+	l2 = request_memory(0x1000, 0x1000);
+	if (l2 < 0) {
+		log(LOG_WARNING, "out of mem");
+		exit(1);
+	}
+
+	log(LOG_INFO, "setup l1");
 
 	if (frame_l1_setup(l1) != OK) {
 		log(LOG_WARNING, "frame setup l1 failed");
 		exit(1);
 	}
 
-	return false;
+	log(LOG_INFO, "map l2");
+
+	if (frame_l2_map(l1, l2, 0x0) != OK) {
+		log(LOG_WARNING, "frame l2 map failed");
+		exit(1);
+	}
+
+	log(LOG_INFO, "map code");
+
+	if (frame_map(l1, code_new, (void *) USER_ADDR) != OK) {
+		log(LOG_WARNING, "frame map failed");
+		exit(1);
+	}
+
+	log(LOG_INFO, "map stack");
+
+	if (frame_map(l1, stack, (void *) (USER_ADDR - 0x1000)) != OK) {
+		log(LOG_WARNING, "frame map failed");
+		exit(1);
+	}
+
+	log(LOG_INFO, "setup proc");
+
+	eid = kcap_alloc();
+	if (endpoint_connect(main_eid, eid) != OK) {
+		log(LOG_WARNING, "endpoint connect failed");
+		exit(1);
+	}
+
+	p_cid = kobj_alloc(OBJ_proc, 1);
+	if (p_cid < 0) {
+		log(LOG_WARNING, "proc kobj alloc failed");
+		exit(1);
+	}
+
+	clist = kobj_alloc(OBJ_caplist, 1);
+	if (clist < 0) {
+		log(LOG_WARNING, "proc kobj clist alloc failed");
+		exit(1);
+	}
+
+	if (proc_setup(p_cid, l1, clist, eid) != OK) {
+		log(LOG_WARNING, "proc setup failed");
+		exit(1);
+	}
+
+	if (proc_set_priority(p_cid, priority) != OK) {
+		log(LOG_WARNING, "proc set priority failed");
+		exit(1);
+	}
+
+	log(LOG_INFO, "start bundled proc pid %i %s", *p_pid, name);
+
+	if (proc_start(p_cid, USER_ADDR, USER_ADDR) < 0) {
+		log(LOG_INFO, "proc start failed");
+		exit(10);
+	}
+
+	return true;
 }
+
 #if 0
 bool
 init_bundled_proc(char *name,

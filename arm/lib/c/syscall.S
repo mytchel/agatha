@@ -45,6 +45,14 @@ proc_setup:
 	pop {r12, pc}
 
 
+.global proc_set_priority
+proc_set_priority:
+	push {r12, lr}
+	mov r12, #SYSCALL_PROC_SET_PRIORITY
+	svc 0
+	pop {r12, pc}
+
+
 .global proc_start
 proc_start:
 	push {r12, lr}

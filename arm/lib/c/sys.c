@@ -5,8 +5,9 @@
 #include <sysobj.h>
 #include <c.h>
 #include <pool.h>
+#include <log.h>
 
-#define log(X, ...) {}
+/*#define log(X, ...) {}*/
 
 typedef struct kcap kcap_t;
 typedef struct kobj kobj_t;
@@ -31,16 +32,21 @@ struct kcap_list {
 	kcap_list_t *next;
 	int cid;
 	int start_id;
-	uint32_t caps[cap_list_n/32];
+	uint32_t caps[255/32];
 };
 
-static int next_cap_list_cid = 2;
+static kobj_t kobj_pool_initial[64] = { 0 };
+static kcap_list_t kcap_pool_initial[4] = { 0 };
 
-static struct pool kobj_pool;
-static kobj_t *kobjs;
+static int next_cap_list_cid = 10;
 
-static struct pool kcap_pool;
-static kcap_list_t *kcap_lists;
+static struct pool kobj_pool = { 0 };
+static kobj_t *kobjs = nil;
+
+static kcap_list_t kcap_list_initial = { 0 };
+
+static struct pool kcap_pool = { 0 };
+static kcap_list_t *kcap_lists = nil;
 
 static bool ready = false;
 
@@ -59,43 +65,28 @@ ksys_init(void)
 		exit(1);
 	}
 
-#if 0
-	len = 0x1000;
-
-	pa = request_memory(len);
-	if (pa == nil) {
+	if (pool_load(&kobj_pool, kobj_pool_initial, sizeof(kobj_pool_initial)) != OK) {
 		exit(1);
 	}
 
-	va = map_addr(pa, len, MAP_RW);
-	if (va == nil) {
-		exit(1);
-	}
-
-	if (pool_load(&kobj_pool, va, len) != OK) {
-		exit(1);
-	}
-#endif
 	if (pool_init(&kcap_pool, sizeof(kcap_list_t)) != OK) {
 		exit(1);
 	}
-#if 0
-	len = 0x1000;
 
-	pa = request_memory(len, 0x1000);
-	if (pa == nil) {
+	if (pool_load(&kcap_pool, kcap_pool_initial, sizeof(kcap_pool_initial)) != OK) {
 		exit(1);
 	}
 
-	va = map_addr(pa, len, MAP_RW);
-	if (va == nil) {
-		exit(1);
-	}
+	kcap_list_t *i;
+	i = &kcap_list_initial;
+	i->next = nil;
+	i->cid = CID_CLIST;
+	i->start_id = 0;
+	memset(i->caps, 0, sizeof(i->caps));
+	i->caps[0] |= (1<<0) | (1<<1) | (1<<2) | (1<<3);
 
-	if (pool_load(&kcap_pool, va, len) != OK) {
-		exit(1);
-	}
-#endif
+	kcap_lists = i;
+
 	ready = true;
 }
 
@@ -195,18 +186,14 @@ kcap_free(int cid)
 static kobj_t *
 kobj_alloc_new(size_t len)
 {
-	log(LOG_WARNING, "kobj alloc new failing");
-	return nil;
-#if 0
+	int cid, fid;
 	kobj_t *o;
-	size_t pa;
-	int cid;
 
 	if (len < 0x1000) 
 		len = 0x1000;
 
-	pa = request_memory(len);
-	if (pa == nil) {
+	fid = request_memory(len, 0x1000);
+	if (fid < 0) {
 		return nil;
 	}
 
@@ -215,9 +202,11 @@ kobj_alloc_new(size_t len)
 		return nil;
 	}
 	
-	if (obj_create(cid, pa, len) != OK) {
+	if (obj_create(fid, cid) != OK) {
 		return nil;
 	}
+
+	kobj_free(fid);
 
 	o = pool_alloc(&kobj_pool);
 	if (o == nil) {
@@ -232,7 +221,6 @@ kobj_alloc_new(size_t len)
 	kobjs = o;
 
 	return o;
-#endif
 }
 
 bool
@@ -289,14 +277,41 @@ kobj_type_size(int type, size_t n)
 	switch (type) {
 	case OBJ_untyped: return 0;
 	case OBJ_endpoint: return sizeof(obj_endpoint_t);
-	case OBJ_caplist: return sizeof(obj_caplist_t) + sizeof(cap_t) * n;
+	case OBJ_caplist: return sizeof(obj_caplist_t);
 	case OBJ_proc: return sizeof(obj_proc_t);
 
 	case OBJ_intr: return sizeof(obj_intr_t);
+	case OBJ_frame: return sizeof(obj_frame_t);
 	
 	default: 
 		return 0;
 	}
+}
+
+int
+kobj_add_untyped(int cid, size_t len)
+{
+	kobj_t *n;
+
+	ksys_init();
+
+	n = pool_alloc(&kobj_pool);
+	if (n == nil) {
+		log(LOG_INFO, "alloc failed");
+		return ERR;
+	}
+
+	log(LOG_INFO, "have obj 0x%x", n);
+
+	n->cid = cid;
+	n->type = OBJ_untyped;
+	n->len = len;
+	n->from = n;
+
+	n->next = kobjs;
+	kobjs = n;
+
+	return OK;
 }
 
 int
@@ -311,6 +326,7 @@ kobj_alloc(int type, size_t n)
 
 	l = kobj_type_size(type, n);
 	if (l == 0) {
+		log(LOG_INFO, "type unknown");
 		return ERR;
 	}
 

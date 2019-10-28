@@ -204,18 +204,7 @@ proc_init(obj_proc_t *p, int priority, size_t vspace)
 	p->wnext = nil;
 	p->state = PROC_fault;
 
-	int i;
-	for (i = 0; i < 4; i++) {
-		p->initial_caps[i].perm = 0;
-		p->initial_caps[i].id = i;
-		if (i < 4) {
-			p->initial_caps[i].next = &p->initial_caps[i+1];
-		} else { 
-			p->initial_caps[i].next = nil;
-		}
-	}
-
-	p->caps = &p->initial_caps[0];
+	p->caps = nil;
 
 	p->next_cap_id = 4;
 

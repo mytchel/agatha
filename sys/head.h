@@ -149,7 +149,10 @@ size_t
 sys_obj_merge(int cid_l, int cid_h);
 
 size_t
-sys_proc_setup(int cid, size_t vspace, size_t priority, int p_eid);
+sys_proc_setup(int cid, int l1, int clist, int p_eid);
+
+size_t
+sys_proc_set_priority(int cid, size_t priority);
 
 size_t
 sys_proc_start(int cid, size_t pc, size_t sp);

@@ -38,6 +38,9 @@ void
 kcap_free(int cid);
 
 int
+kobj_add_untyped(int cid, size_t len);
+
+int
 kobj_alloc(int type, size_t n);
 
 void
