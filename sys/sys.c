@@ -14,60 +14,6 @@ proc_find_cap(obj_proc_t *p, int cid)
 	return nil;
 }
 
-size_t
-sys_obj_create(int cid, size_t pa, size_t len)
-{
-	obj_untyped_t *o;
-	cap_t *c;
-
-	debug_info("%i obj create %i 0x%x 0x%x\n", 
-		up->pid, cid, pa, len);
-
-	size_t mlen = 0x1000;
-
-	while (true) {
-		if (mlen > len) {
-			debug_info("%i obj create bad size %i\n", up->pid, len);
-			return ERR;
-		} else if (mlen == len) {
-			break;
-		} else {
-			mlen <<= 1;
-		}
-	}
-
-	c = proc_find_cap(up, cid);
-	if (c == nil) {
-		debug_warn("%i obj create couldnt find cap %i\n", 
-			up->pid, cid);
-		return ERR;
-	} else if (c->perm != 0) {
-		debug_warn("%i obj create cap %i bad perm %i\n", 
-			up->pid, cid, c->perm);
-		return ERR;
-	}
-
-	o = kernel_map(pa, len, true);
-	if (o == nil) {
-		return ERR;
-	}
-
-	memset(o, 0, len);
-
-	o->h.refs = 0;
-	o->h.type = OBJ_untyped;
-
-	obj_untyped_init(up, o, len);
-
-	c->perm = CAP_write | CAP_read;
-	c->obj = (obj_head_t *) o;
-
-	debug_info("%i obj create 0x%x cap id %i\n", 
-		up->pid, o, c->id);
-
-	return OK;
-}
-
 size_t 
 obj_untyped_size(size_t n)
 {

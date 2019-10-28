@@ -204,19 +204,20 @@ proc_init(obj_proc_t *p, int priority, size_t vspace)
 	p->wnext = nil;
 	p->state = PROC_fault;
 
-	p->initial_caps[0].next = &p->initial_caps[1];
-	p->initial_caps[0].perm = 0;
-	p->initial_caps[0].id = 0;
-	p->initial_caps[1].next = &p->initial_caps[2];
-	p->initial_caps[1].perm = 0;
-	p->initial_caps[1].id = 1;
-	p->initial_caps[2].perm = 0;
-	p->initial_caps[2].next = nil;
-	p->initial_caps[2].id = 2;
+	int i;
+	for (i = 0; i < 4; i++) {
+		p->initial_caps[i].perm = 0;
+		p->initial_caps[i].id = i;
+		if (i < 4) {
+			p->initial_caps[i].next = &p->initial_caps[i+1];
+		} else { 
+			p->initial_caps[i].next = nil;
+		}
+	}
 
 	p->caps = &p->initial_caps[0];
 
-	p->next_cap_id = 3;
+	p->next_cap_id = 4;
 
 	return OK;
 }

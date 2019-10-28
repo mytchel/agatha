@@ -140,9 +140,6 @@ size_t
 sys_exit(uint32_t code);
 
 size_t
-sys_obj_create(int cid, size_t pa, size_t len);
-
-size_t
 sys_obj_retype(int cid, int type, size_t n);
 
 size_t

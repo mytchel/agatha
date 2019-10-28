@@ -5,7 +5,8 @@
 void
 init_kernel_drivers();
 
-uint8_t root_obj[0x1000] = { 0 };
+static uint8_t root_proc_obj[0x1000] = { 0 };
+static obj_frame_t root_l1 = { 0 };
 
 #define root_l1_va      0x01000
 #define root_l2_va      0x05000
@@ -39,7 +40,7 @@ init_root(struct kernel_info *info)
 	uint32_t *l1, *l2;
 	obj_proc_t *p;
 	
-	p = (void *) root_obj;
+	p = (void *) root_proc_obj;
 	p->h.type = OBJ_proc;
 	p->h.refs = 1;
 
@@ -105,6 +106,15 @@ init_root(struct kernel_info *info)
 			p->pid, ROOT_PID);
 	}
 
+	root_l1.h.refs = 1;
+	root_l1.type = OBJ_frame;
+	root_l1.pa = info->root.l1_pa;
+	root_l1.len = info->root.l1_len;
+	root_l1.type = FRAME_L1;
+	
+	p->initial_caps[CID_L1].obj = (void *) &root_l1;
+	p->initial_caps[CID_L1].perm = CAP_write | CAP_read;
+
 	debug_info("func label %i, stack top at 0x%x\n",
 			p->pid, p->kstack + KSTACK_LEN);
 
@@ -117,8 +127,6 @@ init_root(struct kernel_info *info)
 
 	return p;
 }
-
-/* TODO: these don't do much */
 
 static uint32_t *kernel_l2;
 

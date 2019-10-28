@@ -2,6 +2,81 @@
 #include <arm/mmu.h>
 #include <arm/mmu.h>
 
+size_t
+sys_obj_create(int fid, int nid)
+{
+	obj_untyped_t *o;
+	obj_frame_t *f;
+	cap_t *fc, *nc;
+
+	debug_info("%i obj create from frame %i into cap %i\n",
+		up->pid, fid, nid);
+
+	fc = proc_find_cap(up, fid);
+	nc = proc_find_cap(up, nid);
+	if (fc == nil || nc == nil) {
+		debug_warn("%i obj create couldnt find cap %i or %i\n", 
+			up->pid, fid, nid);
+		return ERR;
+	} else if (fc->obj->type != OBJ_frame) {
+		debug_warn("%i obj create %i is not frame\n",
+			up->pid, fc);
+		return ERR;
+	} else if (!(fc->perm & CAP_write) || !(fc->perm & CAP_read)) {
+		debug_warn("%i obj create frame cap %i bad perm %i\n",
+			up->pid, fid, fc->perm);
+		return ERR;
+	} else if (nc->perm != 0) {
+		debug_warn("%i obj create cap %i bad perm %i\n", 
+			up->pid, nid, nc->perm);
+		return ERR;
+	}
+
+	f = (void *) fc->obj;
+	if (f->type != FRAME_MEM) {
+		return ERR;
+	}
+
+
+	size_t mlen = 0x1000;
+
+	while (true) {
+		if (mlen > f->len) {
+			debug_info("%i obj create bad size %i\n", up->pid, f->len);
+			return ERR;
+		} else if (mlen == f->len) {
+			break;
+		} else {
+			mlen <<= 1;
+		}
+	}
+
+	o = kernel_map(f->pa, f->len, true);
+	if (o == nil) {
+		return ERR;
+	}
+
+	memset(o, 0, f->len);
+
+	o->h.refs = 0;
+	o->h.type = OBJ_untyped;
+
+	obj_untyped_init(up, o, f->len);
+
+	nc->perm = CAP_write | CAP_read;
+	nc->obj = (obj_head_t *) o;
+
+	f->pa = 0;
+	f->len = 0;
+	f->type = FRAME_NONE;
+
+	debug_info("%i obj create 0x%x cap id %i\n", 
+		up->pid, o, nc->id);
+
+	return OK;
+}
+
+
 	size_t
 sys_intr_init(int cid, int irqn)
 {

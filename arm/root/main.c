@@ -1,5 +1,6 @@
 #include "head.h"
 #include <mmu.h>
+#include <log.h>
 
 struct kernel_info *info;
 int main_eid;
@@ -286,7 +287,7 @@ main(struct kernel_info *i)
 
 	main_eid = kobj_alloc(OBJ_endpoint, 1);
 	if (main_eid < 0) {
-		log(0, "error creating main endpoint %i", main_eid);
+		log(LOG_WARNING, "error creating main endpoint %i", main_eid);
 		exit(1);
 	}
 

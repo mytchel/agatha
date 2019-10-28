@@ -34,6 +34,7 @@ struct cap {
 	obj_head_t *obj;
 };
 
+/* Need to add size */
 struct obj_head {
 	size_t refs;
 	int type;
@@ -62,7 +63,7 @@ struct obj_caplist {
 struct obj_proc {
 	struct obj_head h;
 
-	cap_t initial_caps[3];
+	cap_t initial_caps[4];
 
 	label_t label;
 
