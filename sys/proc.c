@@ -180,7 +180,7 @@ schedule(obj_proc_t *n)
 }
 
 	int
-proc_init(obj_proc_t *p, int priority, size_t vspace)
+proc_init(obj_proc_t *p)
 {
 	int pid;
 
@@ -191,8 +191,7 @@ proc_init(obj_proc_t *p, int priority, size_t vspace)
 	memset(&p->label, 0, sizeof(label_t));
 
 	p->pid = pid;
-	p->vspace = vspace;
-	p->priority = priority;
+	p->priority = 0;
 	
 	p->ts = SYSTICK;
 
@@ -203,13 +202,30 @@ proc_init(obj_proc_t *p, int priority, size_t vspace)
 	p->wprev = nil;
 	p->wnext = nil;
 	p->state = PROC_fault;
+	
+	return OK;
+}
 
-	p->caps = nil;
+int
+proc_set_priority(obj_proc_t *p, int priority)
+{
+	if (priority < 0 || PRIORITY_MAX <= priority) {
+		return ERR;
+	}
 
-	p->next_cap_id = 4;
+	p->priority = priority;
+
+	if (p->slist != nil) {
+		remove_from_list(p->slist, p);
+	}
+
+	add_to_list_tail(&ready[p->priority]
+		.queue[(ready[p->priority].q + 1) % 2], 
+		p);
 
 	return OK;
 }
+
 
 	int
 proc_free(obj_proc_t *p)

@@ -29,9 +29,6 @@ struct kobj {
 
 #define cap_list_n  255
 struct kcap_list {
-	kcap_list_t *next;
-	int cid;
-	int start_id;
 	uint32_t caps[255/32];
 };
 
@@ -79,9 +76,6 @@ ksys_init(void)
 
 	kcap_list_t *i;
 	i = &kcap_list_initial;
-	i->next = nil;
-	i->cid = CID_CLIST;
-	i->start_id = 0;
 	memset(i->caps, 0, sizeof(i->caps));
 	i->caps[0] |= (1<<0) | (1<<1) | (1<<2) | (1<<3);
 
@@ -93,18 +87,16 @@ ksys_init(void)
 int
 kcap_get_more(void)
 {
-	log(LOG_INFO, "kcap get more");
-	log(LOG_WARNING, "kcap get more failed");
 	return ERR;
-#if 0
+	/*
 	int n = cap_list_n;
-	size_t pa, len;
+	int f_cid, o_cid;
 	kcap_list_t *c;
-
+	size_t len;
 
 	len = 0x1000;
-	pa = request_memory(len);
-	if (pa == nil) {
+	f_cid = request_memory(len, 0x1000);
+	if (f_cid == nil) {
 		return ERR;
 	}
 
@@ -112,21 +104,17 @@ kcap_get_more(void)
 		return ERR;
 	}
 
-	int cid = next_cap_list_cid;
-	next_cap_list_cid = 0;
+	o_cid = next_cap_list_cid++;
 
-	log(LOG_INFO, "kcap get more into id %i", cid);
+	log(LOG_INFO, "kcap get more into id %i from %i", o_cid, f_cid);
 
-	if (obj_create(cid, pa, len) != OK) {
+	if (obj_create(o_cid, f_cid) != OK) {
 		return ERR;
 	}
 
-	int r = obj_retype(cid, OBJ_caplist, n);
-	if (r <= 0) {
+	if (obj_retype(o_cid, OBJ_caplist, n) != OK) {
 		return ERR;
 	}
-
-	log(LOG_INFO, "kcap get more new start id %i", r);
 
 	c = pool_alloc(&kcap_pool);
 	if (c == nil) {
@@ -135,16 +123,12 @@ kcap_get_more(void)
 
 	memset(c, 0, sizeof(kcap_list_t));
 
-	c->cid = cid;
-	c->start_id = r;
+	c->cid = o_cid;
 	c->next = kcap_lists;
 	kcap_lists = c;
 
-	next_cap_list_cid = c->start_id;
-	c->caps[0] |= 1 << 0;
-
 	return OK;
-#endif
+	*/
 }
 
 int
@@ -157,15 +141,14 @@ kcap_alloc(void)
 
 	ksys_init();
 
-	for (c = kcap_lists; c != nil; c = c->next) {
-		log(LOG_INFO, "kcap check list %i", c->cid);
-		for (o = 0; o < cap_list_n; o++) {
-			if (!(c->caps[o/32] & (1 << (o % 32)))) {
-				c->caps[o/32] |= 1 << (o % 32);
-				log(LOG_INFO, "kcap found free %i + %i", 
-					c->start_id, o);
-				return c->start_id + o;
-			}
+	c = &kcap_list_initial;
+	for (o = 0; o < cap_list_n; o++) {
+		if (!(c->caps[o/32] & (1 << (o % 32)))) {
+			c->caps[o/32] |= 1 << (o % 32);
+
+			log(LOG_INFO, "kcap found free %i", o);
+
+			return o << 12;
 		}
 	}
 

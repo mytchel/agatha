@@ -93,6 +93,7 @@ struct obj_proc {
 	obj_proc_t *wprev, *wnext;
 
 	obj_endpoint_t *recv_from;
+	obj_endpoint_t *listening;
 
 	obj_caplist_t *cap_root;
 };

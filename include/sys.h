@@ -6,7 +6,7 @@
 #define PID_SIGNAL        0
 #define EID_ANY           0
 
-#define CID_CLIST         0
-#define CID_PARENT        1
-#define CID_L1            2
+#define CID_CLIST         (0<<12)
+#define CID_PARENT        (1<<12)
+#define CID_L1            (2<<12)
 

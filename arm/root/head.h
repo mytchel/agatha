@@ -45,8 +45,7 @@ init_procs(void);
 
 bool
 init_bundled_proc(char *name, int priority,
-		size_t prog_pa, size_t len,
-		int *p_pid);
+		size_t prog_pa, size_t len);
 
 void
 add_ram(size_t start, size_t len);

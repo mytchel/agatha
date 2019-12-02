@@ -214,6 +214,7 @@ sys_frame_setup(int cid, int type, size_t pa, size_t len)
 	f->type = type;
 	f->pa = pa;
 	f->len = len;
+	f->next = nil;
 
 	return OK;
 }
@@ -242,6 +243,32 @@ sys_frame_info(int cid, int *type, size_t *pa, size_t *len)
 	return OK;
 }
 
+static cap_t *
+proc_find_cap_type(obj_proc_t *p, int cid,
+	int perm, int type)
+{
+	cap_t *c;
+
+	c = proc_find_cap(p, cid);
+	if (c == nil) {
+		debug_warn("%i cap %i not found\n", p->pid, cid);
+		return nil;
+
+	} else if ((c->perm & perm) != perm) {
+		debug_warn("%i cap %i bad perm 0x%x != expected 0x%x\n", 
+			p->pid, c->id, c->perm, perm);
+		return nil;
+
+	} else if (c->perm != 0 && c->obj->type != type) {
+		debug_warn("%i cap %i bad type %i != expected %i\n", 
+			p->pid, c->id, c->obj->type, type);
+		return nil;
+
+	} else {
+		return c;
+	}
+}
+
 	size_t
 sys_frame_l1_setup(int cid)
 {
@@ -251,12 +278,8 @@ sys_frame_l1_setup(int cid)
 
 	debug_info("%i frame l1 setup %i\n", up->pid, cid);
 
-	c = proc_find_cap(up, cid);
+	c = proc_find_cap_type(up, cid, CAP_write|CAP_read, OBJ_frame);
 	if (c == nil) {
-		debug_warn("%i cap %i not found\n", up->pid, cid);
-		return ERR;
-	} else if (c->obj->type != OBJ_frame) {
-		debug_warn("%i cap %i bad type\n", up->pid, cid);
 		return ERR;
 	} 
 
@@ -287,34 +310,10 @@ sys_frame_l1_setup(int cid)
 	kernel_unmap(l1, 0x4000);
 
 	f->type = FRAME_L1;
+	f->va = nil;
+	f->next = nil;
 	
 	return OK;
-}
-
-static cap_t *
-proc_find_cap_type(obj_proc_t *p, int cid,
-	int perm, int type)
-{
-	cap_t *c;
-
-	c = proc_find_cap(p, cid);
-	if (c == nil) {
-		debug_warn("%i cap %i not found\n", p->pid, cid);
-		return nil;
-
-	} else if ((c->perm & perm) != perm) {
-		debug_warn("%i cap %i bad perm 0x%x != expected 0x%x\n", 
-			p->pid, c->id, c->perm, perm);
-		return nil;
-
-	} else if (c->obj->type != type) {
-		debug_warn("%i cap %i bad type %i != expected %i\n", 
-			p->pid, c->id, c->obj->type, type);
-		return nil;
-
-	} else {
-		return c;
-	}
 }
 
 	size_t
@@ -328,12 +327,8 @@ sys_frame_l2_map(int tid, int cid, size_t va)
 		up->pid, cid, tid, va);
 
 	tc = proc_find_cap_type(up, tid, CAP_write|CAP_read, OBJ_frame);
-	if (tc == nil) {
-		return ERR;
-	} 
-
 	fc = proc_find_cap_type(up, cid, CAP_write|CAP_read, OBJ_frame);
-	if (fc == nil) {
+	if (tc == nil || fc == nil) {
 		return ERR;
 	} 
 
@@ -369,11 +364,31 @@ sys_frame_l2_map(int tid, int cid, size_t va)
 	kernel_unmap(l2, ff->len);
 	kernel_unmap(l1, 0x4000);
 
-	ff->type = FRAME_NONE;
-	ff->pa = 0;
-	ff->len = 0;
+	ff->type = FRAME_L2;
+	ff->va = va;
+
+	ff->next = tf->next;
+	tf->next = ff;
 
 	return OK;
+}
+
+obj_frame_t *
+get_remove_l1_mapping(obj_frame_t *tf, int type, size_t va, size_t len)
+{
+	obj_frame_t **f;
+	for (f = &tf->next; *f != nil; f = &(*f)->next) {
+		if ((*f)->type != type) continue;
+		if ((*f)->va == va && (*f)->len == len) {
+			obj_frame_t *t = *f;
+			*f = (*f)->next;
+			t->next = nil;
+			t->va = nil;
+			return t;
+		}
+	}
+
+	return nil;
 }
 
 	size_t
@@ -385,26 +400,19 @@ sys_frame_l2_unmap(int tid, int nid, size_t va, size_t len)
 	debug_info("%i frame l2 unmap into %i from %i at 0x%x, 0x%x\n", 
 		up->pid, nid, tid, va, len);
 
-	tc = proc_find_cap(up, tid);
-	fc = proc_find_cap(up, nid);
+	tc = proc_find_cap_type(up, tid, CAP_write|CAP_read, OBJ_frame);
+	fc = proc_find_cap_type(up, nid, 0, 0);
 
 	if (tc == nil || fc == nil) {
-		return ERR;
-	} else if (tc->obj->type != OBJ_frame) {
-		return ERR;
- 	} else if (fc->obj->type != OBJ_frame) {
 		return ERR;
 	}
 	
 	tf = (obj_frame_t *) tc->obj;
-	ff = (obj_frame_t *) fc->obj;
 	if (tf->type != FRAME_L1) {
-		return ERR;
-	} else if (ff->type != FRAME_NONE) {
 		return ERR;
 	}
 
-	debug_info("todo\n");
+	debug_warn("todo l2 unmap\n");
 	return ERR;
 }
 
@@ -524,9 +532,9 @@ sys_frame_map(int tid, int cid, size_t va)
 	
 	kernel_unmap(l1, 0x4000);
 
-	ff->type = FRAME_NONE;
-	ff->pa = 0;
-	ff->len = 0;
+	ff->va = va;
+	ff->next = tf->next;
+	tf->next = ff;
 
 	return OK;
 }
@@ -543,26 +551,34 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 		up->pid, nid, tid, va, len);
 
 	tc = proc_find_cap_type(up, tid, CAP_write|CAP_read, OBJ_frame);
-	fc = proc_find_cap_type(up, nid, CAP_write|CAP_read, OBJ_frame);
+	fc = proc_find_cap_type(up, nid, 0, 0);
 	if (tc == nil || fc == nil) {
 		return ERR;
-	} 
+	}
 
 	debug_info("have caps\n");
 
 	tf = (obj_frame_t *) tc->obj;
-	ff = (obj_frame_t *) fc->obj;
 
 	if (tf->type != FRAME_L1) {
 		debug_warn("%i frame unmap from %i but not l1\n",
 			up->pid, tid);
 		return ERR;
-	} else if (ff->type != FRAME_NONE) {
-		debug_warn("%i frame unmap nid %i not none\n",
-			up->pid, nid);
+	}
+
+	ff = get_remove_l1_mapping(tf, FRAME_MEM, va, len);
+	if (ff == nil) {
+		ff = get_remove_l1_mapping(tf, FRAME_DEV, va, len);
+	}
+
+	if (ff == nil) {
+		debug_warn("couldn't find mapping\n");
 		return ERR;
 	}
-	
+
+	fc->obj = ff;
+	fc->perm = CAP_read | CAP_write;
+
 	debug_info("map l1 %i 0x%x for changing\n",
 		tid, tf->pa);
 
@@ -635,10 +651,6 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 
 	debug_info("%i unmapped from %i 0x%x 0%x into cap %i\n",
 		up->pid, tid, pa, o, nid);
-
-	ff->pa = pa;
-	ff->len = o;
-	ff->type = FRAME_MEM;
 
 	return OK;
 }

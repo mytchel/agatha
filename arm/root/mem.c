@@ -321,7 +321,6 @@ add_ram(size_t start, size_t len)
 init_mem(void)
 {
 	struct addr_range *m;
-	uint32_t o;
 
 	if (pool_init(&addr_pool, sizeof(struct addr_range)) != OK) {
 		exit(1);

@@ -310,8 +310,7 @@ proc_map(int pid,
 bool
 init_bundled_proc(char *name,
 		int priority,
-		size_t start, size_t len,
-		int *p_pid)
+		size_t start, size_t len)
 {
 	int p_cid, eid, clist;
 	int l1, l2;
@@ -442,7 +441,7 @@ init_bundled_proc(char *name,
 		exit(1);
 	}
 
-	log(LOG_INFO, "start bundled proc pid %i %s", *p_pid, name);
+	log(LOG_INFO, "start bundled proc %s", name);
 
 	if (proc_start(p_cid, USER_ADDR, USER_ADDR) < 0) {
 		log(LOG_INFO, "proc start failed");
@@ -639,7 +638,7 @@ init_bundled_proc(char *name,
 	void
 init_procs(void)
 {
-	int i, s, pri, p_pid;
+	int i, s, pri;
 	struct service *ser;
 	size_t off;
 #if 0
@@ -728,8 +727,7 @@ init_procs(void)
 
 	for (i = 0; i < nbundled_idle; i++) {
 		init_bundled_proc(bundled_idle[i].name, 0,
-				off, bundled_idle[i].len,
-				&p_pid);
+				off, bundled_idle[i].len);
 
 		off += bundled_idle[i].len;
 	}

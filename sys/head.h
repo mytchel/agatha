@@ -9,7 +9,7 @@
 #include <string.h>
 
 int
-proc_init(obj_proc_t *p, int priority, size_t vspace);
+proc_init(obj_proc_t *p);
 
 int
 proc_ready(obj_proc_t *p);

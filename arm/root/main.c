@@ -283,7 +283,7 @@ main(struct kernel_info *i)
 	log(0, "kernel starts at 0x%x", info->kernel_va);
 	log(0, "boot starts at 0x%x", info->boot_pa);
 
-	if (kobj_add_untyped(CID_L1+1, 0x1000) != OK) {
+	if (kobj_add_untyped(CID_L1+(1<<12), 0x1000) != OK) {
 		log(LOG_WARNING, "error adding initial object");
 		exit(1);
 	}

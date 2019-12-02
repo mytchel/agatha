@@ -3,17 +3,35 @@
 cap_t *
 proc_find_cap(obj_proc_t *p, int cid)
 {
+	obj_caplist_t *l;
 	cap_t *c;
 
-	debug_info("%i find cap %i\n", p->pid, cid);
+	int base = cid >> 12;
+	int sub = cid & 0xfff;
+	
+	debug_info("%i find cap %i (%i.%i)\n", 
+		p->pid, cid, base, sub);
 
-	for (c = p->caps; c != nil; c = c->next) {
-		if (c->id == cid) {
-			return c;
-		}
+	c = &p->cap_root->caps[base];
+	debug_info("have cap 0x%x\n", c);
+
+	if (sub == 0) {
+		debug_info("base matches\n");
+		return c;
+	} else if (!(c->perm & CAP_read)) {
+		debug_info("bad perm\n");
+		return nil;
+	} else if (c->obj->type != OBJ_caplist) {
+		debug_info("bad obj for sub %i\n");
+		return nil;
+	} else if (sub > 256) {
+		debug_info("bad sub %i\n", sub);
+		return nil;
+	} else {
+		debug_info("get sub %i\n", sub);
+		l = (void *) c->obj;
+		return &l->caps[sub];
 	}
-
-	return nil;
 }
 
 size_t 
@@ -141,6 +159,7 @@ sys_obj_split(int cid, int nid)
 	debug_info("%i obj split %i into %i\n", up->pid, cid, nid);
 
 	c = proc_find_cap(up, cid);
+	debug_info("c = 0x%x\n", c);
 	if (c == nil) {
 		debug_warn("%i cap %i not found\n",
 			up->pid, cid);
@@ -152,13 +171,18 @@ sys_obj_split(int cid, int nid)
 	}
 
 	nc = proc_find_cap(up, nid);
-	if (c == nil) {
+	debug_info("nc = 0x%x\n", c);
+	if (nc == nil) {
 		debug_warn("%i cap %i not found\n",
 			up->pid, nid);
 		return ERR;
 	} else if (nc->perm != 0) {
 		return ERR;
 	}
+	debug_info("nc perm = 0x%x\n", nc->perm);
+	debug_info("nc obj = 0x%x\n", nc->obj);
+
+	debug_info("start splitting\n");
 
 	o = (obj_untyped_t *) c->obj;
 
@@ -168,9 +192,11 @@ sys_obj_split(int cid, int nid)
 		up->pid, o->len, len, nid);
 
 	if (len < sizeof(obj_untyped_t)) {
+		debug_info("len %i too small\n", len);
 		return ERR;
 	}
 
+	debug_info("do the split\n");
 	no = (void *) (((uint8_t *) o) + len);
 
 	no->h.type = OBJ_untyped;
@@ -286,7 +312,7 @@ endpoint_get_pending(obj_endpoint_t *e,
 cap_t *
 recv(cap_t *from, int *pid, uint8_t *m, cap_t *o)
 {
-	cap_t *c;
+	cap_t *c, *d;
 
 	while (true) {
 		if (from != nil) {
@@ -298,12 +324,32 @@ recv(cap_t *from, int *pid, uint8_t *m, cap_t *o)
 			
 			up->recv_from = (obj_endpoint_t *) from->obj;
 		} else {
-			for (c = up->caps; c != nil; c = c->next) {
-				if ((c->perm & CAP_read) && c->obj->type == OBJ_endpoint) {
+			int a, b;
+			for (a = 1; a < 256; a++) {
+				c = &up->cap_root->caps[a];
+				if (!(c->perm & CAP_read)) continue;
+				if (c->obj->type == OBJ_endpoint) {
+					obj_endpoint_t *e = (void *) c->obj;
+					e->holder = up;
 					if (endpoint_get_pending((obj_endpoint_t *) c->obj, 
 							pid, m, o)) 
 					{
 						return c;
+					}
+				} else if (c->obj->type == OBJ_caplist) {
+					obj_caplist_t *l = (void *) c->obj;
+					for (b = 1; b < 256; b++) {
+						d = &l->caps[a];
+						if (!(d->perm & CAP_read)) continue;
+						if (d->obj->type == OBJ_endpoint) {
+							obj_endpoint_t *e = (void *) d->obj;
+							e->holder = up;
+							if (endpoint_get_pending((obj_endpoint_t *) d->obj, 
+									pid, m, o)) 
+							{
+								return c;
+							}
+						} 
 					}
 				}
 			}
@@ -642,17 +688,22 @@ obj_proc_init(obj_proc_t *p, void *a, size_t n)
 	memset(((uint8_t *) o) + sizeof(obj_head_t), 0,
 		sizeof(obj_proc_t) - sizeof(obj_head_t));
 
+	if (proc_init(o) != OK) {
+		debug_warn("proc_init failed\n");
+		return ERR;
+	}
+
 	return OK;
 }
 
 size_t
-sys_proc_setup(int cid, int l1, int clist, int p_eid)
+sys_proc_setup(int cid, int vspace, int clist, int p_eid)
 {
 	obj_proc_t *o;
-	cap_t *c, *pe;
+	cap_t *c, *v, *r, *e;
 
 	debug_info("%i proc setup cid %i with vspace %i, clist %i, parent eid %i\n", 
-		up->pid, cid, l1, clist, p_eid);
+		up->pid, cid, vspace, clist, p_eid);
 
 	c = proc_find_cap(up, cid);
 	if (c == nil) {
@@ -665,41 +716,61 @@ sys_proc_setup(int cid, int l1, int clist, int p_eid)
 		o = (obj_proc_t *) c->obj;
 	}
 
-	pe = proc_find_cap(up, p_eid);
-	if (pe == nil) {
+	v = proc_find_cap(up, vspace);
+	if (v == nil) {
+		debug_warn("%i couln't find cid %i\n", up->pid, vspace);
+		return ERR;
+	} else if (!(v->perm & CAP_write) | !(v->perm & CAP_read)) {
+		return ERR;
+	} else if (v->obj->type != OBJ_frame) {
+		return ERR;
+	}
+	/* TODO: more checks on frame */
+
+	obj_frame_t *l1 = (obj_frame_t *) v->obj;
+	o->vspace = l1->pa;
+
+	r = proc_find_cap(up, clist);
+	if (r == nil) {
+		debug_warn("%i couln't find cid %i\n", up->pid, clist);
+		return ERR;
+	} else if (!(r->perm & CAP_write) | !(r->perm & CAP_read)) {
+		return ERR;
+	} else if (r->obj->type != OBJ_caplist) {
+		return ERR;
+	}
+
+	e = proc_find_cap(up, p_eid);
+	if (e == nil) {
 		debug_warn("%i couln't find cid %i\n", up->pid, p_eid);
 		return ERR;
-	} else if (!(pe->perm & CAP_write)) {
+	} else if (!(e->perm & CAP_write)) {
 		return ERR;
-	} else if (pe->obj->type != OBJ_endpoint) {
-		return ERR;
-	}
-
-	return ERR;
-
-#if 0
-	pe = proc_find_cap(up, p_eid);
-	if (pe == nil) {
-		debug_warn("%i couln't find cid %i\n", up->pid, p_eid);
-		return ERR;
-	} else if (!(pe->perm & CAP_write)) {
-		return ERR;
-	} else if (pe->obj->type != OBJ_endpoint) {
+	} else if (e->obj->type != OBJ_endpoint) {
 		return ERR;
 	}
-/*
-	o->initial_caps[1].perm = CAP_write;
-	o->initial_caps[1].obj = pe->obj;
-*/
-	pe->perm = 0;
 
-	if (proc_init(o, vspace) != OK) {
-		debug_warn("proc_init failed\n");
-		return ERR;
-	}
-#endif
+	o->cap_root = (obj_caplist_t *) r->obj;
 
-	return o->pid;
+	o->cap_root->caps[CID_CLIST >> 12].obj = r->obj;
+	o->cap_root->caps[CID_CLIST >> 12].perm = CAP_read|CAP_write;
+
+	o->cap_root->caps[CID_L1 >> 12].obj = v->obj;
+	o->cap_root->caps[CID_L1 >> 12].perm = CAP_read|CAP_write;
+
+	o->cap_root->caps[CID_PARENT >> 12].obj = e->obj;
+	o->cap_root->caps[CID_PARENT >> 12].perm = CAP_write;
+
+	v->obj = nil;
+	v->perm = 0;
+
+	r->obj = nil;
+	r->perm = 0;
+
+	e->obj = nil;
+	e->perm = 0;
+
+	return OK;
 }
 
 size_t

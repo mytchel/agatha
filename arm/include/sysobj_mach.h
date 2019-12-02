@@ -17,11 +17,15 @@ struct obj_intr {
 #define FRAME_MEM    1
 #define FRAME_DEV    2
 #define FRAME_L1     3
+#define FRAME_L2     4
 
 struct obj_frame {
 	struct obj_head h;
 
 	size_t pa, len;
 	int type;
+
+	size_t va;
+	obj_frame_t *next;
 };
 

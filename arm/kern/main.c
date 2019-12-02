@@ -116,7 +116,7 @@ init_root(struct kernel_info *info)
 	kernel_unmap(l1, info->root.l1_len);
 	kernel_unmap(l2, info->root.l2_len);
 
-	if (proc_init(p, 1, info->root.l1_pa) != OK) {
+	if (proc_init(p) != OK) {
 		panic("Failed to init root!\n");
 	}
 
@@ -125,22 +125,20 @@ init_root(struct kernel_info *info)
 			p->pid, ROOT_PID);
 	}
 
+	p->vspace = info->root.l1_pa;
+	p->cap_root = c;
+
 	root_l1.h.refs = 1;
 	root_l1.h.type = OBJ_frame;
 	root_l1.pa = info->root.l1_pa;
 	root_l1.len = info->root.l1_len;
 	root_l1.type = FRAME_L1;
 
-	p->caps = &c->caps[0];
+	c->caps[CID_CLIST >> 12].obj = (void *) c;
+	c->caps[CID_CLIST >> 12].perm = CAP_write | CAP_read;
 
-	c->caps[CID_CLIST].obj = (void *) c;
-	c->caps[CID_CLIST].perm = CAP_write | CAP_read;
-
-	c->caps[CID_PARENT].obj = nil;
-	c->caps[CID_PARENT].perm = 0;
-
-	c->caps[CID_L1].obj = (void *) &root_l1;
-	c->caps[CID_L1].perm = CAP_write | CAP_read;
+	c->caps[CID_L1 >> 12].obj = (void *) &root_l1;
+	c->caps[CID_L1 >> 12].perm = CAP_write | CAP_read;
 
 	debug_info("root clist 0x%x\n", c);
 	debug_info("root l1 0x%x\n", &root_l1);
@@ -150,8 +148,8 @@ init_root(struct kernel_info *info)
 	root_initial_obj->h.refs = 1;
 	root_initial_obj->len = sizeof(root_untyped_obj);
 
-	c->caps[CID_L1+1].obj = (void *) root_initial_obj;
-	c->caps[CID_L1+1].perm = CAP_write | CAP_read;
+	c->caps[(CID_L1>>12)+1].obj = (void *) root_initial_obj;
+	c->caps[(CID_L1>>12)+1].perm = CAP_write | CAP_read;
 
 	func_label(&p->label, 
 			(size_t) p->kstack, KSTACK_LEN, 
