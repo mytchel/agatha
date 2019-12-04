@@ -23,7 +23,7 @@ struct service {
 		bool has_regs;
 		bool has_irq;
 
-		struct addr_frame *reg_frame;
+		int reg_cid;
 		int irq_cid;
 	} device;
 
@@ -44,11 +44,14 @@ void
 init_procs(void);
 
 bool
-init_bundled_proc(char *name, int priority,
-		size_t prog_pa, size_t len);
+init_bundled_proc(uint8_t *code,
+	char *name, int priority, size_t len);
 
 void
 add_ram(size_t start, size_t len);
+
+int
+create_frame(size_t pa, size_t len, int type);
 
 void
 board_init_ram(void);

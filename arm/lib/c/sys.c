@@ -146,13 +146,13 @@ kcap_alloc(void)
 		if (!(c->caps[o/32] & (1 << (o % 32)))) {
 			c->caps[o/32] |= 1 << (o % 32);
 
-			log(LOG_INFO, "kcap found free %i", o);
+			log(LOG_INFO, "kcap found free 0x%x", o<<12);
 
 			return o << 12;
 		}
 	}
 
-	log(LOG_INFO, "need more");
+	log(LOG_WARNING, "need more");
 	if (kcap_get_more() != OK) {
 		return ERR;
 	}
@@ -212,7 +212,7 @@ kobj_split(kobj_t *o)
 	kobj_t *n;
 	int nid;
 
-	log(LOG_INFO, "kobj split %i len %i", o->cid, o->len);
+	log(LOG_INFO, "kobj split 0x%x len 0x%x", o->cid, o->len);
 
 	if (o->type != OBJ_untyped) {
 		return false;
@@ -225,7 +225,7 @@ kobj_split(kobj_t *o)
 		return false;
 	}
 
-	log(LOG_INFO, "next id %i", nid);
+	log(LOG_INFO, "next id 0x%x", nid);
 
 	n = pool_alloc(&kobj_pool);
 	if (n == nil) {
@@ -248,7 +248,7 @@ kobj_split(kobj_t *o)
 	o->len = o->len >> 1;
 	o->next = n;
 
-	log(LOG_INFO, "now have %i and %i with len %i %i",
+	log(LOG_INFO, "now have 0x%x and 0x%x with len %i %i",
 		o->cid, n->cid, o->len, n->len);
 
 	return true;
@@ -317,8 +317,6 @@ kobj_alloc(int type, size_t n)
 	while (len < l)
 		len <<= 1;
 
-	log(LOG_INFO, "kobj alloc size %i / %i", l, len);
-
 	f = nil;
 	for (o = kobjs; o != nil; o = o->next) {
 		if (o->type != OBJ_untyped) continue;
@@ -336,16 +334,11 @@ kobj_alloc(int type, size_t n)
 		}
 	}
 
-	log(LOG_INFO, "kobj alloc now split %i to len %i",
-		f->len, len);
-
 	while (len < f->len) {
 		if (!kobj_split(f)) {
 			return ERR;
 		} 
 	}
-
-	log(LOG_INFO, "do retype with f 0x%x / %i", f, f->cid);
 
 	if (obj_retype(f->cid, type, n) != OK) {
 		return ERR;

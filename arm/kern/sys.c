@@ -1,5 +1,5 @@
 #include "head.h"
-#include <arm/mmu.h>
+#include "fns.h"
 #include <arm/mmu.h>
 
 size_t
@@ -9,7 +9,7 @@ sys_obj_create(int fid, int nid)
 	obj_frame_t *f;
 	cap_t *fc, *nc;
 
-	debug_info("%i obj create from frame %i into cap %i\n",
+	debug_info("%i obj create from frame 0x%x into cap 0x%x\n",
 		up->pid, fid, nid);
 
 	fc = proc_find_cap(up, fid);
@@ -36,7 +36,6 @@ sys_obj_create(int fid, int nid)
 	if (f->type != FRAME_MEM) {
 		return ERR;
 	}
-
 
 	size_t mlen = 0x1000;
 
@@ -66,11 +65,12 @@ sys_obj_create(int fid, int nid)
 	nc->perm = CAP_write | CAP_read;
 	nc->obj = (obj_head_t *) o;
 
-	f->pa = 0;
-	f->len = 0;
-	f->type = FRAME_NONE;
+	f->type = FRAME_KOBJ;
 
-	debug_info("%i obj create 0x%x cap id %i\n", 
+	fc->perm = 0;
+	fc->obj = nil;
+
+	debug_info("%i obj create 0x%x cap id 0x%x\n", 
 		up->pid, o, nc->id);
 
 	return OK;
@@ -323,7 +323,7 @@ sys_frame_l2_map(int tid, int cid, size_t va)
 	uint32_t *l1, *l2;
 	cap_t *tc, *fc;
 
-	debug_info("%i frame l2 map %i into %i at 0x%x\n", 
+	debug_info("%i frame l2 map 0x%x into 0x%x at 0x%x\n", 
 		up->pid, cid, tid, va);
 
 	tc = proc_find_cap_type(up, tid, CAP_write|CAP_read, OBJ_frame);
@@ -352,6 +352,8 @@ sys_frame_l2_map(int tid, int cid, size_t va)
 		kernel_unmap(l1, 0x4000);
 		return ERR;
 	}
+	
+	mmu_invalidate();
 
 	debug_info("%i frame l2 map 0x%x, 0x%x at 0x%x\n", 
 		up->pid, ff->pa, ff->len, va);
@@ -363,12 +365,17 @@ sys_frame_l2_map(int tid, int cid, size_t va)
 
 	kernel_unmap(l2, ff->len);
 	kernel_unmap(l1, 0x4000);
+	
+	mmu_invalidate();
 
 	ff->type = FRAME_L2;
 	ff->va = va;
 
 	ff->next = tf->next;
 	tf->next = ff;
+
+	fc->perm = 0;
+	fc->obj = nil;
 
 	return OK;
 }
@@ -394,6 +401,9 @@ get_remove_l1_mapping(obj_frame_t *tf, int type, size_t va, size_t len)
 	size_t
 sys_frame_l2_unmap(int tid, int nid, size_t va, size_t len)
 {
+	debug_warn("todo l2 unmap\n");
+	return ERR;
+	/*
 	obj_frame_t *tf, *ff;
 	cap_t *tc, *fc;
 
@@ -414,6 +424,7 @@ sys_frame_l2_unmap(int tid, int nid, size_t va, size_t len)
 
 	debug_warn("todo l2 unmap\n");
 	return ERR;
+	*/
 }
 
 	size_t
@@ -424,7 +435,7 @@ sys_frame_map(int tid, int cid, size_t va)
 	cap_t *tc, *fc;
 	size_t l2_l1x;
 
-	debug_info("%i frame map %i into %i at 0x%x\n", 
+	debug_info("%i frame map 0x%x into 0x%x at 0x%x\n", 
 		up->pid, cid, tid, va);
 
 	tc = proc_find_cap_type(up, tid, CAP_write|CAP_read, OBJ_frame);
@@ -459,12 +470,13 @@ sys_frame_map(int tid, int cid, size_t va)
 		c = 0;
 		b = 1;
 	} else {
-		debug_warn("%i frame map %i bad frame type %i\n",
+		debug_warn("%i frame map 0x%x bad frame type %i\n",
 			up->pid, cid, ff->type);
 		return ERR;
 	}
 
-	debug_info("page ok\n");
+	debug_info("%i map 0x%x (pa=0x%x) 0x%x from cid 0x%x\n",
+		up->pid, va, ff->pa, ff->len, cid);
 
 	perm = L2_SMALL |
 		tex << 6 |
@@ -472,13 +484,15 @@ sys_frame_map(int tid, int cid, size_t va)
 		c << 3 |
 		b << 2;
 
-	debug_info("map l1 %i 0x%x for changing\n",
+	debug_info("map l1 0x%x (pa=0x%x) for changing\n",
 		tid, tf->pa);
 
 	l1 = kernel_map(tf->pa, 0x4000, true);
 	if (l1 == nil) {
 		return ERR;
 	}
+
+	mmu_invalidate();
 
 	l2_l1x = 0;
 	l2 = nil;
@@ -508,19 +522,21 @@ sys_frame_map(int tid, int cid, size_t va)
 				break;
 			}
 
+			mmu_invalidate();
+
 			debug_info("mapped l2 0x%x to 0x%x\n", 
 				L1PA(l1[l2_l1x]), l2);
 		}
 
-		if (l2[L2X(va + o)] != 0) {
-			panic("%i trying to map over already mapped 0x%x\n",
-				up->pid, va + o);
+		if (l2[L2X(va + o)] != L2_FAULT) {
+			panic("%i trying to map over already mapped 0x%x -> 0x%x\n",
+				up->pid, va + o, l2[L2X(va+o)]);
 
 			return ERR;
 		}
 
-		debug_info("%i mapped 0x%x to 0x%x in %i\n",
-			up->pid, ff->pa + o, va + o, tid);
+		debug_info("%i mapped 0x%x to 0x%x\n",
+			up->pid, ff->pa + o, va + o);
 
 		l2[L2X(va+o)] = (ff->pa + o) | perm;
 	}
@@ -530,11 +546,17 @@ sys_frame_map(int tid, int cid, size_t va)
 		kernel_unmap(l2, PAGE_SIZE);
 	}
 	
+	debug_info("unmap l1 for editing\n");
 	kernel_unmap(l1, 0x4000);
+	
+	mmu_invalidate();
 
 	ff->va = va;
 	ff->next = tf->next;
 	tf->next = ff;
+
+	fc->perm = 0;
+	fc->obj = nil;
 
 	return OK;
 }
@@ -547,7 +569,7 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 	size_t l2_l1x, o, pa;
 	cap_t *tc, *fc;
 
-	debug_info("%i frame unmap into %i from %i at 0x%x, 0x%x\n", 
+	debug_info("%i frame unmap into 0x%x from 0x%x at 0x%x, 0x%x\n", 
 		up->pid, nid, tid, va, len);
 
 	tc = proc_find_cap_type(up, tid, CAP_write|CAP_read, OBJ_frame);
@@ -576,8 +598,8 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 		return ERR;
 	}
 
-	fc->obj = ff;
-	fc->perm = CAP_read | CAP_write;
+	debug_info("%i unmap 0x%x (pa=0x%x) 0x%x into cid 0x%x\n",
+		up->pid, va, ff->pa, ff->len, nid);
 
 	debug_info("map l1 %i 0x%x for changing\n",
 		tid, tf->pa);
@@ -586,6 +608,8 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 	if (l1 == nil) {
 		return ERR;
 	}
+	
+	mmu_invalidate();
 
 	l2_l1x = 0;
 	l2 = nil;
@@ -616,6 +640,8 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 				panic("map failed\n");
 				return ERR;
 			}
+	
+			mmu_invalidate();
 
 			debug_info("mapped l2 0x%x to 0x%x\n", 
 				L1PA(l1[l2_l1x]), l2);
@@ -628,9 +654,6 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 			return ERR;
 		}
 
-		debug_info("%i mapped 0x%x to 0x%x in %i\n",
-			up->pid, ff->pa + o, va + o, tid);
-
 		if (pa != nil && L2PA(l2[L2X(va+o)]) != pa + o) {
 			debug_warn("%i unmap not continuous\n");
 			break;
@@ -640,6 +663,9 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 		}
 
 		l2[L2X(va+o)] = 0;
+
+		debug_info("%i unmapped 0x%x to 0x%x\n",
+			up->pid, ff->pa + o, va + o);
 	}
 
 	if (l2 != nil) {
@@ -647,10 +673,16 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 		kernel_unmap(l2, PAGE_SIZE);
 	}
 	
+	debug_info("unmap l1 for editing\n");
 	kernel_unmap(l1, 0x4000);
 
-	debug_info("%i unmapped from %i 0x%x 0%x into cap %i\n",
+	mmu_invalidate();
+
+	debug_info("%i unmapped from 0x%x 0x%x 0%x into cap %i\n",
 		up->pid, tid, pa, o, nid);
+
+	fc->obj = (void *) ff;
+	fc->perm = CAP_read|CAP_write;
 
 	return OK;
 }

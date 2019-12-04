@@ -3,7 +3,7 @@ SERIAL_PL01X_OUT = arm/drivers/serial-pl01x/out.elf
 SERIAL_PL01X_SRC_C = \
 	arm/drivers/serial-pl01x/main.c
 
-SERIAL_PL01X_LIBS = $(USER_LIBS)
+SERIAL_PL01X_LIBS = arm/lib/c lib/pool
 
 SERIAL_PL01X_OBJECTS = \
 	$(SERIAL_PL01X_SRC_C:%.c=%.o) \

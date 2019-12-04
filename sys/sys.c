@@ -9,14 +9,9 @@ proc_find_cap(obj_proc_t *p, int cid)
 	int base = cid >> 12;
 	int sub = cid & 0xfff;
 	
-	debug_info("%i find cap %i (%i.%i)\n", 
-		p->pid, cid, base, sub);
-
 	c = &p->cap_root->caps[base];
-	debug_info("have cap 0x%x\n", c);
 
 	if (sub == 0) {
-		debug_info("base matches\n");
 		return c;
 	} else if (!(c->perm & CAP_read)) {
 		debug_info("bad perm\n");
@@ -28,7 +23,6 @@ proc_find_cap(obj_proc_t *p, int cid)
 		debug_info("bad sub %i\n", sub);
 		return nil;
 	} else {
-		debug_info("get sub %i\n", sub);
 		l = (void *) c->obj;
 		return &l->caps[sub];
 	}
@@ -109,7 +103,7 @@ sys_obj_retype(int cid, int type, size_t n)
 	size_t len;
 	cap_t *c;
 
-	debug_info("%i obj retype %i type %i len %i\n", 
+	debug_info("%i obj retype 0x%x type %i len 0x%x\n", 
 		up->pid, cid, type, n);
 
 	if (type < 0 || OBJ_type_n < type) {
@@ -119,6 +113,9 @@ sys_obj_retype(int cid, int type, size_t n)
 	c = proc_find_cap(up, cid);
 	if (c == nil) {
 		debug_warn("cap not found\n");
+		return ERR;
+	} else if (c->perm == 0) {
+		debug_warn("retype empty cap\n");
 		return ERR;
 	}
 
@@ -156,12 +153,11 @@ sys_obj_split(int cid, int nid)
 	cap_t *c, *nc;
 	size_t len;
 
-	debug_info("%i obj split %i into %i\n", up->pid, cid, nid);
+	debug_info("%i obj split 0x%x into 0x%x\n", up->pid, cid, nid);
 
 	c = proc_find_cap(up, cid);
-	debug_info("c = 0x%x\n", c);
 	if (c == nil) {
-		debug_warn("%i cap %i not found\n",
+		debug_warn("%i cap 0x%x not found\n",
 			up->pid, cid);
 		return ERR;
 	} else if (!(c->perm & CAP_write)) {
@@ -171,18 +167,13 @@ sys_obj_split(int cid, int nid)
 	}
 
 	nc = proc_find_cap(up, nid);
-	debug_info("nc = 0x%x\n", c);
 	if (nc == nil) {
-		debug_warn("%i cap %i not found\n",
+		debug_warn("%i cap 0x%x not found\n",
 			up->pid, nid);
 		return ERR;
 	} else if (nc->perm != 0) {
 		return ERR;
 	}
-	debug_info("nc perm = 0x%x\n", nc->perm);
-	debug_info("nc obj = 0x%x\n", nc->obj);
-
-	debug_info("start splitting\n");
 
 	o = (obj_untyped_t *) c->obj;
 
@@ -196,7 +187,6 @@ sys_obj_split(int cid, int nid)
 		return ERR;
 	}
 
-	debug_info("do the split\n");
 	no = (void *) (((uint8_t *) o) + len);
 
 	no->h.type = OBJ_untyped;
@@ -210,9 +200,6 @@ sys_obj_split(int cid, int nid)
 	nc->obj = (void *) no;
 	nc->perm = CAP_read | CAP_write;
 
-	debug_info("%i set cap %i for obj 0x%x\n", 
-		up->pid, nc->id, no);
-
 	return OK;
 }
 
@@ -222,7 +209,7 @@ sys_obj_merge(int cid_l, int cid_h)
 	obj_untyped_t *ol, *oh;
 	cap_t *cl, *ch;
 
-	debug_info("%i obj merge %i and %i\n", 
+	debug_info("%i obj merge 0x%x and 0x%x\n", 
 		up->pid, cid_l, cid_h);
 
 	cl = proc_find_cap(up, cid_l);
@@ -702,15 +689,18 @@ sys_proc_setup(int cid, int vspace, int clist, int p_eid)
 	obj_proc_t *o;
 	cap_t *c, *v, *r, *e;
 
-	debug_info("%i proc setup cid %i with vspace %i, clist %i, parent eid %i\n", 
+	debug_info("%i proc setup cid 0x%x with vspace 0x%x, clist 0x%x, parent eid 0x%x\n", 
 		up->pid, cid, vspace, clist, p_eid);
 
 	c = proc_find_cap(up, cid);
 	if (c == nil) {
-		debug_warn("%i couln't find cid %i\n", up->pid, cid);
+		debug_warn("%i couln't find cid 0x%x\n", up->pid, cid);
+		return ERR;
+	} else if (c->perm == 0) {
+		debug_warn("%i cap bad 0x%x\n", up->pid, cid);
 		return ERR;
 	} else if (c->obj->type != OBJ_proc) {
-		debug_warn("%i obj type bad %i : %i\n", up->pid, cid, c->obj->type);
+		debug_warn("%i obj type bad 0x%x : %i\n", up->pid, cid, c->obj->type);
 		return ERR;
 	} else {
 		o = (obj_proc_t *) c->obj;

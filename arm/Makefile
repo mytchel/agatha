@@ -5,11 +5,11 @@ LIBS += \
 	lib/pool \
 	lib/string \
 	lib/log \
+#	lib/mem \
 #	lib/block \
 #	lib/net \
 #	lib/sdmmc \
 #	lib/fat
-#	lib/mem \
 
 BUNDLE_BIN =
 BUNDLE_ELF =

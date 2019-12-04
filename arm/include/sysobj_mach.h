@@ -18,6 +18,7 @@ struct obj_intr {
 #define FRAME_DEV    2
 #define FRAME_L1     3
 #define FRAME_L2     4
+#define FRAME_KOBJ   5
 
 struct obj_frame {
 	struct obj_head h;

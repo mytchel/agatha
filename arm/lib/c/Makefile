@@ -7,6 +7,7 @@ ARM_LIB_C_SRC_C = \
 	arm/lib/c/mmu.c \
 	arm/lib/c/parent.c \
 	arm/lib/c/sys.c \
+	arm/lib/c/util.c \
 #	arm/lib/c/addr.c
 
 ARM_LIB_C_OBJECTS = \

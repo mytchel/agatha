@@ -124,6 +124,25 @@ addr_range_get_any(struct addr_range **head, size_t len, size_t align)
 	return nil;
 }
 
+int
+create_frame(size_t pa, size_t len, int type)
+{
+	int cid;
+
+	cid = kobj_alloc(OBJ_frame, 1);
+	if (cid < 0) {
+		log(LOG_WARNING, "frame alloc failed");
+		return ERR;
+	}
+
+	if (frame_setup(cid, type, pa, len) != OK) {
+		log(LOG_WARNING, "frame setup failed");
+		return ERR;
+	}
+
+	return cid;
+}
+
 	int
 request_memory(size_t len, size_t align)
 {
@@ -138,8 +157,6 @@ request_memory(size_t len, size_t align)
 	pa = m->start;
 
 	pool_free(&addr_pool, m);
-
-	log(LOG_INFO, "giving away 0x%x 0x%x", pa, len);
 
 	int cid;
 

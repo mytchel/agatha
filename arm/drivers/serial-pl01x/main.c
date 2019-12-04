@@ -66,11 +66,11 @@ handle_read(int eid, int from, union serial_req *rq)
 	void
 main(void)
 {
-	size_t regs_pa, regs_len;
 	union serial_req rq;
 	union proc0_req prq;
 	union proc0_rsp prp;
-	int mount_cid, eid, from;
+	int mount_cid, reg_cid;
+	int eid, from;
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
@@ -89,15 +89,18 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_regs;
 
-	mesg(CID_PARENT, &prq, &prp);
+	reg_cid = kcap_alloc();
+	if (reg_cid < 0) {
+		exit(ERR);
+	}
+
+	mesg_cap(CID_PARENT, &prq, &prp, reg_cid);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
 
-	regs_pa  = prp.get_resource.result.regs.pa;
-	regs_len = prp.get_resource.result.regs.len;
-
+/*
 	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
 	if (regs == nil) {
 		exit(ERR);
@@ -119,5 +122,6 @@ main(void)
 				break;
 		}
 	}
+	*/
 }
 
