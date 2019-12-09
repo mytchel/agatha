@@ -18,35 +18,6 @@ static volatile struct gic_dst_regs *dregs;
 static volatile struct gic_cpu_regs *cregs;
 static volatile struct cortex_a9_pt_wd_regs *pt_regs;
 
-bool
-intr_cap_claim(size_t i)
-{
-	if (user_handler_given[i]) {
-		return false;
-	}
-
-	user_handler_given[i] = true;
-	return true;
-}
-
-void
-intr_cap_connect(size_t i, obj_endpoint_t *e, uint32_t s)
-{
-	user_handler_e[i] = e;
-	user_handler_s[i] = s;
-
-	irq_enable(i);
-}
-
-void
-irq_cap_disconnect(size_t i)
-{
-	user_handler_e[i] = nil;
-	user_handler_s[i] = 0;
-
-	irq_disable(i);
-}
-
 	void
 gic_set_group(size_t irqn, uint32_t g)
 {
@@ -88,6 +59,35 @@ irq_clear(size_t irqn)
 irq_ack(size_t irqn)
 {
 	cregs->eoi = irqn;
+}
+
+bool
+intr_cap_claim(size_t i)
+{
+	if (user_handler_given[i]) {
+		return false;
+	}
+
+	user_handler_given[i] = true;
+	return true;
+}
+
+void
+intr_cap_connect(size_t i, obj_endpoint_t *e, uint32_t s)
+{
+	user_handler_e[i] = e;
+	user_handler_s[i] = s;
+
+	irq_enable(i);
+}
+
+void
+irq_cap_disconnect(size_t i)
+{
+	user_handler_e[i] = nil;
+	user_handler_s[i] = 0;
+
+	irq_disable(i);
 }
 
 	int

@@ -1,11 +1,13 @@
 include arm/rules.mk
 
+LIBC = arm/lib/c
+
 LIBS += \
 	arm/lib/c \
 	lib/pool \
 	lib/string \
 	lib/log \
-#	lib/mem \
+	lib/mem \
 #	lib/block \
 #	lib/net \
 #	lib/sdmmc \

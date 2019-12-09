@@ -11,7 +11,6 @@
 #define BIN_MAX    7
 
 struct buffer {
-	size_t pa;
 	size_t size;
 };
 
@@ -85,14 +84,16 @@ get_chunk(size_t bin)
 
 	} else {
 		size_t len = PAGE_ALIGN(CHUNK_SIZE(bin));
-		size_t pa = request_memory(len);
-		if (pa == nil) {
+		int fid;
+
+		fid = request_memory(len, 0x1000);
+		if (fid < 0) {
 			return nil;
 		}
 
-		c = map_addr(pa, len, MAP_RW);
+		c = frame_map_anywhere(fid, len);
 		if (c == nil) {
-			release_addr(pa, len);
+			release_memory(fid);
 			return nil;
 		}
 
@@ -148,18 +149,19 @@ malloc(size_t len)
 
 	} else {
 		len = PAGE_ALIGN(len + sizeof(struct buffer));
-		size_t pa = request_memory(len);
-		if (pa == nil) {
+		int fid;
+
+		fid = request_memory(len, 0x1000);
+		if (fid < 0) {
 			return nil;
 		}
 
-		b = map_addr(pa, len, MAP_RW);
+		b = frame_map_anywhere(fid, len);
 		if (b == nil) {
-			release_addr(pa, len);
+			release_memory(fid);
 			return nil;
 		}
 
-		b->pa = pa;
 		b->size = len;
 		return (void *) (((size_t) b) + sizeof(struct buffer));
 	}
@@ -182,11 +184,7 @@ free(void *p)
 
 	} else {
 		b = (struct buffer *) (((size_t) p) - sizeof(struct buffer));
-		size_t pa = b->pa;
-		size_t size = b->size;
-
-		unmap_addr(b, size);
-		release_addr(pa, size);
+		/* TODO */
 	}
 }
 

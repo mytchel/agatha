@@ -3,7 +3,7 @@
 #include "../bundle.h"
 #include <log.h>
 
-bool
+int
 init_bundled_proc(uint8_t *code, 
 		char *name, int priority,
 		size_t len)
@@ -20,7 +20,7 @@ init_bundled_proc(uint8_t *code,
 
 	code_new = request_memory(len, 0x1000);
 	if (code_new < 0) {
-		log(LOG_WARNING, "out of mem");
+		log(LOG_WARNING, "out of mem for code");
 		exit(1);
 	}
 
@@ -28,7 +28,7 @@ init_bundled_proc(uint8_t *code,
 
 	stack = request_memory(0x1000, 0x1000);
 	if (stack < 0) {
-		log(LOG_WARNING, "out of mem");
+		log(LOG_WARNING, "out of mem for stack");
 		exit(1);
 	}
 
@@ -36,7 +36,7 @@ init_bundled_proc(uint8_t *code,
 
 	l1 = request_memory(0x4000, 0x4000);
 	if (l1 < 0) {
-		log(LOG_WARNING, "out of mem");
+		log(LOG_WARNING, "out of mem for l1");
 		exit(1);
 	}
 
@@ -44,7 +44,7 @@ init_bundled_proc(uint8_t *code,
 
 	l2 = request_memory(0x1000, 0x1000);
 	if (l2 < 0) {
-		log(LOG_WARNING, "out of mem");
+		log(LOG_WARNING, "out of mem for l2");
 		exit(1);
 	}
 
@@ -113,7 +113,10 @@ init_bundled_proc(uint8_t *code,
 		exit(1);
 	}
 
-	if (proc_setup(p_cid, l1, clist, eid) != OK) {
+	int p_pid;
+
+	p_pid = proc_setup(p_cid, l1, clist, eid);
+	if (p_pid < 0) {
 		log(LOG_WARNING, "proc setup failed");
 		exit(1);
 	}
@@ -130,7 +133,7 @@ init_bundled_proc(uint8_t *code,
 		exit(10);
 	}
 
-	return true;
+	return p_pid;
 }
 
 	void
@@ -219,9 +222,8 @@ init_procs(void)
 		exit(1);
 	}
 
-	bundle_va = (void *) 0x30000;
-
-	if (frame_map(CID_L1, bundle_cid, bundle_va) != OK) {
+	bundle_va = frame_map_anywhere(bundle_cid, info->bundle_len);
+	if (bundle_va == nil) {
 		log(LOG_WARNING, "bundle map failed");
 		exit(1);
 	}
@@ -251,7 +253,7 @@ init_procs(void)
 
 			pri = ser->device.is_device ? 2 : 1;
 
-			init_bundled_proc(bundle_va + off,
+			ser->pid = init_bundled_proc(bundle_va + off,
 				bundled_procs[i].name, pri,
 				bundled_procs[i].len);
 		}
@@ -259,10 +261,12 @@ init_procs(void)
 		off += bundled_procs[i].len;
 	}
 
-/*
-	frame_unmap(CID_L1, bundle_cid, bundle_va, info->bundle_len);
-	kobj_free(bundle_cid);
-	*/
-}
+	bundle_cid = unmap_addr(bundle_va, info->bundle_len);
+	if (bundle_cid < 0) {
+		log(LOG_WARNING, "failed to unmap bundle");
+		exit(1);
+	}
 
+	kobj_free(bundle_cid);
+}
 

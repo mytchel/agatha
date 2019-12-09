@@ -43,7 +43,7 @@ init_mem(void);
 void
 init_procs(void);
 
-bool
+int
 init_bundled_proc(uint8_t *code,
 	char *name, int priority, size_t len);
 

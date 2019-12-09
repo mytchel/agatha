@@ -3,7 +3,7 @@ PROCS_LOG_OUT = procs/log/out.elf
 PROCS_LOG_SRC_C = \
 	procs/log/log.c
 
-PROCS_LOG_LIBS = $(USER_LIBS)
+PROCS_LOG_LIBS = $(LIBC) lib/pool lib/string
 
 PROCS_LOG_OBJECTS = \
 	$(PROCS_LOG_SRC_C:%.c=%.o) \

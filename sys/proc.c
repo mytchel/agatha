@@ -206,27 +206,6 @@ proc_init(obj_proc_t *p)
 	return OK;
 }
 
-int
-proc_set_priority(obj_proc_t *p, int priority)
-{
-	if (priority < 0 || PRIORITY_MAX <= priority) {
-		return ERR;
-	}
-
-	p->priority = priority;
-
-	if (p->slist != nil) {
-		remove_from_list(p->slist, p);
-	}
-
-	add_to_list_tail(&ready[p->priority]
-		.queue[(ready[p->priority].q + 1) % 2], 
-		p);
-
-	return OK;
-}
-
-
 	int
 proc_free(obj_proc_t *p)
 {
@@ -261,6 +240,26 @@ proc_ready(obj_proc_t *p)
 	if (p->slist == nil) {
 		/* TODO: don't need to do this if we are about
 		   to switch to the proc */
+
+		add_to_list_tail(&ready[p->priority]
+			.queue[(ready[p->priority].q + 1) % 2], 
+			p);
+	}
+
+	return OK;
+}
+
+int
+proc_set_priority(obj_proc_t *p, size_t priority)
+{
+	if (priority > PRIORITY_MAX) {
+		priority = PRIORITY_MAX;
+	}
+
+	p->priority = priority;
+
+	if (p->slist != nil) {
+		remove_from_list(p->slist, p);
 
 		add_to_list_tail(&ready[p->priority]
 			.queue[(ready[p->priority].q + 1) % 2], 

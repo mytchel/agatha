@@ -3,7 +3,7 @@ PROCS_IDLE_OUT = procs/idle/out.elf
 PROCS_IDLE_SRC_C = \
 	procs/idle/idle.c
 
-PROCS_IDLE_LIBS = arm/lib/c
+PROCS_IDLE_LIBS = $(LIBC)
 
 PROCS_IDLE_OBJECTS = \
 	$(PROCS_IDLE_SRC_C:%.c=%.o) \

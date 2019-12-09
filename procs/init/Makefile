@@ -1,9 +1,14 @@
 PROCS_INIT_OUT = procs/init/out.elf
 
 PROCS_INIT_SRC_C = \
-	procs/init/main.c
+	procs/init/main.c \
+	procs/init/timer.c
 
-PROCS_INIT_LIBS = lib/fat lib/log $(USER_LIBS)
+PROCS_INIT_LIBS = \
+	$(LIBC) \
+	lib/pool \
+	lib/log \
+	lib/string
 
 PROCS_INIT_OBJECTS = \
 	$(PROCS_INIT_SRC_C:%.c=%.o) \

@@ -6,6 +6,7 @@
 #include <c.h>
 #include <pool.h>
 #include <log.h>
+#include <arm/mmu.h>
 
 /*#define log(X, ...) {}*/
 
@@ -21,6 +22,7 @@ struct kcap {
 
 struct kobj {
 	int cid;
+	bool claimed;
 	int type;
 	size_t len;
 	kobj_t *next;
@@ -33,30 +35,20 @@ struct kcap_list {
 };
 
 static kobj_t kobj_pool_initial[64] = { 0 };
-static kcap_list_t kcap_pool_initial[4] = { 0 };
-
-static int next_cap_list_cid = 10;
 
 static struct pool kobj_pool = { 0 };
 static kobj_t *kobjs = nil;
 
 static kcap_list_t kcap_list_initial = { 0 };
 
-static struct pool kcap_pool = { 0 };
-static kcap_list_t *kcap_lists = nil;
-
 static bool ready = false;
 
 static void
 ksys_init(void)
 {
-	size_t pa, len;
-	void *va;
-
 	if (ready) return;
 
 	kobjs = nil;
-	kcap_lists = nil;
 
 	if (pool_init(&kobj_pool, sizeof(kobj_t)) != OK) {
 		exit(1);
@@ -66,69 +58,61 @@ ksys_init(void)
 		exit(1);
 	}
 
-	if (pool_init(&kcap_pool, sizeof(kcap_list_t)) != OK) {
-		exit(1);
-	}
-
-	if (pool_load(&kcap_pool, kcap_pool_initial, sizeof(kcap_pool_initial)) != OK) {
-		exit(1);
-	}
-
 	kcap_list_t *i;
 	i = &kcap_list_initial;
 	memset(i->caps, 0, sizeof(i->caps));
 	i->caps[0] |= (1<<0) | (1<<1) | (1<<2) | (1<<3);
 
-	kcap_lists = i;
-
 	ready = true;
 }
 
-int
-kcap_get_more(void)
+static bool
+grow_pool(void)
 {
-	return ERR;
-	/*
-	int n = cap_list_n;
-	int f_cid, o_cid;
-	kcap_list_t *c;
 	size_t len;
+	void *va;
+	int fid;
 
-	len = 0x1000;
-	f_cid = request_memory(len, 0x1000);
-	if (f_cid == nil) {
-		return ERR;
+	log(LOG_INFO, "grow kobj pool");
+
+	len = PAGE_ALIGN(sizeof(struct pool_frame) 
+		+ pool_obj_size(&kobj_pool) * 64);
+
+	fid = request_memory(len, 0x1000);
+	if (fid < 0) {
+		return false;
 	}
 
-	if (next_cap_list_cid == 0) {
-		return ERR;
+	va = frame_map_anywhere(fid, len);
+	if (va == nil) {
+		release_memory(fid);
+		return false;
 	}
 
-	o_cid = next_cap_list_cid++;
-
-	log(LOG_INFO, "kcap get more into id %i from %i", o_cid, f_cid);
-
-	if (obj_create(o_cid, f_cid) != OK) {
-		return ERR;
+	if (pool_load(&kobj_pool, va, len) != OK) {
+		log(LOG_WARNING, "pool load failed");
+		log(LOG_WARNING, "TODO: unmap and free");
+		return false;
 	}
 
-	if (obj_retype(o_cid, OBJ_caplist, n) != OK) {
-		return ERR;
+	log(LOG_INFO, "kobj pool grown");
+	return true;
+}
+
+static kobj_t *
+kobj_pool_alloc(void)
+{
+	static bool checking = false;
+
+	if (!checking) {
+		if (pool_n_free(&kobj_pool) < 5) {
+			checking = true;
+			grow_pool();
+			checking = false;
+		}
 	}
 
-	c = pool_alloc(&kcap_pool);
-	if (c == nil) {
-		return ERR;
-	}
-
-	memset(c, 0, sizeof(kcap_list_t));
-
-	c->cid = o_cid;
-	c->next = kcap_lists;
-	kcap_lists = c;
-
-	return OK;
-	*/
+	return pool_alloc(&kobj_pool);
 }
 
 int
@@ -153,11 +137,8 @@ kcap_alloc(void)
 	}
 
 	log(LOG_WARNING, "need more");
-	if (kcap_get_more() != OK) {
-		return ERR;
-	}
 
-	return kcap_alloc();
+	return ERR;
 }
 
 void
@@ -172,31 +153,38 @@ kobj_alloc_new(size_t len)
 	int cid, fid;
 	kobj_t *o;
 
+	log(LOG_WARNING, "kobj alloc new 0x%x", len);
+
 	if (len < 0x1000) 
 		len = 0x1000;
 
 	fid = request_memory(len, 0x1000);
 	if (fid < 0) {
+		log(LOG_WARNING, "request mem failed");
 		return nil;
 	}
 
 	cid = kcap_alloc();
 	if (cid < 0) {
+		log(LOG_WARNING, "kcap alloc failed");
 		return nil;
 	}
 	
 	if (obj_create(fid, cid) != OK) {
+		log(LOG_WARNING, "obj create failed");
 		return nil;
 	}
 
-	kobj_free(fid);
+	kcap_free(fid);
 
-	o = pool_alloc(&kobj_pool);
+	o = kobj_pool_alloc();
 	if (o == nil) {
+		log(LOG_WARNING, "kobj pool empty");
 		return nil;
 	}
 
 	o->cid = cid;
+	o->claimed = false;
 	o->type = OBJ_untyped;
 	o->len = len;
 	o->next = kobjs;
@@ -227,15 +215,14 @@ kobj_split(kobj_t *o)
 
 	log(LOG_INFO, "next id 0x%x", nid);
 
-	n = pool_alloc(&kobj_pool);
+	n = kobj_pool_alloc();
 	if (n == nil) {
-		log(LOG_INFO, "alloc failed");
+		log(LOG_INFO, "kobj pool empty");
 		return false;
 	}
 
-	log(LOG_INFO, "have obj 0x%x", n);
-
 	if (obj_split(o->cid, nid) != OK) {
+		log(LOG_WARNING, "obj split failed");
 		return false;
 	}
 	
@@ -278,9 +265,9 @@ kobj_add_untyped(int cid, size_t len)
 
 	ksys_init();
 
-	n = pool_alloc(&kobj_pool);
+	n = kobj_pool_alloc();
 	if (n == nil) {
-		log(LOG_INFO, "alloc failed");
+		log(LOG_INFO, "kobj pool empty");
 		return ERR;
 	}
 
@@ -320,6 +307,7 @@ kobj_alloc(int type, size_t n)
 	f = nil;
 	for (o = kobjs; o != nil; o = o->next) {
 		if (o->type != OBJ_untyped) continue;
+		if (o->claimed) continue;
 		if (len <= o->len) {
 			if (f == nil || o->len < f->len) {
 				f = o;
@@ -333,6 +321,8 @@ kobj_alloc(int type, size_t n)
 			return ERR;
 		}
 	}
+
+	f->claimed = true;
 
 	while (len < f->len) {
 		if (!kobj_split(f)) {

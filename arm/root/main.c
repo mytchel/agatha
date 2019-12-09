@@ -52,86 +52,6 @@ handle_mem_req(int eid, int from, union proc0_req *rq)
 	return reply_cap(eid, from, &rp, cid);
 }
 
-#if 0
-	int
-handle_addr_map(int eid, int from, union proc0_req *rq)
-{
-	size_t pa, va, len;
-	union proc0_rsp rp;
-
-	log(0, "proc %i wants to map 0x%x 0x%x to 0x%x",
-		from, rq->addr_map.pa, rq->addr_map.len,
-		rq->addr_map.va);
-
-	rp.addr_map.type = PROC0_addr_map;
-
-	len = rq->addr_map.len;
-	if (len != PAGE_ALIGN(len)) {
-		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
-		return reply(eid, from, &rp);
-	}
-	
-	pa = rq->addr_map.pa;
-	if (pa != PAGE_ALIGN(pa)) {
-		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
-		return reply(eid, from, &rp);
-	}
-
-	va = rq->addr_map.va;
-	if (va != PAGE_ALIGN(va)) {
-		rp.addr_map.ret = PROC0_ERR_ALIGNMENT;
-		return reply(eid, from, &rp);
-	}
-
-	rp.addr_map.ret = proc_map(from, 
-			pa, va, len, 
-			rq->addr_map.flags);
-		
-	return reply(eid, from, &rp);
-}
-
-	int
-handle_addr_give(int eid, int from, union proc0_req *rq)
-{
-	union proc0_rsp rp;
-	struct addr_frame *f;
-	size_t pa, len;
-	int to;
-
-	rp.addr_give.type = PROC0_addr_give;
-
-	to = rq->addr_give.to;
-
-	len = rq->addr_give.len;
-	if (len != PAGE_ALIGN(len)) {
-		rp.addr_give.ret = PROC0_ERR_ALIGNMENT;
-		return reply(eid, from, &rp);
-	}
-	
-	pa = rq->addr_give.pa;
-	if (pa != PAGE_ALIGN(pa)) {
-		rp.addr_give.ret = PROC0_ERR_ALIGNMENT;
-		return reply(eid, from, &rp);
-	}
-
-	f = proc_take_addr(from, pa, len);
-	if (f == nil) {
-		rp.addr_give.ret = ERR;
-		return reply(eid, from, &rp);
-	}
-
-	if (to == ROOT_PID) {
-		frame_free(f);
-		rp.addr_give.ret = OK;
-
-	} else {
-		rp.addr_give.ret = proc_give_addr(to, f);
-	}
-	
-	return reply(eid, from, &rp);
-}
-#endif
-
 struct service *
 find_service_pid(int pid)
 {
@@ -247,16 +167,13 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		break;
 	
 	case RESOURCE_type_regs:
-		rp.get_resource.ret = ERR;
-#if 0
-		return reply
 		if (s->device.is_device && !s->device.has_regs) {
 			log(0, "giving proc %i its regs 0x%x 0x%x",
 				from, s->device.reg, s->device.len);
 
 			s->device.has_regs = true;
-
-			proc_give_addr(from, s->device.reg_frame);
+			
+			give_cap = s->device.reg_cid;
 
 			rp.get_resource.result.regs.pa = s->device.reg;
 			rp.get_resource.result.regs.len = s->device.len;
@@ -264,7 +181,6 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 		} else {
 			rp.get_resource.ret = ERR;
 		}
-#endif
 		break;
 	}
 
@@ -309,17 +225,7 @@ main(struct kernel_info *i)
 			case PROC0_mem_req:
 				handle_mem_req(eid, from, (union proc0_req *) m);
 				break;
-
-#if 0
-			case PROC0_addr_map:
-				handle_addr_map(eid, from, (union proc0_req *) m);
-				break;
-
-			case PROC0_addr_give:
-				handle_addr_give(eid, from, (union proc0_req *) m);
-				break;
-#endif
-			
+		
 			case PROC0_get_resource:
 				handle_get_resource(eid, from, (union proc0_req *) m);
 				break;

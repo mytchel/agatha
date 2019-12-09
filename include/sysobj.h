@@ -27,19 +27,7 @@ struct proc_list {
 #define CAP_write  1
 #define CAP_read   2
 
-/* TODO change caps to be stored in tables.
-   A proc gets an initial caplist of a set size
-   and can slot caplists into that caplist but 
-   it cannot go deeper. Then use the id like a 
-   virtual address with the top bits being the 
-   index in the root caplist and the bottom bits
-   being the index into the sub caplist if there
-   is one. 
-   */
-
 struct cap {
-	cap_t *next;
-	int id;
 	uint32_t perm;
 	obj_head_t *obj;
 };

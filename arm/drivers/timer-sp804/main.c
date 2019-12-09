@@ -153,6 +153,9 @@ main(void)
 {
 	size_t regs_pa, regs_len;
 	size_t irqn;
+	int mount_eid;
+	int reg_cid;
+	int irq_cid;
 
 	union proc0_req prq;
 	union proc0_rsp prp;
@@ -164,7 +167,6 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
 
-	int mount_eid;
 	mount_eid = kcap_alloc();
 	if (mount_eid < 0) {
 		exit(ERR);
@@ -179,8 +181,13 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_regs;
 
+	reg_cid = kcap_alloc();
+	if (reg_cid < 0) {
+		exit(ERR);
+	}
+
 	log(LOG_INFO, "get regs");
-	mesg(CID_PARENT, &prq, &prp);
+	mesg_cap(CID_PARENT, &prq, &prp, reg_cid);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
@@ -189,7 +196,7 @@ main(void)
 	regs_pa  = prp.get_resource.result.regs.pa;
 	regs_len = prp.get_resource.result.regs.len;
 
-	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
+	regs = frame_map_anywhere(reg_cid, regs_len);
 	if (regs == nil) {
 		log(LOG_FATAL, "failed to map registers!");
 		return ERR;
@@ -198,14 +205,13 @@ main(void)
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_int;
 
-	int irq_cap_id;
-	irq_cap_id = kcap_alloc();
-	if (irq_cap_id < 0) {
+	irq_cid = kcap_alloc();
+	if (irq_cid < 0) {
 		exit(ERR);
 	}
 
 	log(LOG_INFO, "get int");
-	mesg_cap(CID_PARENT, &prq, &prp, irq_cap_id);
+	mesg_cap(CID_PARENT, &prq, &prp, irq_cid);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
@@ -223,7 +229,7 @@ main(void)
 
 	log(LOG_INFO, "register int");
 	int int_eid = kobj_alloc(OBJ_endpoint, 1);
-	if (intr_connect(irq_cap_id, int_eid, 0x14) != OK) {
+	if (intr_connect(irq_cid, int_eid, 0x14) != OK) {
 		log(LOG_FATAL, "failed to register int");
 		return ERR;
 	}
@@ -245,7 +251,7 @@ main(void)
 
 				regs->t[0].clr = status_raw;
 
-				intr_ack(irq_cap_id);
+				intr_ack(irq_cid);
 
 				log(LOG_INFO, "got int 0x%x, status = 0x%x!", 
 					rq.type, status_raw);

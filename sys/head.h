@@ -20,6 +20,9 @@ proc_fault(obj_proc_t *p);
 int
 proc_free(obj_proc_t *p);
 
+int
+proc_set_priority(obj_proc_t *p, size_t priority);
+
 obj_proc_t *
 find_proc(int pid);
 
@@ -28,8 +31,8 @@ schedule(obj_proc_t *next);
 
 
 
-cap_t *
-recv(cap_t *from, int *pid, uint8_t *m, cap_t *o);
+int
+recv(int, int *pid, uint8_t *m, cap_t *o);
 
 int
 reply(obj_endpoint_t *l, int pid, uint8_t *m, cap_t *o);

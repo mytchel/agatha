@@ -29,6 +29,12 @@ static char buf[2048];
 static size_t start = 0, end = 0;
 
 void
+log(int lvel, char *fmt, ...)
+{
+
+}
+
+void
 send_logs(void)
 {
 	union serial_req rq;
@@ -209,7 +215,7 @@ main(void)
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
-
+	
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
 

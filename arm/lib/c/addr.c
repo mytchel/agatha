@@ -9,7 +9,7 @@
 #include <proc0.h>
 #include <arm/mmu.h>
 
-#define LOG 0
+#define LOG 1
 #if !LOG
 #define log(X, ...) {}
 #endif
@@ -55,8 +55,7 @@ extern uint32_t *_text_end;
 extern uint32_t *_data_start;
 extern uint32_t *_data_end;
 
-
-	void
+static void
 addr_init(void)
 {
 	struct span *m, *f;
@@ -82,7 +81,6 @@ addr_init(void)
 
 	l1_mapped->holder = &l1_mapped;
 	l1_mapped->next = nil;
-	l1_mapped->pa = nil;
 	l1_mapped->va = TABLE_ALIGN_DN(&_text_start);
 	l1_mapped->len = TABLE_ALIGN(&_data_end) - l1_mapped->va;
 
@@ -91,7 +89,6 @@ addr_init(void)
 	m->holder = &l1_mapped->mapped;
 	m->va = PAGE_ALIGN_DN(&_text_start);
 	m->len = PAGE_ALIGN(&_data_end) - m->va;
-	m->pa = nil;
 	m->next = nil;
 
 	f = pool_alloc(&span_pool);
@@ -99,13 +96,11 @@ addr_init(void)
 	f->holder = &l1_mapped->free;
 	f->va = m->va + m->len;
 	f->len = l1_mapped->va + l1_mapped->len - f->va;
-	f->pa = nil;
 	f->next = nil;
 
 	l1_free->holder = &l1_free;
 	l1_free->va = l1_mapped->va + l1_mapped->len;
 	l1_free->len = 0xff000000 - l1_free->va;
-	l1_free->pa = nil;
 	l1_free->free = nil;
 	l1_free->mapped = nil;
 	l1_free->next = nil;
@@ -113,7 +108,7 @@ addr_init(void)
 	initialized = true;
 }
 
-void
+static void
 take_add_span(struct span *s, struct span **nl)
 {
 	*s->holder = s->next;
@@ -134,7 +129,7 @@ take_add_span(struct span *s, struct span **nl)
 	s->holder = nl;
 }
 
-int
+static int
 split_span(struct span *s, size_t len)
 {
 	struct span *n;
@@ -148,7 +143,6 @@ split_span(struct span *s, size_t len)
 		return ERR;
 	}
 
-	n->pa = s->pa + len;
 	n->va = s->va + len;
 	n->len = s->len - len;
 
@@ -166,7 +160,7 @@ split_span(struct span *s, size_t len)
 	return OK;
 }
 
-void
+static void
 take_add_l1_span(struct l1_span *s, struct l1_span **nl)
 {
 	*s->holder = s->next;
@@ -187,7 +181,7 @@ take_add_l1_span(struct l1_span *s, struct l1_span **nl)
 	s->holder = nl;
 }
 
-int
+static int
 split_l1_span(struct l1_span *s, size_t len)
 {
 	struct l1_span *n;
@@ -196,12 +190,6 @@ split_l1_span(struct l1_span *s, size_t len)
 	if (n == nil) {
 		log(LOG_INFO, "out of l1_spans");
 		return ERR;
-	}
-
-	if (s->pa != nil) {
-		n->pa = s->pa + len;
-	} else {
-		n->pa = nil;
 	}
 
 	n->va = s->va + len;
@@ -221,7 +209,59 @@ split_l1_span(struct l1_span *s, size_t len)
 	return OK;
 }
 
-	void
+	static bool
+grow_pool(struct pool *p)
+{
+	size_t len;
+	void *va;
+	int fid;
+
+	len = PAGE_ALIGN(sizeof(struct pool_frame) + pool_obj_size(p) * 64);
+
+	fid = request_memory(len, 0x1000);
+	if (fid < 0) {
+		return false;
+	}
+
+	va = frame_map_anywhere(fid, len);
+	if (va == nil) {
+		release_memory(fid);
+		return false;
+	}
+
+	return pool_load(p, va, len) == OK;
+}
+
+	static bool
+check_pools(void)
+{
+	static bool checking = false;	
+	bool r = true;
+
+	if (checking) {
+		return true;
+	}
+
+	if (pool_n_free(&l1_span_pool) < 3) {
+		log(LOG_INFO, "growing l1 span pool");
+		checking = true;
+		r = grow_pool(&l1_span_pool);
+		log(LOG_INFO, "pool grown ? %i", r);
+		checking = false;
+	}
+
+	if (r && pool_n_free(&span_pool) < 4) {
+		log(LOG_INFO, "growing span pool");
+		checking = true;
+		r = grow_pool(&span_pool);
+		log(LOG_INFO, "pool grown ? %i", r);
+		checking = false;
+	}
+
+	return r;
+}
+
+static void
 dump_mappings(void)
 {
 	struct l1_span *l;
@@ -232,7 +272,7 @@ dump_mappings(void)
 	for (l = l1_mapped; l != nil; l = l->next) {
 		log(LOG_INFO, "l1 0x%x to 0x%x", l->va, l->va + l->len);
 		for (s = l->mapped; s != nil; s = s->next) {
-			log(LOG_INFO, "m  0x%x to 0x%x -> 0x%x", s->va, s->va + s->len, s->pa);
+			log(LOG_INFO, "m  0x%x to 0x%x", s->va, s->va + s->len);
 		}
 
 		for (s = l->free; s != nil; s = s->next) {
@@ -247,12 +287,11 @@ dump_mappings(void)
 	}
 }
 
-struct span *
-map_free_addr(size_t pa, size_t len, int flags)
+static struct span *
+get_free_span_slot(size_t len)
 {
 	struct l1_span *l, *fl;
 	struct span *s, *fs;
-	size_t l1_pa, tlen;
 	int r;
 
 	log(LOG_INFO, "find addr for 0x%x bytes", len);
@@ -281,16 +320,13 @@ map_free_addr(size_t pa, size_t len, int flags)
 
 		log(LOG_INFO, "giving 0x%x", fs->va);
 
-		fs->pa = pa;
-
-		if ((r = addr_map(pa, fs->va, len, flags)) != OK) {
-			/* TODO: put span into free */
-			log(LOG_INFO, "addr map failed %i for 0x%x -> 0x%x 0x%x", r, pa, fs->va, len);
-			return nil;
-		}
-
 		return fs;
 	}
+
+	return nil;
+
+#if 0
+	size_t l1_pa, tlen;
 
 	log(LOG_INFO, "need a new l1 span");
 
@@ -351,87 +387,20 @@ map_free_addr(size_t pa, size_t len, int flags)
 
 	log(LOG_INFO, "giving 0x%x", fs->va);
 
-	fs->pa = pa;
-
-	if ((r = addr_map(pa, fs->va, len, flags)) != OK) {
-		/* TODO: put span into free */
-		log(LOG_INFO, "addr map failed %i for 0x%x -> 0x%x 0x%x", r, pa, fs->va, len);
-		return nil;
-	}
-
 	return fs;
-}
-
-	static bool
-grow_pool(struct pool *p)
-{
-	return false;
-#if 0
-	size_t pa, len;
-	void *va;
-
-	len = PAGE_ALIGN(sizeof(struct pool_frame) + pool_obj_size(p) * 64);
-
-	pa = request_memory(len, 0x1000);
-	if (pa == nil) {
-		return false;
-	}
-
-	va = map_addr(pa, len, MAP_RW|MAP_MEM);
-	if (va == nil) {
-		release_mem(pa, len);
-		return false;
-	}
-
-	return pool_load(p, va, len) == OK;
 #endif
 }
 
-	static bool
-check_pools(void)
-{
-	static bool checking = false;	
-	bool r = true;
-
-	if (checking) {
-		return true;
-	}
-
-	if (pool_n_free(&l1_span_pool) < 3) {
-		log(LOG_INFO, "growing l1 span pool");
-		checking = true;
-		r = grow_pool(&l1_span_pool);
-		log(LOG_INFO, "pool grown ? %i", r);
-		if (!r) exit(0xff00);
-		checking = false;
-	}
-
-	if (r && pool_n_free(&span_pool) < 4) {
-		log(LOG_INFO, "growing span pool");
-		checking = true;
-		r = grow_pool(&span_pool);
-		log(LOG_INFO, "pool grown ? %i", r);
-		if (!r) exit(0xff01);
-		checking = false;
-	}
-
-	return r;
-}
-
 	void *
-map_addr(size_t pa, size_t len, int flags)
+frame_map_anywhere(int fid, size_t len)
 {
 	struct span *s;
+	int r;
 
-	log(LOG_INFO, "find map for 0x%x 0x%x", pa, len);
+	log(LOG_INFO, "find map for 0x%x 0x%x", fid, len);
 
 	if (!initialized)
 		addr_init();
-
-	if (PAGE_ALIGN(pa) != pa) {
-		log(LOG_WARNING, "0x%x is not aligned", pa);
-		return nil;
-	}
 
 	if (!check_pools()) {
 		return nil;
@@ -439,10 +408,20 @@ map_addr(size_t pa, size_t len, int flags)
 
 	len = PAGE_ALIGN(len);
 
-	s = map_free_addr(pa, len, flags);
+	s = get_free_span_slot(len);
 	if (s == nil) {
 		return nil;
 	}
+
+	r = frame_map(CID_L1, fid, (void *) s->va);
+	if (r != OK) {
+		/* TODO: put span into free */
+		log(LOG_INFO, "addr map failed %i : for fid 0x%x -> 0x%x 0x%x", 
+			r, fid, s->va, len);
+		return nil;
+	}
+
+	kcap_free(fid);
 
 	return (void *) s->va;
 }
@@ -456,17 +435,12 @@ unmap_addr(void *addr, size_t len)
 
 	log(LOG_INFO, "unmap_addr 0x%x 0x%x", addr, len);
 
-	dump_mappings();
-
-	if (addr_unmap(va, len) != OK) {
-		exit(0x123456);
-		return ERR;
-	}
-
-	log(LOG_INFO, "unmap worked, continue");
-
 	if (!initialized)
 		return ERR;
+
+	dump_mappings();
+
+	log(LOG_INFO, "unmap worked, continue");
 
 	for (l = l1_mapped; l != nil; l = l->next) {
 		log(LOG_INFO, "is it in 0x%x 0x%x?", l->va, l->len);
@@ -478,8 +452,6 @@ unmap_addr(void *addr, size_t len)
 
 	if (l == nil) {
 		log(LOG_INFO, "error unmapping, l1 not mapped");
-
-		exit(0x1236);
 		return ERR;
 	}
 
@@ -494,22 +466,25 @@ unmap_addr(void *addr, size_t len)
 
 	if (s == nil) {
 		log(LOG_INFO, "error unmapping, pages not mapped");
-		exit(0x1235);
 		return ERR;
 	}
 
 	if (s->va != va || s->len != len) {
 		log(LOG_INFO, "error unmapping, cannot unmap across mappings");
-		/* TODO: support unmapping parts of mapped space */
-		exit(0x1234);
 		return ERR;
 	}
 
-	/* Unmap */
-	s->pa = nil;
-
 	take_add_span(s, &l->free);
 
-	return OK;
+	int fid = kcap_alloc();
+	if (fid < 0) {
+		return ERR;
+	}
+
+	if (frame_unmap(CID_L1, fid, addr, len) != OK) {
+		return ERR;
+	}
+
+	return fid;
 }
 

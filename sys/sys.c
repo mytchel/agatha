@@ -161,8 +161,12 @@ sys_obj_split(int cid, int nid)
 			up->pid, cid);
 		return ERR;
 	} else if (!(c->perm & CAP_write)) {
+		debug_warn("%i cap 0x%x bad perm 0x%x\n",
+			up->pid, cid, c->perm);
 		return ERR;
 	} else if (c->obj->type != OBJ_untyped) {
+		debug_warn("%i cap 0x%x bad type for split %i\n",
+			up->pid, cid, c->obj->type);
 		return ERR;
 	}
 
@@ -172,6 +176,8 @@ sys_obj_split(int cid, int nid)
 			up->pid, nid);
 		return ERR;
 	} else if (nc->perm != 0) {
+		debug_warn("%i cap 0x%x already used\n",
+			up->pid, nid);
 		return ERR;
 	}
 
@@ -183,7 +189,7 @@ sys_obj_split(int cid, int nid)
 		up->pid, o->len, len, nid);
 
 	if (len < sizeof(obj_untyped_t)) {
-		debug_info("len %i too small\n", len);
+		debug_warn("len %i too small\n", len);
 		return ERR;
 	}
 
@@ -261,6 +267,7 @@ endpoint_get_pending(obj_endpoint_t *e,
 	obj_proc_t *p;
 
 	if (e->signal != 0) {
+		debug_info("got signal\n");
 		((uint32_t *) m)[0] = e->signal;
 		e->signal = 0;
 		*pid = PID_SIGNAL;
@@ -269,6 +276,8 @@ endpoint_get_pending(obj_endpoint_t *e,
 
 	for (p = e->waiting.head; p != nil; p = p->wnext) {
 		if (p->state == PROC_block_send) {
+			debug_info("recv get pending, found\n");
+
 			p->state = PROC_block_reply;
 
 			memcpy(m, p->m, MESSAGE_LEN);
@@ -278,8 +287,8 @@ endpoint_get_pending(obj_endpoint_t *e,
 					panic("%i send to %i with cap but not accepting, TODO: handle this\n", p->pid, up->pid);
 				}
 
-				debug_info("%i recv cap %i from %i to cap %i\n", 
-					up->pid, p->give->id, p->pid, o->id);
+				debug_info("%i recv cap from %i\n", 
+					up->pid, p->pid);
 
 				o->perm = p->give->perm;
 				o->obj = p->give->obj;
@@ -287,6 +296,7 @@ endpoint_get_pending(obj_endpoint_t *e,
 				p->give->perm = 0;
 				p->give->obj = nil;
 			}
+
 
 			*pid = p->pid;
 			return true;
@@ -296,47 +306,45 @@ endpoint_get_pending(obj_endpoint_t *e,
 	return false;
 }
 
-cap_t *
-recv(cap_t *from, int *pid, uint8_t *m, cap_t *o)
+int
+recv(int from, int *pid, uint8_t *m, cap_t *o)
 {
-	cap_t *c, *d;
+	cap_t *c;
+
+	if (from == EID_ANY) {
+		c = nil;
+	} else {
+		c = proc_find_cap(up, from);
+		if (c == nil) {
+			return ERR;
+		} else if (!(c->perm & CAP_read)) {
+			return ERR;
+		} else if (c->obj->type != OBJ_endpoint) {
+			return ERR;
+		}
+	}
 
 	while (true) {
 		if (from != nil) {
-			if (endpoint_get_pending((obj_endpoint_t *) from->obj, 
+			if (endpoint_get_pending((obj_endpoint_t *) c->obj, 
 					pid, m, o)) 
 			{
 				return from;
 			}
 			
-			up->recv_from = (obj_endpoint_t *) from->obj;
+			up->recv_from = (obj_endpoint_t *) c->obj;
 		} else {
-			int a, b;
-			for (a = 1; a < 256; a++) {
+			int a;
+			for (a = 1; a < 255; a++) {
 				c = &up->cap_root->caps[a];
-				if (!(c->perm & CAP_read)) continue;
-				if (c->obj->type == OBJ_endpoint) {
+				if (!(c->perm & CAP_read)) {
+					continue;
+				} else if (c->obj->type == OBJ_endpoint) {
 					obj_endpoint_t *e = (void *) c->obj;
 					e->holder = up;
-					if (endpoint_get_pending((obj_endpoint_t *) c->obj, 
-							pid, m, o)) 
+					if (endpoint_get_pending(e, pid, m, o)) 
 					{
-						return c;
-					}
-				} else if (c->obj->type == OBJ_caplist) {
-					obj_caplist_t *l = (void *) c->obj;
-					for (b = 1; b < 256; b++) {
-						d = &l->caps[a];
-						if (!(d->perm & CAP_read)) continue;
-						if (d->obj->type == OBJ_endpoint) {
-							obj_endpoint_t *e = (void *) d->obj;
-							e->holder = up;
-							if (endpoint_get_pending((obj_endpoint_t *) d->obj, 
-									pid, m, o)) 
-							{
-								return c;
-							}
-						} 
+						return a << 12;
 					}
 				}
 			}
@@ -383,7 +391,7 @@ reply(obj_endpoint_t *e, int pid, uint8_t *m, cap_t *o)
 	memcpy(p->m, m, MESSAGE_LEN);
 
 	if (o != nil) {
-		debug_info("%i offer cap id %i\n", up->pid, o->id);
+		debug_info("%i offer cap\n", up->pid);
 		if (p->give == nil) {
 			debug_warn("%i offer cap to %i but they are not accepting\n",
 				up->pid, p->pid);
@@ -443,10 +451,10 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, cap_t *o)
 			debug_info("%i mesg cap didn't get cap\n",
 				up->pid);
 		} else {
-			debug_info("%i mesg cap got cap %i obj 0x%x\n", 
-				up->pid, o->id, o->obj);
+			debug_info("%i mesg cap got cap perm 0x%x obj 0x%x\n", 
+				up->pid, o->perm, o->obj);
 
-			if (o->obj->type == OBJ_endpoint && (o->perm & CAP_read)) {
+			if (o->obj->type == OBJ_endpoint && (o->perm == CAP_read)) {
 				((obj_endpoint_t *) o->obj)->holder = up;
 			}
 		}
@@ -480,20 +488,9 @@ signal(obj_endpoint_t *e, uint32_t s)
 size_t
 sys_recv(int from, int *pid, uint8_t *m, int cid)
 {
-	cap_t *c, *o;
+	cap_t *o;
 
-	debug_info("%i recv %i\n", up->pid, cid);
-
-	if (from == EID_ANY) {
-		c = nil;
-	} else {
-		c = proc_find_cap(up, from);
-		if (c == nil) {
-			return ERR;
-		} else if (!(c->perm & CAP_read) || c->obj->type != OBJ_endpoint) {
-			return ERR;
-		}
-	}
+	debug_info("%i recv 0x%x\n", up->pid, from);
 
 	if (cid == 0) {
 		o = nil;
@@ -506,12 +503,7 @@ sys_recv(int from, int *pid, uint8_t *m, int cid)
 		}
 	}
 
-	c = recv(c, pid, m, o);
-	if (c == nil) {
-		return ERR;
-	}
-
-	return c->id;
+	return recv(from, pid, m, o);
 }
 
 size_t
@@ -519,7 +511,7 @@ sys_mesg(int to, uint8_t *rq, uint8_t *rp, int cid)
 {
 	cap_t *c, *o;
 
-	debug_info("%i mesg %i\n", up->pid, to);
+	debug_info("%i mesg\n", up->pid, to);
 
 	c = proc_find_cap(up, to);
 	if (c == nil) {
@@ -549,7 +541,7 @@ sys_reply(int to, int pid, uint8_t *m, int cid)
 {
 	cap_t *c, *o;
 
-	debug_info("%i reply %i pid %i, give cap %i\n", up->pid, to, pid, cid);
+	debug_info("%i reply %i pid %i, give cap 0x%x\n", up->pid, to, pid, cid);
 
 	c = proc_find_cap(up, to);
 	if (c == nil) {
@@ -561,7 +553,7 @@ sys_reply(int to, int pid, uint8_t *m, int cid)
 	if (cid != 0) {
 		o = proc_find_cap(up, cid);
 		if (o == nil) {
-			debug_warn("%i mesg cap %i not found\n", up->pid, cid);
+			debug_warn("%i mesg cap 0x%x not found\n", up->pid, cid);
 			return ERR;
 		} else if (o->perm == 0) {
 			return ERR;
@@ -616,7 +608,7 @@ sys_endpoint_connect(int cid, int nid)
 	n->obj = (void *) l;
 
 	debug_info("%i connect endpoint obj 0x%x, cap id %i\n", 
-		up->pid, c->obj, n->id);
+		up->pid, c->obj, nid);
 
 	return OK;
 }
@@ -760,13 +752,33 @@ sys_proc_setup(int cid, int vspace, int clist, int p_eid)
 	e->obj = nil;
 	e->perm = 0;
 
-	return OK;
+	return o->pid;
 }
 
 size_t
 sys_proc_set_priority(int cid, size_t priority)
 {
-	return OK;
+	obj_proc_t *o;
+	cap_t *c;
+
+	debug_info("%i proc set 0x%x priority %i\n",
+		up->pid, cid, priority);
+
+	c = proc_find_cap(up, cid);
+	if (c == nil) {
+		debug_warn("%i couln't find cid 0x%x\n", up->pid, cid);
+		return ERR;
+	} else if (c->perm == 0) {
+		debug_warn("%i cap bad 0x%x\n", up->pid, cid);
+		return ERR;
+	} else if (c->obj->type != OBJ_proc) {
+		debug_warn("%i obj type bad 0x%x : %i\n", up->pid, cid, c->obj->type);
+		return ERR;
+	} else {
+		o = (obj_proc_t *) c->obj;
+	}
+
+	return proc_set_priority(o, priority);
 }
 
 	size_t

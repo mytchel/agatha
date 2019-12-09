@@ -53,14 +53,8 @@ init_root(struct kernel_info *info)
 	c->h.type = OBJ_caplist;
 	c->h.refs = 1;
 	for (i = 0; i < 255; i++) {
-		c->caps[i].id = i;
 		c->caps[i].perm = 0;
 		c->caps[i].obj = nil;
-
-		if (i < 255)
-			c->caps[i].next = &c->caps[i+1];
-		else
-			c->caps[i].next = nil;
 	}
 
 	l1 = kernel_map(info->root.l1_pa,

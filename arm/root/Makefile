@@ -10,11 +10,11 @@ ARM_ROOT_SRC_C = \
 	arm/root/proc.c \
 	arm/lib/c/mmu.c \
 	arm/lib/c/sys.c \
+	arm/lib/c/addr.c \
 	lib/mem/util.c \
 	$(TARGET)/devices.c \
 	bundle.c 
 	
-#arm/lib/c/addr.c \
 	
 ARM_ROOT_LIBS = \
 	lib/pool \

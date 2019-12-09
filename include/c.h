@@ -26,6 +26,12 @@ int
 release_memory(int cid);
 
 void *
+frame_map_anywhere(int fid, size_t len);
+
+int
+unmap_addr(void *va, size_t len);
+
+void *
 malloc(size_t size);
 
 void

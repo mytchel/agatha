@@ -8,7 +8,7 @@ ARM_LIB_C_SRC_C = \
 	arm/lib/c/parent.c \
 	arm/lib/c/sys.c \
 	arm/lib/c/util.c \
-#	arm/lib/c/addr.c
+	arm/lib/c/addr.c
 
 ARM_LIB_C_OBJECTS = \
 	$(ARM_LIB_C_SRC_A:%.S=%.o) \

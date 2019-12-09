@@ -3,7 +3,12 @@ TIMER_SP804_OUT = arm/drivers/timer-sp804/out.elf
 TIMER_SP804_SRC_C = \
 	arm/drivers/timer-sp804/main.c
 
-TIMER_SP804_LIBS = lib/log $(USER_LIBS)
+TIMER_SP804_LIBS = \
+	$(LIBC) \
+	lib/pool \
+	lib/mem \
+	lib/log \
+	lib/string \
 
 TIMER_SP804_OBJECTS = \
 	$(TIMER_SP804_SRC_C:%.c=%.o) \

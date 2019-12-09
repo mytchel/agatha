@@ -34,6 +34,7 @@ log_init(char *name)
 	}
 
 	lrq.reg.type = LOG_register;
+
 	snprintf(lrq.reg.name, sizeof(lrq.reg.name),
 		 	"%s", name);
 

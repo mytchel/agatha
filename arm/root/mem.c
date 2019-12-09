@@ -147,14 +147,11 @@ create_frame(size_t pa, size_t len, int type)
 request_memory(size_t len, size_t align)
 {
 	struct addr_range *m;
-	size_t pa;
 
 	m = addr_range_get_any(&ram_free, len, align);
 	if (m == nil) {
 		return nil;
 	}
-
-	pa = m->start;
 
 	pool_free(&addr_pool, m);
 

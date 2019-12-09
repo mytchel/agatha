@@ -100,8 +100,7 @@ main(void)
 		exit(ERR);
 	}
 
-/*
-	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
+	regs = frame_map_anywhere(reg_cid, 0x1000);
 	if (regs == nil) {
 		exit(ERR);
 	}
@@ -111,7 +110,7 @@ main(void)
 	while (true) {
 		if ((eid = recv(EID_ANY, &from, &rq)) < 0) continue;
 		if (from == PID_NONE) continue;
-
+	
 		switch (rq.type) {
 			case SERIAL_write:
 				handle_write(eid, from, &rq);
@@ -122,6 +121,5 @@ main(void)
 				break;
 		}
 	}
-	*/
 }
 

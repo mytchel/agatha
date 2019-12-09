@@ -70,9 +70,6 @@ sys_obj_create(int fid, int nid)
 	fc->perm = 0;
 	fc->obj = nil;
 
-	debug_info("%i obj create 0x%x cap id 0x%x\n", 
-		up->pid, o, nc->id);
-
 	return OK;
 }
 
@@ -193,7 +190,7 @@ sys_frame_setup(int cid, int type, size_t pa, size_t len)
 	obj_frame_t *f;
 	cap_t *c;
 
-	debug_info("%i frame setup %i\n", up->pid, cid);
+	debug_info("%i frame setup 0x%x\n", up->pid, cid);
 
 	if (up->pid != ROOT_PID) {
 		return ERR;
@@ -251,17 +248,17 @@ proc_find_cap_type(obj_proc_t *p, int cid,
 
 	c = proc_find_cap(p, cid);
 	if (c == nil) {
-		debug_warn("%i cap %i not found\n", p->pid, cid);
+		debug_warn("%i cap 0x%x not found\n", p->pid, cid);
 		return nil;
 
 	} else if ((c->perm & perm) != perm) {
-		debug_warn("%i cap %i bad perm 0x%x != expected 0x%x\n", 
-			p->pid, c->id, c->perm, perm);
+		debug_warn("%i cap 0x%x bad perm 0x%x != expected 0x%x\n", 
+			p->pid, cid, c->perm, perm);
 		return nil;
 
 	} else if (c->perm != 0 && c->obj->type != type) {
-		debug_warn("%i cap %i bad type %i != expected %i\n", 
-			p->pid, c->id, c->obj->type, type);
+		debug_warn("%i cap 0x%x bad type %i != expected %i\n", 
+			p->pid, cid, c->obj->type, type);
 		return nil;
 
 	} else {
@@ -335,10 +332,10 @@ sys_frame_l2_map(int tid, int cid, size_t va)
 	tf = (obj_frame_t *) tc->obj;
 	ff = (obj_frame_t *) fc->obj;
 	if (tf->type != FRAME_L1) {
-		debug_warn("%i tid %i bad l1 frame type\n", up->pid, tc->id);
+		debug_warn("%i tid 0x%x bad l1 frame type\n", up->pid, tid);
 		return ERR;
 	} else if (ff->type != FRAME_MEM) {
-		debug_warn("%i fid %i bad l2 frame type\n", up->pid, fc->id);
+		debug_warn("%i fid 0x%x bad l2 frame type\n", up->pid, cid);
 		return ERR;
 	}
 
