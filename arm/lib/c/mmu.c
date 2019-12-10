@@ -10,9 +10,9 @@ map_l2(uint32_t *l1, size_t pa, size_t va, size_t len)
 {
 	size_t o;
 
-	for (o = 0; (o << 10) < len; o++) {
+	for (o = 0; (o << 12) < len; o++) {
 		l1[L1X(va) + o] = 
-			(pa + (o << 10)) | L1_COARSE;
+			(pa + (o << 12)) | L1_COARSE;
 	}
 
 	return OK;
@@ -23,7 +23,7 @@ unmap_l2(uint32_t *l1, size_t va, size_t len)
 {
 	size_t o;
 	
-	for (o = 0; (o << 10) < len; o++) {
+	for (o = 0; (o << 12) < len; o++) {
 		l1[L1X(va) + o] = 0;
 	}
 

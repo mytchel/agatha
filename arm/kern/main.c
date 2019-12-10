@@ -114,6 +114,8 @@ init_root(struct kernel_info *info)
 		panic("Failed to init root!\n");
 	}
 
+	proc_set_priority(p, 1);
+
 	if (p->pid != ROOT_PID) {
 		panic("root proc (%i) doesn't have root pid (%i)!\n",
 			p->pid, ROOT_PID);
@@ -164,7 +166,6 @@ kernel_map(size_t pa, size_t len, bool cache)
 
 	debug_info("kernel map 0x%x 0x%x (cache=%i) -> 0x%x\n",
 		pa, len, cache, va_next);
-	debug_info("kernel max = 0x%x\n", max_kernel_va);
 
 	off = pa - PAGE_ALIGN_DN(pa);
 	pa = PAGE_ALIGN_DN(pa);
@@ -173,14 +174,19 @@ kernel_map(size_t pa, size_t len, bool cache)
 	va = va_next;
 
 	if (va + len > max_kernel_va) {
-		panic("out of kernel mappings 0x%x > max 0x%x\n", va, max_kernel_va);
+		panic("out of kernel mappings 0x%x > max 0x%x\n", 
+			va, max_kernel_va);
 	}
 	
 	va_next += len;
 
-	map_pages(kernel_l2, pa, va, len, AP_RW_NO, cache);
+	uint32_t *l2;
 
-	debug_info("mapped\n");
+	l2 = kernel_l2;
+
+	debug_info("kernel map l2 = 0x%x\n", l2);
+
+	map_pages(l2, pa, va, len, AP_RW_NO, cache);
 
 	return (void *) (va + off);
 }
@@ -213,27 +219,42 @@ main(struct kernel_info *info)
 	init_kernel_drivers();
 
 	debug(DEBUG_INFO, "kernel mapped at 0x%x\n", info->kernel_va);
-	debug(DEBUG_INFO, "max kernel va = 0x%x\n", max_kernel_va);
-	debug(DEBUG_INFO, "info mapped at   0x%x\n", info);
-	debug(DEBUG_INFO, "boot   0x%x 0x%x\n", info->boot_pa, info->boot_len);
-	debug(DEBUG_INFO, "kernel 0x%x 0x%x\n", info->kernel_pa, info->kernel_len);
-	debug(DEBUG_INFO, "info   0x%x 0x%x\n", info->info_pa, info->info_len);
-	debug(DEBUG_INFO, "root  0x%x 0x%x\n", info->root_pa, info->root_len);
-	debug(DEBUG_INFO, "bundle 0x%x 0x%x\n", info->bundle_pa, info->bundle_len);
-	debug(DEBUG_INFO, "kernel l1 0x%x -> 0x%x 0x%x\n", 
+	debug_info("kernel mapped at 0x%x\n", info->kernel_va);
+	debug_info("max kernel va = 0x%x\n", max_kernel_va);
+	debug_info("info mapped at   0x%x\n", info);
+	debug_info("boot   0x%x 0x%x\n", info->boot_pa, info->boot_len);
+	debug_info("kernel 0x%x 0x%x\n", info->kernel_pa, info->kernel_len);
+	debug_info("info   0x%x 0x%x\n", info->info_pa, info->info_len);
+	debug_info("root  0x%x 0x%x\n", info->root_pa, info->root_len);
+	debug_info("bundle 0x%x 0x%x\n", info->bundle_pa, info->bundle_len);
+	debug_info("kernel l1 0x%x -> 0x%x 0x%x\n", 
 			info->kernel.l1_pa, 
 			info->kernel.l1_va, 
 			info->kernel.l1_len);
-	debug(DEBUG_INFO, "kernel l2 0x%x -> 0x%x 0x%x\n", 
+	debug_info("kernel l2 0x%x -> 0x%x 0x%x\n", 
 			info->kernel.l2_pa, 
 			info->kernel.l2_va, 
 			info->kernel.l2_len);
-	debug(DEBUG_INFO, "root l1 0x%x 0x%x\n", 
+	debug_info("root l1 0x%x 0x%x\n", 
 			info->root.l1_pa, 
 			info->root.l1_len);
-	debug(DEBUG_INFO, "root l2 0x%x 0x%x\n", 
+	debug_info("root l2 0x%x 0x%x\n", 
 			info->root.l2_pa, 
 			info->root.l2_len);
+
+	uint32_t o;
+
+	uint32_t pa = 0x60000000;
+	for (o = 0; o < info->kernel.l2_len/4; o++) {
+		if (kernel_l2[o] == 0) {
+			kernel_l2[o] = pa | L2_SMALL | 7<<6 |AP_RW_RW<<4|1<<3|0<<2;
+		}
+	}
+
+	uint32_t *i;
+	for (i = (void *) info->kernel_va; (uint32_t) i < 0xffffffff; i++) {
+		debug_info("0x%x = 0x%x\n", i, *i);
+	}
 
 	p = init_root(info);
 

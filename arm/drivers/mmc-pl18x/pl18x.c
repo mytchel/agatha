@@ -305,7 +305,10 @@ main(void)
 	char dev_name[] = "test_mmc";
 
 	volatile struct pl18x_regs *regs;
-	size_t regs_pa, regs_len, irqn;
+
+	int mount_eid;
+	int reg_cid;
+	int irq_cid;
 
 	union proc0_req prq;
 	union proc0_rsp prp;
@@ -313,11 +316,17 @@ main(void)
 
 	log_init(dev_name);
 
-	int mount_eid;
+	log(LOG_INFO, "pl18x get caps");
+
 	mount_eid = kcap_alloc();
-	if (mount_eid < 0) {
+	reg_cid = kcap_alloc();
+	irq_cid = kcap_alloc();
+
+	if (mount_eid < 0 || reg_cid < 0 || irq_cid < 0) {
 		exit(ERR);
 	}
+
+	log(LOG_INFO, "pl18x request mount");
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
@@ -327,41 +336,38 @@ main(void)
 		exit(ERR);
 	}
 
+	log(LOG_INFO, "pl18x request regs");
+
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_regs;
 
-	mesg(CID_PARENT, &prq, &prp);
+	mesg_cap(CID_PARENT, &prq, &prp, reg_cid);
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
 
-	regs_pa = prp.get_resource.result.regs.pa;
-	regs_len = prp.get_resource.result.regs.len;
+	log(LOG_INFO, "pl18x request int");
 
-	regs = map_addr(regs_pa, regs_len, MAP_DEV|MAP_RW);
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_int;
+
+	mesg_cap(CID_PARENT, &prq, &prp, irq_cid);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	log(LOG_INFO, "pl18x got mount 0x%x, reg 0x%x, irq 0x%x",
+		mount_eid, reg_cid, irq_cid);
+
+	log(LOG_INFO, "map reg\n");
+
+	regs = frame_map_anywhere(reg_cid);
 	if (regs == nil) {
 		log(LOG_FATAL, "pl18x failed to map registers!");
 		exit(ERR);
 	}
 
-	int irq_cap_id;
-	irq_cap_id = kcap_alloc();
-	if (irq_cap_id < 0) {
-		exit(ERR);
-	}
-
-	prq.get_resource.type = PROC0_get_resource;
-	prq.get_resource.resource_type = RESOURCE_type_int;
-
-	mesg_cap(CID_PARENT, &prq, &prp, irq_cap_id);
-	if (prp.get_resource.ret != OK) {
-		exit(ERR);
-	}
-
-	irqn = prp.get_resource.result.irqn;
-
-	log(LOG_INFO, "pl18x mapped from 0x%x -> 0x%x with irq %i",
-			regs_pa, regs, irqn);
+	log(LOG_INFO, "pl18x init");
 
 	ret = pl18x_init(regs);
 	if (ret != OK) {
@@ -369,15 +375,16 @@ main(void)
 		exit(ret);
 	}
 
+	log(LOG_INFO, "pl18x connect irq");
+
 	int int_eid = kobj_alloc(OBJ_endpoint, 1);
-	if (intr_connect(irq_cap_id, int_eid, 0x1) != OK) {
+	if (intr_connect(irq_cid, int_eid, 0x1) != OK) {
 		exit(ERR);
 	}
 
 	mmc.base = regs;
-	mmc.irqn = irqn;
 	mmc.irq_eid = int_eid;
-	mmc.irq_cid = irq_cap_id;
+	mmc.irq_cid = irq_cid;
 	mmc.name = dev_name;
 
 	mmc.voltages = 0xff8080;
@@ -386,6 +393,7 @@ main(void)
 	mmc.set_ios = &pl18x_set_ios;
 	mmc.reset = &pl18x_reset;
 
+	log(LOG_INFO, "mmc_start");
 	ret = mmc_start(&mmc);
 	log(LOG_WARNING, "mmc_start returned %i!", ret);
 }

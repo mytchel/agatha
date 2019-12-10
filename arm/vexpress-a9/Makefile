@@ -11,7 +11,7 @@ IDLE = \
 DRIVERS = \
 	arm/drivers/serial-pl01x \
 	arm/drivers/timer-sp804 \
-#	arm/drivers/mmc-pl18x \
+	arm/drivers/mmc-pl18x \
 #	arm/drivers/virtio/net \
 #	arm/drivers/ethernet-lan9118 \
 #	arm/drivers/video-pl111

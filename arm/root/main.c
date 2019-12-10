@@ -99,7 +99,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 
 	give_cap = 0;
 
-	log(0, "get resource from %i", from);
+	log(0, "get resource for %i", from);
 
 	rp.get_resource.type = PROC0_get_resource;
 	rp.get_resource.ret = ERR;
@@ -218,7 +218,7 @@ main(struct kernel_info *i)
 		if ((eid = recv(main_eid, &from, m)) < 0) continue;
 		if (from == PID_SIGNAL) continue;
 
-		log(0, "got message from %i on eid %i of type 0x%x",
+		log(0, "got message from %i on eid 0x%x of type 0x%x",
 				from, eid, ((uint32_t *) m)[0]);
 
 		switch (((uint32_t *) m)[0]) {

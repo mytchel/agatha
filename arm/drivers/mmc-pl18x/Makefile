@@ -4,10 +4,12 @@ MMC_PL18X_SRC_C = \
 	arm/drivers/mmc-pl18x/pl18x.c
 
 MMC_PL18X_LIBS = \
+	$(LIBC) \
+	lib/pool \
 	lib/sdmmc \
 	lib/block \
 	lib/log \
-	$(USER_LIBS)
+	lib/string
 
 MMC_PL18X_OBJECTS = \
 	$(MMC_PL18X_SRC_C:%.c=%.o) \

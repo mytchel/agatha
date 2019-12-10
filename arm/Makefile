@@ -9,8 +9,8 @@ LIBS += \
 	lib/log \
 	lib/mem \
 	lib/block \
+	lib/sdmmc \
 #	lib/net \
-#	lib/sdmmc \
 #	lib/fat
 
 BUNDLE_BIN =

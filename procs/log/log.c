@@ -185,9 +185,9 @@ handle_log(int eid, int from, union log_req *rq)
 
 	rp.log.ret = OK;
 
-	reply(eid, from, &rp);
-
 	send_logs();
+
+	reply(eid, from, &rp);
 }
 
 	void

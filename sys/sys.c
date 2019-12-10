@@ -405,6 +405,13 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, cap_t *o)
 
 	p = e->holder;
 
+	if (p == nil) {
+		debug_warn("endpoint 0x%x has no holder!\n", e);
+		return ERR;
+	}
+
+	debug_info("%i mesg to proc %i\n", up->pid, p->pid);
+
 	memcpy(up->m, rq, MESSAGE_LEN);
 
 	up->give = o;
@@ -491,7 +498,7 @@ sys_mesg(int to, uint8_t *rq, uint8_t *rp, int cid)
 {
 	cap_t *c, *o;
 
-	debug_info("%i mesg\n", up->pid, to);
+	debug_info("%i mesg 0x%x\n", up->pid, to);
 
 	c = proc_find_cap(up, to);
 	if (c == nil) {
@@ -521,7 +528,8 @@ sys_reply(int to, int pid, uint8_t *m, int cid)
 {
 	cap_t *c, *o;
 
-	debug_info("%i reply %i pid %i, give cap 0x%x\n", up->pid, to, pid, cid);
+	debug_info("%i reply 0x%x pid %i, give cap 0x%x\n", 
+		up->pid, to, pid, cid);
 
 	c = proc_find_cap(up, to);
 	if (c == nil) {

@@ -8,16 +8,14 @@ union block_req {
 
 	struct {
 		uint32_t type;
-		size_t pa, len;
 		size_t start;
-		size_t r_len;
+		size_t len;
 	} read;
 
 	struct {
 		uint32_t type;
-		size_t pa, len;
 		size_t start;
-		size_t w_len;
+		size_t len;
 	} write;
 };
 
@@ -76,7 +74,6 @@ struct block_dev {
 			size_t pa,
 			size_t start, 
 			size_t n);
-
 };
 
 int

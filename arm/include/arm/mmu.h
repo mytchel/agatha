@@ -28,7 +28,7 @@
 #define PAGE_ALIGN(x)    ((((size_t) x) + PAGE_SIZE - 1) & PAGE_MASK)
 #define PAGE_ALIGN_DN(x) ((((size_t) x)) & PAGE_MASK)
 
-#define TABLE_SHIFT    22
+#define TABLE_SHIFT    20
 #define TABLE_AREA	 (1UL << TABLE_SHIFT)
 #define TABLE_SIZE   PAGE_SIZE
 #define TABLE_MASK	 (~(TABLE_AREA - 1))
