@@ -63,7 +63,7 @@ test_timer(void)
 	int timer_id = rp.create.id;
 
 	int i;
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < 4; i++) {
 		rq.set.type = TIMER_set;
 		rq.set.id = timer_id;
 		rq.set.time_ms = 5 * 1000;

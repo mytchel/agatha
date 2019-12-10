@@ -58,13 +58,12 @@ next_proc(void)
 	obj_proc_t *p, *n;
 	int q;
 
-#if DEBUG_LEVEL >= DEBUG_SCHED_V
+#if DEBUG_LEVEL & DEBUG_SCHED_V
 	int i;
 	for (i = 0; i < MAX_PROCS; i++) {
 		p = procs[i];
 		if (p == nil) continue;
-		if (p->state == PROC_free) continue;
-		if (p->list == nil) {
+		if (p->slist == nil) {
 			debug_sched_v("proc %i pri %i in state %i\n", 
 					p->pid, p->priority, p->state);
 		} else {

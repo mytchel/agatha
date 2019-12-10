@@ -91,7 +91,7 @@ get_chunk(size_t bin)
 			return nil;
 		}
 
-		c = frame_map_anywhere(fid, len);
+		c = frame_map_anywhere(fid);
 		if (c == nil) {
 			release_memory(fid);
 			return nil;
@@ -156,7 +156,7 @@ malloc(size_t len)
 			return nil;
 		}
 
-		b = frame_map_anywhere(fid, len);
+		b = frame_map_anywhere(fid);
 		if (b == nil) {
 			release_memory(fid);
 			return nil;

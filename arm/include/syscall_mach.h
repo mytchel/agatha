@@ -47,11 +47,11 @@ int
 frame_l2_map(int tid, int cid, void *va);
 
 int
-frame_l2_unmap(int tid, int nid, void *addr, size_t len);
+frame_l2_unmap(int tid, int nid, void *addr);
 
 int
 frame_map(int tid, int cid, void *addr);
 
 int
-frame_unmap(int tid, int nid, void *addr, size_t len);
+frame_unmap(int tid, int nid, void *addr);
 

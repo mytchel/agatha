@@ -31,7 +31,7 @@ init_bundled_proc(uint8_t *code,
 		log(LOG_WARNING, "out of mem for stack");
 		exit(1);
 	}
-
+	
 	log(LOG_INFO, "get l1 mem 0x%x", 0x4000);
 
 	l1 = request_memory(0x4000, 0x4000);
@@ -48,11 +48,15 @@ init_bundled_proc(uint8_t *code,
 		exit(1);
 	}
 
-	code_va = (void *) (0x50000);
+	log(LOG_INFO, "got code mem cid 0x%x", code_new);
+	log(LOG_INFO, "got stack mem cid 0x%x", stack);
+	log(LOG_INFO, "got l1 mem cid 0x%x", l1);
+	log(LOG_INFO, "got l2 mem cid 0x%x", l2);
 
 	log(LOG_INFO, "map code for copy");
 
-	if (frame_map(CID_L1, code_new, code_va) != OK) {
+	code_va = frame_map_anywhere(code_new);
+	if (code_va == nil) {
 		log(LOG_WARNING, "map failed");
 		exit(1);
 	}
@@ -63,7 +67,7 @@ init_bundled_proc(uint8_t *code,
 
 	log(LOG_INFO, "unmap code");
 
-	frame_unmap(CID_L1, code_new, code_va, len);
+	code_new = unmap_addr(code_va);
 	
 	log(LOG_INFO, "setup l1");
 
@@ -93,7 +97,7 @@ init_bundled_proc(uint8_t *code,
 		exit(1);
 	}
 
-	log(LOG_INFO, "setup proc");
+	log(LOG_INFO, "connect endpoint");
 
 	eid = kcap_alloc();
 	if (endpoint_connect(main_eid, eid) != OK) {
@@ -101,17 +105,23 @@ init_bundled_proc(uint8_t *code,
 		exit(1);
 	}
 
+	log(LOG_INFO, "alloc proc");
+
 	p_cid = kobj_alloc(OBJ_proc, 1);
 	if (p_cid < 0) {
 		log(LOG_WARNING, "proc kobj alloc failed");
 		exit(1);
 	}
+	
+	log(LOG_INFO, "alloc caplist");
 
 	clist = kobj_alloc(OBJ_caplist, 1);
 	if (clist < 0) {
 		log(LOG_WARNING, "proc kobj clist alloc failed");
 		exit(1);
 	}
+
+	log(LOG_INFO, "setup proc");
 
 	int p_pid;
 
@@ -120,6 +130,10 @@ init_bundled_proc(uint8_t *code,
 		log(LOG_WARNING, "proc setup failed");
 		exit(1);
 	}
+
+	kcap_free(l1);
+	kcap_free(clist);
+	kcap_free(eid);
 
 	if (proc_set_priority(p_cid, priority) != OK) {
 		log(LOG_WARNING, "proc set priority failed");
@@ -222,7 +236,7 @@ init_procs(void)
 		exit(1);
 	}
 
-	bundle_va = frame_map_anywhere(bundle_cid, info->bundle_len);
+	bundle_va = frame_map_anywhere(bundle_cid);
 	if (bundle_va == nil) {
 		log(LOG_WARNING, "bundle map failed");
 		exit(1);
@@ -261,7 +275,7 @@ init_procs(void)
 		off += bundled_procs[i].len;
 	}
 
-	bundle_cid = unmap_addr(bundle_va, info->bundle_len);
+	bundle_cid = unmap_addr(bundle_va);
 	if (bundle_cid < 0) {
 		log(LOG_WARNING, "failed to unmap bundle");
 		exit(1);

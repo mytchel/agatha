@@ -8,19 +8,24 @@ proc_find_cap(obj_proc_t *p, int cid)
 
 	int base = cid >> 12;
 	int sub = cid & 0xfff;
-	
+
+	if (base >= CLIST_CAPS) {
+		debug_warn("bad base 0x%x\n", base);
+		return nil;
+	}
+
 	c = &p->cap_root->caps[base];
 
 	if (sub == 0) {
 		return c;
 	} else if (!(c->perm & CAP_read)) {
-		debug_info("bad perm\n");
+		debug_warn("bad perm\n");
 		return nil;
 	} else if (c->obj->type != OBJ_caplist) {
-		debug_info("bad obj for sub %i\n");
+		debug_warn("bad obj for sub %i\n");
 		return nil;
-	} else if (sub > 256) {
-		debug_info("bad sub %i\n", sub);
+	} else if (sub > CLIST_CAPS) {
+		debug_warn("bad sub %i\n", sub);
 		return nil;
 	} else {
 		l = (void *) c->obj;
@@ -119,22 +124,16 @@ sys_obj_retype(int cid, int type, size_t n)
 		return ERR;
 	}
 
-	debug_info("cap found\n");
-
 	if (c->obj->type != OBJ_untyped) {
 		return ERR;
 	}
 	
 	o = (obj_untyped_t *) c->obj;
 
-	debug_info("find size\n");
-
 	len = obj_size_funcs[type](n);
 	if (len == 0) {
 		return ERR;
 	}
-
-	debug_info("need size %i\n", len);
 
 	if (o->len < len) {
 		return ERR;
@@ -185,7 +184,7 @@ sys_obj_split(int cid, int nid)
 
 	len = o->len >> 1;;
 
-	debug_info("%i split obj 0x%x of len %i into %i\n",
+	debug_info("%i split obj 0x%x of len %i into 0x%x\n",
 		up->pid, o->len, len, nid);
 
 	if (len < sizeof(obj_untyped_t)) {
@@ -226,8 +225,6 @@ sys_obj_merge(int cid_l, int cid_h)
 		return ERR;
 	}
 
-	debug_info("caps found\n");
-
 	if (cl->obj->type != OBJ_untyped) {
 		return ERR;
 	} else if (ch->obj->type != OBJ_untyped) {
@@ -267,7 +264,6 @@ endpoint_get_pending(obj_endpoint_t *e,
 	obj_proc_t *p;
 
 	if (e->signal != 0) {
-		debug_info("got signal\n");
 		((uint32_t *) m)[0] = e->signal;
 		e->signal = 0;
 		*pid = PID_SIGNAL;
@@ -276,19 +272,15 @@ endpoint_get_pending(obj_endpoint_t *e,
 
 	for (p = e->waiting.head; p != nil; p = p->wnext) {
 		if (p->state == PROC_block_send) {
-			debug_info("recv get pending, found\n");
-
 			p->state = PROC_block_reply;
 
 			memcpy(m, p->m, MESSAGE_LEN);
 
 			if (p->give != nil && p->give->perm != 0) {
 				if (o == nil) {
-					panic("%i send to %i with cap but not accepting, TODO: handle this\n", p->pid, up->pid);
+					panic("%i send to %i with cap but not accepting, TODO: handle this\n", 
+						p->pid, up->pid);
 				}
-
-				debug_info("%i recv cap from %i\n", 
-					up->pid, p->pid);
 
 				o->perm = p->give->perm;
 				o->obj = p->give->obj;
@@ -335,7 +327,7 @@ recv(int from, int *pid, uint8_t *m, cap_t *o)
 			up->recv_from = (obj_endpoint_t *) c->obj;
 		} else {
 			int a;
-			for (a = 1; a < 255; a++) {
+			for (a = 1; a < CLIST_CAPS; a++) {
 				c = &up->cap_root->caps[a];
 				if (!(c->perm & CAP_read)) {
 					continue;
@@ -351,8 +343,6 @@ recv(int from, int *pid, uint8_t *m, cap_t *o)
 
 			up->recv_from = nil;
 		}
-
-		debug_info("nothing pending, schedule\n");
 
 		up->state = PROC_block_recv;
 		schedule(nil);
@@ -391,7 +381,6 @@ reply(obj_endpoint_t *e, int pid, uint8_t *m, cap_t *o)
 	memcpy(p->m, m, MESSAGE_LEN);
 
 	if (o != nil) {
-		debug_info("%i offer cap\n", up->pid);
 		if (p->give == nil) {
 			debug_warn("%i offer cap to %i but they are not accepting\n",
 				up->pid, p->pid);
@@ -435,22 +424,16 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, cap_t *o)
 	if (p->state == PROC_block_recv 
 		&& (p->recv_from == nil || p->recv_from == e))
 	{
-		debug_info("wake %i\n", p->pid);
 		proc_ready(p);
 		schedule(p);
 	} else {
-		debug_info("%i is not waiting, state %i\n", 
-			p->pid, p->state);
 		schedule(nil);
 	}
 
 	memcpy(rp, up->m, MESSAGE_LEN);
 
 	if (o != nil) {
-		if (o->perm == 0) {
-			debug_info("%i mesg cap didn't get cap\n",
-				up->pid);
-		} else {
+		if (o->perm != 0) {
 			debug_info("%i mesg cap got cap perm 0x%x obj 0x%x\n", 
 				up->pid, o->perm, o->obj);
 
@@ -475,11 +458,8 @@ signal(obj_endpoint_t *e, uint32_t s)
 	if (p->state == PROC_block_recv 
 		&& (p->recv_from == nil || p->recv_from == e))
 	{
-		debug_warn("wake proc %i\n", p->pid);
 		proc_ready(p);
 		schedule(p);
-	} else {
-		debug_warn("signal proc %i not waiting\n", p->pid);
 	}
 
 	return OK;
@@ -798,14 +778,10 @@ sys_proc_start(int cid, size_t pc, size_t sp)
 		o = (obj_proc_t *) c->obj;
 	}
 
-	debug_info("%i proc start pid %i\n", up->pid, o->pid);
-
 	func_label(&o->label, 
 		(size_t) o->kstack, KSTACK_LEN,
 		(size_t) &proc_start,
 		pc, sp);
-
-	debug_info("%i proc ready pid %i\n", up->pid, o->pid);
 
 	proc_ready(o);
 
@@ -815,7 +791,7 @@ sys_proc_start(int cid, size_t pc, size_t sp)
 		size_t
 sys_debug(char *m)
 {
-	debug_warn("%i debug %s\n", up->pid, m);
+	debug(DEBUG_USER, "(%i) %s\n", up->pid, m);
 
 	return OK;
 }

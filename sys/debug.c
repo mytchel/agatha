@@ -33,6 +33,10 @@ debug(int code, const char *fmt, ...)
 			snprintf(str, sizeof(str),
 					"KERNEL SCHED: ");
 			break;
+		case DEBUG_USER:
+			snprintf(str, sizeof(str),
+					"USER: ");
+			break;
 		default:
 			snprintf(str, sizeof(str),
 					"KERNEL SOMETHING (%i?): ", code);

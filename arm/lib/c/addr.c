@@ -223,7 +223,7 @@ grow_pool(struct pool *p)
 		return false;
 	}
 
-	va = frame_map_anywhere(fid, len);
+	va = frame_map_anywhere(fid);
 	if (va == nil) {
 		release_memory(fid);
 		return false;
@@ -392,12 +392,13 @@ get_free_span_slot(size_t len)
 }
 
 	void *
-frame_map_anywhere(int fid, size_t len)
+frame_map_anywhere(int fid)
 {
 	struct span *s;
-	int r;
+	size_t pa, len;
+	int r, type;
 
-	log(LOG_INFO, "find map for 0x%x 0x%x", fid, len);
+	log(LOG_INFO, "find map for 0x%x", fid);
 
 	if (!initialized)
 		addr_init();
@@ -406,7 +407,9 @@ frame_map_anywhere(int fid, size_t len)
 		return nil;
 	}
 
-	len = PAGE_ALIGN(len);
+	if (frame_info(fid, &type, &pa, &len) != OK) {
+		return nil;
+	}
 
 	s = get_free_span_slot(len);
 	if (s == nil) {
@@ -427,13 +430,13 @@ frame_map_anywhere(int fid, size_t len)
 }
 
 	int
-unmap_addr(void *addr, size_t len)
+unmap_addr(void *addr)
 {
 	size_t va = (size_t) addr;
 	struct l1_span *l;
 	struct span *s;
 
-	log(LOG_INFO, "unmap_addr 0x%x 0x%x", addr, len);
+	log(LOG_INFO, "unmap_addr 0x%x", addr);
 
 	if (!initialized)
 		return ERR;
@@ -444,7 +447,7 @@ unmap_addr(void *addr, size_t len)
 
 	for (l = l1_mapped; l != nil; l = l->next) {
 		log(LOG_INFO, "is it in 0x%x 0x%x?", l->va, l->len);
-		if (l->va <= va && va + len <= l->va + l->len) {
+		if (l->va <= va && va < l->va + l->len) {
 			log(LOG_INFO, "yes");
 			break;
 		}
@@ -457,20 +460,16 @@ unmap_addr(void *addr, size_t len)
 
 	log(LOG_INFO, "find span in 0x%x 0x%x?", l->va, l->len);
 	for (s = l->mapped; s != nil; s = s->next) {
-		log(LOG_INFO, "is it in 0x%x 0x%x?", s->va, s->len);
-		if (s->va <= va && va + len <= s->va + s->len) {
+		log(LOG_INFO, "is it 0x%x 0x%x?", s->va, s->len);
+		if (s->va == va) {
 			log(LOG_INFO, "yes");
 			break;
 		}
 	}
 
 	if (s == nil) {
-		log(LOG_INFO, "error unmapping, pages not mapped");
-		return ERR;
-	}
-
-	if (s->va != va || s->len != len) {
-		log(LOG_INFO, "error unmapping, cannot unmap across mappings");
+		log(LOG_WARNING, "error unmapping 0x%x, mapping not found",
+			addr);
 		return ERR;
 	}
 
@@ -481,7 +480,7 @@ unmap_addr(void *addr, size_t len)
 		return ERR;
 	}
 
-	if (frame_unmap(CID_L1, fid, addr, len) != OK) {
+	if (frame_unmap(CID_L1, fid, addr) != OK) {
 		return ERR;
 	}
 

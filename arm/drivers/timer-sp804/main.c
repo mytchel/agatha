@@ -151,8 +151,6 @@ set_timer(void)
 	int
 main(void)
 {
-	size_t regs_pa, regs_len;
-	size_t irqn;
 	int mount_eid;
 	int reg_cid;
 	int irq_cid;
@@ -162,7 +160,6 @@ main(void)
 	int eid, from, cid;
 
 	log_init("timer0");
-	log(LOG_INFO, "start");
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
@@ -186,17 +183,13 @@ main(void)
 		exit(ERR);
 	}
 
-	log(LOG_INFO, "get regs");
 	mesg_cap(CID_PARENT, &prq, &prp, reg_cid);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
 
-	regs_pa  = prp.get_resource.result.regs.pa;
-	regs_len = prp.get_resource.result.regs.len;
-
-	regs = frame_map_anywhere(reg_cid, regs_len);
+	regs = frame_map_anywhere(reg_cid);
 	if (regs == nil) {
 		log(LOG_FATAL, "failed to map registers!");
 		return ERR;
@@ -210,24 +203,16 @@ main(void)
 		exit(ERR);
 	}
 
-	log(LOG_INFO, "get int");
 	mesg_cap(CID_PARENT, &prq, &prp, irq_cid);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
 	}
 
-	irqn = prp.get_resource.result.irqn;
-
-	log(LOG_INFO, "on pid %i mapped 0x%x -> 0x%x with irq %i", 
-		pid(), regs_pa, regs, irqn);
-
 	timers = nil;
 
-	log(LOG_INFO, "clear");
 	set_timer();
 
-	log(LOG_INFO, "register int");
 	int int_eid = kobj_alloc(OBJ_endpoint, 1);
 	if (intr_connect(irq_cid, int_eid, 0x14) != OK) {
 		log(LOG_FATAL, "failed to register int");
@@ -253,13 +238,8 @@ main(void)
 
 				intr_ack(irq_cid);
 
-				log(LOG_INFO, "got int 0x%x, status = 0x%x!", 
-					rq.type, status_raw);
-
 				check_timers();
 				set_timer();
-			} else {
-				log(LOG_INFO, "someone is sending us a signal?");
 			}
 		} else {
 			switch (rq.type) {

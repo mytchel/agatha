@@ -132,12 +132,12 @@ create_frame(size_t pa, size_t len, int type)
 	cid = kobj_alloc(OBJ_frame, 1);
 	if (cid < 0) {
 		log(LOG_WARNING, "frame alloc failed");
-		return ERR;
+		exit(ERR);
 	}
 
 	if (frame_setup(cid, type, pa, len) != OK) {
 		log(LOG_WARNING, "frame setup failed");
-		return ERR;
+		exit(ERR);
 	}
 
 	return cid;
@@ -153,20 +153,20 @@ request_memory(size_t len, size_t align)
 		return nil;
 	}
 
-	pool_free(&addr_pool, m);
-
 	int cid;
 
 	cid = kobj_alloc(OBJ_frame, 1);
 	if (cid < 0) {
 		log(LOG_WARNING, "frame alloc failed");
-		return ERR;
+		exit(ERR);
 	}
 
 	if (frame_setup(cid, FRAME_MEM, m->start, m->len) != OK) {
 		log(LOG_WARNING, "frame setup failed");
-		return ERR;
+		exit(ERR);
 	}
+
+	pool_free(&addr_pool, m);
 
 	return cid;
 }
@@ -177,142 +177,6 @@ release_memory(int cid)
 	/* TODO */
 	return ERR;
 }
-
-#if 0
-/* TODO: should make this use the code in proc.c
-	 and manage itself like the other procs. */
-
-	int
-addr_map_l2s(size_t pa, size_t va, size_t tlen)
-{
-	uint32_t o, *addr;
-
-	addr = map_addr(pa, tlen, MAP_RW|MAP_DEV);
-	if (addr == nil) {
-		return PROC0_ERR_INTERNAL;
-	}
-
-	memset(addr, 0, tlen);
-
-	for (o = 0; (o << 10) < tlen; o++) {
-		if (root_l1.mmu.addr[L1X(va) + o] != L1_FAULT) {
-			return PROC0_ERR_ADDR_DENIED;
-		}
-
-		root_l1.mmu.addr[L1X(va) + o]
-			= (pa + (o << 10)) | L1_COARSE;
-
-		root_l1.va[L1X(va) + o]
-			= (uint32_t *) (((uint32_t) addr) + (o << 10));
-	}
-
-	return OK;
-}
-
-	int
-addr_map(size_t pa, size_t va, size_t len, int flags)
-{
-	uint32_t tex, c, b, ap, o;
-	uint32_t *l2;
-	bool cache;
-
-	if (info->kernel_va <= va + len) {
-		log(LOG_WARNING, "map 0x%x + 0x%x would be into kernel memory 0x%x",
-				va, len, info->kernel_va);
-		return PROC0_ERR_ADDR_DENIED;
-	}
-
-	if (flags & MAP_RW) {
-		ap = AP_RW_RW;
-	} else {
-		ap = AP_RW_RO;
-	}
-
-	if ((flags & MAP_TYPE_MASK) == MAP_MEM) {
-		cache = true;
-	} else if ((flags & MAP_TYPE_MASK) == MAP_DEV) {
-		cache = false;
-	} else {
-		return PROC0_ERR_FLAGS;
-	}
-
-	if (cache) {
-		tex = 7;
-		c = 1;
-		b = 0;
-	} else {
-		tex = 0;
-		c = 0;
-		b = 1;
-	}
-
-	for (o = 0; o < len; o += PAGE_SIZE) {
-		log(LOG_INFO, "map 0x%x -> 0x%x", va + o, pa + o);
-
-		l2 = root_l1.va[L1X(va + o)];
-		if (l2 == nil) {
-			log(LOG_INFO, "l1 nil");
-			return PROC0_ERR_TABLE;
-		}
-
-		if (l2[L2X(va + o)] != L2_FAULT) {
-			log(LOG_INFO, "l2 already mapped 0x%x", l2[L2X(va + o)]);
-			return PROC0_ERR_ADDR_DENIED;
-		}
-
-		l2[L2X(va + o)] = (pa + o)
-			| L2_SMALL | tex << 6 | ap << 4 | c << 3 | b << 2;
-	}
-
-	return OK;
-}
-
-	int
-addr_unmap(size_t va, size_t len)
-{
-	uint32_t *l2;
-	size_t o;
-
-	for (o = 0; o < len; o += PAGE_SIZE) {
-		log(LOG_INFO, "unmap page 0x%x", va + o);
-
-		l2 = root_l1.va[L1X(va + o)];
-		if (l2 == nil) {
-			log(LOG_INFO, "l1 nil");
-			return PROC0_ERR_TABLE;
-		}
-
-		l2[L2X(va + o)] = L2_FAULT;
-	}
-
-	yield();
-
-	return OK;
-}
-
-
-	void
-proc_init_l1(uint32_t *l1)
-{
-	size_t kernel_index = L1X(info->kernel_va);
-
-	log(LOG_INFO, "init l1 at 0x%x kva at 0x%x", l1, info->kernel_va);
-
-	log(LOG_INFO, "memset 0x%x bytes", kernel_index * sizeof(uint32_t));
-	memset(l1, 0, kernel_index * sizeof(uint32_t));
-
-	log(LOG_INFO, "init l1 at 0x%x kva at 0x%x", l1, info->kernel_va);
-
-	log(LOG_INFO, "copy 0x%x bytes", 0x4000 - kernel_index * sizeof(uint32_t));
-
-	memcpy(&l1[kernel_index],
-			&root_l1.mmu.addr[kernel_index],
-			0x4000 - kernel_index * sizeof(uint32_t));
-
-	log(LOG_INFO, "init l1 at 0x%x kva at 0x%x", l1, info->kernel_va);
-}
-
-#endif
 
 	void
 add_ram(size_t start, size_t len)

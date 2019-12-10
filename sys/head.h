@@ -60,6 +60,7 @@ memset(void *dst, uint8_t v, size_t len);
 #define DEBUG_SCHED     8
 #define DEBUG_SCHED_V  16
 #define DEBUG_INFO_V   32
+#define DEBUG_USER     64
 
 #ifndef DEBUG_LEVEL
 #define DEBUG_LEVEL DEBUG_ERR

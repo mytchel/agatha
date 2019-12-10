@@ -100,7 +100,7 @@ main(void)
 		exit(ERR);
 	}
 
-	regs = frame_map_anywhere(reg_cid, 0x1000);
+	regs = frame_map_anywhere(reg_cid);
 	if (regs == nil) {
 		exit(ERR);
 	}

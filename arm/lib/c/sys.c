@@ -29,9 +29,8 @@ struct kobj {
 	kobj_t *from;
 };
 
-#define cap_list_n  255
 struct kcap_list {
-	uint32_t caps[255/32];
+	uint32_t caps[CLIST_CAPS/32];
 };
 
 static kobj_t kobj_pool_initial[64] = { 0 };
@@ -83,7 +82,7 @@ grow_pool(void)
 		return false;
 	}
 
-	va = frame_map_anywhere(fid, len);
+	va = frame_map_anywhere(fid);
 	if (va == nil) {
 		release_memory(fid);
 		return false;
@@ -126,7 +125,7 @@ kcap_alloc(void)
 	ksys_init();
 
 	c = &kcap_list_initial;
-	for (o = 0; o < cap_list_n; o++) {
+	for (o = 0; o < CLIST_CAPS; o++) {
 		if (!(c->caps[o/32] & (1 << (o % 32)))) {
 			c->caps[o/32] |= 1 << (o % 32);
 
@@ -213,8 +212,6 @@ kobj_split(kobj_t *o)
 		return false;
 	}
 
-	log(LOG_INFO, "next id 0x%x", nid);
-
 	n = kobj_pool_alloc();
 	if (n == nil) {
 		log(LOG_INFO, "kobj pool empty");
@@ -299,10 +296,13 @@ kobj_alloc(int type, size_t n)
 		log(LOG_INFO, "type unknown");
 		return ERR;
 	}
-
+	
 	len = 1;
 	while (len < l)
 		len <<= 1;
+	
+	log(LOG_INFO, "kobj alloc %i %i need %i byte object", 
+		type, n, len);
 
 	f = nil;
 	for (o = kobjs; o != nil; o = o->next) {
@@ -316,6 +316,8 @@ kobj_alloc(int type, size_t n)
 	}
 
 	if (f == nil) {
+		log(LOG_INFO, "no objects large enough for %i, get new",
+			len);
 		f = kobj_alloc_new(len);
 		if (f == nil) {
 			return ERR;
@@ -324,6 +326,9 @@ kobj_alloc(int type, size_t n)
 
 	f->claimed = true;
 
+	log(LOG_INFO, "split found object of size %i to %i",
+			f->len, len);
+	
 	while (len < f->len) {
 		if (!kobj_split(f)) {
 			return ERR;

@@ -18,17 +18,17 @@ sys_obj_create(int fid, int nid)
 		debug_warn("%i obj create couldnt find cap %i or %i\n", 
 			up->pid, fid, nid);
 		return ERR;
-	} else if (fc->obj->type != OBJ_frame) {
-		debug_warn("%i obj create %i is not frame\n",
-			up->pid, fc);
+	} else if (nc->perm != 0) {
+		debug_warn("%i obj create cap %i bad perm %i\n", 
+			up->pid, nid, nc->perm);
 		return ERR;
 	} else if (!(fc->perm & CAP_write) || !(fc->perm & CAP_read)) {
 		debug_warn("%i obj create frame cap %i bad perm %i\n",
 			up->pid, fid, fc->perm);
 		return ERR;
-	} else if (nc->perm != 0) {
-		debug_warn("%i obj create cap %i bad perm %i\n", 
-			up->pid, nid, nc->perm);
+	} else if (fc->obj->type != OBJ_frame) {
+		debug_warn("%i obj create %i is not frame\n",
+			up->pid, fc);
 		return ERR;
 	}
 
@@ -41,7 +41,8 @@ sys_obj_create(int fid, int nid)
 
 	while (true) {
 		if (mlen > f->len) {
-			debug_info("%i obj create bad size %i\n", up->pid, f->len);
+			debug_info("%i obj create bad size 0x%x\n", 
+				up->pid, f->len);
 			return ERR;
 		} else if (mlen == f->len) {
 			break;
@@ -190,7 +191,8 @@ sys_frame_setup(int cid, int type, size_t pa, size_t len)
 	obj_frame_t *f;
 	cap_t *c;
 
-	debug_info("%i frame setup 0x%x\n", up->pid, cid);
+	debug_info("%i frame setup 0x%x as %i pa=0x%x, 0x%x\n",
+		 up->pid, cid, type, pa, len);
 
 	if (up->pid != ROOT_PID) {
 		return ERR;
@@ -222,7 +224,7 @@ sys_frame_info(int cid, int *type, size_t *pa, size_t *len)
 	obj_frame_t *f;
 	cap_t *c;
 
-	debug_info("%i frame info %i\n", up->pid, cid);
+	debug_info("%i frame info 0x%x\n", up->pid, cid);
 
 	c = proc_find_cap(up, cid);
 	if (c == nil) {
@@ -339,6 +341,9 @@ sys_frame_l2_map(int tid, int cid, size_t va)
 		return ERR;
 	}
 
+	debug_info("%i frame l2 map l2 pa=0x%x,0x%x into pa=0x%x,0x%x\n", 
+		up->pid, ff->pa, ff->len, tf->pa, tf->len);
+
 	l1 = kernel_map(tf->pa, 0x4000, true);
 	if (l1 == nil) {
 		return ERR;
@@ -377,26 +382,8 @@ sys_frame_l2_map(int tid, int cid, size_t va)
 	return OK;
 }
 
-obj_frame_t *
-get_remove_l1_mapping(obj_frame_t *tf, int type, size_t va, size_t len)
-{
-	obj_frame_t **f;
-	for (f = &tf->next; *f != nil; f = &(*f)->next) {
-		if ((*f)->type != type) continue;
-		if ((*f)->va == va && (*f)->len == len) {
-			obj_frame_t *t = *f;
-			*f = (*f)->next;
-			t->next = nil;
-			t->va = nil;
-			return t;
-		}
-	}
-
-	return nil;
-}
-
 	size_t
-sys_frame_l2_unmap(int tid, int nid, size_t va, size_t len)
+sys_frame_l2_unmap(int tid, int nid, size_t va)
 {
 	debug_warn("todo l2 unmap\n");
 	return ERR;
@@ -441,8 +428,6 @@ sys_frame_map(int tid, int cid, size_t va)
 		return ERR;
 	} 
 
-	debug_info("have caps\n");
-
 	tf = (obj_frame_t *) tc->obj;
 	ff = (obj_frame_t *) fc->obj;
 
@@ -451,8 +436,9 @@ sys_frame_map(int tid, int cid, size_t va)
 			up->pid, tid);
 		return ERR;
 	} 
-	
-	debug_info("l1 ok\n");
+
+	debug_info("%i frame map type=%i pa=0x%x,0x%x into pa=0x%x,0x%x\n", 
+		up->pid, ff->type, ff->pa, ff->len, tf->pa, tf->len);
 
 	uint32_t tex, c, b, o;
 	uint32_t ap = AP_RW_RW;
@@ -481,9 +467,6 @@ sys_frame_map(int tid, int cid, size_t va)
 		c << 3 |
 		b << 2;
 
-	debug_info("map l1 0x%x (pa=0x%x) for changing\n",
-		tid, tf->pa);
-
 	l1 = kernel_map(tf->pa, 0x4000, true);
 	if (l1 == nil) {
 		return ERR;
@@ -494,14 +477,9 @@ sys_frame_map(int tid, int cid, size_t va)
 	l2_l1x = 0;
 	l2 = nil;
 
-	debug_info("map pages\n");
-
 	for (o = 0; o < ff->len; o += PAGE_SIZE) {
 		if (l2 == nil || L1X(va + o) != l2_l1x) {
-			debug_info("map l2 for 0x%x\n", va+o);
-
 			if (l2 != nil) {
-				debug_info("unmap l2 for editing\n");
 				kernel_unmap(l2, PAGE_SIZE);
 			}
 
@@ -515,7 +493,7 @@ sys_frame_map(int tid, int cid, size_t va)
 
 			l2 = kernel_map(L1PA(l1[l2_l1x]), PAGE_SIZE, true);
 			if (l2 == nil) {
-				panic("map failed\n");
+				panic("l2 map failed\n");
 				break;
 			}
 
@@ -539,11 +517,9 @@ sys_frame_map(int tid, int cid, size_t va)
 	}
 
 	if (l2 != nil) {
-		debug_info("unmap l2 for editing\n");
 		kernel_unmap(l2, PAGE_SIZE);
 	}
 	
-	debug_info("unmap l1 for editing\n");
 	kernel_unmap(l1, 0x4000);
 	
 	mmu_invalidate();
@@ -559,23 +535,21 @@ sys_frame_map(int tid, int cid, size_t va)
 }
 
 		size_t
-sys_frame_unmap(int tid, int nid, size_t va, size_t len)
+sys_frame_unmap(int tid, int nid, size_t va)
 {
 	obj_frame_t *tf, *ff;
 	uint32_t *l1, *l2;
 	size_t l2_l1x, o, pa;
 	cap_t *tc, *fc;
 
-	debug_info("%i frame unmap into 0x%x from 0x%x at 0x%x, 0x%x\n", 
-		up->pid, nid, tid, va, len);
+	debug_info("%i frame unmap into 0x%x from 0x%x at 0x%x\n", 
+		up->pid, nid, tid, va);
 
 	tc = proc_find_cap_type(up, tid, CAP_write|CAP_read, OBJ_frame);
 	fc = proc_find_cap_type(up, nid, 0, 0);
 	if (tc == nil || fc == nil) {
 		return ERR;
 	}
-
-	debug_info("have caps\n");
 
 	tf = (obj_frame_t *) tc->obj;
 
@@ -585,16 +559,26 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 		return ERR;
 	}
 
-	ff = get_remove_l1_mapping(tf, FRAME_MEM, va, len);
-	if (ff == nil) {
-		ff = get_remove_l1_mapping(tf, FRAME_DEV, va, len);
+	ff = nil;
+	obj_frame_t **f;
+	for (f = &tf->next; *f != nil; f = &(*f)->next) {
+		if ((*f)->type == FRAME_L2) continue;
+		if ((*f)->va == va) {
+			ff = *f;
+			*f = (*f)->next;
+			break;
+		}
 	}
-
+	
 	if (ff == nil) {
-		debug_warn("couldn't find mapping\n");
+		debug_warn("%i frame unmap nothing at 0x%x\n",
+			up->pid, va);
 		return ERR;
 	}
-
+	
+	ff->next = nil;
+	ff->va = nil;
+	
 	debug_info("%i unmap 0x%x (pa=0x%x) 0x%x into cid 0x%x\n",
 		up->pid, va, ff->pa, ff->len, nid);
 
@@ -611,16 +595,11 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 	l2_l1x = 0;
 	l2 = nil;
 
-	debug_info("unmap pages\n");
-
 	pa = nil;
 
-	for (o = 0; o < len; o += PAGE_SIZE) {
+	for (o = 0; o < ff->len; o += PAGE_SIZE) {
 		if (l2 == nil || L1X(va + o) != l2_l1x) {
-			debug_info("map l2 for 0x%x\n", va+o);
-
 			if (l2 != nil) {
-				debug_info("unmap l2 for editing\n");
 				kernel_unmap(l2, PAGE_SIZE);
 			}
 
@@ -666,17 +645,12 @@ sys_frame_unmap(int tid, int nid, size_t va, size_t len)
 	}
 
 	if (l2 != nil) {
-		debug_info("unmap l2 for editing\n");
 		kernel_unmap(l2, PAGE_SIZE);
 	}
 	
-	debug_info("unmap l1 for editing\n");
 	kernel_unmap(l1, 0x4000);
 
 	mmu_invalidate();
-
-	debug_info("%i unmapped from 0x%x 0x%x 0%x into cap %i\n",
-		up->pid, tid, pa, o, nid);
 
 	fc->obj = (void *) ff;
 	fc->perm = CAP_read|CAP_write;

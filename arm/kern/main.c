@@ -162,18 +162,25 @@ kernel_map(size_t pa, size_t len, bool cache)
 {
 	size_t va, off;
 
+	debug_info("kernel map 0x%x 0x%x (cache=%i) -> 0x%x\n",
+		pa, len, cache, va_next);
+	debug_info("kernel max = 0x%x\n", max_kernel_va);
+
 	off = pa - PAGE_ALIGN_DN(pa);
 	pa = PAGE_ALIGN_DN(pa);
 	len = PAGE_ALIGN(len);
 
 	va = va_next;
-	va_next += len;
 
-	if (va > max_kernel_va) {
+	if (va + len > max_kernel_va) {
 		panic("out of kernel mappings 0x%x > max 0x%x\n", va, max_kernel_va);
 	}
+	
+	va_next += len;
 
 	map_pages(kernel_l2, pa, va, len, AP_RW_NO, cache);
+
+	debug_info("mapped\n");
 
 	return (void *) (va + off);
 }

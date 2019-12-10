@@ -51,9 +51,10 @@ struct obj_endpoint {
 	proc_list_t waiting;
 };
 
+#define CLIST_CAPS 510
 struct obj_caplist {
 	struct obj_head h;
-	cap_t caps[255];
+	cap_t caps[CLIST_CAPS];
 };
 
 struct obj_proc {

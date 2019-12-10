@@ -8,7 +8,7 @@ LIBS += \
 	lib/string \
 	lib/log \
 	lib/mem \
-#	lib/block \
+	lib/block \
 #	lib/net \
 #	lib/sdmmc \
 #	lib/fat
