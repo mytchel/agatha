@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <block.h>
+#include <log.h>
 
 	int
 handle_info(struct block_dev *dev,
@@ -15,10 +16,14 @@ handle_info(struct block_dev *dev,
 {
 	union block_rsp rp;
 
+	log(LOG_INFO, "handle info for pid %i", from);
+
 	rp.info.type = BLOCK_info;
 	rp.info.ret = OK;
 	rp.info.block_size = dev->block_size;
 	rp.info.nblocks = dev->nblocks;
+
+	log(LOG_INFO, "reply info for pid %i", from);
 
 	return reply_cap(eid, from, &rp, cap);
 }
@@ -65,7 +70,7 @@ handle_read(struct block_dev *dev,
 		ret = dev->read_blocks_mapped(dev, addr, 
 				start, n);
 
-		unmap_addr(addr);
+		cap = unmap_addr(addr);
 
 	} else {
 		ret = dev->read_blocks(dev, pa, 
@@ -118,7 +123,7 @@ handle_write(struct block_dev *dev,
 		ret = dev->write_blocks_mapped(dev, addr, 
 				start, n);
 
-		unmap_addr(addr);
+		cap = unmap_addr(addr);
 
 	} else {
 		ret = dev->write_blocks(dev, pa, 
@@ -143,8 +148,14 @@ block_dev_register(struct block_dev *dev)
 	}
 
 	while (true) {
+		log(LOG_INFO, "block dev wait for mesg");
 		if ((eid = recv_cap(EID_ANY, &from, &brq, cap)) < 0)
 			continue;
+		if (from == PID_SIGNAL)
+			continue;
+
+		log(LOG_INFO, "block dev got message on 0x%x from %i type %i",
+			eid, from, brq.type);
 
 		switch (brq.type) {
 			case BLOCK_info:

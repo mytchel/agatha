@@ -2,7 +2,8 @@ PROCS_INIT_OUT = procs/init/out.elf
 
 PROCS_INIT_SRC_C = \
 	procs/init/main.c \
-	procs/init/timer.c
+	procs/init/timer.c \
+	procs/init/fs.c
 
 PROCS_INIT_LIBS = \
 	$(LIBC) \

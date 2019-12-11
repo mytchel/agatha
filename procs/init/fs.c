@@ -17,25 +17,17 @@
 #include <log.h>
 
 int
-read_blocks(int pid, size_t pa, size_t len,
-		size_t start, size_t r_len)
+read_blocks(int eid, int fid,
+		size_t start, size_t len)
 {
 	union block_req rq;
 	union block_rsp rp;
-	int ret;
-
-	if ((ret = give_addr(pid, pa, len)) != OK) {
-		log(LOG_FATAL, "block give_addr failed %i", ret);
-		return ERR;
-	}
 
 	rq.read.type = BLOCK_read;
-	rq.read.pa = pa;
-	rq.read.len = len;
 	rq.read.start = start;
-	rq.read.r_len = r_len;
+	rq.read.len = len;
 
-	if (mesg(pid, &rq, &rp) != OK) {
+	if (mesg_cap(eid, &rq, &rp, fid) != OK) {
 		log(LOG_FATAL, "block send mesg failed");
 		return ERR;
 	} else if (rp.read.ret != OK) {
@@ -62,19 +54,21 @@ block_get_block_size(int eid)
 		return 0;
 	}
 
+	log(LOG_INFO, "got info");
+
 	return rp.info.block_size;
 }
 
 	int
-mbr_get_parition_info(int eid, int partition,
+mbr_get_partition_info(int eid, int partition,
 	size_t *p_start, size_t *p_len)
 {
 	size_t block_size;
 	struct mbr *mbr;
-	size_t pa, len;
-	int ret;
+	int ret, fid;
+	size_t len;
 
-	log(LOG_INFO, "reading mbr from %i", eid);
+	log(LOG_INFO, "reading mbr from 0x%x", eid);
 
 	block_size = block_get_block_size(eid);
 	if (block_size == 0) {
@@ -84,20 +78,20 @@ mbr_get_parition_info(int eid, int partition,
 	log(LOG_INFO, "block size is 0x%x", block_size);
 
 	len = PAGE_ALIGN(sizeof(struct mbr));
-	pa = request_memory(len);
-	if (pa == nil) {
+	fid = request_memory(len, 0x1000);
+	if (fid < 0) {
 		log(LOG_FATAL, "read mbr memory request failed");
 		return ERR;
 	}
 
 	log(LOG_INFO, "read mbr");
 
-	ret = read_blocks(eid, pa, len, 0, block_size);
+	ret = read_blocks(eid, fid, 0, block_size);
 	if (ret != OK) {
 		return ret;
 	}
 
-	mbr = map_addr(pa, len, MAP_RO);
+	mbr = frame_map_anywhere(fid);
 	if (mbr == nil) {
 		return ERR;
 	}
@@ -119,16 +113,17 @@ mbr_get_parition_info(int eid, int partition,
 	*p_start = mbr->parts[partition].lba;
 	*p_len = mbr->parts[partition].sectors;
 
-	unmap_addr(mbr, len);
-	release_addr(pa, len);
+	fid = unmap_addr(mbr);
+	release_memory(fid);
 
 	return OK;
 }
 
+#if 0
 	int
-fat_local_init(struct fat *fat, int eid, int partition)
+fat_local_init(struct fat *fat, int eid, 
+	size_t p_start, size_t p_len)
 {
-	size_t p_start, p_len;
 	size_t block_size;
 	int ret;
 
@@ -137,10 +132,6 @@ fat_local_init(struct fat *fat, int eid, int partition)
 		return ERR;
 	}
 		
-	if (mbr_get_parition_info(eid, partition, &p_start, &p_len) != OK) {
-		return ERR;
-	}
-
 	ret = fat_init(fat, eid, block_size, p_start, p_len);
 	if (ret != OK) {
 		log(LOG_FATAL, "error %i initing fat fs", ret);
@@ -212,6 +203,8 @@ print_init_file(char *f, size_t size)
 	log(LOG_INFO, "---");
 }
 
+#endif
+
 void
 test_fat_fs(void)
 {
@@ -220,6 +213,8 @@ test_fat_fs(void)
 
 	union proc0_req prq;
 	union proc0_rsp prp;
+
+	size_t p_start, p_len;
 
 	struct fat_file *root, *f;
 	struct fat fat;
@@ -240,7 +235,14 @@ test_fat_fs(void)
 		exit(ERR);
 	}
 
-	if (fat_local_init(&fat, block_eid, partition) != OK) {
+	if (mbr_get_partition_info(block_eid, partition, 
+			&p_start, &p_len) != OK) 
+	{
+		exit(ERR);
+	}
+
+#if 0
+	if (fat_local_init(&fat, block_eid, p_start, p_len) != OK) {
 		log(LOG_FATAL, "fat_local_init failed");
 		return;
 	}
@@ -290,5 +292,6 @@ test_fat_fs(void)
 
 	unmap_addr(va, len);
 	release_addr(pa, len);
+#endif
 }
 

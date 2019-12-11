@@ -2,6 +2,32 @@
 #include "fns.h"
 #include <arm/mmu.h>
 
+static cap_t *
+proc_find_cap_type(obj_proc_t *p, int cid,
+	int perm, int type)
+{
+	cap_t *c;
+
+	c = proc_find_cap(p, cid);
+	if (c == nil) {
+		debug_warn("%i cap 0x%x not found\n", p->pid, cid);
+		return nil;
+
+	} else if ((c->perm & perm) != perm) {
+		debug_warn("%i cap 0x%x bad perm 0x%x != expected 0x%x\n", 
+			p->pid, cid, c->perm, perm);
+		return nil;
+
+	} else if (c->perm != 0 && c->obj->type != type) {
+		debug_warn("%i cap 0x%x bad type %i != expected %i\n", 
+			p->pid, cid, c->obj->type, type);
+		return nil;
+
+	} else {
+		return c;
+	}
+}
+
 size_t
 sys_obj_create(int fid, int nid)
 {
@@ -226,10 +252,9 @@ sys_frame_info(int cid, int *type, size_t *pa, size_t *len)
 
 	debug_info("%i frame info 0x%x\n", up->pid, cid);
 
-	c = proc_find_cap(up, cid);
+
+	c = proc_find_cap_type(up, cid, CAP_write|CAP_read, OBJ_frame);
 	if (c == nil) {
-		return ERR;
-	} else if (c->obj->type != OBJ_frame) {
 		return ERR;
 	} 
 
@@ -240,32 +265,6 @@ sys_frame_info(int cid, int *type, size_t *pa, size_t *len)
 	*len = f->len;
 
 	return OK;
-}
-
-static cap_t *
-proc_find_cap_type(obj_proc_t *p, int cid,
-	int perm, int type)
-{
-	cap_t *c;
-
-	c = proc_find_cap(p, cid);
-	if (c == nil) {
-		debug_warn("%i cap 0x%x not found\n", p->pid, cid);
-		return nil;
-
-	} else if ((c->perm & perm) != perm) {
-		debug_warn("%i cap 0x%x bad perm 0x%x != expected 0x%x\n", 
-			p->pid, cid, c->perm, perm);
-		return nil;
-
-	} else if (c->perm != 0 && c->obj->type != type) {
-		debug_warn("%i cap 0x%x bad type %i != expected %i\n", 
-			p->pid, cid, c->obj->type, type);
-		return nil;
-
-	} else {
-		return c;
-	}
 }
 
 	size_t

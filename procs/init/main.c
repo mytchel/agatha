@@ -32,9 +32,9 @@ main(void)
 
 	log(LOG_INFO, "init starting");
 
+	test_fat_fs();
+	
 	test_timer();
-
-	/*test_fat_fs();*/
 	
 	/*test_mem();*/
 

@@ -242,21 +242,21 @@ check_pools(void)
 		return true;
 	}
 
-	if (pool_n_free(&l1_span_pool) < 3) {
+	checking = true;
+
+	if (r & pool_n_free(&l1_span_pool) < 3) {
 		log(LOG_INFO, "growing l1 span pool");
-		checking = true;
 		r = grow_pool(&l1_span_pool);
 		log(LOG_INFO, "pool grown ? %i", r);
-		checking = false;
 	}
 
 	if (r && pool_n_free(&span_pool) < 4) {
 		log(LOG_INFO, "growing span pool");
-		checking = true;
 		r = grow_pool(&span_pool);
 		log(LOG_INFO, "pool grown ? %i", r);
-		checking = false;
 	}
+		
+	checking = false;
 
 	return r;
 }
