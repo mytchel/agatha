@@ -29,7 +29,7 @@ void *
 frame_map_anywhere(int fid);
 
 int
-unmap_addr(void *va);
+unmap_addr(int fid, void *va);
 
 void *
 malloc(size_t size);

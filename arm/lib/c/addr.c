@@ -424,13 +424,11 @@ frame_map_anywhere(int fid)
 		return nil;
 	}
 
-	kcap_free(fid);
-
 	return (void *) s->va;
 }
 
 	int
-unmap_addr(void *addr)
+unmap_addr(int fid, void *addr)
 {
 	size_t va = (size_t) addr;
 	struct l1_span *l;
@@ -475,15 +473,6 @@ unmap_addr(void *addr)
 
 	take_add_span(s, &l->free);
 
-	int fid = kcap_alloc();
-	if (fid < 0) {
-		return ERR;
-	}
-
-	if (frame_unmap(CID_L1, fid, addr) != OK) {
-		return ERR;
-	}
-
-	return fid;
+	return frame_unmap(CID_L1, fid, addr);
 }
 

@@ -113,13 +113,12 @@ mbr_get_partition_info(int eid, int partition,
 	*p_start = mbr->parts[partition].lba;
 	*p_len = mbr->parts[partition].sectors;
 
-	fid = unmap_addr(mbr);
+	unmap_addr(fid, mbr);
 	release_memory(fid);
 
 	return OK;
 }
 
-#if 0
 	int
 fat_local_init(struct fat *fat, int eid, 
 	size_t p_start, size_t p_len)
@@ -138,47 +137,6 @@ fat_local_init(struct fat *fat, int eid,
 	}
 
 	return ret;
-}
-
-	size_t
-map_init_file(int block_eid, int partition, char *file_name,
-	size_t pa, size_t len)
-{
-	struct fat_file *root, *f;
-	struct fat fat;
-	size_t rlen;
-	int fid;
-
-	if (fat_local_init(&fat, block_eid, partition) != OK) {
-		log(LOG_FATAL, "fat_local_init failed");
-		return 0;
-	}
-
-	root = &fat.files[FILE_root_fid];
-	fid = fat_file_find(&fat, root, file_name);
-	if (fid < 0) {
-		log(LOG_FATAL, "failed to find %s", file_name);
-		return 0;
-	}
-
-	f = &fat.files[fid];
-
-	rlen = f->size;
-	if (rlen > len) {
-		rlen = len;
-	}
-
-	if (fat_file_read(&fat, f,
-				pa, len,
-				0, rlen) != OK) 
-	{
-		log(LOG_FATAL, "error reading init file");
-		return 0;
-	}
-
-	fat_file_clunk(&fat, f);
-
-	return rlen;
 }
 
 	void
@@ -203,8 +161,6 @@ print_init_file(char *f, size_t size)
 	log(LOG_INFO, "---");
 }
 
-#endif
-
 void
 test_fat_fs(void)
 {
@@ -218,7 +174,9 @@ test_fat_fs(void)
 
 	struct fat_file *root, *f;
 	struct fat fat;
+	void *va;
 	int fid;
+	int cid;
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_block;
@@ -241,57 +199,45 @@ test_fat_fs(void)
 		exit(ERR);
 	}
 
-#if 0
 	if (fat_local_init(&fat, block_eid, p_start, p_len) != OK) {
 		log(LOG_FATAL, "fat_local_init failed");
-		return;
+		exit(ERR);
 	}
 
 	root = &fat.files[FILE_root_fid];
 	fid = fat_file_find(&fat, root, file_name);
 	if (fid < 0) {
 		log(LOG_FATAL, "failed to find %s", file_name);
-		return;
+		exit(ERR);
 	}
 
 	f = &fat.files[fid];
-
-	size_t pa, len, rlen;
-	void *va;
 	
-	len = 0x1000;
-
-	rlen = f->size;
-	if (rlen > len) {
-		rlen = len;
-	}
-
-	pa = request_memory(len);
-	if (pa == nil) {
+	cid = request_memory(PAGE_ALIGN(f->size), 0x1000);
+	if (cid < 0) {
 		log(LOG_FATAL, "failed to get memory for file");
-		return;
+		exit(ERR);
 	}
 
 	if (fat_file_read(&fat, f,
-				pa, len,
-				0, rlen) != OK) 
+				cid, 0,
+				0, f->size) != OK) 
 	{
 		log(LOG_FATAL, "error reading init file");
-		return;
+		exit(ERR);
 	}
 
-	fat_file_clunk(&fat, f);
-
-	va = map_addr(pa, len, MAP_RO);
+	va = frame_map_anywhere(cid);
 	if (va == nil) {
 		log(LOG_FATAL, "failed to map init file");
-		return;
+		exit(ERR);
 	}
 
-	print_init_file(va, rlen);
+	print_init_file(va, f->size);
+	
+	fat_file_clunk(&fat, f);
 
-	unmap_addr(va, len);
-	release_addr(pa, len);
-#endif
+	unmap_addr(cid, va);
+	release_memory(cid);
 }
 

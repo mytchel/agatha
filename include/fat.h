@@ -146,8 +146,9 @@ fat_init(struct fat *fat,
 
 int
 fat_read_blocks(struct fat *fat, 
-		size_t pa, size_t m_len,
-		size_t start, size_t r_len);
+		int fid, size_t offset,
+		size_t start, 
+		size_t len);
 
 int
 fat_file_find(struct fat *fat, 
@@ -158,9 +159,12 @@ void
 fat_file_clunk(struct fat *fat, struct fat_file *file);
 
 int
-fat_file_read(struct fat *fat, struct fat_file *file,
-	    size_t pa, size_t m_len,
-			size_t offset, size_t r_len);
+fat_file_read(struct fat *fat, 
+		struct fat_file *file,
+	    int fid, 
+	    size_t frame_offset,
+		size_t file_offset, 
+		size_t len);
 
 uint32_t
 fat_next_cluster(struct fat *fat, uint32_t prev);

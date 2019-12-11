@@ -35,7 +35,7 @@ handle_read(struct block_dev *dev,
 		int cap)
 {
 	union block_rsp rp;
-	size_t start, n;
+	size_t start, n, off;
 	void *addr;
 	int ret;
 
@@ -49,7 +49,7 @@ handle_read(struct block_dev *dev,
 		return reply_cap(eid, from, &rp, cap);
 	}
 
-	if (len < rq->read.len ||
+	if (len < rq->read.off + rq->read.len ||
 			rq->read.start % dev->block_size != 0 || 
 			rq->read.len % dev->block_size != 0) 
 	{
@@ -59,6 +59,7 @@ handle_read(struct block_dev *dev,
 
 	start = rq->read.start / dev->block_size;
 	n = rq->read.len / dev->block_size;
+	off = rq->read.off;
 
 	if (dev->map_buffers) {
 		addr = frame_map_anywhere(cap);
@@ -67,13 +68,15 @@ handle_read(struct block_dev *dev,
 			return reply_cap(eid, from, &rp, cap);
 		}
 
-		ret = dev->read_blocks_mapped(dev, addr, 
+		ret = dev->read_blocks_mapped(dev, 
+				((uint8_t *) addr) + off, 
 				start, n);
 
-		cap = unmap_addr(addr);
+		unmap_addr(cap, addr);
 
 	} else {
-		ret = dev->read_blocks(dev, pa, 
+		ret = dev->read_blocks(dev, 
+				pa + off, 
 				start, n);
 	}
 
@@ -88,7 +91,7 @@ handle_write(struct block_dev *dev,
 		union block_req *rq, int cap)
 {
 	union block_rsp rp;
-	size_t start, n;
+	size_t start, n, off;
 	void *addr;
 	int ret;
 
@@ -112,6 +115,7 @@ handle_write(struct block_dev *dev,
 
 	start = rq->write.start / dev->block_size;
 	n = rq->write.len / dev->block_size;
+	off = rq->write.off;
 
 	if (dev->map_buffers) {
 		addr = frame_map_anywhere(cap);
@@ -120,13 +124,15 @@ handle_write(struct block_dev *dev,
 			return reply_cap(eid, from, &rp, cap);
 		}
 
-		ret = dev->write_blocks_mapped(dev, addr, 
+		ret = dev->write_blocks_mapped(dev, 
+				((uint8_t *) addr) + off, 
 				start, n);
 
-		cap = unmap_addr(addr);
+		unmap_addr(cap, addr);
 
 	} else {
-		ret = dev->write_blocks(dev, pa, 
+		ret = dev->write_blocks(dev, 
+				pa + off, 
 				start, n);
 	}
 

@@ -16,9 +16,9 @@
 fat_init(struct fat *fat, int block_eid, 
 		size_t block_size, size_t p_start, size_t p_size)
 {
-  struct fat_bs *bs;
-	size_t pa, len;
-	int ret;
+	struct fat_bs *bs;
+	int ret, fid;
+	size_t len;
 
 	memset(fat, 0, sizeof(struct fat));
 
@@ -29,72 +29,71 @@ fat_init(struct fat *fat, int block_eid,
 	fat->nblocks = p_size;
 
 	len = PAGE_ALIGN(fat->block_size);
-	pa = request_memory(len);
-	if (pa == nil) {
+	fid = request_memory(len, 0x1000);
+	if (fid < 0) {
 		log(LOG_INFO, "fat_read_bs, mem req failed");
 		return ERR;
 	}
 
-	log(LOG_INFO, "read bs block 0x%x into 0x%x, 0x%x", fat->start, pa, len);
+	log(LOG_INFO, "read bs block 0x%x", fat->start);
 	
-	ret = fat_read_blocks(fat, pa, len, 0, fat->block_size);
-
+	ret = fat_read_blocks(fat, fid, 0, 0, fat->block_size);
 	if (ret != OK) {
 		log(LOG_INFO, "fat_read_bs, read blocks failed");
 		return ret;
 	}
 
-	bs = map_addr(pa, len, MAP_RO);
+	bs = frame_map_anywhere(fid);
 	if (bs == nil) {
 		log(LOG_INFO, "map_addr failed");
 		return ERR;
 	}
 
-  fat->bps = intcopylittle16(bs->bps);
-  fat->spc = bs->spc;
+	fat->bps = intcopylittle16(bs->bps);
+	fat->spc = bs->spc;
 
 	fat->nsectors = intcopylittle16(bs->sc16);
-  if (fat->nsectors == 0) {
+	if (fat->nsectors == 0) {
 		log(LOG_INFO, "nsectors zero use 32");
 		fat->nsectors = intcopylittle32(bs->sc32);
-  }
+	}
 
 	log(LOG_INFO, "fat bps %i spc %i nsectors %i",
 			fat->bps, fat->spc, fat->nsectors);
 
-  fat->nft = bs->nft;
+	fat->nft = bs->nft;
 
-  fat->reserved = intcopylittle16(bs->res);
+	fat->reserved = intcopylittle16(bs->res);
 
-  fat->rde = intcopylittle16(bs->rde);
-  if (fat->rde != 0) {
+	fat->rde = intcopylittle16(bs->rde);
+	if (fat->rde != 0) {
 		log(LOG_INFO, "fat type FAT16");
 
-    fat->type = FAT16;
+	    fat->type = FAT16;
 
 		fat->spf = intcopylittle16(bs->spf);
 
-    fat->rootdir = fat->reserved + fat->nft * fat->spf;
-    fat->dataarea = fat->rootdir +
-      (((fat->rde * sizeof(struct fat_dir_entry)) + (fat->bps - 1))
-       / fat->bps);
+	    fat->rootdir = fat->reserved + fat->nft * fat->spf;
+	    fat->dataarea = fat->rootdir +
+	      (((fat->rde * sizeof(struct fat_dir_entry)) + (fat->bps - 1))
+	       / fat->bps);
 
-    fat->files[FILE_root_fid].dsize = fat->rde * sizeof(struct fat_dir_entry);
-    fat->files[FILE_root_fid].start_cluster = 0;
+	    fat->files[FILE_root_fid].dsize = fat->rde * sizeof(struct fat_dir_entry);
+	    fat->files[FILE_root_fid].start_cluster = 0;
 
-  } else {
+	} else {
 		log(LOG_INFO, "fat type FAT32");
-    fat->type = FAT32;
+	    fat->type = FAT32;
 
-		fat->spf = intcopylittle32(bs->ext.high.spf);
+			fat->spf = intcopylittle32(bs->ext.high.spf);
 
-    fat->dataarea = fat->reserved + fat->spf * fat->nft;
+	    fat->dataarea = fat->reserved + fat->spf * fat->nft;
 
-    /* This should work for now */
+	    /* This should work for now */
 
-    fat->files[FILE_root_fid].dsize = fat->spc * fat->bps;
-    fat->files[FILE_root_fid].start_cluster =
-			intcopylittle32(bs->ext.high.rootcluster);
+	    fat->files[FILE_root_fid].dsize = fat->spc * fat->bps;
+	    fat->files[FILE_root_fid].start_cluster =
+				intcopylittle32(bs->ext.high.rootcluster);
 	}
 
 	log(LOG_INFO, "root dsize = 0x%x, start cluster= 0x%x",
@@ -106,8 +105,8 @@ fat_init(struct fat *fat, int block_eid,
 	fat->files[FILE_root_fid].refs = 1;
 	fat->files[FILE_root_fid].size = 0;
 
-	unmap_addr(bs, len);
-	release_addr(pa, len);
+	unmap_addr(fid, bs);
+	release_memory(fid);
 
 	return OK;
 }
@@ -118,42 +117,54 @@ fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 	 	char *name)
 {
 	struct fat_dir_entry *files;
-	size_t pa, len, nfiles;
+	size_t len, nfiles;
 	char fname[32];
-	int r, i;
+	int r, i, fid;
 
 	log(LOG_INFO, "find file %s in sectors 0x%x 0x%x", name, sector, nsectors);
 
 	len = PAGE_ALIGN(nsectors * fat->bps);
-	pa = request_memory(len);
-	if (pa == nil) {
+	fid = request_memory(len, 0x1000);
+	if (fid < 0) {
 		return -1;
 	}
 
-	r = fat_read_blocks(fat, pa, len, 
-			sector * fat->bps, nsectors * fat->bps);
+	r = fat_read_blocks(fat, 
+			fid, 0,
+			sector * fat->bps, 
+			nsectors * fat->bps);
 	if (r != OK) {
 		log(LOG_INFO, "read failed");
+		release_memory(fid);
 		return -1;
 	}
 
 	nfiles = nsectors * fat->bps / sizeof(struct fat_dir_entry);
 
-	files = map_addr(pa, len, MAP_RO);
+	files = frame_map_anywhere(fid);
+	if (files == nil) {
+		release_memory(fid);
+		return -1;
+	}
+
 	for (i = 0; i < nfiles; i++) {
 		r = fat_copy_file_entry_name(&files[i], fname);
 		log(LOG_INFO, "copied name got %i, '%s'", r, fname);
+
 		if (r == -3) {
 			/* Skip this for some reason */
 			continue;
+
 		} else if (r == -2) {
 			/* For now, skip lfn errors */
 			continue;
+
 		} else if (r != OK) {
-			log(LOG_INFO, "bad");
-			unmap_addr(files, len);
-			release_addr(pa, len);
+			log(LOG_WARNING, "bad");
+			unmap_addr(fid, files);
+			release_memory(fid);
 			return -1;
+
 		} else if (strncmp(fname, name, 32)) {
 			log(LOG_INFO, "found");
 			break;
@@ -167,8 +178,8 @@ fat_find_file_in_sectors(struct fat *fat, struct fat_dir_entry *e,
 	
 	log(LOG_INFO, "done");
 
-	unmap_addr(files, len);
-	release_addr(pa, len);
+	unmap_addr(fid, files);
+	release_memory(fid);
 
 	return i < nfiles ? 1 : 0;
 }
@@ -221,26 +232,37 @@ fat_file_find(struct fat *fat,
 }
 
 	int
-fat_file_read(struct fat *fat, struct fat_file *file,
-		size_t pa, size_t m_len,
-		size_t offset, size_t r_len)
+fat_file_read(struct fat *fat, 
+		struct fat_file *file,
+		int fid, 
+		size_t frame_offset,
+		size_t file_offset, 
+		size_t len)
 {
 	uint32_t cluster, tlen;
 	int ret;
 
+	if (file_offset % (fat->spc * fat->bps) != 0) {
+		log(LOG_WARNING, "fat_file_read can only read %i aligned from file",
+			fat->spc * fat->bps);
+		return ERR;
+	}
+
 	tlen = 0;
 	for (cluster = file->start_cluster;
-			cluster != 0 && tlen < r_len;
-			cluster = fat_next_cluster(fat, cluster)) {
-
-		if (offset > 0) {
-			offset -= fat->spc * fat->bps;
+			cluster != 0 && tlen < len;
+			cluster = fat_next_cluster(fat, cluster)) 
+	{
+		if (file_offset > 0) {
+			file_offset -= fat->spc * fat->bps;
 			continue;
 		}
 
 		/* TODO: this needs to be made to work with alignements */
-		ret = fat_read_blocks(fat, pa + tlen, PAGE_ALIGN(fat->spc * fat->bps),
-				cluster_to_sector(fat, cluster) * fat->bps, fat->spc * fat->bps);
+		ret = fat_read_blocks(fat, 
+				fid, frame_offset + tlen, 
+				cluster_to_sector(fat, cluster) * fat->bps, 
+				fat->spc * fat->bps);
 		if (ret != OK) {
 			return ret;
 		}
@@ -292,9 +314,9 @@ fat_next_cluster(struct fat *fat, uint32_t prev)
 fat_table_info(struct fat *fat, uint32_t cluster)
 {
 	uint32_t sec, off, v;
-	size_t pa, len;
+	size_t len;
 	uint8_t *va;
-	int r;
+	int r, fid;
 
 	switch (fat->type) {
 		case FAT16:
@@ -310,19 +332,25 @@ fat_table_info(struct fat *fat, uint32_t cluster)
 	sec = off / fat->bps;
 
 	len = PAGE_ALIGN(fat->bps);
-	pa = request_memory(len);
-	if (pa == nil) {
+	fid = request_memory(len, 0x1000);
+	if (fid < 0) {
 		return 0;
 	}
 
-	r = fat_read_blocks(fat, pa, len,
-			(fat->reserved + sec) * fat->bps, fat->bps);
+	r = fat_read_blocks(fat, fid, 0,
+			(fat->reserved + sec) * fat->bps, 
+			fat->bps);
+
 	if (r != OK) {
-		release_addr(pa, len);
+		release_memory(fid);
 		return 0;
 	}
 
-	va = map_addr(pa, len, MAP_RO);
+	va = frame_map_anywhere(fid);
+	if (va == nil) {
+		release_memory(fid);
+		return 0;
+	}
 
 	off = off % fat->bps;
 
@@ -335,8 +363,8 @@ fat_table_info(struct fat *fat, uint32_t cluster)
 			break;
 	}
 
-	unmap_addr(va, len);
-	release_addr(pa, len);
+	unmap_addr(fid, va);
+	release_memory(fid);
 
 	return v;
 }
@@ -482,28 +510,22 @@ fat_file_size(struct fat *fat, struct fat_file *file)
 }
 
 	int
-fat_read_blocks(struct fat *fat, size_t pa, size_t len,
-		size_t start, size_t r_len)
+fat_read_blocks(struct fat *fat, 
+		int fid, size_t off,
+		size_t start, size_t len)
 {
 	union block_req rq;
 	union block_rsp rp;
-	int ret;
-
-	log(LOG_INFO, "give block pid %i from 0x%x 0x%x", fat->block_eid, pa, len);
-	if ((ret = give_addr(fat->block_eid, pa, len)) != OK) {
-		log(LOG_INFO, "block give addr failed %i", ret);
-		return ERR;
-	}
 
 	rq.read.type = BLOCK_read;
-	rq.read.pa = pa;
-	rq.read.len = len;
 	rq.read.start = fat->start * fat->block_size + start;
-	rq.read.r_len = r_len;
+	rq.read.len = len;
+	rq.read.off = off;
 	
-	log(LOG_INFO, "block sending request for 0x%x 0x%x", rq.read.start, r_len);
+	log(LOG_INFO, "block sending request for 0x%x 0x%x", 
+		rq.read.start, len);
 	
-	if (mesg(fat->block_eid, &rq, &rp) != OK) {
+	if (mesg_cap(fat->block_eid, &rq, &rp, fid) != OK) {
 		log(LOG_INFO, "block mesg failed");
 		return ERR;
 	} else if (rp.read.ret != OK) {
@@ -511,7 +533,6 @@ fat_read_blocks(struct fat *fat, size_t pa, size_t len,
 		return ERR;
 	}
 
-	log(LOG_INFO, "block read responded good, map");
 	return OK;
 }
 

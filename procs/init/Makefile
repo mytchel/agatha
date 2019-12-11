@@ -9,7 +9,8 @@ PROCS_INIT_LIBS = \
 	$(LIBC) \
 	lib/pool \
 	lib/log \
-	lib/string 
+	lib/string \
+	lib/fat
 
 PROCS_INIT_OBJECTS = \
 	$(PROCS_INIT_SRC_C:%.c=%.o) \

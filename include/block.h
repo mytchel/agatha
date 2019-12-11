@@ -10,12 +10,14 @@ union block_req {
 		uint32_t type;
 		size_t start;
 		size_t len;
+		size_t off;
 	} read;
 
 	struct {
 		uint32_t type;
 		size_t start;
 		size_t len;
+		size_t off;
 	} write;
 };
 

@@ -67,7 +67,7 @@ init_bundled_proc(uint8_t *code,
 
 	log(LOG_INFO, "unmap code");
 
-	code_new = unmap_addr(code_va);
+	unmap_addr(code_new, code_va);
 	
 	log(LOG_INFO, "setup l1");
 
@@ -275,12 +275,11 @@ init_procs(void)
 		off += bundled_procs[i].len;
 	}
 
-	bundle_cid = unmap_addr(bundle_va);
-	if (bundle_cid < 0) {
+	if (unmap_addr(bundle_cid, bundle_va) != OK) {
 		log(LOG_WARNING, "failed to unmap bundle");
 		exit(1);
 	}
 
-	kobj_free(bundle_cid);
+	/* TODO: release bundle? */
 }
 
