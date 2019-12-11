@@ -17,7 +17,8 @@ static obj_frame_t root_l1 = { 0 };
 #define root_code_va    USER_ADDR
 
 static size_t va_next = 0;
-static size_t max_kernel_va;
+static size_t kernel_va_min;
+static size_t kernel_va_max;
 
 uint32_t *kernel_l1 = nil;
 
@@ -173,16 +174,24 @@ kernel_map(size_t pa, size_t len, bool cache)
 
 	va = va_next;
 
-	if (va + len > max_kernel_va) {
+	if (va + len > kernel_va_max) {
 		panic("out of kernel mappings 0x%x > max 0x%x\n", 
-			va, max_kernel_va);
+			va, kernel_va_max);
+	}
+
+	if (L1X(va) != L1X(va+len)) {
+		va = L1X(va+len) << 20;
+		if (L1X(va) != L1X(va+len)) {
+			panic("trying to map 0x%x bytes which is too large\n",
+				len);
+		}
 	}
 	
-	va_next += len;
+	va_next = va + len;
 
-	uint32_t *l2;
-
-	l2 = kernel_l2;
+	size_t o = L1X(va) - L1X(kernel_va_min);
+	debug_info("0x%x is %i tables in\n", va, o);
+	uint32_t *l2 = kernel_l2 + o * 1024;
 
 	debug_info("kernel map l2 = 0x%x\n", l2);
 
@@ -194,7 +203,13 @@ kernel_map(size_t pa, size_t len, bool cache)
 	void
 kernel_unmap(void *addr, size_t len)
 {
-	unmap_pages(kernel_l2, (size_t) addr, len);
+	size_t va = (size_t) addr;
+
+	size_t o = L1X(va) - L1X(kernel_va_min);
+	debug_info("0x%x is %i tables in\n", va, o);
+	uint32_t *l2 = kernel_l2 + o * 1024;
+
+	unmap_pages(l2, va, len);
 }
 
 	void
@@ -205,7 +220,8 @@ main(struct kernel_info *info)
 	kernel_l1 = (uint32_t *) info->kernel.l1_va;
 	kernel_l2 = (uint32_t *) info->kernel.l2_va;
 
-	max_kernel_va = info->kernel_va + 
+	kernel_va_min = info->kernel_va;
+	kernel_va_max = info->kernel_va + 
 		((info->kernel.l2_len / TABLE_SIZE) * TABLE_AREA);
 
 	va_next = info->kernel.l2_va + info->kernel.l2_len;
@@ -218,9 +234,9 @@ main(struct kernel_info *info)
 
 	init_kernel_drivers();
 
-	debug(DEBUG_INFO, "kernel mapped at 0x%x\n", info->kernel_va);
 	debug_info("kernel mapped at 0x%x\n", info->kernel_va);
-	debug_info("max kernel va = 0x%x\n", max_kernel_va);
+	debug_info("kernel va min = 0x%x\n", kernel_va_min);
+	debug_info("kernel va max = 0x%x\n", kernel_va_max);
 	debug_info("info mapped at   0x%x\n", info);
 	debug_info("boot   0x%x 0x%x\n", info->boot_pa, info->boot_len);
 	debug_info("kernel 0x%x 0x%x\n", info->kernel_pa, info->kernel_len);
@@ -241,20 +257,6 @@ main(struct kernel_info *info)
 	debug_info("root l2 0x%x 0x%x\n", 
 			info->root.l2_pa, 
 			info->root.l2_len);
-
-	uint32_t o;
-
-	uint32_t pa = 0x60000000;
-	for (o = 0; o < info->kernel.l2_len/4; o++) {
-		if (kernel_l2[o] == 0) {
-			kernel_l2[o] = pa | L2_SMALL | 7<<6 |AP_RW_RW<<4|1<<3|0<<2;
-		}
-	}
-
-	uint32_t *i;
-	for (i = (void *) info->kernel_va; (uint32_t) i < 0xffffffff; i++) {
-		debug_info("0x%x = 0x%x\n", i, *i);
-	}
 
 	p = init_root(info);
 

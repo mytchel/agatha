@@ -10,9 +10,8 @@ kernel_info[1024] __attribute__((__aligned__(0x1000))) = { 0 };
 uint32_t
 kernel_l1[4096]__attribute__((__aligned__(0x4000))) = { 0 };
 
-/* TODO: Map l2 tables for all kernel space */
 uint32_t
-kernel_l2[1024]__attribute__((__aligned__(0x1000))) = { 0 };
+kernel_l2[1024*15]__attribute__((__aligned__(0x1000))) = { 0 };
 
 uint32_t
 root_stack[1024]__attribute__((__aligned__(0x1000))) = { 0 };
