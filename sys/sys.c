@@ -465,6 +465,9 @@ signal(obj_endpoint_t *e, uint32_t s)
 	if (p->state == PROC_block_recv 
 		&& (p->recv_from == nil || p->recv_from == e))
 	{
+		debug_info("%i signal wake up %i\n",
+			up->pid, p->pid);
+
 		proc_ready(p);
 		schedule(p);
 	}

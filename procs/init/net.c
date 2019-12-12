@@ -11,7 +11,7 @@
 #include <log.h>
 
 #define TCP_TEST_PORT_LOC 4085
-#define TCP_TEST_PORT_REM 4060
+#define TCP_TEST_PORT_REM 4070
 
 #define UDP_TEST_PORT_LOC 3000
 
@@ -157,7 +157,9 @@ tcp_con(int net_eid, int chan_id, int con_id,
 
 	bool emptying = false;
 
-	for (j = 0; j < 10; j++) {
+	for (j = 0; j < 50; j++) {
+		log(LOG_INFO, "tcp con do read %i", j);
+
 		rq.read.type = NET_read;
 		rq.read.chan_id = chan_id;
 		rq.read.proto.tcp.con_id = con_id;
@@ -209,6 +211,8 @@ tcp_con(int net_eid, int chan_id, int con_id,
 
 		unmap_addr(fid, va);
 
+		log(LOG_INFO, "tcp con do write %i", j);
+
 		rq.write.type = NET_write;
 		rq.write.chan_id = chan_id;
 		rq.write.proto.tcp.con_id = con_id;
@@ -227,6 +231,8 @@ tcp_con(int net_eid, int chan_id, int con_id,
 		for (k = 0; k < 100000000; k++)
 			;
 	}
+
+	log(LOG_INFO, "tcp con done, disconnect");
 
 	int k;
 	for (k = 0; k < 100000000; k++)
@@ -408,10 +414,8 @@ test_net(void)
 
 	log_init("net_test");
 
-	udp_test(net_eid);
+	/*udp_test(net_eid);*/
 	tcp_con_test(net_eid); 
 	tcp_serv_test(net_eid);
-
-	return OK;
 }
 

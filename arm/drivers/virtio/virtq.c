@@ -79,7 +79,8 @@ virtq_init(struct virtq *q,
 {
 	size_t queue_pa, queue_va, queue_len;
 	size_t avail_off, used_off;
-	size_t i, cid, type;
+	size_t i, cid;
+	int type;
 
 	q->queue_index = queue_index;
 

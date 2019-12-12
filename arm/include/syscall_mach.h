@@ -50,7 +50,7 @@ int
 frame_l2_unmap(int tid, int nid, void *addr);
 
 int
-frame_map(int tid, int cid, void *addr);
+frame_map(int tid, int cid, void *addr, bool cache);
 
 int
 frame_unmap(int tid, int nid, void *addr);

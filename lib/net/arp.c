@@ -191,6 +191,8 @@ handle_arp(struct net_dev *net,
 	uint8_t hlen, plen;
 	uint16_t oper;
 
+	log(LOG_INFO, "handle arp pkt");
+
 	static uint8_t broadcast_mac[6] = {
 		0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 	};
@@ -224,12 +226,16 @@ handle_arp(struct net_dev *net,
 
 		if (memcmp(tgt_ipv4, net->ipv4, 4)) {
 			handle_arp_request(net, hdr->src, src_ipv4);
+		} else {
+			log(LOG_INFO, "arp broadcast pkt not for us");
 		}
 
 	} else if (memcmp(hdr->dst, net->mac, 6)) {
 
 		switch (oper) {
 			case 1:
+				log(LOG_WARNING, "unhandled arp pkt oper %i",
+					oper);
 				break;
 
 			case 2:

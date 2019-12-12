@@ -9,7 +9,7 @@
 #include <proc0.h>
 #include <arm/mmu.h>
 
-#define LOG 1
+#define LOG 0
 #if !LOG
 #define log(X, ...) {}
 #endif
@@ -134,12 +134,9 @@ split_span(struct span *s, size_t len)
 {
 	struct span *n;
 
-	log(LOG_INFO, "splitting span 0x%x 0x%x to len 0x%x",
-			s->va, s->len, len);
-
 	n = pool_alloc(&span_pool);
 	if (n == nil) {
-		log(LOG_INFO, "out of spans");
+		log(LOG_WARNING, "out of spans");
 		return ERR;
 	}
 
@@ -153,9 +150,6 @@ split_span(struct span *s, size_t len)
 	n->holder = &s->next;
 
 	s->len = len;
-
-	log(LOG_INFO, "now have 0x%x 0x%x and 0x%x 0x%x",
-			s->va, s->len, n->va, n->len);
 
 	return OK;
 }
@@ -188,7 +182,7 @@ split_l1_span(struct l1_span *s, size_t len)
 
 	n = pool_alloc(&l1_span_pool);
 	if (n == nil) {
-		log(LOG_INFO, "out of l1_spans");
+		log(LOG_WARNING, "out of l1_spans");
 		return ERR;
 	}
 
@@ -244,7 +238,7 @@ check_pools(void)
 
 	checking = true;
 
-	if (r & pool_n_free(&l1_span_pool) < 3) {
+	if (r && pool_n_free(&l1_span_pool) < 3) {
 		log(LOG_INFO, "growing l1 span pool");
 		r = grow_pool(&l1_span_pool);
 		log(LOG_INFO, "pool grown ? %i", r);
@@ -294,8 +288,6 @@ get_free_span_slot(size_t len)
 	struct span *s, *fs;
 	int r;
 
-	log(LOG_INFO, "find addr for 0x%x bytes", len);
-
 	dump_mappings();
 
 	fs = nil;
@@ -317,8 +309,6 @@ get_free_span_slot(size_t len)
 		}
 
 		take_add_span(fs, &(fl)->mapped);
-
-		log(LOG_INFO, "giving 0x%x", fs->va);
 
 		return fs;
 	}
@@ -416,7 +406,7 @@ frame_map_anywhere(int fid)
 		return nil;
 	}
 
-	r = frame_map(CID_L1, fid, (void *) s->va);
+	r = frame_map(CID_L1, fid, (void *) s->va, false);
 	if (r != OK) {
 		/* TODO: put span into free */
 		log(LOG_INFO, "addr map failed %i : for fid 0x%x -> 0x%x 0x%x", 
@@ -441,12 +431,8 @@ unmap_addr(int fid, void *addr)
 
 	dump_mappings();
 
-	log(LOG_INFO, "unmap worked, continue");
-
 	for (l = l1_mapped; l != nil; l = l->next) {
-		log(LOG_INFO, "is it in 0x%x 0x%x?", l->va, l->len);
 		if (l->va <= va && va < l->va + l->len) {
-			log(LOG_INFO, "yes");
 			break;
 		}
 	}
@@ -456,11 +442,8 @@ unmap_addr(int fid, void *addr)
 		return ERR;
 	}
 
-	log(LOG_INFO, "find span in 0x%x 0x%x?", l->va, l->len);
 	for (s = l->mapped; s != nil; s = s->next) {
-		log(LOG_INFO, "is it 0x%x 0x%x?", s->va, s->len);
 		if (s->va == va) {
-			log(LOG_INFO, "yes");
 			break;
 		}
 	}

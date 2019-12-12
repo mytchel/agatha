@@ -284,9 +284,12 @@ handle_ipv4(struct net_dev *net,
 	uint16_t frag_offset;
 	uint8_t protocol;
 
+	log(LOG_INFO, "handle ipv4");
+
 	ip_hdr = (void *) bdy;
 
 	if (!memcmp(eth_hdr->dst, net->mac, 6)) {
+		log(LOG_INFO, "pkt not for us");
 		return;
 	}
 
@@ -347,6 +350,7 @@ handle_ipv4(struct net_dev *net,
 				ip_hdr->src, ip_hdr->dst,
 				protocol, ident);
 		if (p == nil) {
+			log(LOG_INFO, "get waiting ip pkt failed");
 			free(f->data);
 			free(f);
 			return;
@@ -390,6 +394,8 @@ handle_ipv4(struct net_dev *net,
 			break;
 
 		default:
+			log(LOG_WARNING, "unhandled ipv4 pkt proto %i",
+				protocol);
 			break;
 	}
 }

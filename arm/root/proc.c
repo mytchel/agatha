@@ -85,14 +85,14 @@ init_bundled_proc(uint8_t *code,
 
 	log(LOG_INFO, "map code");
 
-	if (frame_map(l1, code_new, (void *) USER_ADDR) != OK) {
+	if (frame_map(l1, code_new, (void *) USER_ADDR, true) != OK) {
 		log(LOG_WARNING, "frame map failed");
 		exit(1);
 	}
 
 	log(LOG_INFO, "map stack");
 
-	if (frame_map(l1, stack, (void *) (USER_ADDR - 0x1000)) != OK) {
+	if (frame_map(l1, stack, (void *) (USER_ADDR - 0x1000), true) != OK) {
 		log(LOG_WARNING, "frame map failed");
 		exit(1);
 	}
@@ -154,7 +154,7 @@ void
 init_services(void)
 {
 	struct service *ser;
-	int i, s;
+	int s;
 
 	log(LOG_INFO, "setup services");
 

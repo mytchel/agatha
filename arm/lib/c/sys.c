@@ -120,16 +120,12 @@ kcap_alloc(void)
 	kcap_list_t *c;
 	size_t o;
 
-	log(LOG_INFO, "kcap alloc");
-
 	ksys_init();
 
 	c = &kcap_list_initial;
 	for (o = 0; o < CLIST_CAPS; o++) {
 		if (!(c->caps[o/32] & (1 << (o % 32)))) {
 			c->caps[o/32] |= 1 << (o % 32);
-
-			log(LOG_INFO, "kcap found free 0x%x", o<<12);
 
 			return o << 12;
 		}
@@ -157,14 +153,11 @@ kobj_alloc_new(size_t len)
 	if (len < 0x1000) 
 		len = 0x1000;
 
-	log(LOG_WARNING, "request mem for 0x%x", len);
 	fid = request_memory(len, 0x1000);
 	if (fid < 0) {
 		log(LOG_WARNING, "request mem failed");
 		return nil;
 	}
-
-	log(LOG_INFO, "got mem");
 
 	cid = kcap_alloc();
 	if (cid < 0) {
@@ -172,23 +165,19 @@ kobj_alloc_new(size_t len)
 		return nil;
 	}
 	
-	log(LOG_INFO, "got cap");
 	if (obj_create(fid, cid) != OK) {
 		log(LOG_WARNING, "obj create failed");
 		return nil;
 	}
 
-	log(LOG_INFO, "obj created");
 	kcap_free(fid);
 
-	log(LOG_INFO, "free'd cap");
 	o = kobj_pool_alloc();
 	if (o == nil) {
 		log(LOG_WARNING, "kobj pool empty");
 		return nil;
 	}
 
-	log(LOG_INFO, "setup obj");
 	o->cid = cid;
 	o->claimed = false;
 	o->type = OBJ_untyped;
@@ -197,7 +186,6 @@ kobj_alloc_new(size_t len)
 	o->from = o;
 	kobjs = o;
 
-	log(LOG_INFO, "done");
 	return o;
 }
 
@@ -206,8 +194,6 @@ kobj_split(kobj_t *o)
 {
 	kobj_t *n;
 	int nid;
-
-	log(LOG_INFO, "kobj split 0x%x len 0x%x", o->cid, o->len);
 
 	if (o->type != OBJ_untyped) {
 		return false;
@@ -239,9 +225,6 @@ kobj_split(kobj_t *o)
 
 	o->len = o->len >> 1;
 	o->next = n;
-
-	log(LOG_INFO, "now have 0x%x and 0x%x with len %i %i",
-		o->cid, n->cid, o->len, n->len);
 
 	return true;
 }
@@ -276,8 +259,6 @@ kobj_add_untyped(int cid, size_t len)
 		return ERR;
 	}
 
-	log(LOG_INFO, "have obj 0x%x", n);
-
 	n->cid = cid;
 	n->type = OBJ_untyped;
 	n->len = len;
@@ -295,8 +276,6 @@ kobj_alloc(int type, size_t n)
 	size_t l, len;
 	kobj_t *o, *f;
 
-	log(LOG_INFO, "kobj alloc %i %i", type, n);
-
 	ksys_init();
 
 	l = kobj_type_size(type, n);
@@ -309,9 +288,6 @@ kobj_alloc(int type, size_t n)
 	while (len < l)
 		len <<= 1;
 	
-	log(LOG_INFO, "kobj alloc %i %i need %i byte object", 
-		type, n, len);
-
 	f = nil;
 	for (o = kobjs; o != nil; o = o->next) {
 		if (o->type != OBJ_untyped) continue;
@@ -334,9 +310,6 @@ kobj_alloc(int type, size_t n)
 
 	f->claimed = true;
 
-	log(LOG_INFO, "split found object of size %i to %i",
-			f->len, len);
-	
 	while (len < f->len) {
 		if (!kobj_split(f)) {
 			return ERR;

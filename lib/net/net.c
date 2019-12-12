@@ -20,6 +20,8 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 	uint8_t *bdy;
 	size_t bdy_len;
 
+	log(LOG_INFO, "process pkt");
+
 	hdr	= (void *) pkt;
 
 	bdy	= pkt + sizeof(struct eth_hdr);
@@ -39,6 +41,8 @@ net_process_pkt(struct net_dev *net, uint8_t *pkt, size_t len)
 			break;
 
 		default:
+			log(LOG_WARNING, "unhandled pkt, type 0x%x",
+				type);
 			break;
 	}
 }

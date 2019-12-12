@@ -14,7 +14,6 @@
 #include "net.h"
 #include "ip.h"
 
-
 /* This has many problems.
    - partial packet acks are not supported.
    - resending if we don't get an ack is not

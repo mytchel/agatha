@@ -411,12 +411,16 @@ sys_frame_l2_unmap(int tid, int nid, size_t va)
 }
 
 	size_t
-sys_frame_map(int tid, int cid, size_t va)
+sys_frame_map(int tid, int cid, size_t va, bool cache)
 {
 	obj_frame_t *tf, *ff;
 	uint32_t *l1, *l2;
 	cap_t *tc, *fc;
 	size_t l2_l1x;
+
+	uint32_t tex, c, b, o;
+	uint32_t ap = AP_RW_RW;
+	uint32_t perm;
 
 	debug_info("%i frame map 0x%x into 0x%x at 0x%x\n", 
 		up->pid, cid, tid, va);
@@ -439,22 +443,26 @@ sys_frame_map(int tid, int cid, size_t va)
 	debug_info("%i frame map type=%i pa=0x%x,0x%x into pa=0x%x,0x%x\n", 
 		up->pid, ff->type, ff->pa, ff->len, tf->pa, tf->len);
 
-	uint32_t tex, c, b, o;
-	uint32_t ap = AP_RW_RW;
-	uint32_t perm;
+	if (ff->type == FRAME_DEV && cache) {
+		debug_warn("%i frame map 0x%x map dev with cache?\n",
+			up->pid, cid);
+		cache = false;
+	}
 
-	if (ff->type == FRAME_MEM) {
-		tex = 7;
-		c = 1;
-		b = 0;
-	} else if (ff->type == FRAME_DEV) {
-		tex = 0;
-		c = 0;
-		b = 1;
-	} else {
+	if (ff->type != FRAME_MEM && ff->type != FRAME_DEV) {
 		debug_warn("%i frame map 0x%x bad frame type %i\n",
 			up->pid, cid, ff->type);
 		return ERR;
+	}
+
+	if (cache) {
+		tex = 7;
+		c = 1;
+		b = 0;
+	} else {
+		tex = 0;
+		c = 0;
+		b = 1;
 	}
 
 	debug_info("%i map 0x%x (pa=0x%x) 0x%x from cid 0x%x\n",
@@ -533,7 +541,7 @@ sys_frame_map(int tid, int cid, size_t va)
 	return OK;
 }
 
-		size_t
+size_t
 sys_frame_unmap(int tid, int nid, size_t va)
 {
 	obj_frame_t *tf, *ff;

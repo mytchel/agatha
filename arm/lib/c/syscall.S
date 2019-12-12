@@ -215,5 +215,3 @@ frame_unmap:
 	svc 0
 	pop {r12, pc}
 
-
-

@@ -396,11 +396,13 @@ main(void)
 
 			e = virtq_pop(&dev.rx);
 			if (e != nil) {
+				log(LOG_INFO, "process rx");
 				process_rx(&net, e);	
 			}
 
 			e = virtq_pop(&dev.tx);
 			if (e != nil) {
+				log(LOG_INFO, "process tx");
 				process_tx(&net, e);	
 			}
 
