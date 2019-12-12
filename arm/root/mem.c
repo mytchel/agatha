@@ -16,6 +16,8 @@ static struct addr_range *ram_free = nil;
 
 extern uint32_t *_data_end;
 
+static int spare_frames[3];
+
 static void
 addr_range_insert(struct addr_range **head, struct addr_range *n)
 {
@@ -146,27 +148,59 @@ create_frame(size_t pa, size_t len, int type)
 	int
 request_memory(size_t len, size_t align)
 {
+	static bool replenish = false;
 	struct addr_range *m;
+	int cid, i;
+
+	cid = -1;
+	for (i = 0; i < 3; i++) {
+		if (spare_frames[i] > 0) {
+			cid = spare_frames[i];
+			spare_frames[i] = -1;
+			break;
+		}
+	}
+
+	if (cid < 0) {
+		log(LOG_WARNING, "no spare frames");
+		exit(ERR);
+	}
+
+	log(LOG_INFO, "request 0x%x aligned 0x%x",
+		len, align);
 
 	m = addr_range_get_any(&ram_free, len, align);
 	if (m == nil) {
 		return nil;
 	}
 
-	int cid;
-
-	cid = kobj_alloc(OBJ_frame, 1);
-	if (cid < 0) {
-		log(LOG_WARNING, "frame alloc failed");
-		exit(ERR);
-	}
+	log(LOG_INFO, "got range 0x%x 0x%x",
+		m->start, m->len);
 
 	if (frame_setup(cid, FRAME_MEM, m->start, m->len) != OK) {
 		log(LOG_WARNING, "frame setup failed");
 		exit(ERR);
 	}
 
+	log(LOG_INFO, "got frame %i", cid);
+
 	pool_free(&addr_pool, m);
+
+	if (!replenish) {
+		replenish = true;
+		for (i = 0; i < 3; i++) {
+			if (spare_frames[i] < 0) {
+				spare_frames[i] = kobj_alloc(OBJ_frame, 1);
+				if (spare_frames[i] < 0) {
+					log(LOG_WARNING, "frame alloc failed for spare frame");
+					exit(ERR);
+				}
+			}
+		}
+		replenish = false;
+	}
+
+	log(LOG_INFO, "done");
 
 	return cid;
 }
@@ -247,5 +281,14 @@ init_mem(void)
 	}
 
 	pool_free(&addr_pool, m);
+
+	int i;
+	for (i = 0; i < 3; i++) {
+		spare_frames[i] = kobj_alloc(OBJ_frame, 1);
+		if (spare_frames[i] < 0) {
+			log(LOG_FATAL, "error creating spare frames");
+			exit(8);
+		}
+	}
 }
 

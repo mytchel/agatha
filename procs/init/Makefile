@@ -3,13 +3,16 @@ PROCS_INIT_OUT = procs/init/out.elf
 PROCS_INIT_SRC_C = \
 	procs/init/main.c \
 	procs/init/timer.c \
-	procs/init/fs.c
+	procs/init/mem.c \
+	procs/init/fs.c \
+	procs/init/net.c
 
 PROCS_INIT_LIBS = \
 	$(LIBC) \
 	lib/pool \
 	lib/log \
 	lib/string \
+	lib/mem \
 	lib/fat
 
 PROCS_INIT_OBJECTS = \

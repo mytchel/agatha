@@ -6,7 +6,6 @@
 #include <proc0.h>
 #include <stdarg.h>
 #include <string.h>
-#include <dev_reg.h>
 #include <log.h>
 #include <eth.h>
 #include <ip.h>
@@ -39,12 +38,12 @@ connect_tcp_finish(struct net_dev *net,
 	ip->tcp.cons = c;
 	ip->tcp.listen_con = nil;
 
-	rp.tcp_connect.type = NET_tcp_connect_rsp;
+	rp.tcp_connect.type = NET_tcp_connect;
 	rp.tcp_connect.ret = OK;
 	rp.tcp_connect.chan_id = b->id;
 	rp.tcp_connect.con_id = c->id;
 
-	send(b->proc_id, &rp);
+	reply(net->mount_eid, b->proc_id, &rp);
 }
 
 static void
@@ -61,12 +60,12 @@ listen_tcp_finish(struct net_dev *net,
 	ip->tcp.cons = c;
 	ip->tcp.listen_con = nil;
 
-	rp.tcp_listen.type = NET_tcp_listen_rsp;
+	rp.tcp_listen.type = NET_tcp_listen;
 	rp.tcp_listen.ret = OK;
 	rp.tcp_listen.chan_id = b->id;
 	rp.tcp_listen.con_id = c->id;
 
-	send(b->proc_id, &rp);
+	reply(net->mount_eid, b->proc_id, &rp);
 }
 
 	static void
@@ -319,19 +318,20 @@ insert_received(struct net_dev *net,
 }
 
 static void
-tcp_con_finish(struct binding *b,
+tcp_con_finish(struct net_dev *net,
+		struct binding *b,
 		struct tcp_con *c)
 {
 	union net_rsp rp;
 
 	log(LOG_INFO, "send disconnect resp");
 
-	rp.tcp_disconnect.type = NET_tcp_disconnect_rsp;
+	rp.tcp_disconnect.type = NET_tcp_disconnect;
 	rp.tcp_disconnect.ret = OK;
 	rp.tcp_disconnect.chan_id = b->id;
 	rp.tcp_disconnect.con_id = c->id;
 
-	send(b->proc_id, &rp);
+	reply(net->mount_eid, b->proc_id, &rp);
 }
 
 static void
@@ -427,7 +427,7 @@ handle_tcp_fin(struct net_dev *net,
 		c->state = TCP_state_time_wait;
 		c->ack++;
 
-		tcp_con_finish(b, c);
+		tcp_con_finish(net, b, c);
 
 		/* Fall through */
 	case TCP_state_time_wait:
@@ -888,7 +888,7 @@ ip_tcp_disconnect(struct net_dev *net,
 
 void
 ip_write_tcp(struct net_dev *net,
-		union net_req *rq, 
+		union net_req *rq, int cap,
 		struct binding *b)
 {
 	struct tcp_con *c;
@@ -906,17 +906,13 @@ ip_write_tcp(struct net_dev *net,
 	if (c->state != TCP_state_established || c->closing) {
 		log(LOG_WARNING, "bad state %i", c->state);
 
-		give_addr(b->proc_id, rq->write.pa, rq->write.pa_len);
-
-		rp.write.type = NET_write_rsp;
+		rp.write.type = NET_write;
 		rp.write.ret = ERR;
 		rp.write.chan_id = b->id;
 		rp.write.proto.tcp.con_id = c->id;
 		rp.write.len = 0;
-		rp.write.pa = rq->write.pa;
-		rp.write.pa_len = rq->write.pa_len;
 
-		send(b->proc_id, &rp);
+		reply_cap(net->mount_eid, b->proc_id, &rp, cap);
 
 		return;
 	}
@@ -929,7 +925,7 @@ ip_write_tcp(struct net_dev *net,
 
 	uint8_t *va;
 
-	va = map_addr(rq->write.pa, rq->write.pa_len, MAP_RO);
+	va = frame_map_anywhere(cap);
 	if (va == nil) {
 		log(LOG_WARNING, "map failed");
 		return;
@@ -937,9 +933,7 @@ ip_write_tcp(struct net_dev *net,
 
 	memcpy(d, va, rq->write.len);
 
-	unmap_addr(va, rq->write.pa_len);
-
-	give_addr(b->proc_id, rq->write.pa, rq->write.pa_len);
+	unmap_addr(cap, va);
 
 	add_pkt(c, TCP_flag_ack|TCP_flag_psh, 
 			d, rq->write.len);
@@ -948,20 +942,18 @@ ip_write_tcp(struct net_dev *net,
 	
 	send_tcp_pkt(net, b, c);
 
-	rp.write.type = NET_write_rsp;
+	rp.write.type = NET_write;
 	rp.write.ret = OK;
 	rp.write.chan_id = b->id;
 	rp.write.proto.tcp.con_id = c->id;
 	rp.write.len = rq->write.len;
-	rp.write.pa = rq->write.pa;
-	rp.write.pa_len = rq->write.pa_len;
 
-	send(b->proc_id, &rp);
+	reply_cap(net->mount_eid, b->proc_id, &rp, cap);
 }
 
 void
 ip_read_tcp(struct net_dev *net,
-		union net_req *rq, 
+		union net_req *rq, int cap,
 		struct binding *b)
 {
 	size_t len, o, l, cont_ack;
@@ -981,22 +973,18 @@ ip_read_tcp(struct net_dev *net,
 	if (c->state != TCP_state_established) {
 		log(LOG_WARNING, "bad state %i", c->state);
 
-		give_addr(b->proc_id, rq->read.pa, rq->read.pa_len);
-
-		rp.read.type = NET_read_rsp;
+		rp.read.type = NET_read;
 		rp.read.ret = ERR;
 		rp.read.chan_id = b->id;
 		rp.read.proto.tcp.con_id = c->id;
 		rp.read.len = 0;
-		rp.read.pa = rq->read.pa;
-		rp.read.pa_len = rq->read.pa_len;
 
-		send(b->proc_id, &rp);
+		reply_cap(net->mount_eid, b->proc_id, &rp, cap);
 
 		return;
 	}
 
-	va = map_addr(rq->read.pa, rq->read.pa_len, MAP_RW);
+	va = frame_map_anywhere(cap);
 	if (va == nil) {
 		log(LOG_WARNING, "map failed");
 		return;
@@ -1054,17 +1042,13 @@ ip_read_tcp(struct net_dev *net,
 		send_tcp_pkt(net, b, c);
 	}
 
-	unmap_addr(va, rq->read.pa_len);
+	unmap_addr(cap, va);
 
-	give_addr(b->proc_id, rq->read.pa, rq->read.pa_len);
-
-	rp.read.type = NET_read_rsp;
+	rp.read.type = NET_read;
 	rp.read.ret = OK;
 	rp.read.chan_id = b->id;
 	rp.read.proto.tcp.con_id = c->id;
 	rp.read.len = len;
-	rp.read.pa = rq->read.pa;
-	rp.read.pa_len = rq->read.pa_len;
 
-	send(b->proc_id, &rp);
+	reply_cap(net->mount_eid, b->proc_id, &rp, cap);
 }

@@ -25,6 +25,9 @@ test_timer(void);
 void
 test_mem(void);
 
+void
+test_net(void);
+
 	void
 main(void)
 {
@@ -32,11 +35,13 @@ main(void)
 
 	log(LOG_INFO, "init starting");
 
-	test_fat_fs();
-	
-	test_timer();
-	
 	/*test_mem();*/
+
+	test_fat_fs();
+
+	test_net();
+		
+	test_timer();
 
 	exit(OK);
 }

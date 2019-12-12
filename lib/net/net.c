@@ -6,7 +6,6 @@
 #include <proc0.h>
 #include <stdarg.h>
 #include <string.h>
-#include <dev_reg.h>
 #include <log.h>
 #include <eth.h>
 #include <ip.h>
@@ -63,7 +62,7 @@ find_binding(struct net_dev *net,
 
 static void
 handle_bind(struct net_dev *net,
-		int from, union net_req *rq)
+		int eid, int from, union net_req *rq)
 {
 	struct net_dev_internal *i = net->internal;
 	struct binding *b;
@@ -73,9 +72,9 @@ handle_bind(struct net_dev *net,
 	log(LOG_INFO, "%i wants to bind", from);
 
 	if ((b = malloc(sizeof(struct binding))) == nil) {
-		rp.bind.type = NET_bind_req;
+		rp.bind.type = NET_bind;
 		rp.bind.ret = ERR;
-		send(from, &rp);
+		reply(eid, from, &rp);
 		return;
 	}
 
@@ -95,15 +94,15 @@ handle_bind(struct net_dev *net,
 		free(b);
 	}
 
-	rp.bind.type = NET_bind_rsp;
+	rp.bind.type = NET_bind;
 	rp.bind.ret = ret;
 	rp.bind.chan_id = b->id;
-	send(from, &rp);
+	reply(eid, from, &rp);
 }
 
 	static void
 handle_unbind(struct net_dev *net,
-		int from, union net_req *rq)
+		int eid, int from, union net_req *rq)
 {
 	struct net_dev_internal *i = net->internal;
 	struct binding *b, **o;
@@ -133,15 +132,15 @@ handle_unbind(struct net_dev *net,
 
 	free(b);
 
-	rp.unbind.type = NET_unbind_rsp;
+	rp.unbind.type = NET_unbind;
 	rp.unbind.ret = ret;
 	rp.unbind.chan_id = rq->unbind.chan_id;
-	send(from, &rp);
+	reply(eid, from, &rp);
 }
 
 	static void
 handle_tcp_listen(struct net_dev *net,
-		int from, union net_req *rq)
+		int eid, int from, union net_req *rq)
 {
 	struct binding *c;
 
@@ -170,7 +169,7 @@ handle_tcp_listen(struct net_dev *net,
 
 	static void
 handle_tcp_connect(struct net_dev *net,
-		int from, union net_req *rq)
+		int eid, int from, union net_req *rq)
 {
 	struct binding *c;
 
@@ -199,7 +198,7 @@ handle_tcp_connect(struct net_dev *net,
 
 	static void
 handle_tcp_disconnect(struct net_dev *net,
-		int from, union net_req *rq)
+		int eid, int from, union net_req *rq)
 {
 	struct binding *c;
 
@@ -228,7 +227,7 @@ handle_tcp_disconnect(struct net_dev *net,
 
 	static void
 handle_read(struct net_dev *net,
-		int from, union net_req *rq)
+		int eid, int from, union net_req *rq, int cap)
 {
 	struct binding *c;
 
@@ -247,11 +246,11 @@ handle_read(struct net_dev *net,
 
 	switch (c->proto) {
 	case NET_proto_udp:
-		ip_read_udp(net, rq, c);
+		ip_read_udp(net, rq, cap, c);
 		break;
 
 	case NET_proto_tcp:
-		ip_read_tcp(net, rq, c);
+		ip_read_tcp(net, rq, cap, c);
 		break;
 
 	default:
@@ -261,7 +260,7 @@ handle_read(struct net_dev *net,
 
 	static void
 handle_write(struct net_dev *net,
-		int from, union net_req *rq)
+		int eid, int from, union net_req *rq, int cap)
 {
 	struct binding *c;
 
@@ -280,11 +279,11 @@ handle_write(struct net_dev *net,
 
 	switch (c->proto) {
 	case NET_proto_udp:
-		ip_write_udp(net, rq, c);
+		ip_write_udp(net, rq, cap, c);
 		break;
 
 	case NET_proto_tcp:
-		ip_write_tcp(net, rq, c);
+		ip_write_tcp(net, rq, cap, c);
 		break;
 
 	default:
@@ -294,37 +293,37 @@ handle_write(struct net_dev *net,
 
 	void
 net_handle_message(struct net_dev *net,
-		int from, uint8_t *m)
+		int eid, int from, uint8_t *m, int cap)
 {
 	uint32_t type = *((uint32_t *) m);
 
 	switch (type) {
-		case NET_bind_req:
-			handle_bind(net, from, (void *) m);
+		case NET_bind:
+			handle_bind(net, eid, from, (void *) m);
 			break;
 
-		case NET_unbind_req:
-			handle_unbind(net, from, (void *) m);
+		case NET_unbind:
+			handle_unbind(net, eid, from, (void *) m);
 			break;
 
-		case NET_tcp_listen_req:
-			handle_tcp_listen(net, from, (void *) m);
+		case NET_tcp_listen:
+			handle_tcp_listen(net, eid, from, (void *) m);
 			break;
 
-		case NET_tcp_connect_req:
-			handle_tcp_connect(net, from, (void *) m);
+		case NET_tcp_connect:
+			handle_tcp_connect(net, eid, from, (void *) m);
 			break;
 
-		case NET_tcp_disconnect_req:
-			handle_tcp_disconnect(net, from, (void *) m);
+		case NET_tcp_disconnect:
+			handle_tcp_disconnect(net, eid, from, (void *) m);
 			break;
 
-		case NET_read_req:
-			handle_read(net, from, (void *) m);
+		case NET_read:
+			handle_read(net, eid, from, (void *) m, cap);
 			break;
 
-		case NET_write_req:
-			handle_write(net, from, (void *) m);
+		case NET_write:
+			handle_write(net, eid, from, (void *) m, cap);
 			break;
 
 		default:
@@ -361,21 +360,6 @@ net_init(struct net_dev *net)
 
 	net->ipv4_ident = 0xabcd;
 
-	union dev_reg_req drq;
-	union dev_reg_rsp drp;
-
-	drq.reg.type = DEV_REG_register_req;
-	drq.reg.pid = pid();
-	strlcpy(drq.reg.name, net->name, sizeof(drq.reg.name));
-
-	log(LOG_INFO, "register as %s", net->name);
-
-	if (mesg(DEV_REG_PID, &drq, &drp) != OK) {
-		return ERR;
-	} 
-	
-	log(LOG_INFO, "registered as %s", net->name);
-
-	return drp.reg.ret;
+	return OK;
 }
 

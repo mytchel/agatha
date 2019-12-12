@@ -3,13 +3,13 @@
 #include <sys.h>
 #include <c.h>
 #include <mach.h>
+#include <sysobj.h>
 #include <arm/mmu.h>
 #include <mesg.h>
 #include <stdarg.h>
 #include <string.h>
 #include <proc0.h>
 #include <log.h>
-#include <dev_reg.h>
 #include <virtio.h>
 #include <virtio-net.h>
 #include <eth.h>
@@ -37,59 +37,37 @@ struct virtio_net_dev {
 	uint8_t *tx_b_buf_va;
 };
 
-static uint8_t intr_stack[128]__attribute__((__aligned__(4)));
-static void intr_handler(int irqn, void *arg)
-{
-	struct virtio_net_dev *dev = arg;
-	uint8_t m[MESSAGE_LEN];
-
-	((uint32_t *) m)[0] = dev->base->interrupt_status;
-
-	dev->base->interrupt_ack = dev->base->interrupt_status;
-
-	send(pid(), m);
-
-	intr_exit();
-}
-
 static bool
 init_rx(struct virtio_net_dev *dev)
 {
 	size_t index_h, index_b, i;
 	struct virtq_desc *h, *b;
 
+	int h_buf_cid, b_buf_cid;
+	int type;
+
 	dev->rx_h_buf_len = PAGE_ALIGN(dev->rx.size * sizeof(struct virtio_net_hdr));
-	dev->rx_h_buf_pa = request_memory(dev->rx_h_buf_len);
-	if (dev->rx_h_buf_pa == nil) {
-		log(LOG_FATAL, "memory alloc failed");
-		return false;
-	}
-
-	dev->rx_h_buf_va = map_addr(dev->rx_h_buf_pa,
-			dev->rx_h_buf_len,
-			MAP_DEV|MAP_RW);
-
-	if (dev->rx_h_buf_va == nil) {
-		log(LOG_FATAL, "memory map failed");
-		return false;
-	}
-
 	dev->rx_b_buf_len = PAGE_ALIGN(dev->rx.size * MTU);
-	dev->rx_b_buf_pa = request_memory(dev->rx_b_buf_len);
-	if (dev->rx_b_buf_pa == nil) {
-		log(LOG_FATAL, "memory alloc failed");
+
+	h_buf_cid = request_memory(dev->rx_h_buf_len, 0x1000);
+	b_buf_cid = request_memory(dev->rx_b_buf_len, 0x1000);
+
+	if (h_buf_cid < 0 || b_buf_cid < 0) {
+		log(LOG_FATAL, "get memory for buffers failed");
 		return false;
 	}
 
-	dev->rx_b_buf_va = map_addr(dev->rx_b_buf_pa,
-			dev->rx_b_buf_len,
-			MAP_DEV|MAP_RW);
+	frame_info(h_buf_cid, &type, &dev->rx_h_buf_pa, &dev->rx_h_buf_len);
+	frame_info(b_buf_cid, &type, &dev->rx_b_buf_pa, &dev->rx_b_buf_len);
 
-	if (dev->rx_b_buf_va == nil) {
-		log(LOG_FATAL, "memory map failed");
+	dev->rx_h_buf_va = frame_map_anywhere(h_buf_cid);
+	dev->rx_b_buf_va = frame_map_anywhere(b_buf_cid);
+
+	if (dev->rx_h_buf_va == nil || dev->rx_b_buf_va == nil) {
+		log(LOG_FATAL, "map buffers failed");
 		return false;
 	}
-
+	
 	log(LOG_INFO, "rx head buf 0x%x mapped to 0x%x", 
 			dev->rx_h_buf_pa, dev->rx_h_buf_va);
 	
@@ -127,35 +105,28 @@ init_rx(struct virtio_net_dev *dev)
 static bool
 init_tx(struct virtio_net_dev *dev)
 {
+	int h_buf_cid, b_buf_cid;
+	int type;
+
 	dev->tx_h_buf_len = PAGE_ALIGN(dev->tx.size * sizeof(struct virtio_net_hdr));
-	dev->tx_h_buf_pa = request_memory(dev->tx_h_buf_len);
-	if (dev->tx_h_buf_pa == nil) {
-		log(LOG_FATAL, "memory alloc failed");
-		return false;
-	}
-
-	dev->tx_h_buf_va = map_addr(dev->tx_h_buf_pa,
-			dev->tx_h_buf_len,
-			MAP_DEV|MAP_RW);
-
-	if (dev->tx_h_buf_va == nil) {
-		log(LOG_FATAL, "memory map failed");
-		return false;
-	}
-
 	dev->tx_b_buf_len = PAGE_ALIGN(dev->tx.size * MTU);
-	dev->tx_b_buf_pa = request_memory(dev->tx_b_buf_len);
-	if (dev->tx_b_buf_pa == nil) {
-		log(LOG_FATAL, "memory alloc failed");
+
+	h_buf_cid = request_memory(dev->tx_h_buf_len, 0x1000);
+	b_buf_cid = request_memory(dev->tx_b_buf_len, 0x1000);
+
+	if (h_buf_cid < 0 || b_buf_cid < 0) {
+		log(LOG_FATAL, "get memory for buffers failed");
 		return false;
 	}
 
-	dev->tx_b_buf_va = map_addr(dev->tx_b_buf_pa,
-			dev->tx_b_buf_len,
-			MAP_DEV|MAP_RW);
+	frame_info(h_buf_cid, &type, &dev->tx_h_buf_pa, &dev->tx_h_buf_len);
+	frame_info(b_buf_cid, &type, &dev->tx_b_buf_pa, &dev->tx_b_buf_len);
 
-	if (dev->tx_b_buf_va == nil) {
-		log(LOG_FATAL, "memory map failed");
+	dev->tx_h_buf_va = frame_map_anywhere(h_buf_cid);
+	dev->tx_b_buf_va = frame_map_anywhere(b_buf_cid);
+
+	if (dev->tx_h_buf_va == nil || dev->tx_b_buf_va == nil) {
+		log(LOG_FATAL, "map buffers failed");
 		return false;
 	}
 
@@ -244,25 +215,6 @@ send_pkt(struct net_dev *net, uint8_t *buf, size_t len)
 	virtq_push(&dev->tx, index_h);
 }
 
-int
-claim_irq(struct virtio_net_dev *dev, size_t irqn)
-{
-	union proc0_req rq;
-	union proc0_rsp rp;
-
-	rq.irq_reg.type = PROC0_irq_reg_req;
-	rq.irq_reg.irqn = irqn; 
-	rq.irq_reg.func = &intr_handler;
-	rq.irq_reg.arg = dev;
-	rq.irq_reg.sp = &intr_stack[sizeof(intr_stack)];
-
-	if (mesg(PROC0_PID, &rq, &rp) != OK || rp.irq_reg.ret != OK) {
-		return ERR;
-	}
-
-	return OK;
-}
-
 	int
 init_dev(struct net_dev *net, struct virtio_net_dev *dev)
 {
@@ -343,9 +295,7 @@ init_dev(struct net_dev *net, struct virtio_net_dev *dev)
 	int
 main(void)
 {
-	uint32_t init_m[MESSAGE_LEN/sizeof(uint32_t)];
-	char dev_name[MESSAGE_LEN];
-
+	char *dev_name = "virtio-net";
 	struct virtio_net_dev dev;
 	struct net_dev net;
 
@@ -353,46 +303,75 @@ main(void)
 	net.mtu = MTU;
 	net.send_pkt = &send_pkt;
 
-	size_t regs_pa, regs_len;
-	size_t regs_off, regs_va;
-	size_t irqn;
-
-	recv(0, init_m);
-	regs_pa = init_m[0];
-	regs_len = init_m[1];
-	irqn = init_m[2];
-
-	recv(0, dev_name);
-
 	log_init(dev_name);
+	log(LOG_INFO, "virtio-net get caps");
+
+	union proc0_req prq;
+	union proc0_rsp prp;
+	int mount_cid, reg_cid, irq_cid;
+	size_t reg_pa, reg_len, reg_off, reg_va;
+
+	mount_cid = kcap_alloc();
+	reg_cid = kcap_alloc();
+	irq_cid = kcap_alloc();
+	if (mount_cid < 0 || reg_cid < 0 || irq_cid < 0) {
+		exit(ERR);
+	}
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_mount;
+
+	mesg_cap(CID_PARENT, &prq, &prp, mount_cid);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	net.mount_eid = mount_cid;
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_regs;
+
+	mesg_cap(CID_PARENT, &prq, &prp, reg_cid);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	reg_pa = prp.get_resource.result.regs.pa;
+	reg_len = prp.get_resource.result.regs.len;
+	reg_off = reg_pa - PAGE_ALIGN_DN(reg_pa);
+
+	log(LOG_INFO, "virtio-net reg 0x%x,0x%x 0x%x",
+		reg_pa, reg_len, reg_off);
+
+	prq.get_resource.type = PROC0_get_resource;
+	prq.get_resource.resource_type = RESOURCE_type_int;
+
+	mesg_cap(CID_PARENT, &prq, &prp, irq_cid);
+	if (prp.get_resource.ret != OK) {
+		exit(ERR);
+	}
+
+	log(LOG_INFO, "virtio-net got mount 0x%x, reg 0x%x, irq 0x%x",
+		mount_cid, reg_cid, irq_cid);
+
+	reg_va = (size_t) frame_map_anywhere(reg_cid);
+	if (reg_va == nil) {
+		exit(ERR);
+	}
 
 	strlcpy(net.name, dev_name, sizeof(net.name));
 
-	regs_off = regs_pa - PAGE_ALIGN_DN(regs_pa);
-
-	regs_va = (size_t) map_addr(PAGE_ALIGN_DN(regs_pa), 
-			PAGE_ALIGN(regs_len), 
-			MAP_DEV|MAP_RW);
-
-	if (regs_va == nil) {
-		log(LOG_FATAL, "virtio-net failed to map registers 0x%x 0x%x!",
-				regs_pa, regs_len);
-		return ERR;
-	}
-
-	log(LOG_INFO, "virtio-net on 0x%x 0x%x with irq %i",
-			regs_pa, regs_len, irqn);
-
-	dev.base = (struct virtio_device *) ((size_t) regs_va + regs_off);
-
-	log(LOG_INFO, "virtio-net mapped 0x%x -> 0x%x",
-			regs_pa, dev.base);
+	dev.base = (struct virtio_device *) ((size_t) reg_va + reg_off);
 
 	init_dev(&net, &dev);
 
-	if (claim_irq(&dev, irqn) != OK) {
-		log(LOG_FATAL, "failed to register interrupt %i", irqn);
-		return ERR;
+	int irq_eid = kobj_alloc(OBJ_endpoint, 1);
+	if (irq_eid < 0) {
+		exit(ERR);
+	}
+
+	if (intr_connect(irq_cid, irq_eid, 0x1) != OK) {
+		exit(ERR);
 	}
 
 	if (net_init(&net) != OK) {
@@ -401,11 +380,18 @@ main(void)
 
 	uint8_t m[MESSAGE_LEN];
 	while (true) {
-		int from = recv(-1, m);
+		int eid, from;
+		int cap = kcap_alloc();
 
-		if (from < 0) return from;
+		eid = recv_cap(EID_ANY, &from, m, cap);
+		if (eid < 0) continue;
+		if (eid == irq_eid && from == PID_SIGNAL) {
+			dev.base->interrupt_ack = dev.base->interrupt_status;
 
-		if (from == pid()) {
+			intr_ack(irq_cid);
+			
+			log(LOG_INFO, "got irq");
+
 			struct virtq_used_item *e;
 
 			e = virtq_pop(&dev.rx);
@@ -419,7 +405,7 @@ main(void)
 			}
 
 		} else {
-			net_handle_message(&net, from, m);	
+			net_handle_message(&net, eid, from, m, cap);
 		}
 
 	}

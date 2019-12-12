@@ -150,12 +150,11 @@ init_bundled_proc(uint8_t *code,
 	return p_pid;
 }
 
-	void
-init_procs(void)
+void
+init_services(void)
 {
-	int i, s, pri;
 	struct service *ser;
-	size_t off;
+	int i, s;
 
 	log(LOG_INFO, "setup services");
 
@@ -187,10 +186,12 @@ init_procs(void)
 				log(LOG_WARNING, "service %s create reg frame 0x%x 0x%x", 
 					ser->name, ser->device.reg, ser->device.len);
 
-				ser->device.reg_cid = 
-					create_frame(PAGE_ALIGN_DN(ser->device.reg),
-							PAGE_ALIGN(ser->device.len),
-							FRAME_DEV);
+				size_t pa, len;
+
+				pa = PAGE_ALIGN_DN(ser->device.reg);
+				len = PAGE_ALIGN(ser->device.len);
+
+				ser->device.reg_cid = create_frame(pa, len, FRAME_DEV);
 
 				if (ser->device.reg_cid < 0) {
 					log(LOG_WARNING, "failed to create reg frame");
@@ -222,9 +223,18 @@ init_procs(void)
 			}
 		}
 	}
+}
+	void
+init_procs(void)
+{
+	int i, s, pri;
+	struct service *ser;
+	size_t off;
 
 	int bundle_cid;
 	uint8_t *bundle_va;
+
+	init_services();
 
 	bundle_cid = create_frame(info->bundle_pa, 
 		info->bundle_len, 

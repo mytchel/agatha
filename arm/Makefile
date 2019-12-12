@@ -11,7 +11,7 @@ LIBS += \
 	lib/block \
 	lib/sdmmc \
 	lib/fat \
-#	lib/net \
+	lib/net 
 
 BUNDLE_BIN =
 BUNDLE_ELF =

@@ -10,10 +10,7 @@ static uint8_t root_caplist_obj[0x1000] = { 0 };
 static uint8_t root_untyped_obj[0x1000] = { 0 };
 static obj_frame_t root_l1 = { 0 };
 
-#define root_l1_va      0x01000
-#define root_l2_va      0x05000
 #define root_info_va    0x06000
-#define root_stack_va   0x1c000
 #define root_code_va    USER_ADDR
 
 static size_t va_next = 0;
@@ -30,7 +27,7 @@ root_start(void)
 	debug_info("root drop to user\n");
 
 	u.psr = MODE_USR;
-	u.sp = root_stack_va + 0x1000;
+	u.sp = root_code_va;
 	u.pc = root_code_va;
 	u.regs[0] = root_info_va;
 
@@ -73,22 +70,11 @@ init_root(struct kernel_info *info)
 	map_l2(l1, info->root.l2_pa,
 			0, 0x1000);
 
-	info->root.l1_va = root_l1_va;
-	info->root.l2_va = root_l2_va;
 	info->root.info_va = root_info_va;
-	info->root.stack_va = root_stack_va;
+	info->root.stack_va = 
+		root_code_va - info->root.stack_len;
 
-	map_pages(l2, 
-			info->root.l1_pa, 
-			info->root.l1_va, 
-			info->root.l1_len,
-			AP_RW_RW, false);
-
-	map_pages(l2, 
-			info->root.l2_pa, 
-			info->root.l2_va, 
-			info->root.l2_len,
-			AP_RW_RW, false);
+	debug_info("map root stack at 0x%x\n", info->root.stack_va);
 
 	map_pages(l2, 
 			info->info_pa,
@@ -257,6 +243,9 @@ main(struct kernel_info *info)
 	debug_info("root l2 0x%x 0x%x\n", 
 			info->root.l2_pa, 
 			info->root.l2_len);
+	debug_info("root stack 0x%x 0x%x\n", 
+			info->root.stack_pa, 
+			info->root.stack_len);
 
 	p = init_root(info);
 

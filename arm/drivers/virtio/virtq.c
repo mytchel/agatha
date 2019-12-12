@@ -79,7 +79,7 @@ virtq_init(struct virtq *q,
 {
 	size_t queue_pa, queue_va, queue_len;
 	size_t avail_off, used_off;
-	size_t i;
+	size_t i, cid, type;
 
 	q->queue_index = queue_index;
 
@@ -96,16 +96,18 @@ virtq_init(struct virtq *q,
 	log(LOG_INFO, "need 0x%x bytes for queue of size 0x%x", 
 			queue_len, num);
 
-	queue_pa = request_memory(queue_len);
-	if (queue_pa == nil) {
+	cid = request_memory(queue_len, 0x1000);
+	if (cid < 0) {
 		log(LOG_FATAL, "virtio queue memory alloc failed");
 		return false;
 	}
 
-	queue_va = (size_t) map_addr(queue_pa, queue_len, MAP_DEV|MAP_RW);
+	frame_info(cid, &type, &queue_pa, &queue_len);
+
+	queue_va = (size_t) frame_map_anywhere(cid);
 	if (queue_va == nil) {
 		log(LOG_FATAL, "virtio queue memory map failed");
-		release_addr(queue_pa, queue_len);
+		release_memory(cid);
 		return false;
 	}
 

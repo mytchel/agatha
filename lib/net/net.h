@@ -85,12 +85,12 @@ ip_unbind(struct net_dev *net,
 
 void
 ip_write_udp(struct net_dev *net,
-		union net_req *rq, 
+		union net_req *rq, int cap,
 		struct binding *c);
 
 void
 ip_read_udp(struct net_dev *net,
-		union net_req *rq, 
+		union net_req *rq, int cap, 
 		struct binding *c);
 
 void
@@ -110,10 +110,11 @@ ip_tcp_disconnect(struct net_dev *net,
 
 void
 ip_read_tcp(struct net_dev *net,
-		union net_req *rq, 
+		union net_req *rq, int cap,
 		struct binding *c);
 
 void
 ip_write_tcp(struct net_dev *net,
-		union net_req *rq, 
+		union net_req *rq, int cap,
 		struct binding *c);
+

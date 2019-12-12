@@ -65,6 +65,7 @@ struct service services[] = {
 		{ { RESOURCE_type_log, "log" },
 		  { RESOURCE_type_timer, "timer0" },
 		  { RESOURCE_type_block, "sd0" },
+		  { RESOURCE_type_net, "net0" },
 		  { 0, nil } },
 	},
 };

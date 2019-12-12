@@ -6,7 +6,6 @@
 #include <proc0.h>
 #include <stdarg.h>
 #include <string.h>
-#include <dev_reg.h>
 #include <log.h>
 #include <eth.h>
 #include <ip.h>
@@ -155,7 +154,7 @@ ip_unbind_udp(struct net_dev *net,
 struct udp_write_req {
 	struct net_dev *net;
 	struct binding *binding;
-	size_t pa, pa_len;
+	int cap;
 	uint8_t *va;
 	size_t len;
 	uint8_t addr_rem[4];
@@ -180,20 +179,14 @@ udp_write_finish(struct net_dev *net, void *arg, uint8_t *mac)
 
 	log(LOG_INFO, "udp sent");
 
-	unmap_addr(r->va, r->pa_len);
+	unmap_addr(r->cap, r->va);
 
-	if (give_addr(r->binding->proc_id, r->pa, r->pa_len) != OK) {
-		return;
-	}
-
-	rp.write.type = NET_write_rsp;
+	rp.write.type = NET_write;
 	rp.write.ret = OK;
 	rp.write.chan_id = r->binding->id;
-	rp.write.pa = r->pa;
-	rp.write.pa_len = r->pa_len;
 	rp.write.len = r->len;
 
-	send(r->binding->proc_id, &rp);
+	reply_cap(net->mount_eid, r->binding->proc_id, &rp, r->cap);
 
 	free(r);
 }
@@ -201,7 +194,7 @@ udp_write_finish(struct net_dev *net, void *arg, uint8_t *mac)
 void
 add_udp_write_req(struct net_dev *net,
 		struct binding *b,
-		size_t pa, size_t pa_len,
+		int cap,
 		uint8_t *va,
 		size_t len,
 		uint8_t addr_rem[4],
@@ -217,8 +210,7 @@ add_udp_write_req(struct net_dev *net,
 
 	r->net = net;
 	r->binding = b;
-	r->pa = pa;
-	r->pa_len = pa_len;
+	r->cap = cap;
 	r->va = va;
 	r->len = len;
 	r->port_rem = port_rem;
@@ -231,19 +223,19 @@ add_udp_write_req(struct net_dev *net,
 
 void
 ip_write_udp(struct net_dev *net,
-		union net_req *rq, 
+		union net_req *rq, int cap, 
 		struct binding *b)
 {
 	log(LOG_INFO, "write udp");
 
 	uint8_t *va;
 
-	va = map_addr(rq->write.pa, rq->write.pa_len, MAP_RO);
+	va = frame_map_anywhere(cap);
 	if (va == nil) {
 		return;
 	}
 
-	add_udp_write_req(net, b, rq->write.pa, rq->write.pa_len,
+	add_udp_write_req(net, b, cap,
 			va, rq->write.len,
 			rq->write.proto.udp.addr_rem,
 			rq->write.proto.udp.port_rem);
@@ -251,7 +243,7 @@ ip_write_udp(struct net_dev *net,
 
 void
 ip_read_udp(struct net_dev *net,
-		union net_req *rq, 
+		union net_req *rq, int cap,
 		struct binding *b)
 {
 	struct binding_ip *ip = b->proto_arg;
@@ -262,17 +254,15 @@ ip_read_udp(struct net_dev *net,
 
 	log(LOG_INFO, "read udp");
 
-	rp.read.type = NET_read_rsp;
+	rp.read.type = NET_read;
 	rp.read.chan_id = b->id;
-	rp.read.pa = rq->read.pa;
-	rp.read.pa_len = rq->read.pa_len;
 	rp.read.len = 0;
 	memset(&rp.read.proto, 0, sizeof(rp.read.proto));
 	
-	va = map_addr(rq->read.pa, rq->read.pa_len, MAP_RW);
+	va = frame_map_anywhere(cap);
 	if (va == nil) {
 		rp.read.ret = ERR;
-		send(b->proc_id, &rp);
+		reply_cap(net->mount_eid, b->proc_id, &rp, cap);
 		return;
 	}
 
@@ -313,19 +303,13 @@ ip_read_udp(struct net_dev *net,
 		len = l;
 	}
 
-	unmap_addr(va, rq->read.pa_len);
+	unmap_addr(cap, va);
 
 	log(LOG_INFO, "got %i bytes in total", len);
-
-	if (give_addr(b->proc_id, rq->read.pa, rq->read.pa_len) != OK) {
-		rp.read.ret = ERR;
-		send(b->proc_id, &rp);
-		return;
-	}
 
 	rp.read.ret = OK;
 	rp.read.len = len;
 
-	send(b->proc_id, &rp);
+	reply_cap(net->mount_eid, b->proc_id, &rp, cap);
 }
 

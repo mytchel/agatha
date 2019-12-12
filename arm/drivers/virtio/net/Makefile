@@ -4,7 +4,13 @@ VIRT_NET_SRC_C = \
 	arm/drivers/virtio/net/net.c \
 	arm/drivers/virtio/virtq.c
 
-VIRT_NET_LIBS = lib/net lib/log $(USER_LIBS)
+VIRT_NET_LIBS = \
+	$(LIBC) \
+	lib/net \
+	lib/mem \
+	lib/log \
+	lib/string \
+	lib/pool
 
 VIRT_NET_OBJECTS = \
 	$(VIRT_NET_SRC_C:%.c=%.o) \

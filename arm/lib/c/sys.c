@@ -157,11 +157,14 @@ kobj_alloc_new(size_t len)
 	if (len < 0x1000) 
 		len = 0x1000;
 
+	log(LOG_WARNING, "request mem for 0x%x", len);
 	fid = request_memory(len, 0x1000);
 	if (fid < 0) {
 		log(LOG_WARNING, "request mem failed");
 		return nil;
 	}
+
+	log(LOG_INFO, "got mem");
 
 	cid = kcap_alloc();
 	if (cid < 0) {
@@ -169,19 +172,23 @@ kobj_alloc_new(size_t len)
 		return nil;
 	}
 	
+	log(LOG_INFO, "got cap");
 	if (obj_create(fid, cid) != OK) {
 		log(LOG_WARNING, "obj create failed");
 		return nil;
 	}
 
+	log(LOG_INFO, "obj created");
 	kcap_free(fid);
 
+	log(LOG_INFO, "free'd cap");
 	o = kobj_pool_alloc();
 	if (o == nil) {
 		log(LOG_WARNING, "kobj pool empty");
 		return nil;
 	}
 
+	log(LOG_INFO, "setup obj");
 	o->cid = cid;
 	o->claimed = false;
 	o->type = OBJ_untyped;
@@ -190,6 +197,7 @@ kobj_alloc_new(size_t len)
 	o->from = o;
 	kobjs = o;
 
+	log(LOG_INFO, "done");
 	return o;
 }
 

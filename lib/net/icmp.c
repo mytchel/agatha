@@ -6,7 +6,6 @@
 #include <proc0.h>
 #include <stdarg.h>
 #include <string.h>
-#include <dev_reg.h>
 #include <log.h>
 #include <eth.h>
 #include <ip.h>

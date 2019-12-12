@@ -3,6 +3,8 @@ struct net_dev {
 
 	char name[16];
 
+	int mount_eid;
+
 	uint16_t ipv4_ident;
 
 	size_t mtu;
@@ -22,7 +24,7 @@ net_process_pkt(struct net_dev *dev,
 
 void
 net_handle_message(struct net_dev *dev,
-		int from, uint8_t *m);
+		int eid, int from, uint8_t *m, int cap);
 
 int
 net_init(struct net_dev *dev);

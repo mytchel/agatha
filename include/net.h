@@ -41,7 +41,6 @@ union net_req {
 	struct {
 		uint32_t type;
 		int chan_id;
-		size_t pa, pa_len;
 		size_t len;
 		size_t timeout_ms;
 
@@ -55,7 +54,6 @@ union net_req {
 	struct {
 		uint32_t type;
 		int chan_id;
-		size_t pa, pa_len;
 		size_t len;
 
 		union {
@@ -119,7 +117,6 @@ union net_rsp {
 		uint32_t type;
 		int ret;
 		int chan_id;
-		size_t pa, pa_len;
 		size_t len;
 		
 		union {
@@ -138,7 +135,6 @@ union net_rsp {
 		uint32_t type;
 		int ret;
 		int chan_id;
-		size_t pa, pa_len;
 		size_t len;
 
 		union {
