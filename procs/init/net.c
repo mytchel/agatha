@@ -10,7 +10,7 @@
 #include <net.h>
 #include <log.h>
 
-#define TCP_TEST_PORT_LOC 4085
+#define TCP_TEST_PORT_LOC 4087
 #define TCP_TEST_PORT_REM 4086
 
 #define UDP_TEST_PORT_LOC 3000

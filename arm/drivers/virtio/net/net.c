@@ -311,6 +311,11 @@ main(void)
 	int mount_cid, reg_cid, irq_cid;
 	size_t reg_pa, reg_len, reg_off, reg_va;
 
+	int irq_eid = kobj_alloc(OBJ_endpoint, 1);
+	if (irq_eid < 0) {
+		exit(ERR);
+	}
+
 	mount_cid = kcap_alloc();
 	reg_cid = kcap_alloc();
 	irq_cid = kcap_alloc();
@@ -365,11 +370,6 @@ main(void)
 
 	init_dev(&net, &dev);
 
-	int irq_eid = kobj_alloc(OBJ_endpoint, 1);
-	if (irq_eid < 0) {
-		exit(ERR);
-	}
-
 	if (intr_connect(irq_cid, irq_eid, 0x1) != OK) {
 		exit(ERR);
 	}
@@ -378,34 +378,37 @@ main(void)
 		return ERR;
 	}
 
+	int cap = kcap_alloc();
+
 	uint8_t m[MESSAGE_LEN];
 	while (true) {
 		int eid, from;
-		int cap = kcap_alloc();
 
 		eid = recv_cap(EID_ANY, &from, m, cap);
 		if (eid < 0) continue;
-		if (eid == irq_eid && from == PID_SIGNAL) {
-			dev.base->interrupt_ack = dev.base->interrupt_status;
 
-			intr_ack(irq_cid);
-			
-			log(LOG_INFO, "got irq");
+		if (from == PID_SIGNAL) {
+			if (eid == irq_eid) {
+				dev.base->interrupt_ack = dev.base->interrupt_status;
 
-			struct virtq_used_item *e;
+				intr_ack(irq_cid);
+				
+				log(LOG_INFO, "irq handled");
 
-			e = virtq_pop(&dev.rx);
-			if (e != nil) {
-				log(LOG_INFO, "process rx");
-				process_rx(&net, e);	
+				struct virtq_used_item *e;
+
+				e = virtq_pop(&dev.rx);
+				if (e != nil) {
+					log(LOG_INFO, "process rx");
+					process_rx(&net, e);
+				} 
+
+				e = virtq_pop(&dev.tx);
+				if (e != nil) {
+					log(LOG_INFO, "process tx");
+					process_tx(&net, e);	
+				}
 			}
-
-			e = virtq_pop(&dev.tx);
-			if (e != nil) {
-				log(LOG_INFO, "process tx");
-				process_tx(&net, e);	
-			}
-
 		} else {
 			net_handle_message(&net, eid, from, m, cap);
 		}

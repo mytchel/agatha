@@ -677,11 +677,18 @@ handle_tcp(struct net_dev *net,
 		tcp_hdr->win_size[0] << 8 | tcp_hdr->win_size[1];
 
 	if (flags & TCP_flag_ack) {
-		log(LOG_INFO, "got ack, send pkts");
+		log(LOG_INFO, "got ack, check pkts");
 		while (c->sending != nil) {
 			t = c->sending;
+			log(LOG_INFO, "0x%x < pkt seq=0x%x len=0x%x flag=0x%x",
+				ack, t->seq, t->len, t->flags);
+
 			if (ack < t->seq + t->len || (t->flags & TCP_flag_fin)) {
-				log(LOG_INFO, "pkt 0x%x still not acked", t->seq);
+				while (t != nil) {
+					log(LOG_INFO, "pkt 0x%x still not acked", t->seq);
+					t = t->next;
+				}
+
 				break;
 			} else {
 				log(LOG_INFO, "pkt 0x%x acked", t->seq);
@@ -716,6 +723,8 @@ handle_tcp(struct net_dev *net,
 
 	log(LOG_INFO, "free the pkt");
 	ip_pkt_free(p);
+	
+	send_tcp_pkt(net, b, c);
 }
 
 int
@@ -912,7 +921,7 @@ ip_write_tcp(struct net_dev *net,
 {
 	struct tcp_con *c;
 	union net_rsp rp;
-	uint8_t *d;
+	uint8_t *va, *d;
 
 	log(LOG_INFO, "TCP write %i", rq->write.len);
 
@@ -942,8 +951,6 @@ ip_write_tcp(struct net_dev *net,
 		return;
 	}
 
-	uint8_t *va;
-
 	va = frame_map_anywhere(cap);
 	if (va == nil) {
 		log(LOG_WARNING, "map failed");
@@ -954,12 +961,17 @@ ip_write_tcp(struct net_dev *net,
 
 	unmap_addr(cap, va);
 
+	bool send = c->sending == nil;
+	
 	add_pkt(c, TCP_flag_ack|TCP_flag_psh, 
 			d, rq->write.len);
 
 	c->next_seq += rq->write.len;
-	
-	send_tcp_pkt(net, b, c);
+
+	if (send) {
+		log(LOG_INFO, "write trigger send");
+		send_tcp_pkt(net, b, c);
+	}
 
 	rp.write.type = NET_write;
 	rp.write.ret = OK;
