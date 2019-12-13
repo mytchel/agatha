@@ -11,7 +11,7 @@
 #include <log.h>
 
 #define TCP_TEST_PORT_LOC 4085
-#define TCP_TEST_PORT_REM 4070
+#define TCP_TEST_PORT_REM 4086
 
 #define UDP_TEST_PORT_LOC 3000
 
@@ -55,7 +55,7 @@ udp_test(int net_eid)
 
 	chan_id = rp.bind.chan_id;
 
-	for (j = 0; j < 10; j++) {
+	for (j = 0; j < 5; j++) {
 
 		int k;
 		for (k = 0; k < 100000000; k++)
@@ -320,6 +320,8 @@ tcp_con_test(int net_eid)
 		return ERR;
 	}
 
+	release_memory(fid);
+
 	return OK;
 }
 
@@ -374,7 +376,7 @@ tcp_serv_test(int net_eid)
 
 	log(LOG_INFO, "got con %i", con_id);
 
-	tcp_con(net_eid, chan_id, con_id, len);
+	tcp_con(net_eid, chan_id, con_id, fid);
 
 	rq.unbind.type = NET_unbind;
 	rq.unbind.chan_id = chan_id;
@@ -386,6 +388,8 @@ tcp_serv_test(int net_eid)
 		log(LOG_FATAL, "unbind failed %i", rp.unbind.ret);
 		return ERR;
 	}
+
+	release_memory(fid);
 
 	return OK;
 }
@@ -414,8 +418,8 @@ test_net(void)
 
 	log_init("net_test");
 
-	/*udp_test(net_eid);*/
-	tcp_con_test(net_eid); 
+	udp_test(net_eid);
+	/*tcp_con_test(net_eid);*/
 	tcp_serv_test(net_eid);
 }
 

@@ -37,11 +37,11 @@ main(void)
 
 	/*test_mem();*/
 
-	test_fat_fs();
+	/*test_fat_fs();*/
 
 	test_net();
 		
-	test_timer();
+	/*test_timer();*/
 
 	exit(OK);
 }

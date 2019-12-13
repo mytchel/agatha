@@ -28,14 +28,9 @@ connect_tcp_finish(struct net_dev *net,
 		struct binding *b,
 		struct tcp_con *c)
 {
-	struct binding_ip *ip = b->proto_arg;
 	union net_rsp rp;
 
 	log(LOG_INFO, "TCP connect finished, con %i", c->id);
-
-	c->next = ip->tcp.cons;
-	ip->tcp.cons = c;
-	ip->tcp.listen_con = nil;
 
 	rp.tcp_connect.type = NET_tcp_connect;
 	rp.tcp_connect.ret = OK;
@@ -54,6 +49,11 @@ listen_tcp_finish(struct net_dev *net,
 	union net_rsp rp;
 
 	log(LOG_INFO, "TCP listen finished, con %i", c->id);
+
+	if (c != ip->tcp.listen_con) {
+		log(LOG_WARNING, "listen finished with non listen con!");
+		return;
+	}
 
 	c->next = ip->tcp.cons;
 	ip->tcp.cons = c;
@@ -103,6 +103,7 @@ send_tcp_pkt(struct net_dev *net,
 		} else {
 			log(LOG_INFO, "remove empty pkt 0x%x", p->seq);
 			c->sending = p->next;
+			if (p->data != nil) free(p->data);
 			free(p);
 		}
 	}
@@ -456,6 +457,9 @@ handle_tcp_syn(struct net_dev *net,
 		log(LOG_INFO, "syn sent -> syn recv");
 		c->state = TCP_state_syn_received;
 
+		/* put this here for now */
+		c->state = TCP_state_established;
+
 		c->ack = seq + 1;
 
 		c->next_seq++;
@@ -521,6 +525,7 @@ handle_tcp_ack(struct net_dev *net,
 				t = c->sending;
 				log(LOG_INFO, "remove fin pkt 0x%x", t->seq);
 				c->sending = t->next;
+				if (t->data != nil) free(t->data);
 				free(t);
 			}
 
@@ -542,6 +547,7 @@ handle_tcp_ack(struct net_dev *net,
 				t = c->sending;
 				log(LOG_INFO, "remove fin pkt 0x%x", t->seq);
 				c->sending = t->next;
+				if (t->data != nil) free(t->data);
 				free(t);
 			}
 		} else {
@@ -557,6 +563,7 @@ handle_tcp_ack(struct net_dev *net,
 
 	case TCP_state_syn_received:
 		log(LOG_INFO, "syn recv -> established");
+
 		c->state = TCP_state_established;
 
 		c->next_seq++;
@@ -623,15 +630,19 @@ handle_tcp(struct net_dev *net,
 	b = find_binding_ip(net, NET_proto_tcp, port_dst);
 
 	if (b == nil) {
-		log(LOG_INFO, "got unhandled packet without bind");
+		log(LOG_WARNING, "got unhandled packet without bind");
 		ip_pkt_free(p);
 		return;
 	}
+
+	log(LOG_INFO, "found pkt binding 0x%x", b);
 
 	struct binding_ip *ip = b->proto_arg;
 	struct tcp_con *c;
 
 	for (c = ip->tcp.cons; c != nil; c = c->next) {
+		log(LOG_INFO, "check con 0x%x   src %i == rem %i", 
+			c, port_src, c->port_rem);
 		if (port_src == c->port_rem
 			&& memcmp(p->src_ipv4, c->addr_rem, 4)) 
 		{
@@ -640,6 +651,7 @@ handle_tcp(struct net_dev *net,
 	}
 
 	if (c == nil) {
+		log(LOG_INFO, "no con found for pkt, check listening");
 		c = ip->tcp.listen_con;
 		if (ip->tcp.listen_con != nil) {
 			if (c->state != TCP_state_listen) {
@@ -659,10 +671,13 @@ handle_tcp(struct net_dev *net,
 		}
 	}
 
+	log(LOG_INFO, "have con 0x%x", c);
+
 	c->window_size_rem = 
 		tcp_hdr->win_size[0] << 8 | tcp_hdr->win_size[1];
 
 	if (flags & TCP_flag_ack) {
+		log(LOG_INFO, "got ack, send pkts");
 		while (c->sending != nil) {
 			t = c->sending;
 			if (ack < t->seq + t->len || (t->flags & TCP_flag_fin)) {
@@ -672,29 +687,34 @@ handle_tcp(struct net_dev *net,
 				log(LOG_INFO, "pkt 0x%x acked", t->seq);
 
 				c->sending = t->next;
-				if (t->data != nil) 
-					free(t->data);
+				if (t->data != nil) free(t->data);
 				free(t);
 			}
 		}
+		log(LOG_INFO, "first ack handled, check other flags");
 	}
 
 	if (flags & TCP_flag_rst) {
+		log(LOG_INFO, "handl rst");
 		handle_tcp_rst(net, p, b, c, seq, ack, flags);
 
 	} else if (flags & TCP_flag_fin) {
+		log(LOG_INFO, "handl fin");
 		handle_tcp_fin(net, p, b, c, seq, ack, flags);
 
 	} else if (flags & TCP_flag_syn) {
+		log(LOG_INFO, "handl syn");
 		handle_tcp_syn(net, p, b, c, seq, ack, flags,
 			port_src);
 
 	} else if (flags & TCP_flag_ack) {
+		log(LOG_INFO, "handl ack");
 		handle_tcp_ack(net, p, b, c, seq, ack, flags,
 			p->data + hdr_len,
 			p->len - hdr_len);
 	}
 
+	log(LOG_INFO, "free the pkt");
 	ip_pkt_free(p);
 }
 
@@ -1012,7 +1032,7 @@ ip_read_tcp(struct net_dev *net,
 		} else {
 			c->offset_into_waiting = 0;
 			c->recv_wait = p->next;
-			free(p->data);
+			if (p->data != nil) free(p->data);
 			free(p);
 			cont_ack += l;
 		}

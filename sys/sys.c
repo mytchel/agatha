@@ -304,16 +304,23 @@ recv(int from, int *pid, uint8_t *m, cap_t *o)
 	cap_t *c;
 
 	if (from == EID_ANY) {
+		debug_info("%i recv any\n", up->pid);
 		c = nil;
 	} else {
 		c = proc_find_cap(up, from);
 		if (c == nil) {
+			debug_warn("%i recv cap not found\n");
 			return ERR;
 		} else if (!(c->perm & CAP_read)) {
+			debug_warn("%i recv cap bad perm\n");
 			return ERR;
 		} else if (c->obj->type != OBJ_endpoint) {
+			debug_warn("%i recv obj not endpoint\n",
+				up->pid);
 			return ERR;
 		}
+		
+		debug_info("%i recv 0x%x\n", up->pid, c->obj);
 	}
 
 	while (true) {
@@ -458,18 +465,27 @@ signal(obj_endpoint_t *e, uint32_t s)
 {
 	obj_proc_t *p;
 
-	p = e->holder;
-
 	e->signal |= s;
+	
+	p = e->holder;
+	if (p != nil) {
+		debug_warn("%i signal proc %i\n", up->pid, p->pid);
 
-	if (p->state == PROC_block_recv 
-		&& (p->recv_from == nil || p->recv_from == e))
-	{
-		debug_info("%i signal wake up %i\n",
-			up->pid, p->pid);
+		if (p->state == PROC_block_recv 
+			&& (p->recv_from == nil || p->recv_from == e))
+		{
+			debug_info("%i signal wake up %i\n",
+				up->pid, p->pid);
 
-		proc_ready(p);
-		schedule(p);
+			proc_ready(p);
+			schedule(p);
+		} else {
+			debug_warn("%i signal proc %i not listening to signal (state=%i, recv=0x%x, e=0x%x)\n",
+				up->pid, p->pid, p->state, p->recv_from, e);
+			
+		}
+	} else {
+		debug_warn("%i signal endpoint without holder\n");
 	}
 
 	return OK;

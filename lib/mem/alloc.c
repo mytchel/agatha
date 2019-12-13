@@ -3,6 +3,7 @@
 #include <sys.h>
 #include <c.h>
 #include <mmu.h>
+#include <log.h>
 
 /* TODO : release memory when it is no longer used */
 
@@ -173,6 +174,11 @@ free(void *p)
 	struct buffer *b;
 	struct chunk *c;
 	size_t bin, *size;
+
+	if (p == nil) {
+		log(LOG_WARNING, "try to free nil");
+		return;
+	}
 
 	size = (size_t *) (((size_t) p) - sizeof(size_t));
 

@@ -18,6 +18,9 @@ trap(size_t pc, int type)
 		case ABORT_INTERRUPT:
 			irq_handler();
 
+			if (up != nil)
+				debug_info("%i return from int\n", up->pid);
+
 			return; /* Note the return. */
 
 		case ABORT_INSTRUCTION:

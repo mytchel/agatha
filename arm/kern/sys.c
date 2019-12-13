@@ -189,6 +189,7 @@ sys_intr_ack(int iid)
 	i = (obj_intr_t *) c->obj;
 
 	irq_ack(i->irqn);
+	irq_enable(i->irqn);
 
 	return OK;
 }

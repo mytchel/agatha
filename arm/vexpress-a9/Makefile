@@ -10,9 +10,9 @@ IDLE = \
 
 DRIVERS = \
 	arm/drivers/serial-pl01x \
-	arm/drivers/timer-sp804 \
-	arm/drivers/mmc-pl18x \
 	arm/drivers/virtio/net \
+#	arm/drivers/timer-sp804 \
+#	arm/drivers/mmc-pl18x \
 #	arm/drivers/video-pl111
 
 PROCS = \
@@ -27,7 +27,8 @@ BOARD_KERNEL_SRC_C = \
 	arm/vexpress-a9/serial_pl01x.c \
 	arm/vexpress-a9/kernel.c
 
-CFLAGS  += -DSYSTICK=1000000
+#CFLAGS  += -DSYSTICK=1000000
+CFLAGS  += -DSYSTICK=100
 LDFLAGS += 
 
 include arm/Makefile
