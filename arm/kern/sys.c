@@ -718,7 +718,10 @@ void *systab[NSYSCALLS] = {
 	[SYSCALL_RECV]             = (void *) &sys_recv,
 	[SYSCALL_REPLY]            = (void *) &sys_reply,
 	[SYSCALL_SIGNAL]           = (void *) &sys_signal,
+
 	[SYSCALL_ENDPOINT_CONNECT] = (void *) &sys_endpoint_connect,
+	[SYSCALL_ENDPOINT_BIND]    = (void *) &sys_endpoint_bind,
+	[SYSCALL_ENDPOINT_UNBIND]  = (void *) &sys_endpoint_unbind,
 
 	[SYSCALL_PROC_SETUP]       = (void *) &sys_proc_setup,
 	[SYSCALL_PROC_SET_PRIORITY]= (void *) &sys_proc_set_priority,

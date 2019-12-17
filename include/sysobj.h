@@ -46,8 +46,11 @@ struct obj_untyped {
 struct obj_endpoint {
 	struct obj_head h;
 
-	obj_proc_t *holder;
 	uint32_t signal;
+
+	obj_proc_t *bound;
+	obj_proc_t *rwait;
+
 	proc_list_t waiting;
 };
 
@@ -75,14 +78,12 @@ struct obj_proc {
 
 	size_t vspace;
 
+	uint32_t bound_signal;
 	uint8_t m[MESSAGE_LEN];
 	int m_ret;
 	cap_t *give, *take;
 
 	obj_proc_t *wprev, *wnext;
-
-	obj_endpoint_t *recv_from;
-	obj_endpoint_t *listening;
 
 	obj_caplist_t *cap_root;
 };

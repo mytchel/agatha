@@ -151,25 +151,25 @@ set_timer(void)
 	int
 main(void)
 {
-	int mount_eid;
+	int mount_cid;
 	int reg_cid;
 	int irq_cid;
 
 	union proc0_req prq;
 	union proc0_rsp prp;
-	int eid, from, cid;
+	int from, cid;
 
 	log_init("timer0");
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
 
-	mount_eid = kcap_alloc();
-	if (mount_eid < 0) {
+	mount_cid = kcap_alloc();
+	if (mount_cid < 0) {
 		exit(ERR);
 	}
 
-	mesg_cap(CID_PARENT, &prq, &prp, mount_eid);
+	mesg_cap(CID_PARENT, &prq, &prp, mount_cid);
 
 	if (prp.get_resource.ret != OK) {
 		exit(ERR);
@@ -206,7 +206,7 @@ main(void)
 	mesg_cap(CID_PARENT, &prq, &prp, irq_cid);
 
 	if (prp.get_resource.ret != OK) {
-		exit(ERR);
+		return ERR;
 	}
 
 	timers = nil;
@@ -214,6 +214,15 @@ main(void)
 	set_timer();
 
 	int int_eid = kobj_alloc(OBJ_endpoint, 1);
+	if (int_eid < 0) {
+		return ERR;
+	}
+
+	if (endpoint_bind(int_eid) != OK) {
+		log(LOG_FATAL, "failed to bind irq endpoint");
+		return ERR;
+	}
+
 	if (intr_connect(irq_cid, int_eid, 0x14) != OK) {
 		log(LOG_FATAL, "failed to register int");
 		return ERR;
@@ -224,7 +233,7 @@ main(void)
 
 		cid = kcap_alloc();
 
-		if ((eid = recv_cap(EID_ANY, &from, &rq, cid)) < 0) {
+		if (recv_cap(mount_cid, &from, &rq, cid) != OK) {
 			return ERR;
 		}
 
@@ -244,12 +253,12 @@ main(void)
 		} else {
 			switch (rq.type) {
 			case TIMER_create:
-				handle_create(eid, from, &rq, cid);
+				handle_create(main_eid, from, &rq, cid);
 				break;
 
 			case TIMER_set:
 				kcap_free(cid);
-				handle_set(eid, from, &rq);
+				handle_set(main_eid, from, &rq);
 				break;
 
 			default:

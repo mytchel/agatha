@@ -386,6 +386,7 @@ main(void)
 	mmc.irq_eid = int_eid;
 	mmc.irq_cid = irq_cid;
 	mmc.name = dev_name;
+	mmc.mount_cap = mount_eid;
 
 	mmc.voltages = 0xff8080;
 

@@ -8,6 +8,8 @@
 #define SYSCALL_OBJ_MERGE         6
 
 #define SYSCALL_ENDPOINT_CONNECT  7
+#define SYSCALL_ENDPOINT_BIND    26
+#define SYSCALL_ENDPOINT_UNBIND  27
 #define SYSCALL_MESG              8
 #define SYSCALL_RECV              9
 #define SYSCALL_REPLY            10
@@ -31,5 +33,5 @@
 
 #define SYSCALL_DEBUG            25
 
-#define NSYSCALLS                26
+#define NSYSCALLS                28
 

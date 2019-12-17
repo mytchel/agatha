@@ -191,7 +191,7 @@ handle_get_resource(int eid, int from, union proc0_req *rq)
 main(struct kernel_info *i)
 {
 	uint8_t m[MESSAGE_LEN];
-	int eid, from;
+	int from;
 
 	info = i;
 
@@ -215,19 +215,19 @@ main(struct kernel_info *i)
 	init_procs();
 
 	while (true) {
-		if ((eid = recv(main_eid, &from, m)) < 0) continue;
+		if (recv(main_eid, &from, m) != OK) continue;
 		if (from == PID_SIGNAL) continue;
 
-		log(0, "got message from %i on eid 0x%x of type 0x%x",
-				from, eid, ((uint32_t *) m)[0]);
+		log(0, "got message from %i of type 0x%x",
+				from, ((uint32_t *) m)[0]);
 
 		switch (((uint32_t *) m)[0]) {
 			case PROC0_mem_req:
-				handle_mem_req(eid, from, (union proc0_req *) m);
+				handle_mem_req(main_eid, from, (union proc0_req *) m);
 				break;
 		
 			case PROC0_get_resource:
-				handle_get_resource(eid, from, (union proc0_req *) m);
+				handle_get_resource(main_eid, from, (union proc0_req *) m);
 				break;
 		};
 	}

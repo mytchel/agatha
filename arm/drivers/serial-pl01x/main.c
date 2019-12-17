@@ -70,7 +70,7 @@ main(void)
 	union proc0_req prq;
 	union proc0_rsp prp;
 	int mount_cid, reg_cid;
-	int eid, from;
+	int from;
 
 	prq.get_resource.type = PROC0_get_resource;
 	prq.get_resource.resource_type = RESOURCE_type_mount;
@@ -108,16 +108,16 @@ main(void)
 	puts("serial pl01x ready\n");
 	
 	while (true) {
-		if ((eid = recv(EID_ANY, &from, &rq)) < 0) continue;
+		if (recv(mount_cid, &from, &rq) != OK) continue;
 		if (from == PID_NONE) continue;
 	
 		switch (rq.type) {
 			case SERIAL_write:
-				handle_write(eid, from, &rq);
+				handle_write(mount_cid, from, &rq);
 				break;
 
 			case SERIAL_read:
-				handle_read(eid, from, &rq);
+				handle_read(mount_cid, from, &rq);
 				break;
 		}
 	}

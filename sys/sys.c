@@ -74,8 +74,9 @@ obj_endpoint_init(obj_proc_t *p, void *o, size_t n)
 
 	debug_info("proc %i making endpoint 0x%x\n", p->pid, e);
 
-	e->holder = p;
 	e->signal = 0;
+	e->bound = nil;
+	e->rwait = nil;
 	e->waiting.head = nil;
 	e->waiting.tail = nil;
 	
@@ -299,60 +300,43 @@ endpoint_get_pending(obj_endpoint_t *e,
 }
 
 int
-recv(int from, int *pid, uint8_t *m, cap_t *o)
+recv(obj_endpoint_t *e, int *pid, uint8_t *m, cap_t *o)
 {
-	cap_t *c;
-
-	if (from == EID_ANY) {
-		debug_info("%i recv any\n", up->pid);
-		c = nil;
-	} else {
-		c = proc_find_cap(up, from);
-		if (c == nil) {
-			debug_warn("%i recv cap not found\n");
-			return ERR;
-		} else if (!(c->perm & CAP_read)) {
-			debug_warn("%i recv cap bad perm\n");
-			return ERR;
-		} else if (c->obj->type != OBJ_endpoint) {
-			debug_warn("%i recv obj not endpoint\n",
-				up->pid);
-			return ERR;
-		}
-		
-		debug_info("%i recv 0x%x\n", up->pid, c->obj);
+	if (e->bound != nil && e->bound != up) {
+		debug_warn("%i recv endpoint bound elsewhere\n",
+			up->pid);
+		return ERR;
 	}
 
 	while (true) {
-		if (from != nil) {
-			if (endpoint_get_pending((obj_endpoint_t *) c->obj, 
-					pid, m, o)) 
-			{
-				return from;
-			}
-			
-			up->recv_from = (obj_endpoint_t *) c->obj;
-		} else {
-			int a;
-			for (a = 1; a < CLIST_CAPS; a++) {
-				c = &up->cap_root->caps[a];
-				if (!(c->perm & CAP_read)) {
-					continue;
-				} else if (c->obj->type == OBJ_endpoint) {
-					obj_endpoint_t *e = (void *) c->obj;
-					e->holder = up;
-					if (endpoint_get_pending(e, pid, m, o)) 
-					{
-						return a << 12;
-					}
-				}
-			}
+		if (up->bound_signal != 0) {
+			debug_info("%i recv got bound signal 0x%x\n",
+				up->pid, up->bound_signal);
 
-			up->recv_from = nil;
+			((uint32_t *) m)[0] = up->bound_signal;
+			up->bound_signal = 0;
+
+			*pid = PID_SIGNAL;
+		
+			return OK;
+		}
+		
+		if (endpoint_get_pending(e, pid, m, o)) {
+			e->rwait = nil;
+			return OK;
 		}
 
+		if (e->rwait != nil) {
+			panic("TODO: rwait not nil, need to make this a list\n");
+			return ERR;
+		}
+				
+		e->rwait = up;
 		up->state = PROC_block_recv;
+
 		schedule(nil);
+		
+		e->rwait = nil;
 	}
 }
 
@@ -400,7 +384,7 @@ reply(obj_endpoint_t *e, int pid, uint8_t *m, cap_t *o)
 	}
 
 	proc_ready(p);
-	schedule(p);
+	schedule(p); 
 	
 	return OK;
 }
@@ -409,15 +393,6 @@ int
 mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, cap_t *o)
 {
 	obj_proc_t *p;
-
-	p = e->holder;
-
-	if (p == nil) {
-		debug_warn("endpoint 0x%x has no holder!\n", e);
-		return ERR;
-	}
-
-	debug_info("%i mesg to proc %i\n", up->pid, p->pid);
 
 	memcpy(up->m, rq, MESSAGE_LEN);
 
@@ -435,12 +410,13 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, cap_t *o)
 	up->wnext = nil;
 	e->waiting.tail = up;
 
-	if (p->state == PROC_block_recv 
-		&& (p->recv_from == nil || p->recv_from == e))
-	{
+	p = e->rwait;
+	if (p != nil) {
+		debug_info("%i mesg wake up waiting %i\n", up->pid, p->pid);
 		proc_ready(p);
 		schedule(p);
 	} else {
+		debug_info("%i mesg blocking\n", up->pid);
 		schedule(nil);
 	}
 
@@ -450,10 +426,6 @@ mesg(obj_endpoint_t *e, uint8_t *rq, uint8_t *rp, cap_t *o)
 		if (o->perm != 0) {
 			debug_info("%i mesg cap got cap perm 0x%x obj 0x%x\n", 
 				up->pid, o->perm, o->obj);
-
-			if (o->obj->type == OBJ_endpoint && (o->perm == CAP_read)) {
-				((obj_endpoint_t *) o->obj)->holder = up;
-			}
 		}
 	}
 
@@ -465,27 +437,31 @@ signal(obj_endpoint_t *e, uint32_t s)
 {
 	obj_proc_t *p;
 
-	e->signal |= s;
-	
-	p = e->holder;
+	p = e->bound;
 	if (p != nil) {
-		debug_warn("%i signal proc %i\n", up->pid, p->pid);
-
-		if (p->state == PROC_block_recv 
-			&& (p->recv_from == nil || p->recv_from == e))
-		{
-			debug_info("%i signal wake up %i\n",
-				up->pid, p->pid);
-
+		debug_info("%i signal bound proc %i\n", up->pid, p->pid);
+		p->bound_signal |= s;
+		if (p->state == PROC_block_recv) {
+			debug_info("%i signal wake bound proc %i\n", up->pid, p->pid);
 			proc_ready(p);
 			schedule(p);
 		} else {
-			debug_warn("%i signal proc %i not listening to signal (state=%i, recv=0x%x, e=0x%x)\n",
-				up->pid, p->pid, p->state, p->recv_from, e);
-			
+			debug_warn("%i signal not waking bound %i\n", up->pid, p->pid);
 		}
+
+		return OK;
+	}
+	
+	e->signal |= s;
+
+	p = e->rwait;
+	if (p != nil) {
+		debug_warn("%i signal proc %i\n", up->pid, p->pid);
+
+		proc_ready(p);
+		schedule(p);
 	} else {
-		debug_warn("%i signal endpoint without holder\n");
+		debug_warn("%i signal endpoint without waiter\n");
 	}
 
 	return OK;
@@ -494,9 +470,23 @@ signal(obj_endpoint_t *e, uint32_t s)
 size_t
 sys_recv(int from, int *pid, uint8_t *m, int cid)
 {
-	cap_t *o;
+	cap_t *c, *o;
 
 	debug_info("%i recv 0x%x\n", up->pid, from);
+
+	c = proc_find_cap(up, from);
+	if (c == nil) {
+		debug_warn("%i recv cap 0x%x not found\n", up->pid, from);
+		return ERR;
+	} else if (!(c->perm & CAP_read)) {
+		debug_warn("%i recv cap 0x%x bad perm %i\n",
+			 up->pid, from, c->perm);
+		return ERR;
+	} else if (c->obj->type != OBJ_endpoint) {
+		debug_warn("%i recv cap 0x%x bad type %i\n",
+			 up->pid, from, c->obj->type);
+		return ERR;
+	}
 
 	if (cid == 0) {
 		o = nil;
@@ -509,7 +499,7 @@ sys_recv(int from, int *pid, uint8_t *m, int cid)
 		}
 	}
 
-	return recv(from, pid, m, o);
+	return recv((obj_endpoint_t *) c->obj, pid, m, o);
 }
 
 size_t
@@ -523,9 +513,13 @@ sys_mesg(int to, uint8_t *rq, uint8_t *rp, int cid)
 	if (c == nil) {
 		debug_warn("%i mesg cap %i not found\n", up->pid, to);
 		return ERR;
-	} else if (!(c->perm & CAP_write) || c->obj->type != OBJ_endpoint) {
-		debug_warn("%i mesg cap %i perm %i or type %i bad\n",
-			 up->pid, to, c->perm, c->obj->type);
+	} else if (!(c->perm & CAP_write)) {
+		debug_warn("%i mesg cap 0x%x bad perm %i\n",
+			 up->pid, to, c->perm);
+		return ERR;
+	} else if (c->obj->type != OBJ_endpoint) {
+		debug_warn("%i mesg cap 0x%x bad type %i\n",
+			 up->pid, to, c->obj->type);
 		return ERR;
 	}
 
@@ -553,7 +547,13 @@ sys_reply(int to, int pid, uint8_t *m, int cid)
 	c = proc_find_cap(up, to);
 	if (c == nil) {
 		return ERR;
-	} else if (!(c->perm & CAP_read) || c->obj->type != OBJ_endpoint) {
+	} else if (!(c->perm & CAP_read)) {
+		debug_warn("%i reply cap 0x%x bad perm %i\n",
+			 up->pid, to, c->perm);
+		return ERR;
+	} else if (c->obj->type != OBJ_endpoint) {
+		debug_warn("%i reply cap 0x%x bad type %i\n",
+			 up->pid, to, c->obj->type);
 		return ERR;
 	}
 
@@ -576,14 +576,20 @@ sys_signal(int to, uint32_t s)
 	cap_t *c;
 
 	debug_info("%i signal %i 0x%x\n", up->pid, to, s);
-
+	
 	c = proc_find_cap(up, to);
 	if (c == nil) {
 		return ERR;
-	} else if (!(c->perm & CAP_write) || c->obj->type != OBJ_endpoint) {
+	} else if (!(c->perm & CAP_write)) {
+		debug_warn("%i signal cap 0x%x perm %i\n",
+			 up->pid, to, c->perm);
+		return ERR;
+	} else if (c->obj->type != OBJ_endpoint) {
+		debug_warn("%i signal cap 0x%x type %i bad\n",
+			 up->pid, to, c->obj->type);
 		return ERR;
 	}
-
+	
 	return signal((obj_endpoint_t *) c->obj, s);
 }
 
@@ -595,6 +601,8 @@ sys_endpoint_connect(int cid, int nid)
 
 	c = proc_find_cap(up, cid);
 	if (c == nil) {
+		return ERR;
+	} else if (!(c->perm & CAP_read) && !(c->perm & CAP_write)) {
 		return ERR;
 	} else if (c->obj->type != OBJ_endpoint) {
 		return ERR;
@@ -619,6 +627,58 @@ sys_endpoint_connect(int cid, int nid)
 }
 
 		size_t
+sys_endpoint_bind(int cid)
+{
+	obj_endpoint_t *l;
+	cap_t *c;
+
+	c = proc_find_cap(up, cid);
+	if (c == nil) {
+		return ERR;
+	} else if (!(c->perm & CAP_read) && !(c->perm & CAP_write)) {
+		return ERR;
+	} else if (c->obj->type != OBJ_endpoint) {
+		return ERR;
+	} else {
+		l = (obj_endpoint_t *) c->obj;
+	}
+
+	if (l->bound != nil) {
+		return ERR;
+	}
+
+	l->bound = up;
+
+	return OK;
+}
+
+		size_t
+sys_endpoint_unbind(int cid)
+{
+	obj_endpoint_t *l;
+	cap_t *c;
+
+	c = proc_find_cap(up, cid);
+	if (c == nil) {
+		return ERR;
+	} else if (!(c->perm & CAP_read) && !(c->perm & CAP_write)) {
+		return ERR;
+	} else if (c->obj->type != OBJ_endpoint) {
+		return ERR;
+	} else {
+		l = (obj_endpoint_t *) c->obj;
+	}
+
+	if (l->bound != up) {
+		return ERR;
+	}
+
+	l->bound = nil;
+
+	return OK;
+}
+
+	size_t
 sys_yield(void)
 {
 	debug_info("%i yield\n", up->pid);

@@ -142,6 +142,22 @@ endpoint_connect:
 	pop {r12, pc}
 
 
+.global endpoint_bind
+endpoint_bind:
+	push {r12, lr}
+	mov r12, #SYSCALL_ENDPOINT_BIND
+	svc 0
+	pop {r12, pc}
+
+
+.global endpoint_unbind
+endpoint_unbind:
+	push {r12, lr}
+	mov r12, #SYSCALL_ENDPOINT_UNBIND
+	svc 0
+	pop {r12, pc}
+
+
 .global intr_connect
 intr_connect:
 	push {r12, lr}

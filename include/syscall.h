@@ -39,6 +39,12 @@ int
 endpoint_connect(int cid, int nid);
 
 int
+endpoint_bind(int cid);
+
+int
+endpoint_unbind(int cid);
+
+int
 intr_connect(int iid, int eid, uint32_t signal);
 
 int

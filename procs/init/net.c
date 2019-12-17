@@ -11,9 +11,10 @@
 #include <log.h>
 
 #define TCP_TEST_PORT_LOC 4087
-#define TCP_TEST_PORT_REM 4086
+#define TCP_TEST_PORT_REM 2005
 
 #define UDP_TEST_PORT_LOC 3000
+#define UDP_TEST_PORT_REM 8000
 
 int
 udp_test(int net_eid)
@@ -55,7 +56,7 @@ udp_test(int net_eid)
 
 	chan_id = rp.bind.chan_id;
 
-	for (j = 0; j < 5; j++) {
+	for (j = 0; j < 15; j++) {
 
 		int k;
 		for (k = 0; k < 100000000; k++)
@@ -99,7 +100,7 @@ udp_test(int net_eid)
 			port_rem = rp.read.proto.udp.port_rem;
 			memcpy(addr_rem, rp.read.proto.udp.addr_rem, 4);
 		} else {
-			port_rem = 4000;
+			port_rem = UDP_TEST_PORT_REM;
 			addr_rem[0] = 192;
 			addr_rem[1] = 168;
 			addr_rem[2] = 10;
@@ -419,7 +420,7 @@ test_net(void)
 	log_init("net_test");
 
 	udp_test(net_eid);
-	/*tcp_con_test(net_eid);*/
-	tcp_serv_test(net_eid);
+	tcp_con_test(net_eid);
+	/*tcp_serv_test(net_eid);*/
 }
 

@@ -316,6 +316,11 @@ main(void)
 		exit(ERR);
 	}
 
+	if (endpoint_bind(irq_eid) != OK) {
+		log(LOG_FATAL, "failed to bind irq endpoint");
+		exit(ERR);
+	}
+
 	mount_cid = kcap_alloc();
 	reg_cid = kcap_alloc();
 	irq_cid = kcap_alloc();
@@ -370,7 +375,7 @@ main(void)
 
 	init_dev(&net, &dev);
 
-	if (intr_connect(irq_cid, irq_eid, 0x1) != OK) {
+	if (intr_connect(irq_cid, irq_eid, 0x10) != OK) {
 		exit(ERR);
 	}
 
@@ -382,13 +387,15 @@ main(void)
 
 	uint8_t m[MESSAGE_LEN];
 	while (true) {
-		int eid, from;
+		int from;
 
-		eid = recv_cap(EID_ANY, &from, m, cap);
-		if (eid < 0) continue;
+		log(LOG_INFO, "recv");
+
+		if (recv_cap(net.mount_eid, &from, m, cap) != OK) continue;
 
 		if (from == PID_SIGNAL) {
-			if (eid == irq_eid) {
+			/* TODO: some kind of real check */
+			if (*((uint32_t *) m) == 0x10) {
 				dev.base->interrupt_ack = dev.base->interrupt_status;
 
 				intr_ack(irq_cid);
@@ -397,20 +404,18 @@ main(void)
 
 				struct virtq_used_item *e;
 
-				e = virtq_pop(&dev.rx);
-				if (e != nil) {
+				while ((e = virtq_pop(&dev.rx)) != nil) {
 					log(LOG_INFO, "process rx");
 					process_rx(&net, e);
 				} 
 
-				e = virtq_pop(&dev.tx);
-				if (e != nil) {
+				while ((e = virtq_pop(&dev.tx)) != nil) {
 					log(LOG_INFO, "process tx");
 					process_tx(&net, e);	
 				}
 			}
 		} else {
-			net_handle_message(&net, eid, from, m, cap);
+			net_handle_message(&net, net.mount_eid, from, m, cap);
 		}
 
 	}

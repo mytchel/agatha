@@ -961,17 +961,12 @@ ip_write_tcp(struct net_dev *net,
 
 	unmap_addr(cap, va);
 
-	bool send = c->sending == nil;
-	
 	add_pkt(c, TCP_flag_ack|TCP_flag_psh, 
 			d, rq->write.len);
 
 	c->next_seq += rq->write.len;
 
-	if (send) {
-		log(LOG_INFO, "write trigger send");
-		send_tcp_pkt(net, b, c);
-	}
+	send_tcp_pkt(net, b, c);
 
 	rp.write.type = NET_write;
 	rp.write.ret = OK;

@@ -32,7 +32,7 @@ schedule(obj_proc_t *next);
 
 
 int
-recv(int, int *pid, uint8_t *m, cap_t *o);
+recv(obj_endpoint_t *l, int *pid, uint8_t *m, cap_t *o);
 
 int
 reply(obj_endpoint_t *l, int pid, uint8_t *m, cap_t *o);
@@ -174,7 +174,10 @@ size_t
 sys_signal(int to, uint32_t s);
 
 size_t
-sys_endpoint_create(void);
+sys_endpoint_bind(int cid);
+
+size_t
+sys_endpoint_unbind(int cid);
 
 size_t
 sys_endpoint_connect(int cid, int nid);

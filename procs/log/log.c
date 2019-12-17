@@ -196,8 +196,7 @@ main(void)
 	union proc0_req prq;
 	union proc0_rsp prp;
 	union log_req rq;
-	int eid, from, i;
-	int main_eid;
+	int main_eid, from, i;
 
 	for (i = 0; i < MAX_SERVICES; i++) {
 		services[i].pid = -1;
@@ -234,16 +233,16 @@ main(void)
 	send_logs();
 
 	while (true) {
-		if ((eid = recv(EID_ANY, &from, &rq)) < 0) continue;
+		if (recv(main_eid, &from, &rq) != OK) continue;
 		if (from == PID_NONE) continue;
 
 		switch (rq.type) {
 		case LOG_register:
-			handle_register(eid, from, &rq);
+			handle_register(main_eid, from, &rq);
 			break;
 
 		case LOG_log:
-			handle_log(eid, from, &rq);
+			handle_log(main_eid, from, &rq);
 			break;
 		}
 	}

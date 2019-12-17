@@ -50,6 +50,8 @@ union block_rsp {
 struct block_dev {
 	void *arg;
 	char *name;
+
+	int mount_cap;
 	
 	bool writable;
 	size_t block_size;
