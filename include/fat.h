@@ -1,5 +1,11 @@
 /* TODO: If bps * spc is not page aligned we have a problem. */
 
+#define FILE_root_fid 0
+
+#define FILE_ATTR_rd  1
+#define FILE_ATTR_wr  2
+#define FILE_ATTR_dir 4
+
 #define intcopylittle16(X) \
 	((X)[0] | ((X)[1]<<8))
 

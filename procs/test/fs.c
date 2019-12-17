@@ -11,7 +11,6 @@
 #include <string.h>
 #include <block.h>
 #include <mbr.h>
-#include <fs.h>
 #include <fat.h>
 #include <timer.h>
 #include <log.h>

@@ -11,14 +11,13 @@
 #include <string.h>
 #include <block.h>
 #include <mbr.h>
-#include <fs.h>
 #include <fat.h>
 #include <timer.h>
 #include <log.h>
 
 #define TEST_MEM 0
 #define TEST_TMR 0
-#define TEST_FAT 1
+#define TEST_FAT 0
 #define TEST_NET 0
 
 void

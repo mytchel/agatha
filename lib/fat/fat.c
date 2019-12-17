@@ -9,7 +9,6 @@
 #include <string.h>
 #include <log.h>
 #include <block.h>
-#include <fs.h>
 #include <fat.h>
 
 	int

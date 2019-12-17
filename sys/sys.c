@@ -439,14 +439,10 @@ signal(obj_endpoint_t *e, uint32_t s)
 
 	p = e->bound;
 	if (p != nil) {
-		debug_info("%i signal bound proc %i\n", up->pid, p->pid);
 		p->bound_signal |= s;
 		if (p->state == PROC_block_recv) {
-			debug_info("%i signal wake bound proc %i\n", up->pid, p->pid);
 			proc_ready(p);
 			schedule(p);
-		} else {
-			debug_warn("%i signal not waking bound %i\n", up->pid, p->pid);
 		}
 
 		return OK;
@@ -456,12 +452,8 @@ signal(obj_endpoint_t *e, uint32_t s)
 
 	p = e->rwait;
 	if (p != nil) {
-		debug_warn("%i signal proc %i\n", up->pid, p->pid);
-
 		proc_ready(p);
 		schedule(p);
-	} else {
-		debug_warn("%i signal endpoint without waiter\n");
 	}
 
 	return OK;

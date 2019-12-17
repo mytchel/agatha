@@ -153,7 +153,6 @@ block_dev_register(struct block_dev *dev)
 	}
 
 	while (true) {
-		log(LOG_INFO, "block dev wait for mesg");
 		if (recv_cap(dev->mount_cap, &from, &brq, cap) != OK)
 			continue;
 		if (from == PID_SIGNAL)

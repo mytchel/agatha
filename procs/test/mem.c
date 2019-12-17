@@ -6,14 +6,8 @@
 #include <c.h>
 #include <mesg.h>
 #include <proc0.h>
-#include <mmu.h>
 #include <stdarg.h>
 #include <string.h>
-#include <block.h>
-#include <mbr.h>
-#include <fs.h>
-#include <fat.h>
-#include <timer.h>
 #include <log.h>
 
 void

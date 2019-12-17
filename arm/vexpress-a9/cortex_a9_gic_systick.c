@@ -118,13 +118,9 @@ irq_handler(void)
 
 	} else if (user_handler_e[irqn] != nil) {
 
-		debug_warn("signaling for int %i\n", irqn);
-
 		irq_disable(irqn);
 
 		signal(user_handler_e[irqn], user_handler_s[irqn]);
-
-		debug_info("irq %i signaled\n", irqn);
 
 	} else {
 		debug_info("got unhandled interrupt %i!\n", irqn);

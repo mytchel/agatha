@@ -182,8 +182,6 @@ request_memory(size_t len, size_t align)
 		exit(ERR);
 	}
 
-	log(LOG_INFO, "got frame %i", cid);
-
 	pool_free(&addr_pool, m);
 
 	if (!replenish) {
@@ -199,8 +197,6 @@ request_memory(size_t len, size_t align)
 		}
 		replenish = false;
 	}
-
-	log(LOG_INFO, "done");
 
 	return cid;
 }
