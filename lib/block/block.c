@@ -145,8 +145,7 @@ handle_write(struct block_dev *dev,
 block_dev_register(struct block_dev *dev)
 {
 	union block_req brq;
-	int eid, from;
-	int cap;
+	int cap, from;
 
 	cap = kcap_alloc();
 	if (cap < 0) {
@@ -155,25 +154,22 @@ block_dev_register(struct block_dev *dev)
 
 	while (true) {
 		log(LOG_INFO, "block dev wait for mesg");
-		if ((eid = recv_cap(dev->mount_cap, &from, &brq, cap)) < 0)
+		if (recv_cap(dev->mount_cap, &from, &brq, cap) != OK)
 			continue;
 		if (from == PID_SIGNAL)
 			continue;
 
-		log(LOG_INFO, "block dev got message on 0x%x from %i type %i",
-			eid, from, brq.type);
-
 		switch (brq.type) {
 			case BLOCK_info:
-				handle_info(dev, eid, from, &brq, cap);
+				handle_info(dev, dev->mount_cap, from, &brq, cap);
 				break;
 
 			case BLOCK_read:
-				handle_read(dev, eid, from, &brq, cap);
+				handle_read(dev, dev->mount_cap, from, &brq, cap);
 				break;
 
 			case BLOCK_write:
-				handle_write(dev, eid, from, &brq, cap);
+				handle_write(dev, dev->mount_cap, from, &brq, cap);
 				break;
 
 			default:

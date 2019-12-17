@@ -506,6 +506,7 @@ mmc_start(struct mmc *mmc)
 
 	dev.arg = mmc;
 	dev.name = mmc->name;
+	dev.mount_cap = mmc->mount_cap;
 
 	dev.writable = true;
 

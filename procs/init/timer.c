@@ -80,12 +80,14 @@ test_timer(void)
 			recv(timer_lid, &t_pid, t);
 			if (t_pid == PID_SIGNAL) {
 				uint32_t signal = ((uint32_t *) t)[0];
-				log(LOG_INFO, "got timer signal 0x%x", signal);
+				log(LOG_INFO, "got signal 0x%x", signal);
 				break;
 			} else {
 				log(LOG_WARNING, "how did we get another message?");
 			}
 		}
 	}
+
+	log(LOG_INFO, "timer test finished");
 }
 

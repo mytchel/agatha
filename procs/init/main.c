@@ -16,6 +16,11 @@
 #include <timer.h>
 #include <log.h>
 
+#define TEST_MEM 0
+#define TEST_TMR 0
+#define TEST_FAT 1
+#define TEST_NET 0
+
 void
 test_fat_fs(void);
 
@@ -35,13 +40,21 @@ main(void)
 
 	log(LOG_INFO, "init starting");
 
-	/*test_mem();*/
+#if TEST_TMR
+	test_timer();
+#endif
 
-	/*test_fat_fs();*/
+#if TEST_MEM
+	test_mem();
+#endif
 
+#if TEST_FAT
+	test_fat_fs();
+#endif
+
+#if TEST_NET
 	test_net();
-		
-	/*test_timer();*/
+#endif
 
 	exit(OK);
 }

@@ -378,6 +378,7 @@ struct mmc {
 	int irqn;
 	int irq_eid;
 	int irq_cid;
+	int mount_cap;
 
 	struct mmc_cid cid;
 	

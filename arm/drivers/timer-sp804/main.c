@@ -240,25 +240,25 @@ main(void)
 		if (from == PID_SIGNAL) {
 			kcap_free(cid);
 
-			if (eid == int_eid) {
-				uint32_t status_raw = regs->t[0].status_raw;
+			/* TODO: check this is the int */
+			uint32_t status_raw = regs->t[0].status_raw;
 
-				regs->t[0].clr = status_raw;
+			regs->t[0].clr = status_raw;
 
-				intr_ack(irq_cid);
+			intr_ack(irq_cid);
 
-				check_timers();
-				set_timer();
-			}
+			check_timers();
+			set_timer();
+
 		} else {
 			switch (rq.type) {
 			case TIMER_create:
-				handle_create(main_eid, from, &rq, cid);
+				handle_create(mount_cid, from, &rq, cid);
 				break;
 
 			case TIMER_set:
 				kcap_free(cid);
-				handle_set(main_eid, from, &rq);
+				handle_set(mount_cid, from, &rq);
 				break;
 
 			default:
