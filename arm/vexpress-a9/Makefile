@@ -17,8 +17,7 @@ DRIVERS = \
 
 PROCS = \
 	procs/log \
-	procs/init \
-#	procs/net_test \
+	procs/test \
 #	procs/ui
 
 

@@ -60,7 +60,7 @@ struct service services[] = {
 	},
 
 	{
-		"init", "procs/init",
+		"test", "procs/test",
 		{ false },
 		{ { RESOURCE_type_log, "log" },
 		  { RESOURCE_type_timer, "timer0" },

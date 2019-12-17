@@ -36,9 +36,9 @@ test_net(void);
 	void
 main(void)
 {
-	log_init("init");
+	log_init("test");
 
-	log(LOG_INFO, "init starting");
+	log(LOG_INFO, "test starting");
 
 #if TEST_TMR
 	test_timer();
