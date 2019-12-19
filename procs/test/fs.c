@@ -17,14 +17,15 @@
 
 int
 read_blocks(int eid, int fid,
-		size_t start, size_t len)
+		size_t blk, size_t n)
 {
 	union block_req rq;
 	union block_rsp rp;
 
 	rq.read.type = BLOCK_read;
-	rq.read.start = start;
-	rq.read.len = len;
+	rq.read.off = 0;
+	rq.read.blk = blk;
+	rq.read.n_blks = n;
 
 	if (mesg_cap(eid, &rq, &rp, fid) != OK) {
 		log(LOG_FATAL, "block send mesg failed");
@@ -85,7 +86,7 @@ mbr_get_partition_info(int eid, int partition,
 
 	log(LOG_INFO, "read mbr");
 
-	ret = read_blocks(eid, fid, 0, block_size);
+	ret = read_blocks(eid, fid, 0, 1);
 	if (ret != OK) {
 		return ret;
 	}

@@ -8,15 +8,15 @@ union block_req {
 
 	struct {
 		uint32_t type;
-		size_t start;
-		size_t len;
+		size_t blk;
+		size_t n_blks;
 		size_t off;
 	} read;
 
 	struct {
 		uint32_t type;
-		size_t start;
-		size_t len;
+		size_t blk;
+		size_t n_blks;
 		size_t off;
 	} write;
 };
@@ -61,22 +61,22 @@ struct block_dev {
 
 	int (*read_blocks_mapped)(struct block_dev *,
 			void *buf,
-			size_t start, 
+			size_t blk, 
 			size_t n);
 
 	int (*write_blocks_mapped)(struct block_dev *,
 			void *buf,
-			size_t start, 
+			size_t blk, 
 			size_t n);
 
 	int (*read_blocks)(struct block_dev *,
 			size_t pa,
-			size_t start, 
+			size_t blk, 
 			size_t n);
 
 	int (*write_blocks)(struct block_dev *,
 			size_t pa,
-			size_t start, 
+			size_t blk, 
 			size_t n);
 };
 

@@ -18,6 +18,7 @@ DRIVERS = \
 PROCS = \
 	procs/log \
 	procs/test \
+	procs/lfs \
 #	procs/ui
 
 

@@ -517,12 +517,12 @@ fat_read_blocks(struct fat *fat,
 	union block_rsp rp;
 
 	rq.read.type = BLOCK_read;
-	rq.read.start = fat->start * fat->block_size + start;
-	rq.read.len = len;
+	rq.read.blk = fat->start + start / fat->block_size;
+	rq.read.n_blks = len / fat->block_size;
 	rq.read.off = off;
 	
-	log(LOG_INFO, "block sending request for 0x%x 0x%x", 
-		rq.read.start, len);
+	log(LOG_INFO, "block sending request for blk 0x%x, 0x%x", 
+		rq.read.blk, rq.read.n_blks);
 	
 	if (mesg_cap(fat->block_eid, &rq, &rp, fid) != OK) {
 		log(LOG_INFO, "block mesg failed");

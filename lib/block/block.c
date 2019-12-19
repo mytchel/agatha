@@ -41,7 +41,7 @@ handle_read(struct block_dev *dev,
 
 	size_t pa, len;
 	int type;
-	
+
 	rp.read.type = BLOCK_read;
 
 	if (frame_info(cap, &type, &pa, &len) != OK) {
@@ -49,17 +49,14 @@ handle_read(struct block_dev *dev,
 		return reply_cap(eid, from, &rp, cap);
 	}
 
-	if (len < rq->read.off + rq->read.len ||
-			rq->read.start % dev->block_size != 0 || 
-			rq->read.len % dev->block_size != 0) 
-	{
+	start = rq->read.blk;
+	n = rq->read.n_blks;
+	off = rq->read.off;
+
+	if (len - off < n * dev->block_size) {
 		rp.read.ret = ERR;
 		return reply_cap(eid, from, &rp, cap);
 	}
-
-	start = rq->read.start / dev->block_size;
-	n = rq->read.len / dev->block_size;
-	off = rq->read.off;
 
 	if (dev->map_buffers) {
 		addr = frame_map_anywhere(cap);
@@ -97,7 +94,7 @@ handle_write(struct block_dev *dev,
 
 	size_t pa, len;
 	int type;
-	
+
 	rp.write.type = BLOCK_write;
 
 	if (frame_info(cap, &type, &pa, &len) != OK) {
@@ -105,17 +102,14 @@ handle_write(struct block_dev *dev,
 		return reply_cap(eid, from, &rp, cap);
 	}
 
-	if (len < rq->write.len ||
-			rq->write.start % dev->block_size != 0 || 
-			rq->write.len % dev->block_size != 0) 
-	{
+	start = rq->write.blk;
+	n = rq->write.n_blks;
+	off = rq->write.off;
+
+	if (len < off + n * dev->block_size) {
 		rp.write.ret = ERR;
 		return reply_cap(eid, from, &rp, cap);
 	}
-
-	start = rq->write.start / dev->block_size;
-	n = rq->write.len / dev->block_size;
-	off = rq->write.off;
 
 	if (dev->map_buffers) {
 		addr = frame_map_anywhere(cap);
@@ -138,7 +132,7 @@ handle_write(struct block_dev *dev,
 
 	rp.write.ret = ret;
 
-	return reply(eid, from, &rp);
+	return reply_cap(eid, from, &rp, cap);
 }
 
 	int
