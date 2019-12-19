@@ -13,6 +13,7 @@ PROCS_TEST_LIBS = \
 	lib/log \
 	lib/string \
 	lib/mem \
+	lib/crc \
 	lib/fat
 
 PROCS_TEST_OBJECTS = \

@@ -14,6 +14,7 @@
 #include <fat.h>
 #include <timer.h>
 #include <log.h>
+#include <crc.h>
 
 #define TEST_MEM 0
 #define TEST_TMR 0
@@ -38,6 +39,12 @@ main(void)
 	log_init("test");
 
 	log(LOG_INFO, "test starting");
+
+	uint8_t t[] = "hello there";
+
+	uint32_t crc = crc_checksum(t, sizeof(t)-1);
+
+	log(LOG_INFO, "crc = 0x%x", crc);
 
 #if TEST_TMR
 	test_timer();
