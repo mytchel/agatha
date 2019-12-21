@@ -313,10 +313,7 @@ get_free_span_slot(size_t len)
 		return fs;
 	}
 
-	return nil;
-
-#if 0
-	size_t l1_pa, tlen;
+	log(LOG_WARNING, "no space found for 0x%x", len);
 
 	log(LOG_INFO, "need a new l1 span");
 
@@ -329,38 +326,44 @@ get_free_span_slot(size_t len)
 	}
 
 	if (fl == nil) {
+		log(LOG_WARNING, "no l1 span found");
 		return nil;
 	}
 
-	fs = pool_alloc(&span_pool);
-	if (s == nil) {
-		return nil;
-	}
+	int fid;
+	size_t tlen;
 
 	tlen = (TABLE_ALIGN(len) >> TABLE_SHIFT) * TABLE_SIZE;
-	l1_pa = request_memory(tlen, 0x1000);
-	if (l1_pa == nil) {
-		pool_free(&span_pool, fs);
+	fid = request_memory(tlen, 0x1000);
+	if (fid < 0) {
+		log(LOG_WARNING, "l2 table mem request failed");
 		return nil;
 	}
 
-	r = addr_map_l2s(l1_pa, fl->va, tlen);
+	r = frame_l2_map(CID_L1, fid, (void *) fl->va);
 	if (r != OK) {
-		release_addr(l1_pa, tlen);
-		pool_free(&span_pool, fs);
+		log(LOG_WARNING, "l2 map failed");
+		release_memory(fid);
 		return nil;
 	}
 
 	if (fl->len > TABLE_ALIGN(len)) {
 		if ((r = split_l1_span(fl, TABLE_ALIGN(len))) != OK) {
+			log(LOG_WARNING, "l2 split failed");
+			frame_l2_unmap(CID_L1, fid, (void *) fl->va);
+			release_memory(fid);
 			return nil;
 		}
 	}
 
-	fl->pa = l1_pa;
 	take_add_l1_span(fl, &l1_mapped);
 
-	fs->pa = nil;
+	fs = pool_alloc(&span_pool);
+	if (fs == nil) {
+		log(LOG_WARNING, "pool alloc failed");
+		return nil;
+	}
+
 	fs->va = fl->va;
 	fs->len = fl->len;
 	fs->next = nil;
@@ -378,7 +381,6 @@ get_free_span_slot(size_t len)
 	log(LOG_INFO, "giving 0x%x", fs->va);
 
 	return fs;
-#endif
 }
 
 	void *

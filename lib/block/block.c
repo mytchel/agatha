@@ -45,6 +45,7 @@ handle_read(struct block_dev *dev,
 	rp.read.type = BLOCK_read;
 
 	if (frame_info(cap, &type, &pa, &len) != OK) {
+		log(LOG_WARNING, "frame bad");
 		rp.read.ret = ERR;
 		return reply_cap(eid, from, &rp, cap);
 	}
@@ -54,6 +55,7 @@ handle_read(struct block_dev *dev,
 	off = rq->read.off;
 
 	if (len - off < n * dev->block_size) {
+		log(LOG_WARNING, "frame too small");
 		rp.read.ret = ERR;
 		return reply_cap(eid, from, &rp, cap);
 	}
@@ -61,6 +63,7 @@ handle_read(struct block_dev *dev,
 	if (dev->map_buffers) {
 		addr = frame_map_anywhere(cap);
 		if (addr == nil) {
+			log(LOG_WARNING, "frame map failed");
 			rp.read.ret = ERR;
 			return reply_cap(eid, from, &rp, cap);
 		}

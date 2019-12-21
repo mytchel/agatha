@@ -20,6 +20,8 @@ block_read(int eid, int fid,
 	union block_req rq;
 	union block_rsp rp;
 
+	log(LOG_INFO, "block read 0x%x", blk);
+
 	rq.read.type = BLOCK_read;
 	rq.read.off = 0;
 	rq.read.blk = blk;
@@ -42,6 +44,8 @@ block_write(int eid, int fid,
 {
 	union block_req rq;
 	union block_rsp rp;
+
+	log(LOG_INFO, "block write 0x%x", blk);
 
 	rq.write.type = BLOCK_write;
 	rq.write.off = 0;

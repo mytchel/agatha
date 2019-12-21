@@ -86,6 +86,8 @@ main(void)
 		return ERR;
 	}
 
+	log(LOG_INFO, "format lfs partition");
+
 	if (lfs_setup(&lfs, blk_cid, p_start, p_len) != OK) {
 		return ERR;
 	}
@@ -94,7 +96,69 @@ main(void)
 		return ERR;
 	}
 
+	uint8_t name[16] = { 0 };
+	snprintf(name, sizeof(name), "test");
+
+	if (lfs_create(&lfs, name) != OK) {
+		return ERR;
+	}
+
+	uint8_t buf[32];
+	
+	snprintf(buf, sizeof(buf), "one two three four five");
+
+	size_t l = strlen(buf);
+	
+	if (lfs_write(&lfs, name, buf, 0, sizeof(buf)) != OK) {
+		return ERR;
+	}
+
+	memset(buf, 0, sizeof(buf));
+
+	if (lfs_read(&lfs, name, buf, 0, sizeof(buf)) != OK) {
+		return ERR;
+	}
+
+	buf[l] = 0;
+
+	log(LOG_INFO, "read: '%s'", buf);
+
+	lfs_flush(&lfs);
 	lfs_free(&lfs);
+
+	log(LOG_INFO, "load lfs partition");
+	
+	if (lfs_setup(&lfs, blk_cid, p_start, p_len) != OK) {
+		return ERR;
+	}
+
+	if (lfs_load(&lfs) != OK) {
+		return ERR;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	if (lfs_read(&lfs, name, buf, 0, sizeof(buf)) != OK) {
+		return ERR;
+	}
+
+	log(LOG_INFO, "read: '%s'", buf);
+
+	log(LOG_INFO, "trunc", buf);
+	if (lfs_trunc(&lfs, name, 10) != OK) {
+		return ERR;
+	}
+
+	log(LOG_INFO, "read after trunc");
+	memset(buf, 0, sizeof(buf));
+	if (lfs_read(&lfs, name, buf, 0, 10) != OK) {
+		return ERR;
+	}
+
+	log(LOG_INFO, "read: '%s'", buf);
+
+	lfs_free(&lfs);
+
+	log(LOG_INFO, "lfs test done");
 
 	return OK;
 }

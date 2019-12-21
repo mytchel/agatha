@@ -554,6 +554,8 @@ sys_reply(int to, int pid, uint8_t *m, int cid)
 		if (o == nil) {
 			debug_warn("%i reply cap 0x%x not found\n", up->pid, cid);
 			return ERR;
+		} else if (o->perm == 0) {
+			o = nil;
 		}
 	} else {
 		o = nil;
