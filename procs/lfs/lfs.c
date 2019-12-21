@@ -16,6 +16,9 @@
 
 #include "lfs.h"
 
+static void
+lfs_blk_free(struct lfs_blk *b);
+
 void
 lfs_checkpoint_fill_segs(struct lfs *lfs, 
 	struct lfs_b_checkpoint *checkpoint)
@@ -667,12 +670,37 @@ lfs_init(struct lfs *lfs)
 	return OK;
 }
 
+static void
+lfs_blk_free(struct lfs_blk *blk)
+{
+	if (blk->addr != nil) unmap_addr(blk->mem_fid, blk->addr);
+	if (blk->mem_fid > 0) release_memory(blk->mem_fid);
+	free(blk);
+}
+
 void
 lfs_free(struct lfs *lfs)
 {
+	struct lfs_inode *inode;
+	struct lfs_blk *n, *nn;
+	size_t i;
+
 	if (lfs->checkpoint_fid >= 0) release_memory(lfs->checkpoint_fid);
 	if (lfs->segments != nil) free(lfs->segments);
-	if (lfs->inodes != nil) free(lfs->inodes);
+	if (lfs->inodes != nil) {
+		for (i = 0; i < lfs->n_inodes; i++) {
+			inode = &lfs->inodes[i];
+			if (inode->created) {
+				n = inode->blks;
+				while (n != nil) {
+					nn = n->bnext;
+					lfs_blk_free(n);
+					n = nn;
+				}
+			}
+		}
+		free(lfs->inodes);
+	}
 
 	lfs->checkpoint_fid = -1;
 	lfs->segments = nil;
@@ -1134,7 +1162,7 @@ lfs_find_inode(struct lfs *lfs,
 		} else if (inode->free) {
 			log(LOG_INFO, "inode is free");
 			return nil;
-		} else if (memcmp(inode->name, name, lfs_name_len)) {
+		} else if (inode->created && memcmp(inode->name, name, lfs_name_len)) {
 			log(LOG_INFO, "name matches");
 			return inode;
 		}
@@ -1216,23 +1244,33 @@ int
 lfs_rm(struct lfs *lfs, uint8_t name[lfs_name_len])
 {
 	struct lfs_inode *inode;
+	struct lfs_blk *n, *nn;
 
 	log(LOG_INFO, "lfs rm '%s'", name);
 
 	inode = lfs_find_inode(lfs, name, false);
-	if (inode != nil) {
+	if (inode == nil) {
 		return ERR;
 	}
 
-	/* TODO: free blks */
+	log(LOG_INFO, "lfs rm found '%s'", name);
+
+	n = inode->blks;
+	while (n != nil) {
+		log(LOG_INFO, "remove blk for offset 0x%x", (uint32_t) n->off);
+		nn = n->bnext;
+		lfs_blk_free(n);
+		n = nn;
+	}
 
 	inode->blks = nil;
+	inode->blk_cnt = 0;
 
 	inode->created = false;
 
 	lfs_add_pending(lfs, inode);
 
-	return ERR;
+	return OK;
 }
 
 static struct lfs_blk *
@@ -1535,8 +1573,7 @@ lfs_trunc(struct lfs *lfs, uint8_t name[lfs_name_len],
 	uint64_t len)
 {
 	struct lfs_inode *inode;
-	struct lfs_blk **b;
-	size_t n;
+	struct lfs_blk **b, *n, *nn;
 
 	log(LOG_INFO, "lfs trunc '%s'", name);
 
@@ -1555,21 +1592,25 @@ lfs_trunc(struct lfs *lfs, uint8_t name[lfs_name_len],
 
 	inode->len_real = len;
 
-	n = 0;
+	inode->blk_cnt = 0;
 	b = &inode->blks;
 	while (*b != nil) {
 		if ((*b)->off >= len) {
+			n = *b;
+			while (n != nil) {
+				nn = n->bnext;
+				lfs_blk_free(n);
+				n = nn;
+			}
+
 			*b = nil;
 			break;
-			/* TODO: free stuff*/
 		}
 
 		b = &(*b)->bnext;
-		n++;
+		inode->blk_cnt++;
 	}
 
-	inode->blk_cnt = n;
-	
 	lfs_add_pending(lfs, inode);
 
 	return OK;

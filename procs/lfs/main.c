@@ -153,8 +153,20 @@ main(void)
 	if (lfs_read(&lfs, name, buf, 0, 10) != OK) {
 		return ERR;
 	}
-
+	
 	log(LOG_INFO, "read: '%s'", buf);
+
+	log(LOG_INFO, "rm");
+	if (lfs_rm(&lfs, name) != OK) {
+		return ERR;
+	}
+	
+	memset(buf, 0, sizeof(buf));
+	if (lfs_read(&lfs, name, buf, 0, 10) != OK) {
+		log(LOG_INFO, "read after rm failed");
+	} else {
+		log(LOG_WARNING, "read after rm: '%s'", buf);
+	}
 
 	lfs_free(&lfs);
 
